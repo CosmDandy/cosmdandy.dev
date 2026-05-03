@@ -1,0 +1,45 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <linearGradient id="halo" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%"   stop-color="#ff3264" stop-opacity="0.55"/>
+            <stop offset="25%"  stop-color="#ff5096" stop-opacity="0.40"/>
+            <stop offset="50%"  stop-color="#7828dc" stop-opacity="0.30"/>
+            <stop offset="75%"  stop-color="#00dcff" stop-opacity="0.40"/>
+            <stop offset="100%" stop-color="#00ffff" stop-opacity="0.55"/>
+        </linearGradient>
+        <filter id="blur" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="120"/>
+        </filter>
+        <pattern id="dots" x="0" y="0" width="24" height="24" patternUnits="userSpaceOnUse">
+            <circle cx="2" cy="2" r="1" fill="#93a1a1" fill-opacity="0.18"/>
+        </pattern>
+    </defs>
+
+    <rect width="1200" height="630" fill="#000"/>
+    <rect width="1200" height="630" fill="url(#dots)"/>
+
+    <g filter="url(#blur)">
+        <rect x="-200" y="-200" width="900" height="900" fill="url(#halo)"/>
+    </g>
+
+    <text x="80" y="290"
+          font-family="Inter, -apple-system, system-ui, sans-serif"
+          font-weight="600"
+          font-size="92"
+          fill="#ededed"
+          letter-spacing="-2.5">Timofey Kondrashin</text>
+
+    <text x="80" y="345"
+          font-family="Inter, -apple-system, system-ui, sans-serif"
+          font-weight="400"
+          font-size="32"
+          fill="#93a1a1">DevOps Engineer</text>
+
+    <line x1="80" y1="540" x2="116" y2="540" stroke="#586e75" stroke-width="1.5"/>
+    <text x="132" y="546"
+          font-family="Inter, -apple-system, system-ui, sans-serif"
+          font-weight="400"
+          font-size="22"
+          fill="#586e75"
+          letter-spacing="0.5">cosmdandy.dev</text>
+</svg>
