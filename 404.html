@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<!--
+    Hi. Crafted by hand — no frameworks, no build tools.
+    Source: github.com/CosmDandy/cosmdandy.dev
+-->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>404 — Timofey Kondrashin</title>
+    <meta name="description" content="Page not found">
+    <meta name="theme-color" content="#000000">
+    <meta name="color-scheme" content="dark">
+    <meta name="robots" content="noindex">
+    <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+    <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+    <link rel="preload" href="fonts/Inter-Regular.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="fonts/Inter-SemiBold.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .not-found-bg {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: clamp(10rem, 32vw, 26rem);
+            font-weight: 600;
+            color: rgba(237, 237, 237, 0.035);
+            letter-spacing: -0.06em;
+            line-height: 1;
+            text-align: center;
+            pointer-events: none;
+            user-select: none;
+            z-index: 1;
+            transform: translateZ(0);
+            -webkit-font-smoothing: antialiased;
+            animation: contentEnter 1s cubic-bezier(0.32, 0.72, 0, 1) backwards;
+        }
+
+        @media (max-width: 480px) {
+            .not-found-bg {
+                align-items: flex-start;
+                padding-top: 15vh;
+                color: rgba(237, 237, 237, 0.16);
+                letter-spacing: -0.02em;
+                transform: translateZ(0) scaleY(1.5);
+                transform-origin: top center;
+                -webkit-mask-image: linear-gradient(to top, black 60%, transparent 100%);
+                mask-image: linear-gradient(to top, black 60%, transparent 100%);
+            }
+        }
+
+        .not-found-message {
+            font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+            font-size: 0.78rem;
+            color: #93a1a1;
+            margin-bottom: 32px;
+            letter-spacing: 0.01em;
+            line-height: 1.55;
+            transform: translateZ(0);
+            -webkit-font-smoothing: antialiased;
+            animation: contentEnter 0.65s cubic-bezier(0.32, 0.72, 0, 1) 80ms backwards;
+        }
+
+        .meta-404 {
+            font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="dots"></div>
+    <div class="cursor-glow" id="cursor-glow"></div>
+    <div class="not-found-bg">404</div>
+
+    <main>
+        <div class="card">
+            <div class="glow"></div>
+            <p class="not-found-message">We can't reach this part of the network right now.</p>
+            <nav class="links">
+                <a href="/" class="link-item">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+                    <span>Head home or stay a while</span>
+                </a>
+            </nav>
+        </div>
+    </main>
+
+    <footer class="meta meta-404">
+        <span>error 404</span>
+        <span class="meta-sep">·</span>
+        <a href="/">head home</a>
+        <span class="meta-sep">·</span>
+        <span>not found</span>
+    </footer>
+
+    <script>
+        const cursorGlow = document.getElementById('cursor-glow');
+        const dotsEl = document.querySelector('.dots');
+        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        let mouseX = window.innerWidth / 2;
+        let mouseY = window.innerHeight / 2;
+        let cursorX = mouseX, cursorY = mouseY;
+        let dotsX = 0, dotsY = 0;
+
+        document.addEventListener('mousemove', e => {
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+            cursorGlow.classList.add('visible');
+        });
+
+        document.addEventListener('mouseleave', () => {
+            cursorGlow.classList.remove('visible');
+        });
+
+        (function animate() {
+            cursorX += (mouseX - cursorX) * 0.15;
+            cursorY += (mouseY - cursorY) * 0.15;
+            cursorGlow.style.left = cursorX + 'px';
+            cursorGlow.style.top = cursorY + 'px';
+
+            if (!prefersReducedMotion) {
+                const targetDotsX = (mouseX / window.innerWidth - 0.5) * 10;
+                const targetDotsY = (mouseY / window.innerHeight - 0.5) * 10;
+                dotsX += (targetDotsX - dotsX) * 0.05;
+                dotsY += (targetDotsY - dotsY) * 0.05;
+                dotsEl.style.backgroundPosition = `${dotsX.toFixed(2)}px ${dotsY.toFixed(2)}px`;
+            }
+
+            requestAnimationFrame(animate);
+        })();
+    </script>
+</body>
+</html>

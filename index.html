@@ -1,4 +1,8 @@
 <!DOCTYPE html>
+<!--
+    Hi. Crafted by hand — no frameworks, no build tools.
+    Source: github.com/CosmDandy/cosmdandy.dev
+-->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -89,7 +93,7 @@
     </main>
 
     <footer class="meta">
-        <a href="https://github.com/cosmdandy/cosmdandy.dev" target="_blank" rel="noopener">source</a>
+        <a href="https://github.com/CosmDandy/cosmdandy.dev" target="_blank" rel="noopener">source</a>
         <span class="meta-sep">·</span>
         <span>2026</span>
     </footer>
@@ -97,6 +101,8 @@
     <script>
         const cursorGlow = document.getElementById('cursor-glow');
         const linkItems = document.querySelectorAll('.link-item:not(.disabled)');
+        const dotsEl = document.querySelector('.dots');
+        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
         const gradientStops = [
             { pos: 0,    r: 255, g: 50,  b: 100 },
@@ -134,6 +140,7 @@
         let mouseX = window.innerWidth / 2;
         let mouseY = window.innerHeight / 2;
         let cursorX = mouseX, cursorY = mouseY;
+        let dotsX = 0, dotsY = 0;
 
         document.addEventListener('mousemove', e => {
             mouseX = e.clientX;
@@ -161,24 +168,21 @@
 
                 if (dist < threshold || isHovering) {
                     const intensity = isHovering ? 1 : 1 - dist / threshold;
-                    const alpha = (intensity * 0.7).toFixed(2);
-                    const alphaLow = (intensity * 0.15).toFixed(2);
+                    const alphaLow = (intensity * 0.06).toFixed(2);
+                    const borderAlpha = (intensity * 0.2).toFixed(2);
 
                     const tl = sampleGradient(getDiagT(rect.left, rect.top));
                     const br = sampleGradient(getDiagT(rect.right, rect.bottom));
                     const cm = sampleGradient(getDiagT(rect.left + rect.width / 2, rect.top + rect.height / 2));
 
                     if (isHovering) {
-                        item.style.boxShadow = `0 0 0 1px rgba(147, 161, 161, 0.06), 0 8px 32px -4px rgba(0, 0, 0, 0.8), 0 0 60px -5px rgba(${cm.r}, ${cm.g}, ${cm.b}, 0.15)`;
+                        item.style.boxShadow = `0 0 0 1px rgba(147, 161, 161, 0.06), 0 8px 32px -4px rgba(0, 0, 0, 0.8), 0 0 40px -8px rgba(${cm.r}, ${cm.g}, ${cm.b}, 0.07)`;
                     } else {
-                        item.style.boxShadow = `0 0 0 1px rgba(147, 161, 161, 0.04), 0 4px 24px -4px rgba(0, 0, 0, 0.7), 0 0 ${20 + intensity * 40}px -5px rgba(${cm.r}, ${cm.g}, ${cm.b}, ${alphaLow})`;
+                        item.style.boxShadow = `0 0 0 1px rgba(147, 161, 161, 0.04), 0 4px 24px -4px rgba(0, 0, 0, 0.7), 0 0 ${16 + intensity * 24}px -8px rgba(${cm.r}, ${cm.g}, ${cm.b}, ${alphaLow})`;
                     }
 
-                    const relX = ((mx - rect.left) / rect.width * 100).toFixed(0);
-                    const relY = ((my - rect.top) / rect.height * 100).toFixed(0);
                     item.style.setProperty('--proximity-border',
-                        `radial-gradient(circle at ${relX}% ${relY}%, rgba(${cm.r}, ${cm.g}, ${cm.b}, ${alpha}) 0%, transparent 70%), ` +
-                        `linear-gradient(225deg, rgba(${tl.r}, ${tl.g}, ${tl.b}, ${(intensity * 0.4).toFixed(2)}), rgba(${br.r}, ${br.g}, ${br.b}, ${(intensity * 0.4).toFixed(2)}))`
+                        `linear-gradient(225deg, rgba(${tl.r}, ${tl.g}, ${tl.b}, ${borderAlpha}), rgba(${br.r}, ${br.g}, ${br.b}, ${borderAlpha}))`
                     );
                 } else {
                     item.style.removeProperty('--proximity-border');
@@ -192,6 +196,14 @@
             cursorY += (mouseY - cursorY) * 0.15;
             cursorGlow.style.left = cursorX + 'px';
             cursorGlow.style.top = cursorY + 'px';
+
+            if (!prefersReducedMotion) {
+                const targetDotsX = (mouseX / window.innerWidth - 0.5) * 10;
+                const targetDotsY = (mouseY / window.innerHeight - 0.5) * 10;
+                dotsX += (targetDotsX - dotsX) * 0.05;
+                dotsY += (targetDotsY - dotsY) * 0.05;
+                dotsEl.style.backgroundPosition = `${dotsX.toFixed(2)}px ${dotsY.toFixed(2)}px`;
+            }
 
             requestAnimationFrame(animate);
         })();
