@@ -1,7 +1,6 @@
 {
   "name": "Template DevContainer",
-  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
-  "onCreateCommand": ".devcontainer/setup.sh",
+  "image": "ghcr.io/cosmdandy/devcontainer:core",
   "remoteEnv": {
     "LANG": "en_US.UTF-8",
     "LC_ALL": "en_US.UTF-8",
