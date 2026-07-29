@@ -1,0 +1,146 @@
+# Доставка визитки в Cloudflare Workers.
+#
+# Раньше сайт публиковался GitHub Pages прямо из ветки, без всякого пайплайна:
+# статика лежит в корне репозитория. Теперь тот же набор файлов собирается в
+# _site/ и заливается в воркер — Pages на этом домене больше не участвует.
+#
+# Тот же принцип, что в security.yml: actions запиннены по полному commit SHA,
+# а не по тегу — тег владелец экшена может передвинуть на другой код. Версия в
+# комментарии для читаемости, пины обновляет Dependabot.
+name: deploy
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+# Пусто на уровне workflow — каждая job запрашивает права явно и минимально.
+permissions: {}
+
+concurrency:
+  # Не отменяем на лету: прерванный деплой оставит воркер в промежуточном
+  # состоянии. Очередь подождёт, собирать тут нечего.
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: сборка
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # checkout по умолчанию оставляет токен в .git/config, откуда его
+          # прочитает любой следующий шаг. Git после клона тут не нужен.
+          persist-credentials: false
+
+      # Копируем явным списком, а не «всё, кроме служебного»: список короткий и
+      # не преподносит сюрпризов, когда в корне появится новый файл.
+      #
+      # CNAME намеренно не копируется — он нужен был GitHub Pages, а на
+      # Cloudflare домен привязан к воркеру в дашборде.
+      - name: Собрать _site
+        run: |
+          mkdir -p _site
+          cp index.html 404.html style.css robots.txt sitemap.xml site.webmanifest _site/
+          cp -r assets fonts _site/
+          echo "Содержимое _site:"
+          find _site -type f | sort
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: site
+          path: _site/
+          retention-days: 7
+
+  deploy:
+    name: деплой
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    environment:
+      name: production
+      url: https://cosmdandy.dev
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Нужен только wrangler.jsonc, история не требуется.
+          persist-credentials: false
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: site
+          path: _site/
+
+      # Секреты нельзя проверить в if: — контекст secrets там недоступен.
+      # Без этого шага отсутствие токена выглядит как невнятная ошибка внутри
+      # wrangler, и непонятно, сломался деплой или не настроен доступ.
+      - name: Проверка доступа к Cloudflare
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          missing=""
+          [ -z "$TOKEN" ] && missing="CLOUDFLARE_API_TOKEN"
+          [ -z "$ACCOUNT" ] && missing="${missing:+$missing, }CLOUDFLARE_ACCOUNT_ID"
+          if [ -n "$missing" ]; then
+            echo "::error::Не задано: $missing. Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+
+      - uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4.0.0
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy
+
+  preview:
+    name: превью
+    needs: build
+    # Только для PR из этого же репозитория: ветке из форка секреты не
+    # достаются, и это правильно. Dependabot исключён отдельно — его PR
+    # выглядят внутренними, но секреты получают из своего хранилища, а не из
+    # Actions, так что превью для него всё равно не собралось бы.
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: site
+          path: _site/
+
+      # versions upload, а не deploy: заливается новая версия воркера со своим
+      # preview-адресом, а прод продолжает отдавать текущую.
+      - id: upload
+        uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4.0.0
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: versions upload
+
+      - name: Ссылка на превью
+        env:
+          OUTPUT: ${{ steps.upload.outputs.command-output }}
+        run: |
+          {
+            echo "### Превью этой версии"
+            echo
+            echo '```'
+            printf '%s' "$OUTPUT" | grep -i "preview" \
+              || echo "адрес не найден в выводе wrangler"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

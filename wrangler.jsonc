@@ -1,0 +1,20 @@
+// Статика на Cloudflare Workers. Скрипта воркера нет — только раздача файлов.
+//
+// Почему Workers, а не Pages: Cloudflare с 2025 года ведёт новые проекты сюда,
+// в Pages идут только исправления.
+//
+// Раздаём _site/, а не корень репозитория: иначе в выдачу уехали бы README,
+// .github и сам этот конфиг.
+{
+  "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
+  "name": "cosmdandy-dev",
+  "compatibility_date": "2026-07-29",
+  "assets": {
+    "directory": "./_site",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page"
+  },
+  "observability": {
+    "enabled": true
+  }
+}
