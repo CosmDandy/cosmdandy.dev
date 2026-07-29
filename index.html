@@ -7,28 +7,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Timofey Kondrashin</title>
-    <meta name="description" content="DevOps Engineer specializing in Kubernetes, Terraform, CI/CD, and cloud infrastructure. CV, GitHub, LinkedIn, and contacts at cosmdandy.dev.">
-    <meta name="theme-color" content="#000000">
-    <meta name="color-scheme" content="dark">
+    <title>cosmdandy — Timofey Kondrashin</title>
+    <meta name="description" content="cosmdandy — Timofey Kondrashin, DevOps Engineer specializing in Kubernetes, Terraform, CI/CD, and cloud infrastructure. Blog, CV, GitHub, LinkedIn and contacts.">
+    <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+    <meta name="theme-color" content="#fdf6e3" media="(prefers-color-scheme: light)">
+    <meta name="color-scheme" content="dark light">
 
     <link rel="canonical" href="https://cosmdandy.dev">
     <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
     <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
     <link rel="manifest" href="site.webmanifest">
 
-    <meta property="og:title" content="Timofey Kondrashin">
-    <meta property="og:description" content="DevOps Engineer specializing in Kubernetes, Terraform, CI/CD, and cloud infrastructure. CV, GitHub, LinkedIn, and contacts at cosmdandy.dev.">
+    <meta property="og:title" content="cosmdandy — Timofey Kondrashin">
+    <meta property="og:description" content="cosmdandy — Timofey Kondrashin, DevOps Engineer specializing in Kubernetes, Terraform, CI/CD, and cloud infrastructure. Blog, CV, GitHub, LinkedIn and contacts.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://cosmdandy.dev">
     <meta property="og:image" content="https://cosmdandy.dev/assets/og.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="og:image:alt" content="Timofey Kondrashin · DevOps Engineer">
+    <meta property="og:image:alt" content="cosmdandy · Timofey Kondrashin · DevOps Engineer">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Timofey Kondrashin">
-    <meta name="twitter:description" content="DevOps Engineer specializing in Kubernetes, Terraform, CI/CD, and cloud infrastructure. CV, GitHub, LinkedIn, and contacts at cosmdandy.dev.">
+    <meta name="twitter:title" content="cosmdandy — Timofey Kondrashin">
+    <meta name="twitter:description" content="cosmdandy — Timofey Kondrashin, DevOps Engineer specializing in Kubernetes, Terraform, CI/CD, and cloud infrastructure. Blog, CV, GitHub, LinkedIn and contacts.">
     <meta name="twitter:image" content="https://cosmdandy.dev/assets/og.png">
 
     <link rel="preload" href="fonts/Inter-Regular.woff2" as="font" type="font/woff2" crossorigin>
@@ -40,6 +41,7 @@
         "@context": "https://schema.org",
         "@type": "Person",
         "name": "Timofey Kondrashin",
+        "alternateName": "cosmdandy",
         "jobTitle": "DevOps Engineer",
         "url": "https://cosmdandy.dev",
         "email": "i@cosmdandy.dev",
@@ -174,10 +176,13 @@
                     const br = sampleGradient(getDiagT(rect.right, rect.bottom));
                     const cm = sampleGradient(getDiagT(rect.left + rect.width / 2, rect.top + rect.height / 2));
 
+                    // Базовая тень и кромка берутся из переменных темы: на светлой
+                    // чёрные тени из тёмной выглядели бы грязным пятном. Меняется
+                    // только цветное свечение — оно считается от градиента.
                     if (isHovering) {
-                        item.style.boxShadow = `0 0 0 1px rgba(147, 161, 161, 0.06), 0 8px 32px -4px rgba(0, 0, 0, 0.8), 0 0 40px -8px rgba(${cm.r}, ${cm.g}, ${cm.b}, 0.07)`;
+                        item.style.boxShadow = `0 0 0 1px var(--card-ring-hover), var(--card-shadow-hover), 0 0 40px -8px rgba(${cm.r}, ${cm.g}, ${cm.b}, 0.07)`;
                     } else {
-                        item.style.boxShadow = `0 0 0 1px rgba(147, 161, 161, 0.04), 0 4px 24px -4px rgba(0, 0, 0, 0.7), 0 0 ${16 + intensity * 24}px -8px rgba(${cm.r}, ${cm.g}, ${cm.b}, ${alphaLow})`;
+                        item.style.boxShadow = `0 0 0 1px var(--card-ring), var(--card-shadow), 0 0 ${16 + intensity * 24}px -8px rgba(${cm.r}, ${cm.g}, ${cm.b}, ${alphaLow})`;
                     }
 
                     item.style.setProperty('--proximity-border',

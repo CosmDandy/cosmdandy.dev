@@ -9,8 +9,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>404 — Timofey Kondrashin</title>
     <meta name="description" content="Page not found">
-    <meta name="theme-color" content="#000000">
-    <meta name="color-scheme" content="dark">
+    <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+    <meta name="theme-color" content="#fdf6e3" media="(prefers-color-scheme: light)">
+    <meta name="color-scheme" content="dark light">
     <meta name="robots" content="noindex">
     <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
     <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
@@ -26,7 +27,7 @@
             justify-content: center;
             font-size: clamp(10rem, 32vw, 26rem);
             font-weight: 600;
-            color: rgba(237, 237, 237, 0.035);
+            color: var(--ghost);
             letter-spacing: -0.06em;
             line-height: 1;
             text-align: center;
@@ -42,7 +43,7 @@
             .not-found-bg {
                 align-items: flex-start;
                 padding-top: 15vh;
-                color: rgba(237, 237, 237, 0.16);
+                color: var(--ghost-mobile);
                 letter-spacing: -0.02em;
                 transform: translateZ(0) scaleY(1.5);
                 transform-origin: top center;
@@ -54,7 +55,7 @@
         .not-found-message {
             font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
             font-size: 0.78rem;
-            color: #93a1a1;
+            color: var(--now);
             margin-bottom: 32px;
             letter-spacing: 0.01em;
             line-height: 1.55;

@@ -1,7 +1,102 @@
+/* Цвета вынесены в переменные, чтобы светлая тема переопределяла их одним
+   блоком внизу файла. По умолчанию — тёмная: она была тут всегда, и у тех,
+   кто не выставил системную тему, страница остаётся прежней.
+
+   Светлая — Solarized Light, та же гамма, что у блога на blog.cosmdandy.dev.
+   Свечение (.glow) в обеих темах одинаковое: на кремовом фоне оно читается
+   как акварельное пятно и связывает страницу с остальными сайтами. */
 :root {
     --base01: #586e75;
     --base1:  #93a1a1;
     --green:  #859900;
+
+    --bg:            #000;
+    --text:          var(--base1);
+    --heading:       #ededed;
+    --bio:           #70757e;
+    --now:           #5a6068;
+    --hover-text:    #eee8d5;
+    --meta:          var(--base01);
+
+    --dots:          rgba(147, 161, 161, 0.25);
+    --cursor-glow-1: rgba(237, 237, 237, 0.035);
+    --cursor-glow-2: rgba(237, 237, 237, 0.012);
+
+    --card-from:        rgba(7, 54, 66, 0.25);
+    --card-to:          rgba(7, 54, 66, 0.10);
+    --card-hover-from:  rgba(7, 54, 66, 0.40);
+    --card-hover-to:    rgba(7, 54, 66, 0.20);
+    --card-active-from: rgba(7, 54, 66, 0.50);
+    --card-active-to:   rgba(7, 54, 66, 0.30);
+
+    --card-border:            rgba(147, 161, 161, 0.08);
+    --card-border-top:        rgba(147, 161, 161, 0.14);
+    --card-border-hover:      rgba(147, 161, 161, 0.18);
+    --card-border-top-hover:  rgba(147, 161, 161, 0.25);
+
+    --card-ring:        rgba(147, 161, 161, 0.04);
+    --card-ring-hover:  rgba(147, 161, 161, 0.06);
+    --card-shadow:      0 4px 24px -4px rgba(0, 0, 0, 0.7);
+    --card-shadow-hover: 0 8px 32px -4px rgba(0, 0, 0, 0.8),
+                         0 0 80px -20px rgba(42, 161, 152, 0.06);
+
+    --badge-border:     rgba(147, 161, 161, 0.12);
+    --badge-shine-low:  rgba(147, 161, 161, 0.04);
+    --badge-shine-high: rgba(147, 161, 161, 0.18);
+
+    --selection-bg: rgba(120, 40, 220, 0.4);
+    --selection-fg: #ededed;
+    --focus:        rgba(0, 220, 255, 0.5);
+
+    /* Гигантская «404» на фоне страницы ошибки. */
+    --ghost:        rgba(237, 237, 237, 0.035);
+    --ghost-mobile: rgba(237, 237, 237, 0.16);
+}
+
+@media (prefers-color-scheme: light) {
+    :root {
+        --bg:            #fdf6e3; /* base3 */
+        --text:          #586e75; /* base01 */
+        --heading:       #073642; /* base02 */
+        --bio:           #839496; /* base0  */
+        --now:           #93a1a1; /* base1  */
+        --hover-text:    #073642;
+        --meta:          #93a1a1;
+
+        --dots:          rgba(88, 110, 117, 0.18);
+        --cursor-glow-1: rgba(7, 54, 66, 0.05);
+        --cursor-glow-2: rgba(7, 54, 66, 0.018);
+
+        /* Карточки на base2: та же логика «поверхность чуть плотнее фона»,
+           но со светлым основанием, иначе стекло превращается в грязь. */
+        --card-from:        rgba(238, 232, 213, 0.55);
+        --card-to:          rgba(238, 232, 213, 0.30);
+        --card-hover-from:  rgba(238, 232, 213, 0.75);
+        --card-hover-to:    rgba(238, 232, 213, 0.50);
+        --card-active-from: rgba(238, 232, 213, 0.85);
+        --card-active-to:   rgba(238, 232, 213, 0.60);
+
+        --card-border:            rgba(88, 110, 117, 0.14);
+        --card-border-top:        rgba(88, 110, 117, 0.20);
+        --card-border-hover:      rgba(88, 110, 117, 0.25);
+        --card-border-top-hover:  rgba(88, 110, 117, 0.32);
+
+        --card-ring:        rgba(88, 110, 117, 0.05);
+        --card-ring-hover:  rgba(88, 110, 117, 0.08);
+        --card-shadow:      0 4px 24px -4px rgba(88, 110, 117, 0.18);
+        --card-shadow-hover: 0 8px 32px -4px rgba(88, 110, 117, 0.24),
+                             0 0 80px -20px rgba(42, 161, 152, 0.10);
+
+        --badge-border:     rgba(88, 110, 117, 0.18);
+        --badge-shine-low:  rgba(88, 110, 117, 0.04);
+        --badge-shine-high: rgba(88, 110, 117, 0.16);
+
+        --selection-fg: #073642;
+        --focus:        rgba(38, 139, 210, 0.6);
+
+        --ghost:        rgba(7, 54, 66, 0.06);
+        --ghost-mobile: rgba(7, 54, 66, 0.14);
+    }
 }
 
 @font-face {
@@ -29,8 +124,8 @@
 body {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     font-variant-numeric: tabular-nums;
-    background: #000;
-    color: var(--base1);
+    background: var(--bg);
+    color: var(--text);
     min-height: 100vh;
     display: flex;
     align-items: center;
@@ -41,14 +136,14 @@ body {
 }
 
 ::selection {
-    background: rgba(120, 40, 220, 0.4);
-    color: #ededed;
+    background: var(--selection-bg);
+    color: var(--selection-fg);
 }
 
 .dots {
     position: fixed;
     inset: 0;
-    background-image: radial-gradient(circle, rgba(147, 161, 161, 0.25) 1px, transparent 1px);
+    background-image: radial-gradient(circle, var(--dots) 1px, transparent 1px);
     background-size: 24px 24px;
     pointer-events: none;
     z-index: 0;
@@ -76,8 +171,8 @@ body {
     border-radius: 50%;
     background: radial-gradient(
         circle at center,
-        rgba(237, 237, 237, 0.035) 0%,
-        rgba(237, 237, 237, 0.012) 35%,
+        var(--cursor-glow-1) 0%,
+        var(--cursor-glow-2) 35%,
         transparent 60%
     );
     pointer-events: none;
@@ -108,19 +203,19 @@ h1 {
     font-size: 1.4rem;
     font-weight: 600;
     letter-spacing: -0.025em;
-    color: #ededed;
+    color: var(--heading);
     margin-bottom: 8px;
 }
 
 .bio {
     font-size: 0.82rem;
-    color: #70757e;
+    color: var(--bio);
     margin-bottom: 4px;
 }
 
 .now {
     font-size: 0.78rem;
-    color: #5a6068;
+    color: var(--now);
     letter-spacing: 0.01em;
     margin-bottom: 32px;
 }
@@ -156,16 +251,16 @@ h1 {
     padding: 16px;
     border-radius: 12px;
     text-decoration: none;
-    color: var(--base1);
+    color: var(--text);
     font-size: 0.85rem;
     font-weight: 400;
-    background: linear-gradient(180deg, rgba(7, 54, 66, 0.25) 0%, rgba(7, 54, 66, 0.10) 100%);
-    border: 1px solid rgba(147, 161, 161, 0.08);
-    border-top-color: rgba(147, 161, 161, 0.14);
+    background: linear-gradient(180deg, var(--card-from) 0%, var(--card-to) 100%);
+    border: 1px solid var(--card-border);
+    border-top-color: var(--card-border-top);
     backdrop-filter: blur(25px);
     box-shadow:
-        0 0 0 1px rgba(147, 161, 161, 0.04),
-        0 4px 24px -4px rgba(0, 0, 0, 0.7);
+        0 0 0 1px var(--card-ring),
+        var(--card-shadow);
     transform: translateZ(0);
     transition:
         transform      0.48s cubic-bezier(0.34, 1.56, 0.64, 1),
@@ -192,28 +287,27 @@ h1 {
 }
 
 .link-item:visited {
-    color: var(--base1);
+    color: var(--text);
 }
 
 .link-item:hover {
-    color: #eee8d5;
-    background: linear-gradient(180deg, rgba(7, 54, 66, 0.4) 0%, rgba(7, 54, 66, 0.2) 100%);
-    border-color: rgba(147, 161, 161, 0.18);
-    border-top-color: rgba(147, 161, 161, 0.25);
+    color: var(--hover-text);
+    background: linear-gradient(180deg, var(--card-hover-from) 0%, var(--card-hover-to) 100%);
+    border-color: var(--card-border-hover);
+    border-top-color: var(--card-border-top-hover);
     box-shadow:
-        0 0 0 1px rgba(147, 161, 161, 0.06),
-        0 8px 32px -4px rgba(0, 0, 0, 0.8),
-        0 0 80px -20px rgba(42, 161, 152, 0.06);
+        0 0 0 1px var(--card-ring-hover),
+        var(--card-shadow-hover);
     transform: translate3d(0, -1px, 0);
 }
 
 .link-item:active {
-    background: linear-gradient(180deg, rgba(7, 54, 66, 0.5) 0%, rgba(7, 54, 66, 0.3) 100%);
+    background: linear-gradient(180deg, var(--card-active-from) 0%, var(--card-active-to) 100%);
     transform: translate3d(0, 0, 0);
 }
 
 .link-item:focus-visible {
-    outline: 2px solid rgba(0, 220, 255, 0.5);
+    outline: 2px solid var(--focus);
     outline-offset: 2px;
 }
 
@@ -237,16 +331,16 @@ h1 {
     flex-grow: 0 !important;
     font-size: 0.7rem;
     color: var(--base01);
-    border: 1px solid rgba(147, 161, 161, 0.12);
+    border: 1px solid var(--badge-border);
     border-radius: 6px;
     padding: 2px 8px;
     text-transform: uppercase;
     letter-spacing: 0.04em;
     background: linear-gradient(
         90deg,
-        rgba(147, 161, 161, 0.04) 0%,
-        rgba(147, 161, 161, 0.18) 50%,
-        rgba(147, 161, 161, 0.04) 100%
+        var(--badge-shine-low) 0%,
+        var(--badge-shine-high) 50%,
+        var(--badge-shine-low) 100%
     ) 0 0 / 200% 100%;
     animation: badgeShimmer 3.5s ease-in-out infinite;
 }
@@ -315,7 +409,7 @@ h1     { animation-delay: 0ms; }
     align-items: center;
     font-size: 0.72rem;
     letter-spacing: 0.02em;
-    color: var(--base01);
+    color: var(--meta);
     pointer-events: none;
     transform: translateZ(0);
     -webkit-font-smoothing: antialiased;
@@ -331,11 +425,11 @@ h1     { animation-delay: 0ms; }
 }
 
 .meta a:hover {
-    color: var(--base1);
+    color: var(--text);
 }
 
 .meta a:focus-visible {
-    outline: 2px solid rgba(0, 220, 255, 0.5);
+    outline: 2px solid var(--focus);
     outline-offset: 2px;
     border-radius: 2px;
 }
