@@ -11,12 +11,23 @@
 BOUNDS = (-120, 194, 292, 664)
 
 from board.geom import (
-    BAY_DEPTH, BAY_N, BAY_TOP, BAY_W, CAP, FRONT_W, GROUP_GAP, GROUP_H, H, X_FRONT, seat,
+    BAY_DEPTH,
+    BAY_N,
+    BAY_TOP,
+    BAY_W,
+    CAP,
+    FRONT_W,
+    GROUP_GAP,
+    GROUP_H,
+    X_FRONT,
+    H,
+    seat,
 )
-from board.metal import hexgrid
 from board.ink import mono, silk_frame
 from board.lamps import act_led, glow
+from board.metal import hexgrid
 from board.revision import stamp
+from board.spec import BAYS
 
 
 def bay_filler(x, y, w, h):
@@ -87,8 +98,13 @@ def render(cv):
         sled.append(f'<rect x="{x+3}" y="{ly}" width="{w-6}" height="{lh}" rx="1" '
                     f'fill="#e8e3d5" fill-opacity="0.09" stroke="rgba(147,161,161,0.24)"/>')
         tx, ty = x + w / 2, ly + lh / 2
-        # в одном слоте — Optane: самый дорогой и узнаваемый накопитель в парке
-        kind, size = ("Optane", "P5800X") if i == 2 else ("NVMe U.2", "3.84 TB")
+        # Что за диск в этом отсеке, знает паспорт: в одном слоте Optane —
+        # самый дорогой и узнаваемый накопитель в парке.
+        # У последнего отсека в паспорте только признак заглушки: подписи ей
+        # не нужны, она уходит в bay_filler ниже.
+        spec_bay = BAYS[i]
+        kind = spec_bay.get('kind', '')
+        size = 'P5800X' if kind == 'Optane' else f"{spec_bay.get('tb', 0)} TB"
         # Подпись идёт вдоль каддика, а не поперёк: он узкий, и поперёк строка
         # вылезала за рамку на соседей.
         for dx, text, size_pt, op in ((-4, kind, 7.5, 0.55), (7, size, 7.5, 0.4)):

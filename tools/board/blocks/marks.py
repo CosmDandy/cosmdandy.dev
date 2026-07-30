@@ -4,8 +4,9 @@
 регистр занятости уже знает, где стоят детали.
 """
 
-from board.geom import H, X_IO, X_PCB, X_REAR, X_SVC, Y_BANK_C, Y_BANK_L, Y_BANK_R
+from board.geom import X_IO, X_PCB, X_REAR, X_SVC, Y_BANK_C, Y_BANK_L, Y_BANK_R, H
 from board.ink import silk_frame
+from board.spec import PORTS
 
 
 def render(cv):
@@ -23,8 +24,8 @@ def render(cv):
         (X_SVC + 8, 600, "NMI_SW"),
         (X_REAR + 14, 176, "RISER_1 · PCIE_G5"),
         (X_REAR + 14, 686, "RISER_2 · PCIE_G5"),
-        (X_IO - 96, 176, "OCP_3.0 · 2×25G"),
-        (X_IO - 96, 330, "LAN_1/2 · 1GbE"),
+        (X_IO - 96, 176, f"OCP_3.0 · {PORTS['sfp']}"),
+        (X_IO - 96, 330, f"LAN_1/2 · {PORTS['eth']}"),
         (X_IO - 96, 464, "MLAN · IPMI 2.0"),
     ]
     for (x, y, text) in CANDIDATES:

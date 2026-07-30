@@ -12,8 +12,9 @@ BOUNDS = (1060, 448, 240, 274)
 from board.geom import IO_H, IO_Y, X_IO
 from board.ink import mono
 from board.lamps import act_led
-from board.ports import rj45, sfp
+from board.ports import rj45
 from board.revision import stamp
+from board.spec import PORTS
 
 
 def render(cv):
@@ -62,7 +63,7 @@ def render(cv):
     {rj_port(BY + 28, "eth", "https://t.me/cosmdandy", 4, 6)}
     {rj_port(BY + 70, "tw", "https://x.com/cosmdandy", 7, 11)}
   </g>
-  {mono(X_IO-96, BY + 116, "2× 1GbE", 8, op=0.5)}
+  {mono(X_IO-96, BY + 116, PORTS['eth'], 8, op=0.5)}
 </g>''')
 
     # Порт управления живёт своей жизнью: он на дежурном питании и работает,
@@ -74,7 +75,7 @@ def render(cv):
     {rj45(X_IO+16, BY + 110)}
     {act_led(9, X_IO+8, BY + 108, 3, "#b58900", salt=6, aux=True)}
   </g>
-  {mono(X_IO+43, BY + 166, "SYSTEM MGMT", 8, op=0.55)}
+  {mono(X_IO+43, BY + 166, PORTS['mgmt'], 8, op=0.55)}
 </g>''')
 
     cv.add(stamp(X_IO + 43, BY - 12, "задняя панель", anchor="middle"))

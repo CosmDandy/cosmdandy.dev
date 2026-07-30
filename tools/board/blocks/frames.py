@@ -24,6 +24,7 @@ from board.geom import (
     Y_CPU1,
 )
 from board.ink import block_frame
+from board.spec import CPU, DIMM
 
 BANK_H = BANK_N * PITCH
 
@@ -35,18 +36,21 @@ def render(cv):
         # Заголовок сокета уводим к середине: у левой кромки рамки стоит
         # партномер-ссылка, и на прежнем месте плашка садилась прямо на него.
         block_frame(X_SOCK - 8, Y_CPU0 - 8, SOCKET_W + 16, SOCKET_H + 16,
-                    "CPU0 · LGA 4677", "U1 · VR L10-L21", title_dx=110),
+                    f"CPU0 · {CPU['socket']}", "U1 · VR L10-L21", title_dx=110),
         block_frame(X_SOCK - 8, Y_CPU1 - 8, SOCKET_W + 16, SOCKET_H + 16,
-                    "CPU1 · LGA 4677", "U2 · VR L30-L41", title_dx=110),
+                    f"CPU1 · {CPU['socket']}", "U2 · VR L30-L41", title_dx=110),
         # Ряд дросселей узкий: заголовок в три знака — всё, что в него влезает.
         block_frame(X_CORE - 30, Y_CPU0 - 6, 30, SOCKET_H + 12, "VR0", "L10-L21"),
         block_frame(X_CORE - 30, Y_CPU1 - 6, 30, SOCKET_H + 12, "VR1", "L30-L41"),
     ]
     # Банки: рамка обнимает сами разъёмы, но не подписи DIMM справа от них —
     # иначе пунктир проходит ровно по строкам.
-    for y0, title, refs in ((Y_BANK_L, "CPU0 · A0–H0", "DIMM1-8"),
-                            (Y_BANK_C, "CPU0 · A1–D1  /  CPU1 · A0–D0", "DIMM9-16"),
-                            (Y_BANK_R, "CPU1 · A1–H1", "DIMM17-24")):
+    # Заголовок банка — его каналы, и они приходят из паспорта: двенадцать на
+    # процессор, средний банк делят двое. Пока каналы были написаны здесь
+    # руками, они говорили про восемь — столько же, сколько выдумала консоль.
+    for y0, b in zip((Y_BANK_L, Y_BANK_C, Y_BANK_R), DIMM['banks']):
+        owner = 'CPU0 / CPU1' if b['cpu'] == 'split' else f"CPU{b['cpu']}"
+        title, refs = f"{owner} · {b['ch']}", f"DIMM{b['first']}-{b['first'] + b['n'] - 1}"
         frames.append(block_frame(X_CORE - 10, y0 - 6, DIMM_SOCK_W + 16, BANK_H + 12,
                                   title, refs))
     cv.add('<g class="decor">' + ''.join(frames) + '</g>')
