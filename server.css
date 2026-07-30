@@ -373,8 +373,11 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   @keyframes pwrblink { 0%, 49% { stroke-opacity: 1 } 50%, 100% { stroke-opacity: 0.08 } }
   .rig.init .power-btn { cursor: not-allowed; }
 
-  /* Защёлки памяти прозрачные, как на x3550 M3, и желтеют, когда планка вышла. */
-  .latch { fill: rgba(147,161,161,0.26); transition: fill 0.15s steps(1, end); }
+  /* В 1U планку держит одна защёлка: с другой стороны глухой упор. Лампа
+     ошибки сидит прямо в защёлке — «DIMM error LEDs are located in the
+     handles», как написано на схеме живой машины, — и потому загорается
+     только с той стороны, где нанесены буквы банка. */
+  .latch, .latch-fix { fill: rgba(147,161,161,0.26); transition: fill 0.15s steps(1, end); }
   .dimm.pulled .latch { fill: var(--amber); }
 
   /* Light Path Diagnostics: панель выдвигается вперёд, за габарит корпуса. */
