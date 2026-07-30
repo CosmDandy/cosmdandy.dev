@@ -74,6 +74,15 @@ check('все узлы сели на места',
       seated.вент === 8 && seated.бп === 2 && seated.цп === 2 && seated.память === 24
       && seated.райзер === 2 && seated.диски === 7, JSON.stringify(seated));
 
+// 0б. Кнопка пересборки: сборку можно посмотреть ещё раз, не чистя историю.
+await click('#assemble-btn');
+await page.waitForTimeout(200);
+check('кнопка запускает пересборку', (await rigCls()).includes('assembly'), await rigCls());
+await page.waitForFunction(
+  () => !document.getElementById('rig').classList.contains('assembly'), null, { timeout: 20000 }
+).catch(() => {});
+check('пересборка завершилась', !(await rigCls()).includes('assembly'), await rigCls());
+
 // 1. Питание. Собранная машина стартует сама — сборка кончилась, значит её
 // можно включать. Дальше кнопка работает как обычно: выключает и включает.
 await page.waitForFunction(

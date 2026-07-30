@@ -4,8 +4,11 @@
   /* Сборка: райзер опускают в свой разъём сверху, целиком — вместе с картой
      и кронштейном. */
   .rig.assembly .riser {
-    animation: seatRiser 0.72s var(--seat, 0s) cubic-bezier(0.22, 1, 0.36, 1) backwards;
+    animation: seatRiser var(--click) var(--seat, 0s) backwards;
   }
   @keyframes seatRiser {
     from { opacity: 0; transform: translateY(-56px); }
   }
+
+  /* Райзер сидит в разъёме туго: срывается целиком, вместе с картой. */
+  .riser .pick-body { transition: transform var(--click); }

@@ -57,6 +57,42 @@ body.view-rig .rig { display: block; }
         transform    0.44s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
+/* Кнопка пересборки: та же плитка, что у вида и темы, третьей в ряду.
+   Показываем только на схеме — в виде карточки пересобирать нечего. */
+.assemble-btn {
+    position: fixed;
+    top: 24px;
+    right: 132px;
+    z-index: 4;
+    display: none;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    padding: 0;
+    border-radius: 14px;
+    border: 1px solid var(--inv-line);
+    background: var(--inv-surface);
+    box-shadow: var(--inv-shadow);
+    color: var(--inv-node);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition:
+        background   var(--theme-fade),
+        border-color var(--theme-fade),
+        box-shadow   var(--theme-fade),
+        transform    0.44s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+body.view-rig .assemble-btn { display: grid; }
+.assemble-btn svg { width: 21px; height: 21px; display: block; }
+.assemble-btn:hover { transform: translate3d(0, -1px, 0); }
+/* Пока сборка идёт, кнопка отжата и повторно не срабатывает: второй запуск
+   поверх первого сбивал бы расписание, и часть узлов оставалась бы вне. */
+.rig.assembly ~ .assemble-btn,
+body:has(.rig.assembly) .assemble-btn { opacity: 0.45; pointer-events: none; }
+.assemble-btn:active svg { transform: rotate(-40deg); }
+.assemble-btn svg { transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.assemble-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+
 .view-switch:hover { transform: translate3d(0, -1px, 0); }
 .view-switch:active { transform: translate3d(0, 0, 0) scale(0.96); }
 .view-switch:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
@@ -95,6 +131,15 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
      пружинный доводчик на нём читался рывком, а не движением руки. */
   --spring: 0.6s cubic-bezier(0.34, 1.3, 0.64, 1);
   --glide: 0.72s cubic-bezier(0.22, 1, 0.36, 1);
+  /* Щелчок: узел на защёлке сначала не поддаётся, потом срывается и дальше
+     идёт свободно, замедляясь. Так вынимают планку, вентилятор, райзер и
+     блок питания — всё, что фиксируется. Процессор так не ходит: его не
+     дёргают, а поднимают, поэтому у него остаётся --glide.
+     Первая четверть времени — сопротивление, за следующую седьмую узел
+     проходит больше половины пути, остальное — доводка. */
+  --click: 0.85s linear(
+      0, 0.008 12%, 0.026 24%, 0.12 30%, 0.34 35%, 0.62 41%,
+      0.79 48%, 0.89 57%, 0.95 68%, 0.984 80%, 1);
 
   position: relative;
   z-index: 1;
@@ -430,7 +475,9 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   .bay-handle {
     transform-box: fill-box;
     transform-origin: 100% 100%;
-    transition: transform var(--spring);
+    /* Защёлка каддика щёлкает: держит, пока не пересилишь, а потом
+       откидывается сама. Сам каддик едет ровно — его уже ничто не держит. */
+    transition: transform var(--click);
   }
 
   .rig.service .bay.unlatched .bay-handle { transform: rotate(-42deg); }
@@ -443,7 +490,7 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   /* Сборка: диск задвигают спереди, тем же путём, которым он выезжает при
      разборе, — только в обратную сторону. */
   .rig.assembly .bay {
-    animation: seatBay 0.6s var(--seat, 0s) cubic-bezier(0.22, 1, 0.36, 1) backwards;
+    animation: seatBay var(--click) var(--seat, 0s) backwards;
   }
   @keyframes seatBay {
     from { opacity: 0; transform: translateX(-104px); }
@@ -469,11 +516,15 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
      Момент посадки задаёт --seat, его проставляет генератор: расписание всей
      сборки живёт в geom, а здесь только «откуда и как». */
   .rig.assembly .fan {
-    animation: seatFan 0.62s var(--seat, 0s) cubic-bezier(0.22, 1, 0.36, 1) backwards;
+    animation: seatFan var(--click) var(--seat, 0s) backwards;
   }
   @keyframes seatFan {
     from { opacity: 0; transform: translateY(-42px); }
   }
+
+  /* Вентилятор в стенке держит защёлка: тянешь — не идёт, потом срыв.
+     Ровно та же кривая ведёт его и при посадке. */
+  .fan .pick-body { transition: transform var(--click); }
   /* ── memory ──────────────────────────────── */
   /* Защёлки на живой плате — молочно-белый полупрозрачный пластик, и их две:
      по одной с каждого торца. Лампа ошибки сидит прямо в защёлке — «DIMM
@@ -504,11 +555,15 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
      разным процессорам. */
   .rig.assembly .dimm .pick-body,
   .rig.assembly .dimm .latch {
-    animation: seatDimm 0.42s var(--seat, 0s) cubic-bezier(0.22, 1, 0.36, 1) backwards;
+    animation: seatDimm var(--click) var(--seat, 0s) backwards;
   }
   @keyframes seatDimm {
     from { opacity: 0; transform: translateY(-22px); }
   }
+
+  /* Планку держат защёлки по торцам: пока они не откинулись, модуль
+     стоит намертво, а дальше выходит рывком. */
+  .dimm .pick-body { transition: transform var(--click); }
   /* ── risers ──────────────────────────────── */
   /* Райзер и блок питания выходят назад, из задней стенки. */
   .rig.service .riser.pulled .pick-body { transform: translateX(46px); }
@@ -516,11 +571,14 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   /* Сборка: райзер опускают в свой разъём сверху, целиком — вместе с картой
      и кронштейном. */
   .rig.assembly .riser {
-    animation: seatRiser 0.72s var(--seat, 0s) cubic-bezier(0.22, 1, 0.36, 1) backwards;
+    animation: seatRiser var(--click) var(--seat, 0s) backwards;
   }
   @keyframes seatRiser {
     from { opacity: 0; transform: translateY(-56px); }
   }
+
+  /* Райзер сидит в разъёме туго: срывается целиком, вместе с картой. */
+  .riser .pick-body { transition: transform var(--click); }
   /* ── psu ──────────────────────────────── */
   .rig.service .psu.pulled .pick-body { transform: translateX(74px); }
 
@@ -536,11 +594,14 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   /* Сборка: блок питания заходит сзади, из своего кармана. Едет он дальше
      остальных — путь до разъёма у него длинный, и это видно по руке. */
   .rig.assembly .psu {
-    animation: seatPsu 0.78s var(--seat, 0s) cubic-bezier(0.22, 1, 0.36, 1) backwards;
+    animation: seatPsu var(--click) var(--seat, 0s) backwards;
   }
   @keyframes seatPsu {
     from { opacity: 0; transform: translateX(96px); }
   }
+
+  /* Блок питания держит оранжевый фиксатор — тот самый щелчок. */
+  .psu .pick-body { transition: transform var(--click); }
 
   /* ── cpu ──────────────────────────────── */
   /* Процессор остаётся в сокете — снимается радиатор, как руками. Под ним

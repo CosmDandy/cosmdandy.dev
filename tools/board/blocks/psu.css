@@ -12,8 +12,11 @@
   /* Сборка: блок питания заходит сзади, из своего кармана. Едет он дальше
      остальных — путь до разъёма у него длинный, и это видно по руке. */
   .rig.assembly .psu {
-    animation: seatPsu 0.78s var(--seat, 0s) cubic-bezier(0.22, 1, 0.36, 1) backwards;
+    animation: seatPsu var(--click) var(--seat, 0s) backwards;
   }
   @keyframes seatPsu {
     from { opacity: 0; transform: translateX(96px); }
   }
+
+  /* Блок питания держит оранжевый фиксатор — тот самый щелчок. */
+  .psu .pick-body { transition: transform var(--click); }

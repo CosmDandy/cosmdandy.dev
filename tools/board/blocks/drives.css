@@ -5,7 +5,9 @@
   .bay-handle {
     transform-box: fill-box;
     transform-origin: 100% 100%;
-    transition: transform var(--spring);
+    /* Защёлка каддика щёлкает: держит, пока не пересилишь, а потом
+       откидывается сама. Сам каддик едет ровно — его уже ничто не держит. */
+    transition: transform var(--click);
   }
 
   .rig.service .bay.unlatched .bay-handle { transform: rotate(-42deg); }
@@ -18,7 +20,7 @@
   /* Сборка: диск задвигают спереди, тем же путём, которым он выезжает при
      разборе, — только в обратную сторону. */
   .rig.assembly .bay {
-    animation: seatBay 0.6s var(--seat, 0s) cubic-bezier(0.22, 1, 0.36, 1) backwards;
+    animation: seatBay var(--click) var(--seat, 0s) backwards;
   }
   @keyframes seatBay {
     from { opacity: 0; transform: translateX(-104px); }

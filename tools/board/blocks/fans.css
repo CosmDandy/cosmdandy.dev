@@ -18,8 +18,12 @@
      Момент посадки задаёт --seat, его проставляет генератор: расписание всей
      сборки живёт в geom, а здесь только «откуда и как». */
   .rig.assembly .fan {
-    animation: seatFan 0.62s var(--seat, 0s) cubic-bezier(0.22, 1, 0.36, 1) backwards;
+    animation: seatFan var(--click) var(--seat, 0s) backwards;
   }
   @keyframes seatFan {
     from { opacity: 0; transform: translateY(-42px); }
   }
+
+  /* Вентилятор в стенке держит защёлка: тянешь — не идёт, потом срыв.
+     Ровно та же кривая ведёт его и при посадке. */
+  .fan .pick-body { transition: transform var(--click); }
