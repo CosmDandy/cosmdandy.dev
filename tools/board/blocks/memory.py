@@ -72,7 +72,5 @@ def render(cv):
     # Средний банк делят оба процессора: половина каналов уходит к одному,
     # половина к другому. По двенадцать планок на процессор — обычный расклад
     # для 1U, где на все восемь каналов места на плате уже нет.
-    cv.add(silk_inverse(X_CORE + 76, Y_BANK_L - 18, "CPU0 · A0–H0", 8))
+    # Обозначение банка печатается на его рамке — см. blocks/frames.py.
     cv.add(stamp(X_CORE, Y_BANK_L - 20, "память"))
-    cv.add(silk_inverse(X_CORE + 34, Y_BANK_C - 18, "CPU0 · A1–D1  /  CPU1 · A0–D0", 8))
-    cv.add(silk_inverse(X_CORE + 76, Y_BANK_R - 18, "CPU1 · A1–H1", 8))

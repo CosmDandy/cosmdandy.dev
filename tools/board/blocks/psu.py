@@ -89,5 +89,5 @@ def render(cv):
             psu.append(mono(X_REAR + 76, ly + 3, nm, 7, anchor="start", op=0.44))
         cv.add(f'''<g class="pick psu" data-psu="{k+1}">
       <g class="pick-body">{''.join(psu)}</g>
-      {fault_at(cv, X_REAR-14, y + (128 if flip else 16), 5)}
+      {fault_at(cv, X_REAR+16, y + (120 if flip else 24), 5)}
     </g>''')

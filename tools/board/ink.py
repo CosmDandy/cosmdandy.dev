@@ -94,7 +94,7 @@ def silk_frame(x, y, text, size=7, op=0.6):
             f'font-family="ui-monospace, Menlo, monospace" font-size="{size}">{text}</text>')
 
 
-def block_frame(x, y, w, h, title, refs):
+def block_frame(x, y, w, h, title, refs, title_dx=6):
     """Контурная рамка функционального блока со списком позиций.
 
     Приём IBM: группа обводится по текстолиту, рядом печатается перечень
@@ -105,9 +105,9 @@ def block_frame(x, y, w, h, title, refs):
     return (f'<g class="decor block-frame">'
             f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="2" fill="none" '
             f'stroke="rgba(232,227,213,0.16)" stroke-width="1" stroke-dasharray="7 4"/>'
-            f'<rect x="{x + 6}" y="{y - 5}" width="{len(title) * 4.4 + 8:.1f}" height="10" '
+            f'<rect x="{x + title_dx}" y="{y - 5}" width="{len(title) * 4.4 + 8:.1f}" height="10" '
             f'rx="1" fill="{PCB_DARK}"/>'
-            + mono(x + 10, y + 3, title, 6, anchor="start", op=0.42)
+            + mono(x + title_dx + 4, y + 3, title, 6, anchor="start", op=0.42)
             + mono(x + 10, y + h - 4, refs, 5, anchor="start", op=0.26)
             + '</g>')
 

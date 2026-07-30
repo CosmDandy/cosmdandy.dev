@@ -6,7 +6,8 @@
 
 import math
 
-from board.geom import CHIPS, H, PCB_H, PCB_W, X_PCB, X_PCB_END, X_REAR, X_SVC, Y_PSU_BOT, Y_PSU_TOP
+from board.geom import (CHIPS, FAN_N, H, PCB_H, PCB_W, X_PCB, X_PCB_END, X_REAR, X_SVC,
+                        Y_PSU_BOT, Y_PSU_TOP, fan_foot_y)
 from board.ink import empty_pads, hit, mono, silk_boxed
 from board.metal import pad, relief
 from board.palette import SILVER
@@ -278,6 +279,17 @@ def render(cv):
             py = int(cy + r * math.sin(math.radians(ang)))
             silk.extend(small_part(KIND[(n + k) % len(KIND)], px, py))
         clusters.append((cx, cy))
+
+    # Полоса у левой кромки: между колодками вентиляторов остаются широкие
+    # окна, и они пустовали — раньше вся полоса держалась под колодки целиком.
+    # Обвязка там честная: к каждой колодке идёт своя цепь тахометра.
+    for i in range(FAN_N - 1):
+        mid = (fan_foot_y(i) + fan_foot_y(i + 1)) / 2
+        for k in range(9):
+            px = X_PCB + 12 + (k % 3) * 24
+            py = int(mid - 24 + (k // 3) * 17)
+            silk.extend(small_part(KIND[(i * 3 + k) % len(KIND)], px, py))
+        clusters.append((X_PCB + 40, mid))
 
     # и гроздьями вдоль шин — там, где дорожки ломаются, стоит их обвязка
     for i in range(26):
