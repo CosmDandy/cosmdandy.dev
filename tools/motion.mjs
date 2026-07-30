@@ -48,6 +48,10 @@ const SCENES = {
   'seat-psu':   { assembly: true, seatOf: '.psu', watch: '.psu' },
   'seat-bay':   { assembly: true, seatOf: '.bay', watch: '.bay' },
   'seat-riser': { assembly: true, seatOf: '.riser', watch: '.riser' },
+  // Процессор садится в два приёма: сперва крышка с кристаллом, потом
+  // радиатор. Смотрим на кристалл — он и должен побыть открытым.
+  'seat-die':   { assembly: true, seatOf: '.cpu-slot', watch: '.cpu-slot .die' },
+  'seat-cpu':   { assembly: true, seatOf: '.cpu-slot', watch: '.cpu-slot .heatsink' },
 };
 
 const name = process.argv[2] ?? 'heatsink';
