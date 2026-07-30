@@ -18,8 +18,10 @@
      Момент посадки задаёт --seat, его проставляет генератор: расписание всей
      сборки живёт в geom, а здесь только «откуда и как». */
   .rig.assembly .fan {
-    animation: seatFan var(--click) var(--seat, 0s) backwards;
+    animation: seatFan var(--press-hard) var(--seat, 0s) backwards;
   }
+  /* Садится туго: направляющие длинные, и модуль идёт по ним с усилием,
+     а в самом низу его дожимают до защёлки. */
   @keyframes seatFan {
     from { opacity: 0; transform: translateY(-42px); }
   }

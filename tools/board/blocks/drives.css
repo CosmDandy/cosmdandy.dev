@@ -20,8 +20,10 @@
   /* Сборка: диск задвигают спереди, тем же путём, которым он выезжает при
      разборе, — только в обратную сторону. */
   .rig.assembly .bay {
-    animation: seatBay var(--click) var(--seat, 0s) backwards;
+    animation: seatBay var(--press-seat) var(--seat, 0s) backwards;
   }
+  /* Каддик идёт по салазкам свободно и упирается только в самом конце:
+     последний сантиметр — это дожим ручкой до щелчка. */
   @keyframes seatBay {
     from { opacity: 0; transform: translateX(-104px); }
   }

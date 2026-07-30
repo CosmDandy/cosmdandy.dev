@@ -12,8 +12,10 @@
   /* Сборка: блок питания заходит сзади, из своего кармана. Едет он дальше
      остальных — путь до разъёма у него длинный, и это видно по руке. */
   .rig.assembly .psu {
-    animation: seatPsu var(--click) var(--seat, 0s) backwards;
+    animation: seatPsu var(--press-snap) var(--seat, 0s) backwards;
   }
+  /* Блок влетает в карман одним движением — направляющие длинные и
+     ровные, тормозит его только разъём в конце. */
   @keyframes seatPsu {
     from { opacity: 0; transform: translateX(96px); }
   }
