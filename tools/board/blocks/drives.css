@@ -4,13 +4,13 @@
      процент в transform-origin считался от самой группы, а не от холста. */
   .bay-handle {
     transform-box: fill-box;
-    transform-origin: 100% 50%;
+    transform-origin: 100% 100%;
     transition: transform var(--spring);
   }
 
-  .rig.service .bay.unlatched .bay-handle { transform: rotate(-26deg); }
+  .rig.service .bay.unlatched .bay-handle { transform: rotate(-42deg); }
 
   /* Наружу — за габарит шасси: диск физически выходит из корзины вперёд, и
      на его месте остаётся гнездо с направляющими. */
   .rig.service .bay.pulled .pick-body { transform: translateX(-104px); }
-  .rig.service .bay.pulled .bay-handle { transform: translateX(-104px) rotate(-26deg); }
+  .rig.service .bay.pulled .bay-handle { transform: translateX(-104px) rotate(-42deg); }
