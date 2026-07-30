@@ -90,6 +90,17 @@ def render(cv):
         # на живом диске они стоят рядом, а не разнесены по углам.
         sled = [f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="1" fill="#28323a" '
                 f'stroke="rgba(147,161,161,0.26)"/>']
+        # Сам накопитель: в каддике он виден как металлическая коробка с
+        # наклейкой. Без него из корзины торчали одни рамки, и что за диск
+        # стоит в отсеке, было понятно только по подписи.
+        dx, dy, dw, dh = x + 3, y + CAP + 4, w - 6, h - CAP - 12
+        if dh > 20:
+            sled.append(f'<rect x="{dx}" y="{dy}" width="{dw}" height="{dh}" rx="1.5" '
+                        f'fill="#1b242a" stroke="rgba(147,161,161,0.34)" stroke-width="1.1"/>')
+            # винты крепления к салазкам — по два с каждой стороны
+            sled.extend(f'<circle cx="{cx}" cy="{cy}" r="1.6" fill="#0b1114" '
+                        f'stroke="rgba(147,161,161,0.30)"/>'
+                        for cx in (dx + 3, dx + dw - 3) for cy in (dy + 14, dy + dh - 14))
         # Шильдик занимает то, что осталось от рамки под ручкой. Считаем от
         # фактической высоты каддика: она задаётся долей от шага корзины, и
         # прежние числа ушли в минус, как только рамку сузили.
@@ -152,7 +163,8 @@ def render(cv):
       <g class="bay-handle">{handle}</g>
     </g>''')
     # выноска корзины — одна на все отсеки
-    cv.callouts.append((X_FRONT + FRONT_W + 30, BAY_TOP + 46, X_FRONT + FRONT_W - 10, BAY_TOP + 24,
-                     "GitHub", "start", "https://github.com/cosmdandy", "hdd"))
+    cv.callouts.append((X_FRONT + FRONT_W + 30, BAY_TOP + 96, X_FRONT + FRONT_W - 10, BAY_TOP + 24,
+                     "GitHub", "start", "https://github.com/cosmdandy", "hdd",
+                     "код и проекты", "github"))
 
     cv.add(stamp(X_FRONT + 4, H - 18, "фронт: восемь отсеков"))

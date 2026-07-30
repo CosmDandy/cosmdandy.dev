@@ -256,7 +256,9 @@
     line(on ? 'service mode engaged · терминал и диагностика' : 'service mode released',
          on ? 'warn' : 'muted');
     if (on) initTimeline();     // лента нужна только разобранной машине
-    if (on && !rig.classList.contains('lp-open')) toggleLp();
+    // Панель диагностики сама не выезжает: в сервисном режиме она нужна не
+    // всегда, а места занимает много. Закрыть её при выходе — другое дело:
+    // снаружи сервисного режима ей висеть незачем.
     if (!on && rig.classList.contains('lp-open')) toggleLp();
     if (!on) {
       // Собираем машину целиком: узел мог остаться и на промежуточной
@@ -370,7 +372,7 @@
 
   // @part: hw
 
-  // TODO-part: fs
+  // @part: fs
 
   // TODO-part: screen
 
