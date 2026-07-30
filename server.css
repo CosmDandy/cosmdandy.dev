@@ -87,19 +87,19 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   position: relative;
   z-index: 1;
   margin: 0 auto;
-  /* Машина должна помещаться в экран целиком, вместе с консолью и приборами.
-     Потолок по ширине держит вторая половина: 46vh на сцену — при высоком
-     окне схема растёт, при низком остаётся видна вся. Множитель 1.84 — это
-     соотношение сторон viewBox. */
-  width: min(76vw, 46vh * 1.84, 880px);
+  width: 100%;
   padding: 0 12px;
+  /* Размер машины. Ограничение по высоте главное: схема широкая и низкая,
+     и в экран она упирается высотой, а не шириной. 68vh на сцену оставляет
+     место имени сверху и консоли над машиной. 1.84 — соотношение viewBox. */
+  --rig-w: min(86vw, 66vh * 1.84, 1240px);
   color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
 .rig *, .rig *::before, .rig *::after { box-sizing: border-box; }
 
 /* Имя и статус видны в обоих видах — это визитка, а не только схема. */
-.rig-id { text-align: center; margin: 0 auto 28px; }
+.rig-id { text-align: center; margin: 0 auto 18px; }
 .rig-id h2 { margin: 0 0 4px; font-size: 1.5rem; font-weight: 600;
              letter-spacing: -0.02em; color: var(--heading); }
 .rig-id .bio { margin: 0 0 6px; font-size: 0.95rem; color: var(--bio); }
@@ -184,8 +184,30 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   /* Наклон вернули: пропадающие заливки были не от 3D, а от градиентов —
      paint server отваливался при трансформации группы. Градиентов в SVG
      больше нет, перспектива безопасна. */
-  .stage { perspective: 1700px; perspective-origin: 50% 42%; display: flex; justify-content: center; }
-  .stage > .chassis { width: 100%; margin: 0 auto; }
+  .stage { position: relative; perspective: 1700px; perspective-origin: 50% 42%;
+           display: flex; justify-content: center; }
+  .stage > .chassis { width: 100%; margin: 0 auto; position: relative; z-index: 1; }
+
+  /* Тот же цветной ореол, что под карточкой ссылок: машина не должна висеть
+     на голом фоне, когда у карточки он есть. Размах меньше — сцена и так
+     вдвое шире карточки, и на полном blur(160px) свечение расползлось бы на
+     весь экран. */
+  .rig-glow {
+    position: absolute; inset: 4% 12%;
+    border-radius: 80px;
+    background: linear-gradient(45deg,
+        rgba(255, 50, 100, 0.45) 0%,
+        rgba(255, 80, 150, 0.30) 25%,
+        rgba(120, 40, 220, 0.18) 50%,
+        rgba(0, 220, 255, 0.30) 75%,
+        rgba(0, 255, 255, 0.45) 100%);
+    filter: blur(130px);
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0;
+    transition: opacity 1.1s ease;
+  }
+  .rig.ready .rig-glow { opacity: 1; }
 
   .chassis {
     position: relative;
@@ -406,25 +428,36 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
     .lid { display: none; }
   }
 
-/* ── Низ сервисного режима: консоль и приборы ─────────────────────────────
- * Консоль под машиной, приборы справа от неё. Оба появляются только вместе с
- * сервисным режимом — гостю они не нужны.
+/* ── Сервисный режим: консоль сверху, приборы справа ──────────────────────
+ * Консоль над машиной — терминал, который подкатили к стойке. Приборы сбоку,
+ * зеркально панели диагностики: light path выходит из корпуса слева, метрики
+ * стоят справа.
+ *
+ * Сцена всегда ровно по центру и своего размера не меняет: боковые колонки
+ * одинаковые и сжимаются сами. Иначе машина прыгала бы вбок при каждом
+ * включении сервисного режима.
  */
-.rig-bottom {
-  display: none;
-  grid-template-columns: minmax(0, 1fr) 260px;
+.rig-body {
+  display: grid;
+  grid-template-columns: minmax(0, 240px) auto minmax(0, 240px);
+  align-items: start;
   gap: 14px;
-  align-items: stretch;
-  margin-top: 22px;
 }
-.rig.service .rig-bottom { display: grid; }
-/* Консоль тянется на высоту приборов, лишнее место забирает лог, а строка
-   ввода остаётся прижатой к низу. Иначе левая панель вдвое короче правой. */
-.rig.service .panel { display: flex; flex-direction: column; width: auto; margin: 0; }
-.rig.service .console-log { flex: 1 1 auto; height: auto; min-height: 118px; }
+.stage { grid-column: 2; width: var(--rig-w); }
+.gauges { grid-column: 3; }
+
+.rig.service .panel {
+  display: flex; flex-direction: column;
+  width: var(--rig-w); height: 140px;
+  margin: 0 auto 14px;
+}
+/* min-height: 0 обязателен: без него flex-элемент не сжимается ниже своего
+   содержимого, лог растёт вместе с лентой и overflow-y никогда не срабатывает
+   — прокрутки нет, а панель разъезжается. */
+.rig.service .console-log { flex: 1 1 0; height: auto; min-height: 0; }
 
 .gauges {
-  display: grid;
+  display: none;
   gap: 8px;
   padding: 12px 14px;
   border: 1px solid var(--edge);
@@ -433,13 +466,16 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
 }
 
-.gauge { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: baseline; }
+/* Боковая колонка узкая — имя и значение идут столбиком, а не в строку.
+   Строкой они помещаются только на очень широком окне, а переносить их
+   по-разному на разных экранах хуже, чем один плотный вид везде. */
+.gauge { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1px; }
 .g-name {
   font-size: 0.6rem; letter-spacing: 0.14em; text-transform: uppercase;
   color: var(--dim);
 }
-.g-value { font-size: 0.82rem; color: var(--head); font-variant-numeric: tabular-nums; }
-.g-spark { grid-column: 1 / -1; width: 100%; height: 30px; display: block; }
+.g-value { font-size: 0.9rem; color: var(--head); font-variant-numeric: tabular-nums; }
+.g-spark { grid-column: 1 / -1; width: 100%; height: 26px; display: block; margin-top: 1px; }
 .g-line { stroke: var(--cyan); stroke-width: 1.4; vector-effect: non-scaling-stroke; }
 .g-area { fill: rgba(42,161,152,0.14); stroke: none; }
 .gauge.warn .g-line { stroke: var(--amber); }
@@ -449,8 +485,14 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
 .gauge.off .g-line { stroke: rgba(147,161,161,0.3); }
 .gauge.off .g-area { fill: rgba(147,161,161,0.06); }
 
-@media (max-width: 900px) {
-  .rig-bottom { grid-template-columns: minmax(0, 1fr); }
+.rig.service .gauges { display: grid; }
+
+/* Узкое окно: приборам не хватает боковой колонки, уводим их под машину. */
+@media (max-width: 1100px) {
+  .rig-body { grid-template-columns: minmax(0, 1fr); }
+  .stage { grid-column: 1; width: 100%; }
+  .gauges { grid-column: 1; margin-top: 14px; }
+  .rig.service .panel { width: 100%; }
 }
 
 /* ── Связка узла и подписи ────────────────────────────────────────────────
