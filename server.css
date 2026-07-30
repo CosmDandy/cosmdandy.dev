@@ -464,6 +464,15 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   /* ── psu ──────────────────────────────── */
   .rig.service .psu.pulled .pick-body { transform: translateX(74px); }
 
+  /* Вынутый блок обесточен: сеть к нему больше не подведена. Гаснут обе
+     лампы — и AC, которая горит даже на выключенной машине, — и
+     останавливается вентилятор. Лампа посадочного места при этом стоит на
+     плате и остаётся на месте: горит не блок, а гнездо, из которого его
+     вынули. */
+  .psu.pulled .led, .psu.pulled .led.aux,
+  .psu.pulled .fault-sys, .psu.pulled .fault-sys.halo { fill-opacity: 0.1; animation: none; }
+  .psu.pulled .fan-blades { animation-play-state: paused; }
+
   /* ── cpu ──────────────────────────────── */
   /* Процессор остаётся в сокете — снимается радиатор, как руками. Под ним
      открывается кристалл: по нему бежит тот же градиент, что по кнопке
