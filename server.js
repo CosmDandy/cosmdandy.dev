@@ -129,6 +129,12 @@
   // ходить назад: версии лежат отдельными файлами и грузятся по требованию.
   // Держать все четырнадцать в странице означало бы три мегабайта ради
   // функции, которой пользуются раз.
+  //
+  // И пользуются ею при разработке: лентой сравнивают, как плата выглядела
+  // раньше. Гостю визитки она не нужна, поэтому в выдачу ревизии не
+  // копируются, а страница за ними даже не тянется — запрос вернул бы 404 и
+  // оставил красную строку в консоли на ровном месте.
+  const LOCAL = ['localhost', '127.0.0.1', '::1', '[::1]'].indexOf(location.hostname) >= 0;
   const timeline = document.getElementById('timeline');
   const board = document.getElementById('board');
   const tlRange = document.getElementById('tl-range');
@@ -184,7 +190,7 @@
   }
 
   async function initTimeline() {
-    if (revs.length) return;
+    if (revs.length || !LOCAL) return;
     try {
       const res = await fetch('history/index.json');
       if (!res.ok) throw new Error(res.status);
