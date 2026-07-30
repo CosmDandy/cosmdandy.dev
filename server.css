@@ -1,0 +1,288 @@
+/* Схема сервера — интерактивная часть визитки.
+ *
+ * Прототип и его генератор живут в отдельном репозитории server-proto:
+ * плата собирается скриптом, потому что вручную писать 32 слота памяти,
+ * восемь вентиляторов и шелкографию бессмысленно.
+ *
+ * Два уровня. Обычный: подписи-выноски видны сразу, узлы работают как
+ * ссылки. Сервисный (тумблер SERVICE на плате): узлы вынимаются, снизу
+ * появляется консоль, выезжает панель диагностики.
+ *
+ * Про заливки: ни одного url(#gradient) и ни одного opacity на SVG-узлах.
+ * И то, и другое отваливается, когда браузер поднимает трансформированную
+ * группу в отдельный слой, — заливки гаснут, остаются одни обводки.
+ */
+
+/* Схема живёт в своей системе координат по цвету: у визитки другие роли
+ * токенов, а плате нужны именно эти. Фон и типографику задаёт сайт. */
+.rig {
+  --ink:  #93a1a1;
+  --dim:  #586e75;
+  --head: #eee8d5;
+  --green: #859900;
+  --cyan:  #2aa198;
+  --amber: #b58900;
+  --red:   #dc322f;
+  --edge: rgba(147, 161, 161, 0.22);
+  --fade: 0.45s cubic-bezier(0.32, 0.72, 0, 1);
+  --spring: 0.55s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  position: relative;
+  margin: 40px auto 0;
+  max-width: 1060px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.rig *, .rig *::before, .rig *::after { box-sizing: border-box; }
+
+/* Консоль сервисного режима. */
+.rig .panel {
+  display: none;
+  width: min(78%, 820px);
+  margin: 0 auto 10px;
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  background: linear-gradient(180deg, rgba(9,34,40,0.92) 0%, rgba(7,26,31,0.88) 100%);
+  padding: 10px 12px 8px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+.rig.service .panel { display: block; }
+
+.rig .panel h2 {
+  margin: 0 0 8px;
+  font-size: 0.68rem; font-weight: 600;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--dim);
+  display: flex; justify-content: space-between; align-items: center;
+}
+
+
+
+  /* Приглашение: консоль не только пишет, в неё можно печатать. */
+  .prompt { display: flex; align-items: baseline; gap: 6px; margin-top: 8px;
+            border-top: 1px solid rgba(147,161,161,0.14); padding-top: 7px; }
+  .ps1 { color: var(--green); white-space: nowrap; }
+  .prompt input {
+    flex: 1; min-width: 0;
+    background: none; border: 0; outline: none;
+    color: var(--head); font: inherit; caret-color: var(--cyan);
+  }
+  .prompt input::placeholder { color: rgba(88,110,117,0.75); }
+
+
+
+  /* ── Панели ───────────────────────────────────────────────────────────── */
+
+
+  .console-log { height: 132px; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; justify-content: flex-start; gap: 2px; }
+  .console-log div { white-space: pre-wrap; word-break: break-word; }
+  .console-log::-webkit-scrollbar { width: 6px; }
+  .console-log::-webkit-scrollbar-thumb { background: rgba(147,161,161,0.28); border-radius: 3px; }
+  .console-log .ok { color: var(--green); }
+  .console-log .warn { color: var(--amber); }
+  .console-log .err { color: var(--red); }
+  .console-log .muted { color: var(--dim); }
+
+  .sensor { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; }
+  .sensor span:last-child { color: var(--head); }
+  .sensor.off span:last-child { color: var(--dim); }
+
+  .bar { height: 3px; border-radius: 2px; background: rgba(147,161,161,0.14); overflow: hidden; margin: 2px 0 8px; }
+  .bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--cyan), var(--green)); width: 0; transition: width 0.9s ease; }
+
+  .svc {
+    margin-top: 12px; width: 100%;
+    border: 1px solid var(--edge); border-radius: 8px;
+    background: #0d1418; color: var(--ink);
+    font: inherit; padding: 7px 8px; cursor: pointer;
+    transition: color var(--fade), border-color var(--fade), background var(--fade);
+  }
+  .svc:hover { color: var(--ink); border-color: rgba(147,161,161,0.4); }
+  .svc[aria-pressed="true"] { color: var(--amber); border-color: rgba(181,137,0,0.5); background: rgba(181,137,0,0.08); }
+
+  /* ── Сцена ────────────────────────────────────────────────────────────── */
+  /* Наклон вернули: пропадающие заливки были не от 3D, а от градиентов —
+     paint server отваливался при трансформации группы. Градиентов в SVG
+     больше нет, перспектива безопасна. */
+  .stage { perspective: 1700px; perspective-origin: 50% 42%; display: flex; justify-content: center; }
+  .stage > .chassis { width: 100%; max-width: 1000px; margin: 0 auto; }
+
+  .chassis {
+    position: relative;
+    transform-style: preserve-3d;
+    transform: rotateX(46deg) scale(0.94);
+    opacity: 0;
+    transition: transform 1s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.6s ease;
+  }
+  .chassis svg { display: block; width: 100%; height: auto; overflow: visible; }
+
+  /* Крышка. Лежит в тех же координатах, что и плата, поэтому накрывает
+     машину точно. Снимает её человек кнопкой cover; кликов не перехватывает. */
+  .lid {
+    position: absolute; inset: 0;
+    pointer-events: none;
+    z-index: 3;
+    transition: transform 0.9s cubic-bezier(0.32,0.72,0,1), opacity 0.7s ease;
+    z-index: 3;
+  }
+  .lid svg { display: block; width: 100%; height: auto; }
+  .lid-btn-svg { pointer-events: auto; cursor: pointer; }
+  .lid-btn-svg:hover rect:first-child { stroke: var(--cyan); fill: #22303a; }
+
+  /* ── Компоненты ───────────────────────────────────────────────────────── */
+  /* Две роли, и они не совпадают. .unit называет себя ярлыком — это диск,
+     банк памяти, процессор, сетевая карта. .pick физически вынимается —
+     планка, диск, вентилятор, радиатор. Банк памяти это один .unit с
+     шестнадцатью .pick внутри: ярлык один на банк, поднимается планка. */
+  .unit { cursor: pointer; }
+  .pick-body {
+    transform-box: fill-box; transform-origin: center;
+    transition: transform var(--spring);
+  }
+  .pick:hover .pick-body { transform: translateY(-8px); }
+
+  /* Ярлык живёт рядом со своим узлом и не выходит за край картинки.
+     Теней на SVG больше нет намеренно: в Safari фильтр внутри preserve-3d
+     заливает сцену белым — это и был «белый экран» в сервисном режиме. */
+  .unit .tag { fill-opacity: 0; transition: fill-opacity var(--fade); pointer-events: none; }
+  .unit:hover .tag, .unit:focus-visible .tag { fill-opacity: 1; }
+  .unit:focus-visible { outline: none; }
+  /* Выноски. Гость должен видеть, куда нажимать, без наведения — поэтому
+     подписи постоянные, а наведение лишь подсвечивает нужную. */
+  .callouts { pointer-events: none; }
+  a.callout { pointer-events: auto; cursor: pointer; }
+  a.callout:hover .co-box { fill: #fff; stroke: var(--cyan); }
+  a.callout:hover .co-line { stroke: var(--cyan); }
+  a.callout:focus-visible { outline: none; }
+  a.callout:focus-visible .co-box { stroke: var(--cyan); stroke-width: 2.2; }
+  /* В сервисном режиме переходы не нужны: там разбирают машину. */
+  .co-dot { fill: var(--cyan); stroke: rgba(9,32,38,0.8); stroke-width: 1.4; }
+  .co-line { stroke: rgba(42,161,152,0.65); stroke-width: 1.4; }
+  .co-box { fill: rgba(238,232,213,0.93); stroke: rgba(42,161,152,0.5); stroke-width: 1.2; }
+  .co-text { fill: #073642; font-family: ui-monospace, Menlo, monospace; font-size: 15px; font-weight: 600; }
+
+  .tag rect { fill: rgba(238,232,213,0.94); }
+  .tag text { fill: #073642; font-family: ui-monospace, Menlo, monospace; font-size: 15px; font-weight: 600; }
+
+  .decor { pointer-events: none; }
+  .cables { opacity: 0.9; }
+
+  .fan-blades { transform-box: fill-box; transform-origin: center; animation: spin 2.1s linear infinite; animation-play-state: paused; }
+  .fan.pulled .fan-blades { animation-play-state: paused; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Индикация ────────────────────────────────────────────────────────── */
+  /* Гасим лампы через fill-opacity, а не через opacity. opacity на SVG-узле
+     поднимает его в отдельный composited layer, и эти слои перекрывали сцену
+     целиком — так и выглядел «весь фон стал чёрным». fill-opacity меняет
+     только заливку и слоёв не создаёт. */
+
+  .led { fill-opacity: 0.16; transition: fill-opacity 0.2s steps(1, end); }
+
+  /* Дежурка: BMC, порт управления и сами блоки питания работают всегда —
+     машина выключена, а они уже под напряжением. */
+  .led.aux { fill-opacity: 1; }
+  .led-act.aux { animation: act 1.4s steps(1, end) infinite; }
+  .fan-blades.aux { animation-play-state: running; }
+
+  @keyframes act {
+    0%, 9%    { fill-opacity: 1 }
+    10%, 23%  { fill-opacity: 0.1 }
+    24%, 31%  { fill-opacity: 1 }
+    32%, 37%  { fill-opacity: 0.1 }
+    38%, 54%  { fill-opacity: 1 }
+    55%, 62%  { fill-opacity: 0.1 }
+    63%, 69%  { fill-opacity: 1 }
+    70%, 81%  { fill-opacity: 0.1 }
+    82%, 88%  { fill-opacity: 1 }
+    89%, 96%  { fill-opacity: 0.1 }
+    97%, 100% { fill-opacity: 1 }
+  }
+  /* Период и фаза приходят инлайн от генератора — каждая лампа своя.
+     Ядро лампы щёлкает резко, ореол за ним следует плавно: так вспышка
+     читается, но не рябит. */
+  .halo { transition: fill-opacity 0.35s ease; }
+  .led-hb.halo, .fault.halo, .fault-sys.halo, .led-id.halo { transition: fill-opacity 0.4s ease; }
+  .pick.pulled .fault.halo, .rig.has-fault .fault-sys.halo { animation: faultblink 0.9s ease-in-out infinite; }
+
+  /* Линк сети поднимается первым — раньше, чем стартует хост. */
+  .led-link { fill-opacity: 0.12; transition: fill-opacity 0.15s steps(1, end); }
+
+  /* Heartbeat BMC: такой же резкий, но единственный строго ровный —
+     короткая вспышка раз в секунду, всё остальное дёргается вразнобой. */
+  .led-hb { fill-opacity: 0.1; }
+  @keyframes hb { 0%, 13% { fill-opacity: 1 } 14%, 100% { fill-opacity: 0.1 } }
+
+  /* Неисправность. .fault — лампа своего узла и лежит внутри него, поэтому
+     загорается ровно у того, что вынули. .fault-sys — общая, спереди и
+     сзади, и зажигается от любой ошибки. */
+  circle.fault, circle.fault-sys { fill-opacity: 0; transition: fill-opacity 0.15s steps(1, end); }
+  .pick.pulled > .fault, .pick.pulled .fault { fill-opacity: 1; animation: faultblink 0.9s steps(1, end) infinite; }
+  @keyframes faultblink { 0%, 54% { fill-opacity: 1 } 55%, 100% { fill-opacity: 0.05 } }
+
+  /* Опознание в стойке: ровное резкое мигание, чтобы найти машину глазами. */
+  .led-id { fill-opacity: 0; }
+  @keyframes idblink { 0%, 49% { fill-opacity: 1 } 50%, 100% { fill-opacity: 0 } }
+
+  /* Кнопка питания — кольцо, поэтому у неё stroke, а не fill. Быстро мигает,
+     пока поднимается BMC и жать нельзя; медленно — дежурный режим, можно
+     включать; ровно — машина работает. */
+  .pwr-led { stroke-opacity: 0; }
+  @keyframes pwrblink { 0%, 49% { stroke-opacity: 1 } 50%, 100% { stroke-opacity: 0.08 } }
+
+  /* Защёлки памяти прозрачные, как на x3550 M3, и желтеют, когда планка вышла. */
+  .latch { fill: rgba(147,161,161,0.26); transition: fill 0.15s steps(1, end); }
+  .dimm.pulled .latch { fill: var(--amber); }
+
+  /* Light Path Diagnostics: панель выдвигается вперёд, за габарит корпуса. */
+  .lightpath {
+    transform: translateX(172px);
+    visibility: hidden;
+    fill-opacity: 0; stroke-opacity: 0;
+    transition: transform var(--spring), fill-opacity var(--fade), stroke-opacity var(--fade);
+    pointer-events: none;
+  }
+  .lp { fill-opacity: 0.07; transition: fill-opacity 0.15s steps(1, end); }
+  .lp-tab { cursor: pointer; }
+  .lp-tab:hover rect { stroke: rgba(147,161,161,0.6); }
+
+  .silk { opacity: 0.85; }
+
+  .svc-switch { cursor: pointer; }
+  .svc-knob { transition: transform var(--spring), fill var(--fade), stroke var(--fade); transform-box: fill-box; }
+  .svc-switch:hover .svc-knob { stroke: rgba(147,161,161,0.7); }
+
+  .id-btn, .lid-on-btn { cursor: pointer; }
+  .lid-on-btn { display: none; }
+  .lid-on-btn:hover rect:nth-of-type(2) { stroke: var(--cyan); fill: #1c2a31; }
+  .id-btn:hover circle:first-child { stroke: rgba(181,137,0,0.6); }
+
+  /* ── Сервисный режим: извлечение поштучно ─────────────────────────────── */
+  /* Диск выезжает вперёд, к фронту — то есть влево. */
+  /* Райзер и блок питания выходят назад, из задней стенки. */
+
+  /* Процессор остаётся в сокете — снимается радиатор, как руками. */
+  .heatsink { transition: transform var(--spring); }
+
+  .power-btn { cursor: pointer; }
+  .power-btn circle { transition: stroke var(--fade); }
+  .power-btn:hover .pwr-ring { stroke: var(--green); }
+
+  .hint {
+    margin-top: 14px; text-align: center;
+    font-family: ui-monospace, Menlo, monospace; font-size: 0.68rem; color: var(--dim);
+  }
+  .hint b { color: var(--ink); font-weight: 600; }
+
+  /* ── Мобильные ────────────────────────────────────────────────────────── */
+
+
+  @media (max-width: 820px) {
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .chassis { transform: rotateX(14deg); opacity: 1; }
+    .lid { display: none; }
+  }

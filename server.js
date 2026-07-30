@@ -1,0 +1,454 @@
+/* Схема сервера: питание, сервисный режим, консоль.
+ *
+ * Два уровня взаимодействия. Пока сервисный режим выключен, машина работает
+ * как визитка: клик по узлу ведёт по адресу. Тумблер SERVICE на плате
+ * превращает её в стенд — узлы вынимаются, снизу открывается консоль.
+ *
+ * Состояние (питание, крышка) переживает перезагрузку страницы через
+ * localStorage, поэтому повторный заход не начинается с полной анимации.
+ */
+(function () {
+  const rig = document.getElementById('rig');
+  const log = document.getElementById('log');
+  const chassis = document.getElementById('chassis');
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  let state = { powered: true, visited: false, lid: false };
+  try {
+    const raw = localStorage.getItem('rig-state');
+    if (raw) state = Object.assign(state, JSON.parse(raw));
+  } catch (e) {}
+
+  const save = () => { try { localStorage.setItem('rig-state', JSON.stringify(state)); } catch (e) {} };
+  const wait = (ms, fn) => window.setTimeout(fn, reduced ? 0 : ms);
+
+  // ── Консоль ────────────────────────────────────────────────────────────
+  function line(text, cls) {
+    const d = document.createElement('div');
+    d.className = cls || '';
+    d.textContent = text;
+    log.appendChild(d);
+    while (log.children.length > 400) log.removeChild(log.firstChild);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  const POST = [
+    ['DDR5 populated: 32 of 32', 'ok', 260],
+    ['cpu0 · LGA 4677 · 32c', 'ok', 180],
+    ['cpu1 · LGA 4677 · 32c', 'ok', 140],
+    ['backplane · slimsas x4 link', 'ok', 200],
+    ['nvme: 10 devices online', 'ok', 260],
+    ['handoff to host', 'muted', 240],
+  ];
+
+  function runPost() {
+    let i = 0;
+    (function step() {
+      if (i >= POST.length) { line('system ready', 'ok'); return; }
+      const [t, c, d] = POST[i++];
+      wait(d, function () { line(t, c); step(); });
+    })();
+  }
+
+  // ── Питание ────────────────────────────────────────────────────────────
+  // Три состояния кнопки, как на настоящей машине: init — BMC поднимается и
+  // жать бесполезно; standby — можно включать; on — работает.
+  function setPower(mode) {
+    rig.classList.remove('init', 'standby', 'on');
+    rig.classList.add(mode);
+  }
+
+  function powerOn() {
+    state.powered = true; save();
+    setPower('on');
+    // Порядок ровно такой, как видно вживую: сперва поднимается линк сетевой
+    // карты, следом BMC начинает биться, и только потом стартует хост.
+    wait(120, function () { rig.classList.add('net'); line('nic · link up 25G', 'ok'); });
+    wait(700, function () { rig.classList.add('bmc'); line('BMC 2.14 · heartbeat', 'ok'); });
+    wait(1100, runPost);
+    tick();
+  }
+
+  function powerOff() {
+    state.powered = false; save();
+    rig.classList.remove('net', 'bmc');
+    setPower('standby');
+    line('powering off', 'warn');
+    line('standby · bmc only', 'muted');
+    tick();
+  }
+
+  document.getElementById('power').addEventListener('click', function () {
+    if (rig.classList.contains('init')) {
+      line('power inhibited · bmc init', 'warn');
+      return;
+    }
+    if (state.powered) { powerOff(); } else { line('power on', 'muted'); powerOn(); }
+  });
+  document.getElementById('power').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.click(); }
+  });
+
+  // ── Опознание в стойке ─────────────────────────────────────────────────
+  const idBtn = document.getElementById('id-btn');
+  function toggleIdentify() {
+    const on = rig.classList.toggle('identify');
+    line(on ? 'identify: on · blue' : 'identify: off', 'muted');
+  }
+  idBtn.addEventListener('click', toggleIdentify);
+  idBtn.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleIdentify(); }
+  });
+
+  // ── Light Path Diagnostics ─────────────────────────────────────────────
+  const lpTab = document.getElementById('lp-tab');
+  function toggleLp() {
+    const on = rig.classList.toggle('lp-open');
+    line(on ? 'light path: extended' : 'light path: retracted', 'muted');
+  }
+  lpTab.addEventListener('click', toggleLp);
+  lpTab.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleLp(); }
+  });
+
+  // Какая лампа на панели отвечает за какой узел.
+  const LP_MAP = {
+    mem: '.dimm.pulled',
+    cpu: '.cpu-slot.pulled',
+    fan: '.fan.pulled',
+    nic: '.unit[data-unit="ocp"].pulled, .unit[data-unit="eth"].pulled',
+    rsr: '.riser.pulled',
+    ps: '.psu.pulled',
+  };
+
+  function updateFault() {
+    let any = false;
+    for (const key in LP_MAP) {
+      const on = !!chassis.querySelector(LP_MAP[key]);
+      rig.classList.toggle('fault-' + key, on);
+      any = any || on;
+    }
+    rig.classList.toggle('has-fault', any);
+    tick();
+  }
+
+  // ── Время работы ───────────────────────────────────────────────────────
+  let t0 = Date.now();
+  const uptimeEl = document.getElementById('uptime');
+
+  function tick() {
+    if (!rig.classList.contains('on')) { uptimeEl.textContent = '--:--'; return; }
+    const s = Math.floor((Date.now() - t0) / 1000);
+    uptimeEl.textContent = String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+  }
+
+  // ── Сервисный режим ────────────────────────────────────────────────────
+  const svcSwitch = document.getElementById('svc-switch');
+
+  function toggleService() {
+    const on = rig.classList.toggle('service');
+    line(on ? 'service mode engaged · терминал и диагностика' : 'service mode released',
+         on ? 'warn' : 'muted');
+    if (on && !rig.classList.contains('lp-open')) toggleLp();
+    if (!on && rig.classList.contains('lp-open')) toggleLp();
+    if (!on) {
+      chassis.querySelectorAll('.pulled').forEach(function (p) { p.classList.remove('pulled'); });
+      updateFault();
+    }
+  }
+  svcSwitch.addEventListener('click', toggleService);
+  svcSwitch.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleService(); }
+  });
+
+  // Как называть узел в логе: имена в стиле настоящего SEL.
+  function unitName(el) {
+    if (el.dataset.fan !== undefined) return 'fan ' + (Number(el.dataset.fan) + 1);
+    if (el.dataset.dimm !== undefined) return 'dimm ' + el.dataset.dimm;
+    if (el.dataset.cpu !== undefined) return 'cpu' + el.dataset.cpu + ' heatsink';
+    if (el.dataset.riser !== undefined) return 'riser ' + el.dataset.riser;
+    if (el.dataset.psu !== undefined) return 'psu-' + el.dataset.psu;
+    return el.dataset.unit || 'unit';
+  }
+
+  // Пока сервисный режим выключен, машина работает как визитка: клик по узлу
+  // ведёт по адресу. Включил SERVICE — те же клики разбирают машину.
+  chassis.addEventListener('click', function (e) {
+    if (rig.classList.contains('service')) {
+      const pick = e.target.closest('.pick');
+      if (!pick) return;
+      e.preventDefault();
+      const pulled = pick.classList.toggle('pulled');
+      line((pulled ? 'removed: ' : 'inserted: ') + unitName(pick), pulled ? 'warn' : 'ok');
+      updateFault();
+      return;
+    }
+    const unit = e.target.closest('.unit[data-href]');
+    if (!unit) return;
+    const href = unit.dataset.href;
+    if (href.startsWith('mailto:')) { window.location.href = href; return; }
+    window.open(href, '_blank', 'noopener');
+  });
+
+  // ── Терминал ───────────────────────────────────────────────────────────
+  // Консоль не только пишет, но и слушает: те же действия, что кнопками, но
+  // словами. Ссылки в прототипе не открываются — команда печатает адрес.
+  const LINKS = {
+    blog: 'https://blog.cosmdandy.dev',
+    cv: 'https://cv.cosmdandy.dev',
+    github: 'https://github.com/cosmdandy',
+    linkedin: 'https://linkedin.com/in/cosmdandy',
+    telegram: 'https://t.me/cosmdandy',
+    email: 'mailto:i@cosmdandy.dev',
+  };
+
+  const HELP = [
+    'ПИТАНИЕ И СОСТОЯНИЕ',
+    '  power on|off|cycle   — питание, powercycle как в racadm',
+    '  reboot               — тёплая перезагрузка хоста',
+    '  status               — сводка состояния узлов',
+    '  sensors              — датчики: температуры, обороты, ватты',
+    '  sel                  — журнал системных событий',
+    'ЖЕЛЕЗО',
+    '  fru                  — паспорт машины: модель, серийник, ревизия',
+    '  dimm                 — карта заполнения памяти по каналам',
+    '  nvme list            — накопители в отсеках',
+    '  lspci                — устройства на шинах PCIe',
+    '  fans                 — обороты и состояние вентиляторов',
+    'ОБСЛУЖИВАНИЕ',
+    '  cover open|close     — снять или поставить крышку',
+    '  service on|off       — сервисный режим, извлечение узлов',
+    '  id on|off            — опознание в стойке',
+    '  lightpath            — выдвинуть панель диагностики',
+    '  bios                 — ключевые настройки прошивки',
+    'ПРОЧЕЕ',
+    '  links · open <имя> · whoami · uptime · clear · help',
+  ];
+
+  // Данные машины: те же числа, что нарисованы на плате.
+  const FRU = [
+    'Manufacturer   : COSMDANDY',
+    'Product Name   : CD93-FS1',
+    'Board Revision : 13',
+    'Serial Number  : CD93-2026-0730',
+    'BIOS Version   : 2.6.1  (2026-05-14)',
+    'BMC Firmware   : 2.14.3  (AST2600)',
+    'CPU            : 2× Xeon Scalable · LGA 4677 · 32c/64t',
+    'Memory         : 32× DDR5 RDIMM 5600 MT/s · 1.0 TiB',
+    'Storage        : 6× U.2 NVMe · 1× Optane P5800X',
+    'Network        : 2× 25G SFP+ (OCP 3.0) · 2× 1GbE · 1× MLAN',
+  ];
+
+  const SEL = [
+    ['0x0012', 'System Boot Initiated', 'ok'],
+    ['0x0013', 'Memory Training Complete · 32 of 32', 'ok'],
+    ['0x0014', 'Fan Bay 6 · Empty · airflow reduced', 'warn'],
+    ['0x0015', 'PSU-1 Input 220V · redundancy full', 'ok'],
+    ['0x0016', 'BMC Heartbeat Established', 'ok'],
+  ];
+
+  const BIOS = [
+    'Boot Mode              : UEFI',
+    'Secure Boot            : Enabled',
+    'SR-IOV                 : Enabled',
+    'Hyper-Threading        : Enabled',
+    'Memory Mode            : Independent · 8 channels/CPU',
+    'Power Profile          : Performance Per Watt (OS)',
+    'System Profile         : Custom · C-States off',
+    'Boot Order             : 1) NVMe 0  2) PXE 25G  3) BMC Virtual Media',
+  ];
+
+  const LSPCI = [
+    '00:00.0 Host bridge: Intel Sapphire Rapids DMI',
+    '17:00.0 Non-Volatile memory controller: NVMe SSD 3.84TB',
+    '18:00.0 Non-Volatile memory controller: Optane P5800X',
+    '31:00.0 Ethernet controller: 25G SFP28 OCP 3.0 (rev 02)',
+    '65:00.0 Ethernet controller: 1GbE dual-port',
+    'b1:00.0 PCI bridge: Riser 1 · PCIe Gen5 x16',
+    'b2:00.0 PCI bridge: Riser 2 · PCIe Gen5 x16',
+    'ff:1e.0 Baseboard Management Controller: AST2600',
+  ];
+
+  function svcOn(on) {
+    if (rig.classList.contains('service') !== on) toggleService();
+  }
+
+  function exec(raw) {
+    const [cmd, arg] = raw.trim().toLowerCase().split(/\s+/);
+    if (!cmd) return;
+    line('$ ' + raw.trim(), 'muted');
+    switch (cmd) {
+      case 'help': HELP.forEach(function (h) { line(h); }); break;
+      case 'power':
+        if (arg === 'off') { if (state.powered) powerOff(); else line('уже выключен', 'muted'); }
+        else if (arg === 'on') {
+          if (rig.classList.contains('init')) line('power inhibited · bmc init', 'warn');
+          else if (state.powered) line('уже работает', 'muted');
+          else { line('power on', 'muted'); powerOn(); }
+        } else if (arg === 'cycle') {
+          if (!state.powered) { line('power on', 'muted'); powerOn(); }
+          else { powerOff(); wait(1000, function () { line('power on', 'muted'); powerOn(); }); }
+        } else line('power on|off|cycle', 'warn');
+        break;
+      case 'cover':
+        if (arg === 'open') { setLid(true); line('cover removed', 'ok'); }
+        else if (arg === 'close') { setLid(false); line('cover in place', 'ok'); }
+        else line('cover open|close', 'warn');
+        break;
+      case 'service':
+        if (arg === 'on' || arg === 'off') svcOn(arg === 'on');
+        else line('service on|off', 'warn');
+        break;
+      case 'id':
+        if (arg === 'on' || arg === 'off') {
+          if (rig.classList.contains('identify') !== (arg === 'on')) toggleIdentify();
+        } else line('id on|off', 'warn');
+        break;
+      case 'lightpath': toggleLp(); break;
+      case 'reboot':
+        if (!state.powered) { line('машина выключена · power on', 'warn'); break; }
+        line('graceful shutdown …', 'muted');
+        powerOff();
+        wait(1200, function () { line('power on', 'muted'); powerOn(); });
+        break;
+      case 'fru': FRU.forEach(function (l) { line(l); }); break;
+      case 'bios': BIOS.forEach(function (l) { line(l); }); break;
+      case 'lspci': LSPCI.forEach(function (l) { line(l); }); break;
+      case 'sel':
+        line('ID      EVENT', 'muted');
+        SEL.forEach(function (e) { line(e[0] + '  ' + e[1], e[2]); });
+        break;
+      case 'sensors': {
+        if (!state.powered) { line('датчики доступны только на работающей машине', 'warn'); break; }
+        const missing = chassis.querySelectorAll('.fan.pulled').length + 1;   // один слот пуст всегда
+        line('CPU0 Temp      ' + (41 + missing * 3 + Math.round(Math.random() * 6)) + ' °C', 'ok');
+        line('CPU1 Temp      ' + (39 + missing * 3 + Math.round(Math.random() * 6)) + ' °C', 'ok');
+        line('Inlet Temp     ' + (21 + Math.round(Math.random() * 2)) + ' °C', 'ok');
+        line('Fan Speed      ' + (12400 + missing * 1800 + Math.round(Math.random() * 600)) + ' RPM',
+             missing > 1 ? 'warn' : 'ok');
+        line('PSU Input      ' + (318 + Math.round(Math.random() * 44)) + ' W', 'ok');
+        line('DIMM Populated ' + (32 - chassis.querySelectorAll('.dimm.pulled').length) + ' of 32', 'ok');
+        break;
+      }
+      case 'fans': {
+        const pulled = new Set(Array.from(chassis.querySelectorAll('.fan.pulled'))
+          .map(function (f) { return Number(f.dataset.fan); }));
+        for (let n = 0; n < 8; n++) {
+          if (n === 5) { line('FAN' + (n + 1) + '  —      empty bay', 'warn'); continue; }
+          if (pulled.has(n)) { line('FAN' + (n + 1) + '  —      removed', 'warn'); continue; }
+          line('FAN' + (n + 1) + '  ' + (12100 + Math.round(Math.random() * 900)) + '  RPM  ok', 'ok');
+        }
+        break;
+      }
+      case 'dimm': {
+        const out = chassis.querySelectorAll('.dimm.pulled').length;
+        line('CPU0  A0-H0  8/8   5600 MT/s  RDIMM 32GB', 'ok');
+        line('CPU0  A1-H1  8/8   5600 MT/s  RDIMM 32GB', 'ok');
+        line('CPU1  A0-H0  8/8   5600 MT/s  RDIMM 32GB', 'ok');
+        line('CPU1  A1-H1  8/8   5600 MT/s  RDIMM 32GB', 'ok');
+        line('Total       ' + (32 - out) + ' of 32 · ' + ((32 - out) * 32 / 1024).toFixed(2) + ' TiB',
+             out ? 'warn' : 'ok');
+        break;
+      }
+      case 'nvme': {
+        if (arg && arg !== 'list') { line('nvme list', 'warn'); break; }
+        for (let n = 0; n < 6; n++) {
+          const opt = n === 2;
+          line('/dev/nvme' + n + '  ' + (opt ? 'INTEL OPTANE P5800X  1.6 TB ' : 'U.2 NVMe Gen4        3.84 TB')
+               + '  ' + (opt ? '  100% ' : '   98% ') + 'life', opt ? 'ok' : 'muted');
+        }
+        break;
+      }
+      case 'uptime': {
+        const s2 = Math.floor((Date.now() - t0) / 1000);
+        line(state.powered ? 'up ' + Math.floor(s2 / 60) + ' min ' + (s2 % 60) + ' sec · 1 user'
+                           : 'standby · хост выключен', state.powered ? 'ok' : 'muted');
+        break;
+      }
+      case 'status': {
+        const pulled = chassis.querySelectorAll('.pulled').length;
+        line('power   : ' + (state.powered ? 'on' : 'standby'), state.powered ? 'ok' : 'muted');
+        line('cover   : ' + (rig.classList.contains('lid-off') ? 'removed' : 'in place'));
+        line('service : ' + (rig.classList.contains('service') ? 'on' : 'off'));
+        line('health  : ' + (pulled ? 'degraded · вынуто узлов: ' + pulled : 'ok'),
+             pulled ? 'warn' : 'ok');
+        break;
+      }
+      case 'links':
+        Object.keys(LINKS).forEach(function (k) { line(k.padEnd(9) + LINKS[k]); });
+        break;
+      case 'open':
+        if (LINKS[arg]) line(LINKS[arg], 'ok');
+        else line('нет такого раздела · попробуй links', 'warn');
+        break;
+      case 'clear': log.innerHTML = ''; break;
+      case 'whoami': line('Timofey Kondrashin · DevOps', 'ok'); break;
+      default: line('неизвестная команда: ' + cmd + ' · help', 'warn');
+    }
+  }
+
+  const promptInput = document.getElementById('prompt');
+  document.getElementById('prompt-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    exec(promptInput.value);
+    promptInput.value = '';
+  });
+
+  // ── Запуск ─────────────────────────────────────────────────────────────
+  const first = !state.visited;
+  state.visited = true; save();
+
+  // Крышка. Гостю не надо догадываться, что её надо снять: при первом заходе
+  // она уходит сама. Обратно ставит кнопка на плате, рядом с тумблером
+  // сервисного режима.
+  const lidRemove = document.getElementById('lid-remove');
+  const lidOn = document.getElementById('lid-on');
+
+  function setLid(off) {
+    rig.classList.toggle('lid-off', off);
+    state.lid = off; save();
+  }
+  function bindLid(el, off, msg) {
+    if (!el) return;
+    el.addEventListener('click', function () { setLid(off); line(msg, 'muted'); });
+    el.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setLid(off); line(msg, 'muted'); }
+    });
+  }
+  bindLid(lidRemove, true, 'cover removed');
+  bindLid(lidOn, false, 'cover in place');
+
+  setLid(!!state.lid);
+  wait(260, function () { rig.classList.add('ready'); });
+  // первый заход: показываем закрытую машину и снимаем крышку сами
+  if (first && !reduced && !state.lid) wait(1500, function () { setLid(true); });
+  else if (!first) setLid(true);
+
+  if (first && !reduced) {
+    // Полный вход, как в стойке: подали дежурку, BMC инициализируется и
+    // кнопка мигает часто — жать бесполезно. Закончил — мигает редко, и
+    // дальше машину включает уже человек.
+    state.powered = false; save();
+    setPower('init');
+    line('standby power applied', 'muted');
+    line('uefi/bmc init …', 'muted');
+    tick();
+    wait(2600, function () {
+      line('bmc ready · press power', 'ok');
+      setPower('standby');
+      tick();
+    });
+  } else if (state.powered) {
+    setPower('on');
+    rig.classList.add('net', 'bmc');
+    line('session restored', 'muted');
+    line('system ready', 'ok');
+    tick();
+  } else {
+    setPower('standby');
+    line('standby · bmc only', 'muted');
+    tick();
+  }
+
+  window.setInterval(tick, 1000);
+})();
