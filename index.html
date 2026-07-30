@@ -815,7 +815,12 @@
 
         <div class="rig-bottom">
         <div class="panel">
-            <h2>console <span id="uptime">--:--</span></h2>
+            <!-- Модель машины живёт в заголовке, а не в логе: лог для событий. -->
+            <h2>
+                <span class="con-name">console</span>
+                <span class="con-spec">CD93-FS1 · 1U · 2× Xeon Scalable · 32× DDR5 · 6× U.2 NVMe · 2× 25G SFP+</span>
+                <span class="con-up">up <span id="uptime">--:--</span></span>
+            </h2>
             <div class="console-log" id="log"></div>
             <form class="prompt" id="prompt-form" autocomplete="off">
                 <span class="ps1">cosmdandy@cd93:~$</span>
