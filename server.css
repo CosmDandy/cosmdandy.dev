@@ -84,15 +84,15 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   position: relative;
   z-index: 1;
   margin: 0 auto;
-  max-width: 1060px;
-  padding: 0 16px;
+  width: min(96vw, 1560px);
+  padding: 0 12px;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
 .rig *, .rig *::before, .rig *::after { box-sizing: border-box; }
 
 /* Имя и статус видны в обоих видах — это визитка, а не только схема. */
-.rig-id { text-align: center; margin: 0 auto 16px; }
+.rig-id { text-align: center; margin: 0 auto 28px; }
 .rig-id h2 { margin: 0 0 4px; font-size: 1.5rem; font-weight: 600;
              letter-spacing: -0.02em; color: var(--heading); }
 .rig-id .bio { margin: 0 0 6px; font-size: 0.95rem; color: var(--bio); }
@@ -175,7 +175,7 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
      paint server отваливался при трансформации группы. Градиентов в SVG
      больше нет, перспектива безопасна. */
   .stage { perspective: 1700px; perspective-origin: 50% 42%; display: flex; justify-content: center; }
-  .stage > .chassis { width: 100%; max-width: 1000px; margin: 0 auto; }
+  .stage > .chassis { width: 100%; margin: 0 auto; }
 
   .chassis {
     position: relative;
@@ -394,3 +394,47 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
     .chassis { transform: rotateX(14deg); opacity: 1; }
     .lid { display: none; }
   }
+
+/* ── Низ сервисного режима: консоль и приборы ─────────────────────────────
+ * Консоль под машиной, приборы справа от неё. Оба появляются только вместе с
+ * сервисным режимом — гостю они не нужны.
+ */
+.rig-bottom {
+  display: none;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 14px;
+  align-items: start;
+  margin-top: 22px;
+}
+.rig.service .rig-bottom { display: grid; }
+.rig.service .panel { display: block; width: auto; margin: 0; }
+
+.gauges {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  background: linear-gradient(180deg, rgba(9,34,40,0.92) 0%, rgba(7,26,31,0.88) 100%);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+.gauge { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: baseline; }
+.g-name {
+  font-size: 0.6rem; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--dim);
+}
+.g-value { font-size: 0.82rem; color: var(--head); font-variant-numeric: tabular-nums; }
+.g-spark { grid-column: 1 / -1; width: 100%; height: 30px; display: block; }
+.g-line { stroke: var(--cyan); stroke-width: 1.4; vector-effect: non-scaling-stroke; }
+.g-area { fill: rgba(42,161,152,0.14); stroke: none; }
+.gauge.warn .g-line { stroke: var(--amber); }
+.gauge.warn .g-area { fill: rgba(181,137,0,0.16); }
+.gauge.warn .g-value { color: var(--amber); }
+.gauge.off .g-value { color: var(--dim); }
+.gauge.off .g-line { stroke: rgba(147,161,161,0.3); }
+.gauge.off .g-area { fill: rgba(147,161,161,0.06); }
+
+@media (max-width: 900px) {
+  .rig-bottom { grid-template-columns: minmax(0, 1fr); }
+}
