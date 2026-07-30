@@ -11,14 +11,14 @@
 # горит не блок, а место, из которого его вынули.
 BOUNDS = (982, 0, 356, 862)
 
-from board.geom import X_REAR, seat
+from board.geom import PSU_H, PSU_W, PSU_Y, X_REAR, seat
 from board.ink import mono
 from board.lamps import fault_at, glow, jitter
 from board.revision import stamp
 
 
 def render(cv):
-    for k, (y, flip) in enumerate([(22, False), (696, True)]):
+    for k, (y, flip) in enumerate(zip(PSU_Y, (False, True))):
         name = f"PSU-{k+1}"
         fan_y = y + (8 if flip else 83)      # вентилятор в дальнем от центра углу
         grip_y = y + (88 if flip else 14)     # ручка — в противоположном
@@ -31,7 +31,7 @@ def render(cv):
                        f'stroke="rgba(147,161,161,0.16)" stroke-width="2.4"/>')
         cv.add('<g class="decor psu-bay">' + ''.join(bay) + '</g>')
         psu = []
-        psu.append(f'<rect x="{X_REAR}" y="{y}" width="300" height="145" rx="5" fill="#121a1e" stroke="rgba(147,161,161,0.26)"/>')
+        psu.append(f'<rect x="{X_REAR}" y="{y}" width="{PSU_W}" height="{PSU_H}" rx="5" fill="#121a1e" stroke="rgba(147,161,161,0.26)"/>')
         # Жалюзи по верху корпуса: штампованные прорези, через них уходит
         # горячий воздух. Ряд идёт вдоль всего модуля, кроме торцов.
         louver_y = y + (128 if flip else 8)
@@ -80,7 +80,13 @@ def render(cv):
         for b in range(20):
             w = 1.4 if b % 3 else 2.8
             psu.append(f'<rect x="{X_REAR+16}" y="{y+34+b*4}" width="24" height="{w}" fill="rgba(147,161,161,0.22)"/>')
-        psu.append(mono(X_REAR + 62, y + 24, name, 11, op=0.5))
+        # Имя блока идёт вдоль модуля, а не поперёк: на живой машине шильдик
+        # наклеен по длинной стороне, и читают его, повернув голову. Так же
+        # развёрнут и шильдик на крышке.
+        nx, ny = X_REAR + 30, y + PSU_H / 2
+        psu.append(f'<text x="{nx}" y="{ny}" transform="rotate(-90 {nx} {ny})" '
+                   f'text-anchor="middle" fill="rgba(147,161,161,0.5)" '
+                   f'font-family="ui-monospace, Menlo, monospace" font-size="11">{name}</text>')
         psu.append(stamp(X_REAR + 16, y + 138, "блоки питания"))
         # AC, DC и ошибка — ровно тот набор, что подписан на наклейке живого БП.
         # Вход под напряжением всегда: AC горит и на выключенной машине.

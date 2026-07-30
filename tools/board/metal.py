@@ -148,15 +148,16 @@ def service_label(x, y, w, h, title, lines):
     return ''.join(parts)
 
 
-def rating_label(x, y, num):
+def rating_label(x, y, num, w=136, h=42):
     """Шильдик питания своего ввода: номер блока на всех метках один.
 
-    Жёлтые квадраты по краям — предупреждение, что вводов два и обесточить
-    надо оба. Единственное цветное пятно на крышке настоящей машины.
+    Жёлтый квадрат с молнией — предупреждение, что вводов два и обесточить
+    надо оба; оранжевый рядом — рука, то есть «под напряжением не лезть».
+    Раньше эта пара стояла дважды, зеркально по краям, и наклейка читалась
+    как две разные: на живой машине каждый знак нанесён по одному разу.
     """
-    w, h = 300, 46
-    yw, ow = 50, 34
-    dw = w - 2 * yw - 2 * ow
+    yw, ow = h * 0.86, h * 0.62
+    dw = w - yw - ow
 
     def bolt(cx, cy, sz):
         tri = (f'<path d="M{cx:.1f} {cy-sz:.1f} L{cx+sz*0.9:.1f} {cy+sz*0.75:.1f} '
@@ -167,34 +168,31 @@ def rating_label(x, y, num):
                f'L{cx+sz*0.40:.1f} {cy-sz*0.10:.1f} L{cx+sz*0.08:.1f} {cy-sz*0.10:.1f} Z" fill="#161005"/>')
         return tri + zig
 
-    def yellow(zx, num):
-        cx, cy, sz = zx + yw * 0.36, y + h * 0.42, h * 0.26
-        return (f'<rect x="{zx}" y="{y}" width="{yw}" height="{h}" fill="#f2c200" '
-                f'stroke="rgba(20,20,10,0.5)" stroke-width="1"/>' + bolt(cx, cy, sz)
-                + f'<text x="{zx+yw*0.72:.1f}" y="{y+h*0.68:.1f}" text-anchor="middle" fill="#161005" '
-                  f'font-family="ui-monospace, Menlo, monospace" font-size="{h*0.48:.1f}" '
-                  f'font-weight="700">{num}</text>')
+    yellow = (f'<rect x="{x}" y="{y}" width="{yw:.1f}" height="{h}" fill="#f2c200" '
+              f'stroke="rgba(20,20,10,0.5)" stroke-width="1"/>'
+              + bolt(x + yw * 0.36, y + h * 0.42, h * 0.26)
+              + f'<text x="{x+yw*0.74:.1f}" y="{y+h*0.68:.1f}" text-anchor="middle" fill="#161005" '
+                f'font-family="ui-monospace, Menlo, monospace" font-size="{h*0.44:.1f}" '
+                f'font-weight="700">{num}</text>')
+    ox = x + yw
+    orange = (f'<rect x="{ox:.1f}" y="{y}" width="{ow:.1f}" height="{h}" fill="#cb4b16" '
+              f'stroke="rgba(20,20,10,0.4)" stroke-width="1"/>'
+              f'<path d="M{ox+ow*0.22:.1f} {y+h*0.32:.1f} q{ow*0.14:.1f} -{h*0.16:.1f} {ow*0.28:.1f} 0 '
+              f'q{ow*0.14:.1f} {h*0.16:.1f} {ow*0.28:.1f} 0" fill="none" stroke="#161005" stroke-width="1.4"/>'
+              + f'<text x="{ox+ow/2:.1f}" y="{y+h*0.80:.1f}" text-anchor="middle" fill="#161005" '
+                f'font-family="ui-monospace, Menlo, monospace" font-size="{h*0.36:.1f}" '
+                f'font-weight="700">{num}</text>')
 
-    def orange(zx, num):
-        return (f'<rect x="{zx}" y="{y}" width="{ow}" height="{h}" fill="#cb4b16" '
-                f'stroke="rgba(20,20,10,0.4)" stroke-width="1"/>'
-                f'<path d="M{zx+ow*0.22:.1f} {y+h*0.30:.1f} q{ow*0.14:.1f} -{h*0.16:.1f} {ow*0.28:.1f} 0 '
-                f'q{ow*0.14:.1f} {h*0.16:.1f} {ow*0.28:.1f} 0" fill="none" stroke="#161005" stroke-width="1.4"/>'
-                + f'<text x="{zx+ow/2:.1f}" y="{y+h*0.78:.1f}" text-anchor="middle" fill="#161005" '
-                  f'font-family="ui-monospace, Menlo, monospace" font-size="{h*0.40:.1f}" '
-                  f'font-weight="700">{num}</text>')
-
-    x_o2, x_dark = x + yw, x + yw + ow
-    x_o1, x_y1 = x_dark + dw, x_dark + dw + ow
-    lines = ["100-127Vac 5,3A · 200-240Vac 2,6A · 50/60Hz",
-             "100-127Vac 7,8A · 200-240Vac 3,8A",
-             "-48 to -60Vdc, 18,34A"]
-    line_h = h / (len(lines) + 1)
-    dark = (f'<rect x="{x_dark:.1f}" y="{y}" width="{dw:.1f}" height="{h}" fill="#10171a" '
+    # Токи с таблички живой машины, разбитые по строкам: наклейка стоит вдоль
+    # блока, а не поперёк, и полная строка в её длину не влезает.
+    dx = x + yw + ow
+    rows = ["100-127V 5,3A", "200-240V 2,6A", "-48…-60V 18,3A"]
+    line_h = h / (len(rows) + 1)
+    dark = (f'<rect x="{dx:.1f}" y="{y}" width="{dw:.1f}" height="{h}" fill="#10171a" '
             f'stroke="rgba(147,161,161,0.28)" stroke-width="1"/>'
-            + ''.join(f'<text x="{x_dark+6:.1f}" y="{y+line_h*(i+1):.1f}" text-anchor="start" '
+            + ''.join(f'<text x="{dx+5:.1f}" y="{y+line_h*(i+1)+1:.1f}" text-anchor="start" '
                       f'fill="rgba(238,232,213,0.72)" font-family="ui-monospace, Menlo, monospace" '
-                      f'font-size="4.4">{ln}</text>' for i, ln in enumerate(lines)))
-    return (yellow(x, num) + orange(x_o2, num) + dark + orange(x_o1, num) + yellow(x_y1, num)
+                      f'font-size="6">{ln}</text>' for i, ln in enumerate(rows)))
+    return (yellow + orange + dark
             + f'<rect x="{x}" y="{y}" width="{w}" height="{h}" fill="none" '
               f'stroke="rgba(20,20,10,0.55)" stroke-width="1.2"/>')

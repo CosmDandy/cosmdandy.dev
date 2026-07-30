@@ -10,7 +10,7 @@
 # Первая карта доходит до задней стенки: её торец — это гнёзда SFP+.
 BOUNDS = (992, 160, 316, 400)
 
-from board.geom import X_IO, X_PCB_END, X_REAR, seat
+from board.geom import RISER, X_IO, X_PCB_END, X_REAR, seat
 from board.ink import mono, silk_boxed, silk_inverse
 from board.lamps import act_led, fault_at
 from board.metal import hexgrid
@@ -28,7 +28,7 @@ def render(cv):
     # под карту с портами, нижний вдвое тоньше — в него ставят что попроще.
     # Задняя часть поделена по вертикали без нахлёстов: блок питания, райзер,
     # мосты, второй райзер, интерфейсы платы, второй блок питания.
-    for k, (y, up, hh) in enumerate(((184, True, 192), (444, False, 92))):
+    for k, ((y, hh), up) in enumerate(zip(RISER, (True, False))):
         x0, x1 = X_REAR + 12, X_PCB_END - 6
         if up:
             # полка сверху, стойка справа: вогнутый угол один — (x1-T, y+T)

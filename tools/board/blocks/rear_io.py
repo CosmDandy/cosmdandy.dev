@@ -9,7 +9,7 @@
 # Модуль интерфейсов стоит на плате и уходит вглубь от задней стенки.
 BOUNDS = (1060, 448, 240, 274)
 
-from board.geom import X_IO
+from board.geom import IO_H, IO_Y, X_IO
 from board.ink import mono
 from board.lamps import act_led
 from board.ports import rj45, sfp
@@ -23,7 +23,7 @@ def render(cv):
     # держит гнёзда на месте, когда райзер вынут.
     # Полоса между нижним райзером и вторым блоком питания — всё, что
     # осталось от задней части. Модуль вписан ровно в неё.
-    BX, BY, BW, BH = X_IO - 148, 548, 234, 126
+    BX, BY, BW, BH = X_IO - 148, IO_Y, 234, IO_H
     cv.callouts.append((X_IO - 30, BY + 22, X_IO + 4, BY + 40, "Telegram", "end", "https://t.me/cosmdandy", "eth"))
     cv.callouts.append((X_IO - 30, BY + 74, X_IO + 4, BY + 74, "Twitter", "end", "https://x.com/cosmdandy", "tw"))
     cv.callouts.append((X_IO - 30, BY + 126, X_IO + 4, BY + 112, "Email", "end", "mailto:i@cosmdandy.dev", "bmc"))
