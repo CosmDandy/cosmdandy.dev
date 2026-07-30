@@ -5,7 +5,9 @@
 """
 
 # Свой прямоугольник: сборка проверит, что узел из него не вышел.
-BOUNDS = (982, 0, 314, 848)
+# Шире корпуса: оранжевый фиксатор торчит за задний торец — за него и
+# зажимают, пока блок не выйдет из кармана.
+BOUNDS = (982, 0, 340, 848)
 
 from board.geom import X_REAR
 from board.ink import mono
@@ -18,15 +20,37 @@ def render(cv):
         name = f"PSU-{k+1}"
         fan_y = y + (8 if flip else 83)      # вентилятор в дальнем от центра углу
         grip_y = y + (88 if flip else 14)     # ручка — в противоположном
-        psu = [f'<rect x="{X_REAR}" y="{y}" width="300" height="145" rx="5" fill="#121a1e" stroke="rgba(147,161,161,0.26)"/>']
-        # лепесток-ручка: выступает за задний торец, за него и тянут
-        psu.append(f'<path d="M{X_REAR+236} {grip_y} h52 l16 21 -16 21 h-52 Z" fill="#1a242a" '
-                   f'stroke="rgba(147,161,161,0.36)" stroke-width="1.4"/>')
-        psu.append(f'<rect x="{X_REAR+240}" y="{grip_y+6}" width="14" height="30" rx="2" fill="#cb4b16" '
-                   f'stroke="rgba(238,232,213,0.5)" stroke-width="1.2"/>')
-        for g in range(3):
-            psu.append(f'<line x1="{X_REAR+248}" y1="{grip_y+12+g*9}" x2="{X_REAR+284}" y2="{grip_y+12+g*9}" '
-                       f'stroke="rgba(147,161,161,0.26)" stroke-width="2"/>')
+        # Карман отсека: блок вставляется в него, а не приклеен к стенке.
+        # Без кармана два модуля читаются одной панелью на задней кромке.
+        psu = [(f'<rect x="{X_REAR-6}" y="{y-6}" width="312" height="157" rx="6" fill="#0c1316" '
+                f'stroke="rgba(147,161,161,0.20)"/>')]
+        for gy in (y - 2, y + 143):
+            psu.append(f'<line x1="{X_REAR-2}" y1="{gy}" x2="{X_REAR+296}" y2="{gy}" '
+                       f'stroke="rgba(147,161,161,0.16)" stroke-width="2.4"/>')
+        psu.append(f'<rect x="{X_REAR}" y="{y}" width="300" height="145" rx="5" fill="#121a1e" stroke="rgba(147,161,161,0.26)"/>')
+        # Жалюзи по верху корпуса: штампованные прорези, через них уходит
+        # горячий воздух. Ряд идёт вдоль всего модуля, кроме торцов.
+        louver_y = y + (128 if flip else 8)
+        for lv in range(14):
+            lx = X_REAR + 26 + lv * 16
+            psu.append(f'<path d="M{lx} {louver_y} h9 a2 2 0 0 1 0 8 h-9 a2 2 0 0 1 0 -8 Z" '
+                       f'fill="#0a1013" stroke="rgba(147,161,161,0.18)" stroke-width="0.8"/>')
+        # Проволочная скоба: за неё блок и вытягивают. Откидывается на двух
+        # осях у торца, поэтому в покое лежит вдоль корпуса, а не торчит.
+        bail_x = X_REAR + 232
+        psu.append(f'<path d="M{bail_x} {grip_y+4} h58 a7 7 0 0 1 7 7 v20 a7 7 0 0 1 -7 7 h-58" '
+                   f'fill="none" stroke="rgba(190,201,205,0.72)" stroke-width="3.4" '
+                   f'stroke-linecap="round"/>')
+        for ay in (grip_y + 4, grip_y + 38):        # оси, на которых скоба откидывается
+            psu.append(f'<circle cx="{bail_x}" cy="{ay}" r="3.4" fill="#0d1418" '
+                       f'stroke="rgba(147,161,161,0.44)" stroke-width="1.4"/>')
+        # Оранжевый фиксатор — отдельная деталь у основания скобы, и он
+        # торчит за торец. Пока его не зажмёшь, блок заперт в кармане.
+        psu.append(f'<path d="M{X_REAR+296} {grip_y+12} h18 a4 4 0 0 1 4 4 v10 a4 4 0 0 1 -4 4 h-18 Z" '
+                   f'fill="#cb4b16" stroke="rgba(238,232,213,0.55)" stroke-width="1.2"/>')
+        for g in range(2):
+            psu.append(f'<line x1="{X_REAR+302}" y1="{grip_y+16+g*7}" x2="{X_REAR+313}" y2="{grip_y+16+g*7}" '
+                       f'stroke="rgba(20,20,10,0.34)" stroke-width="1.6"/>')
         # вентилятор
         psu.append(f'<rect x="{X_REAR+238}" y="{fan_y-4}" width="58" height="58" rx="4" fill="#0b1215" stroke="rgba(147,161,161,0.22)"/>')
         psu.append(f'<circle cx="{X_REAR+267}" cy="{fan_y+25}" r="25" fill="#0d1417" stroke="rgba(147,161,161,0.18)"/>')
