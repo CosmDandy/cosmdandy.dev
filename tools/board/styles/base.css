@@ -522,7 +522,12 @@ a.stamp:focus-visible text { fill-opacity: 1; }
  * Наводишь на сетевую карту — загорается её подпись, и наоборот. Иначе
  * непонятно, к чему относится ярлык.
  */
-.unit .pick-body, .unit .body { transition: filter var(--fade); }
+/* Подсветка узла и его движение живут на одном элементе, поэтому переход
+   перечисляет оба свойства. Шорткат с одним filter затирал transform, и
+   всё, что лежит внутри .unit — диски, планки, радиатор, — прыгало в
+   конечное положение мгновенно. Вентиляторы при этом ехали плавно: они
+   единственные не обёрнуты в .unit, и правило до них не доставало. */
+.unit .pick-body, .unit .body { transition: transform var(--glide), filter var(--fade); }
 .rig .unit.lit .pick-body,
 .rig .unit.lit .body { filter: brightness(1.35) saturate(1.15); }
 a.callout.lit .co-box { fill: #fff; stroke: var(--cyan); }
