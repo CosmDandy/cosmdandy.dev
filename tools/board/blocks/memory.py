@@ -8,21 +8,31 @@
 # Свой прямоугольник: сборка проверит, что узел из него не вышел.
 BOUNDS = (488, 4, 360, 850)
 
-from board.geom import (BANK_N, DIMM_SOCK_W, PITCH, SEAT, SEAT_WAVE2, SLOT_H, X_CORE, X_TAG,
-                        Y_BANK_C, Y_BANK_L, Y_BANK_R)
+from board.geom import (
+    BANK_N,
+    DIMM_SOCK_W,
+    PITCH,
+    SEAT,
+    SEAT_WAVE2,
+    SLOT_H,
+    X_CORE,
+    X_TAG,
+    Y_BANK_C,
+    Y_BANK_L,
+    Y_BANK_R,
+)
 
 # Габариты планки по глубине платы. Всё остальное в разъёме считается от них:
 # контакты, ключ и чипы должны сойтись при любой ширине.
 SOCK_W = DIMM_SOCK_W
 DIMM_W = SOCK_W - 6
-from board.ink import hit, silk_inverse
+from board.ink import hit, mono, silk_inverse
 from board.lamps import glow
 from board.revision import stamp
+from board.spec import DIMM
 
 
 def render(cv):
-    LETTERS = "ABCDEFGH"
-
     # Планки ставят не подряд, а по каналам: сперва первый слот каждого
     # канала у обоих процессоров, потом второй. Средний банк поэтому набивают
     # с двух концов — его половины принадлежат разным процессорам.
@@ -65,6 +75,7 @@ def render(cv):
           {glow('fault', X_CORE + DIMM_W + 12, y + SLOT_H / 2, 2.4, '#dc322f')}
           <circle class="fault" cx="{X_CORE+DIMM_W+12}" cy="{y+SLOT_H/2}" r="2.4" fill="#dc322f"/>
           {silk_inverse(X_CORE + DIMM_W + 18, y - 1, f"DIMM{first + i}", 6.5)}
+          {mono(X_CORE + 24, y + SLOT_H - 4, f"{DIMM['size_gb']}GB {DIMM['kind']} {DIMM['speed']}", 5.5, anchor="start", op=0.30)}
         </g>''')
         return f'''<g class="unit" data-unit="dimm-{code}" data-group="dimm" data-href="https://blog.cosmdandy.dev">
       {hit(X_CORE-8, y0-4, SOCK_W + 42, n * PITCH + 6)}

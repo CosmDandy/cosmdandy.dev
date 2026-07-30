@@ -29,6 +29,20 @@
     if (raw) state = Object.assign(state, JSON.parse(raw));
   } catch (e) {}
 
+  // Состав машины в шапке консоли — из паспорта. Пока он был написан в
+  // разметке руками, там стояли тридцать две планки памяти при двадцати
+  // четырёх нарисованных.
+  const specLine = document.querySelector('.con-spec');
+  if (specLine && HW.board) {
+    specLine.textContent = [
+      HW.board.model, HW.board.form,
+      HW.cpu.n + '× ' + HW.cpu.short,
+      HW.dimm.slots + '× ' + HW.dimm.kind,
+      HW.bay.filter(function (b) { return !b.filler; }).length + '× NVMe',
+      HW.ports.sfp,
+    ].join(' · ');
+  }
+
   const save = () => { try { localStorage.setItem('rig-state', JSON.stringify(state)); } catch (e) {} };
   const wait = (ms, fn) => window.setTimeout(fn, reduced ? 0 : ms);
 

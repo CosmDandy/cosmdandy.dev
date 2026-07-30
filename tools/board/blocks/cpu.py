@@ -6,10 +6,11 @@
 import math
 
 from board.geom import SOCKET_H, SOCKET_W, X_CORE, X_SOCK, X_TAG, Y_CPU0, Y_CPU1, seat
-from board.ink import hit, mono, silk_boxed, silk_inverse, tag
+from board.ink import hit, mono, silk_boxed, silk_inverse
 from board.lamps import fault
 from board.metal import ihs_path
 from board.revision import stamp
+from board.spec import CPU
 
 
 def render(cv):
@@ -43,14 +44,14 @@ def render(cv):
                + ''.join(f'<circle cx="{px0 + gx}" cy="{py0 + gy}" r="2.6" fill="#1b2429" '
                          f'stroke="rgba(147,161,161,0.44)"/>'
                          for gx in (-8, pw + 8) for gy in (-8, ph + 8))
-               + f'</g>')
+               + '</g>')
 
         s = [f'<rect x="{x}" y="{y}" width="{SOCKET_W}" height="{SOCKET_H}" rx="4" fill="#101a1e" stroke="rgba(147,161,161,0.42)"/>',
              f'<rect x="{x+14}" y="{y+14}" width="{SOCKET_W-28}" height="{SOCKET_H-28}" rx="2" fill="#0b1316" stroke="rgba(147,161,161,0.26)"/>',
              lga,
              # Сам процессор — отдельная группа: он снимается вторым, после
              # радиатора, и уезжает вниз, открывая поле контактов.
-             f'<g class="cpu-lid">',
+             '<g class="cpu-lid">',
              # подложка процессора видна из-под крышки узкой каймой
              f'<rect x="{ihs_x-5}" y="{ihs_y-5}" width="{ihs_w+10}" height="{ihs_h+10}" rx="1" '
              f'fill="#123028" stroke="rgba(133,153,0,0.30)"/>',
@@ -63,7 +64,11 @@ def render(cv):
              f'<path d="M{ihs_x} {ihs_y + cut} L{ihs_x + cut} {ihs_y}" fill="none" '
              f'stroke="rgba(147,161,161,0.34)" stroke-width="1.2"/>',
              f'<path d="M{ihs_x + 3} {ihs_y + 12} l7 0 l-3.5 -7 z" fill="rgba(238,232,213,0.5)"/>',
-             mono(x + SOCKET_W/2, y + SOCKET_H/2 + 4, "LGA 4677", 10, op=0.55),
+             # На живой крышке выбито, что за процессор под ней. Число ядер
+             # раньше не было написано на плате нигде — консоль называла его
+             # с потолка, и проверить её было нечем.
+             mono(x + SOCKET_W/2, y + SOCKET_H/2 - 6, CPU['short'], 10, op=0.55),
+             mono(x + SOCKET_W/2, y + SOCKET_H/2 + 8, f"{CPU['socket']} · {CPU['cores']}c/{CPU['threads']}t", 7, op=0.4),
              '</g>',
              f'<path d="M{x+SOCKET_W/2} {y+24} l-5 8 h10 z" fill="rgba(147,161,161,0.32)"/>',
              silk_boxed(x + SOCKET_W / 2 + 48, y + 32, "INSTALL", 6, op=0.34)]

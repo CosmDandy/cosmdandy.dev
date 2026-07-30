@@ -12,6 +12,7 @@ from board.ink import empty_pads, hit, mono, silk_boxed
 from board.metal import pad, relief
 from board.palette import SILVER
 from board.revision import BOARD_REV, BOARD_SHA
+from board.spec import CPU, ram_label
 
 
 def render(cv):
@@ -381,7 +382,7 @@ def render(cv):
         font-size="34" font-weight="600" letter-spacing="0.10em">COSMDANDY</text>
   <text x="{X_SVC+124}" y="480" transform="rotate(-90 {X_SVC+124} 480)" text-anchor="middle"
         fill="rgba(147,161,161,0.26)" font-family="ui-monospace, Menlo, monospace"
-        font-size="7" letter-spacing="0.14em">DUAL SOCKET · 24× DDR5 RDIMM · 6 TB MAX</text>
+        font-size="7" letter-spacing="0.14em">DUAL {CPU['socket']} · {ram_label()}</text>
 </g>''')
 
     # Ревизия платы — по правому борту от марки. Она же ссылка: номер сборки это

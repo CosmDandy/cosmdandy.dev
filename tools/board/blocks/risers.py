@@ -11,11 +11,12 @@
 BOUNDS = (992, 160, 316, 400)
 
 from board.geom import RISER, X_IO, X_PCB_END, X_REAR, seat
-from board.ink import mono, silk_boxed, silk_inverse
+from board.ink import mono, silk_boxed
 from board.lamps import act_led, fault_at
 from board.metal import hexgrid
 from board.ports import sfp
 from board.revision import stamp
+from board.spec import PORTS
 
 
 def render(cv):
@@ -92,8 +93,8 @@ def render(cv):
                      + f'<circle class="led-link" cx="{X_IO+8}" cy="{card_y+8}" r="3" fill="#2aa198"/>'
                      + act_led(3, X_IO + 8, card_y + 20, 3, "#859900", salt=2)
                      + f'<circle class="led-link" cx="{X_IO+8}" cy="{card_y+38}" r="3" fill="#b58900"/>'
-                     + mono(X_IO + 43, card_y + 74, "2× 10G SFP+", 9, op=0.5)
-                     + mono(X_IO + 43, card_y + 86, "1× 1G · degraded", 7, op=0.34))
+                     + mono(X_IO + 43, card_y + 74, PORTS['sfp'], 9, op=0.5)
+                     + mono(X_IO + 43, card_y + 86, PORTS['sfp_degraded'], 7, op=0.34))
             card += (f'<g class="unit" data-unit="ocp" data-group="ocp" '
                      f'data-href="https://linkedin.com/in/cosmdandy">{ports}</g>')
         # Лепесток-ручка на внешнем торце: райзер вынимают вверх, взявшись за него.
