@@ -37,11 +37,13 @@ ports — то, чем рисуют, revision — партномера.
 """
 
 import importlib
+import json
 import re
 from pathlib import Path
 
 from board.canvas import Canvas
 from board.ink import callout_box
+from board.spec import EXPECT, passport
 
 HERE = Path(__file__).parent
 
@@ -131,11 +133,17 @@ def build():
     return board, lid, report
 
 
-BLOCK_MARK = re.compile(r'^([ \t]*)/\* @block: ([a-z_]+) \*/[ \t]*$', re.MULTILINE)
+# Два вида вставок. @block — узел платы: у него есть геометрия, и правило
+# «узел живёт в трёх файлах одного имени» держится буквально. @part — часть
+# страницы: терминал, экран. Такие ничего не рисуют, .py у них нет, и лежат
+# они отдельно, чтобы правило узлов не пришлось размывать исключениями.
+SRC_DIR = {'block': 'board/blocks', 'part': 'board/parts'}
+
+BLOCK_MARK = re.compile(r'^([ \t]*)/\* @(block|part): ([a-z_]+) \*/[ \t]*$', re.MULTILINE)
 
 
 def build_css():
-    """Собрать server.css: база плюс стили узлов на своих местах.
+    """Собрать server.css: база плюс стили узлов и частей на своих местах.
 
     Маркер `/* @block: имя */` стоит ровно там, где правила узла лежали в
     едином файле. Это не украшение: при равной специфичности спор решает
@@ -146,9 +154,9 @@ def build_css():
     used = []
 
     def paste(m):
-        indent, name = m.group(1), m.group(2)
-        part = (HERE / f'board/blocks/{name}.css').read_text(encoding='utf-8').rstrip('\n')
-        used.append(name)
+        indent, kind, name = m.group(1), m.group(2), m.group(3)
+        part = (HERE / f'{SRC_DIR[kind]}/{name}.css').read_text(encoding='utf-8').rstrip('\n')
+        used.append((kind, name))
         return f'{indent}/* ── {name} ──────────────────────────────── */\n{part}'
 
     css = BLOCK_MARK.sub(paste, base)
@@ -160,7 +168,7 @@ def build_css():
     return used
 
 
-JS_MARK = re.compile(r'^([ \t]*)// @block: ([a-z_]+)[ \t]*$', re.MULTILINE)
+JS_MARK = re.compile(r'^([ \t]*)// @(block|part): ([a-z_]+)[ \t]*$', re.MULTILINE)
 
 
 def build_js():
@@ -176,9 +184,9 @@ def build_js():
     used = []
 
     def paste(m):
-        name = m.group(2)
-        part = (HERE / f'board/blocks/{name}.js').read_text(encoding='utf-8').rstrip('\n')
-        used.append(name)
+        kind, name = m.group(2), m.group(3)
+        part = (HERE / f'{SRC_DIR[kind]}/{name}.js').read_text(encoding='utf-8').rstrip('\n')
+        used.append((kind, name))
         return part
 
     js = JS_MARK.sub(paste, base)
@@ -187,6 +195,16 @@ def build_js():
             '// собирает tools/build.py. Поведение узла лежит рядом с его геометрией.\n')
     (HERE.parent / 'server.js').write_text(head + js, encoding='utf-8')
     return used
+
+
+def tally(used):
+    """Строка отчёта: сколько узлов и сколько частей вставила сборка."""
+    blocks = [n for k, n in used if k == 'block']
+    parts = [n for k, n in used if k == 'part']
+    out = f'база + {len(blocks)} узлов ({", ".join(blocks)})'
+    if parts:
+        out += f' + {len(parts)} частей ({", ".join(parts)})'
+    return out
 
 
 def main():
@@ -198,6 +216,17 @@ def main():
     (HERE / 'board-v17.svg.part').write_text(svg, encoding='utf-8')
     (HERE / 'board-v17-lid.svg.part').write_text(lidart, encoding='utf-8')
 
+    # Паспорт машины уходит в страницу тем же прогоном, что и схема, — иначе
+    # они разойдутся. Перед этим сверяем обещанное с нарисованным: если в
+    # паспорте двадцать четыре планки, а на плате их двадцать три, сборка
+    # обязана упасть здесь, а не соврать гостю в консоли.
+    drawn = {'dimm': svg.count('data-dimm="'), 'fan': svg.count('data-fan="'),
+             'bay': svg.count('data-unit="hdd'), 'psu': svg.count('data-psu="'),
+             'riser': svg.count('data-riser="'), 'cpu': svg.count('data-cpu="')}
+    for kind, want in EXPECT.items():
+        assert drawn[kind] == want, (
+            f'паспорт обещает {want} ({kind}), а на плате нарисовано {drawn[kind]}')
+
     page = HERE.parent / 'index.html'
     if page.exists():
         html = page.read_text(encoding='utf-8')
@@ -205,14 +234,20 @@ def main():
                       lambda m: m.group(1) + '\n' + svg + '\n' + m.group(2), html, flags=re.DOTALL)
         html = re.sub(r'(<!-- LIDART:BEGIN -->).*?(<!-- LIDART:END -->)',
                       lambda m: m.group(1) + '\n' + lidart + '\n' + m.group(2), html, flags=re.DOTALL)
-        for probe in ('data-for=', 'class="die"', 'data-group="tw"'):
+        # Экранируем только «</»: внутри <script> он закрыл бы тег досрочно.
+        spec = json.dumps(passport(), ensure_ascii=False, separators=(',', ':')).replace('</', '<\\/')
+        html = re.sub(r'(<!-- SPEC:BEGIN -->).*?(<!-- SPEC:END -->)',
+                      lambda m: m.group(1) + '\n<script type="application/json" id="rig-spec">'
+                                + spec + '</script>\n' + m.group(2), html, flags=re.DOTALL)
+        for probe in ('data-for=', 'class="die"', 'data-group="tw"', 'id="rig-spec"'):
             assert probe in html, probe
         page.write_text(html, encoding='utf-8')
 
     print(f'плата: {len(board.parts)} фрагментов, {len(svg)} символов; '
           f'крышка: {len(lidart)} символов')
-    print(f'стили: база + {len(css_blocks)} узлов ({", ".join(css_blocks)})')
-    print(f'логика: база + {len(js_blocks)} узлов ({", ".join(js_blocks)})')
+    print(f'паспорт: {len(json.dumps(passport()))} символов, сходится со схемой')
+    print('стили: ' + tally(css_blocks))
+    print('логика: ' + tally(js_blocks))
     return report
 
 

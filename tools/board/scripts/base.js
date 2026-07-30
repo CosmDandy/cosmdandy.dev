@@ -13,6 +13,13 @@
   const chassis = document.getElementById('chassis');
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+  // Паспорт машины: что за железо тут стоит. Печатает генератор — те же
+  // числа, что напечатаны на текстолите, так что консоль и плата разойтись
+  // не могут. Всё остальное считается по DOM (что сейчас на месте) и по
+  // NVRAM (как настроено). Литералов в командах быть не должно.
+  let HW = {};
+  try { HW = JSON.parse(document.getElementById('rig-spec').textContent); } catch (e) {}
+
   let state = { powered: true, visited: false, lid: false };
   try {
     const raw = localStorage.getItem('rig-state');
