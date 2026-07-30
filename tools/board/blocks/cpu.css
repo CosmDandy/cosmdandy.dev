@@ -39,12 +39,33 @@
 
   /* Сборка: процессор с радиатором опускают в сокет сверху и слегка
      доворачивают — так его и ставят, целясь по ключам. */
-  .rig.assembly .cpu-slot .heatsink,
+  /* Сборка процессора идёт в два приёма, как в жизни: сперва в сокет ложится
+     сам процессор, и по открытому кристаллу успевает пробежать перелив, — и
+     только потом сверху опускают радиатор. Одновременная посадка прятала
+     кристалл: его накрывали ровно в тот момент, когда он появлялся. */
   .rig.assembly .cpu-slot .cpu-lid {
     animation: seatCpu 0.7s var(--seat, 0s) cubic-bezier(0.22, 1, 0.36, 1) backwards;
   }
+  .rig.assembly .cpu-slot .heatsink {
+    animation: seatCpu 0.7s calc(var(--seat, 0s) + 0.85s) cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
   @keyframes seatCpu {
     from { opacity: 0; transform: translateY(-52px) scale(0.94); }
+  }
+  /* Кристалл едет вместе со своим процессором, а не проявляется на месте:
+     он на нём и лежит. Первые сорок процентов времени — то же движение, что
+     у крышки, дальше он просто открыт, пока сверху не опустится радиатор.
+     Прячем в конце не ради вида — под радиатором его всё равно не видно, —
+     а чтобы перелив не крутился под непрозрачной крышкой. */
+  .rig.assembly .cpu-slot .die {
+    animation: dieSeat 1.75s var(--seat, 0s) cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  @keyframes dieSeat {
+    from { visibility: visible; opacity: 0; transform: translateY(-52px) scale(0.94); }
+    14%  { visibility: visible; opacity: 0.75; }
+    40%  { visibility: visible; opacity: 1; transform: none; }
+    72%  { visibility: visible; opacity: 1; transform: none; }
+    to   { visibility: hidden; opacity: 0; transform: none; }
   }
   /* Пустой сокет — это поле контактов: пока процессора нет, оно открыто, и
      гаснет ровно тогда, когда его накрывают. both держит оба конца: до
