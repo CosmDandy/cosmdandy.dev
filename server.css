@@ -442,9 +442,23 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
     50%      { transform: translate(150px, -82px); }
   }
 
-  .heatsink { transition: transform var(--spring); }
+  /* Разбор процессора идёт в два приёма, как в жизни: сначала снимается
+     радиатор, и только потом из-под него — сам процессор. Радиатор уезжает
+     дальше, чем прежде: он размером с сокет, и на прежних 104 пикселях
+     закрывал место, куда должен лечь процессор. */
+  .heatsink, .cpu-lid { transition: transform var(--spring); }
   .rig.service .cpu-slot.pulled .pick-body { transform: none; }
-  .rig.service .cpu-slot.pulled .heatsink { transform: translate(0, -104px) scale(0.92); }
+  .rig.service .cpu-slot.pulled .heatsink { transform: translate(0, -164px) scale(0.92); }
+  .rig.service .cpu-slot.opened .cpu-lid { transform: translate(0, 116px) scale(0.96); }
+
+  /* Поле контактов: пока процессор на месте, его не видно — и правильно,
+     под ним нечего показывать. */
+  .lga { visibility: hidden; }
+  .rig.service .cpu-slot.opened .lga { visibility: visible; }
+  /* Кристалл живёт на процессоре и уезжает с ним: снятый процессор,
+     светящийся на пустом сокете, — это уже не разбор, а фокус. */
+  .rig.service .cpu-slot.opened .die { transform: translate(0, 116px) scale(0.96); }
+  .die { transition: transform var(--spring); }
 
   .power-btn { cursor: pointer; }
   .power-btn circle { transition: stroke var(--fade); }
