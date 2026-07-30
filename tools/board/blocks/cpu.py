@@ -6,7 +6,7 @@
 import math
 
 from board.geom import SOCKET_H, SOCKET_W, X_CORE, X_SOCK, X_TAG, Y_CPU0, Y_CPU1
-from board.ink import hit, mono, silk_inverse, tag
+from board.ink import hit, mono, silk_boxed, silk_inverse, tag
 from board.lamps import fault
 from board.metal import ihs_path
 from board.revision import stamp
@@ -66,7 +66,7 @@ def render(cv):
              mono(x + SOCKET_W/2, y + SOCKET_H/2 + 4, "LGA 4677", 10, op=0.55),
              '</g>',
              f'<path d="M{x+SOCKET_W/2} {y+24} l-5 8 h10 z" fill="rgba(147,161,161,0.32)"/>',
-             mono(x + SOCKET_W/2 + 26, y + 32, "INSTALL", 7, anchor="start", op=0.3)]
+             silk_boxed(x + SOCKET_W / 2 + 48, y + 32, "INSTALL", 6, op=0.34)]
         for k, (dx, dy) in enumerate([(11, 11), (SOCKET_W-11, 11), (11, SOCKET_H-11), (SOCKET_W-11, SOCKET_H-11)]):
             s.append(f'<circle cx="{x+dx}" cy="{y+dy}" r="4.5" fill="none" stroke="rgba(147,161,161,0.28)" stroke-width="1.4"/>')
             s.append(mono(x + dx, y + dy + 3, str(k + 1), 7, op=0.34))
@@ -176,5 +176,5 @@ def render(cv):
         {fault(X_SOCK+SOCKET_W+16, y+SOCKET_H-10, 5)}
         {silk_inverse(X_SOCK+SOCKET_W+26, y+SOCKET_H-18, f'CPU{n} ERROR', 6)}
       </g>
-      {mono(X_SOCK+SOCKET_W+6, y+10, f"CPU{n}", 9, anchor="start", op=0.5)}
+      {silk_boxed(X_SOCK+SOCKET_W+24, y+10, f"CPU{n}", 8)}
     </g>''')

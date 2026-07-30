@@ -6,8 +6,8 @@
 
 import math
 
-from board.geom import H, PCB_H, PCB_W, X_PCB, X_PCB_END, X_REAR, X_SVC, Y_PSU_BOT, Y_PSU_TOP
-from board.ink import empty_pads, hit, mono
+from board.geom import CHIPS, H, PCB_H, PCB_W, X_PCB, X_PCB_END, X_REAR, X_SVC, Y_PSU_BOT, Y_PSU_TOP
+from board.ink import empty_pads, hit, mono, silk_boxed
 from board.metal import pad, relief
 from board.palette import SILVER
 from board.revision import BOARD_REV, BOARD_SHA
@@ -118,8 +118,6 @@ def render(cv):
                 # отведённое место и садилась на соседа
                 + mono(x, y + 16, mark, 5, anchor="start", op=0.34))
 
-    BIG = [('AST2600', 'U79', 44, 44), ('X710', 'U21', 38, 38), ('CPLD', 'U12', 32, 32),
-           ('PCIe SW', 'U44', 40, 40), ('TPM 2.0', 'U9', 32, 26)]
     SOICS = [('D9LHR', 30, 13), ('PCA9557', 26, 11), ('MAX6642', 24, 11), ('W25Q256', 28, 12),
              ('ADM1278', 26, 11), ('LM75', 20, 10), ('SPI FLASH', 34, 12), ('TMP421', 22, 10)]
     parts = []
@@ -172,8 +170,12 @@ def render(cv):
                          + mono(px + cols * 3.5, py + 26, name, 5, op=0.3))
             pads_done += 1
 
-    for mark, sub, w, h in BIG:
-        place(w + 8, h + 8, lambda x, y, m=mark, s=sub, w=w, h=h: chip_qfp(x + 4, y + 4, w, h, m, s), mark)
+    # Крупные корпуса стоят по объявленным местам, а не там, где нашлось: их
+    # координаты нужны разводке и меди раньше, чем рассыпуха вообще начнётся.
+    for mark, sub, cx0, cy0, w, h in CHIPS:
+        cv.busy(cx0 - 6, cy0 - 6, w + 12, h + 12)
+        parts.append(chip_qfp(cx0, cy0, w, h, mark, sub))
+        hubs.append((cx0 + w / 2, cy0 + h / 2, max(w, h)))
     for mark, w, h in SOICS:
         # корпус вырастает под длинную маркировку — резервируем сразу по факту
         w = max(w, len(mark) * 5.5 * 0.6 + 15)
@@ -187,6 +189,11 @@ def render(cv):
     for i, mark in enumerate(("Y2 · 7.3728MHz", "Y4 · 32.768kHz", "OS1 · 50MHz")):
         # место под кварц диктует подпись частоты, а не корпус: он вдвое короче
         place(max(20, len(mark) * 3) + 6, 22, lambda x, y, m=mark: xtal(x + 2, y + 2, m), mark)
+    bx, by, bw, bh = next((x, y, w, h) for n, _s, x, y, w, h in CHIPS if n == 'AST2600')
+    parts.append(f'<circle class="led-hb" cx="{bx + bw + 10}" cy="{by + 8}" r="4" fill="#859900"/>')
+    parts.append(silk_boxed(bx + bw + 10, by + 24, "HB", 5.5, op=0.4))
+    cv.busy(bx + bw + 2, by, 24, 32)
+
     cv.add('<g class="decor parts">' + ''.join(parts) + '</g>')
     if lost:
         print('НЕ РАЗМЕСТИЛОСЬ:', ', '.join(lost))
@@ -350,7 +357,7 @@ def render(cv):
         y = 120 + i * 160
         airflow.append(f'<path d="M{X_PCB+22} {y} h34 m-7 -4 l7 4 -7 4" fill="none" '
                        f'stroke="rgba(42,161,152,0.22)" stroke-width="1.4"/>')
-    airflow.append(mono(X_PCB + 40, 104, "AIRFLOW", 7, op=0.3))
+    airflow.append(silk_boxed(X_PCB + 40, 102, "AIRFLOW", 6, op=0.34))
     cv.add('<g class="decor">' + ''.join(airflow) + '</g>')
 
     # Марка изготовителя: вертикально вдоль служебной зоны, там же где тумблер —
@@ -360,9 +367,9 @@ def render(cv):
   <text x="{X_SVC+140}" y="480" transform="rotate(-90 {X_SVC+140} 480)" text-anchor="middle"
         fill="rgba(147,161,161,0.22)" font-family="ui-monospace, Menlo, monospace"
         font-size="34" font-weight="600" letter-spacing="0.10em">COSMDANDY</text>
-  <text x="{X_SVC+118}" y="480" transform="rotate(-90 {X_SVC+118} 480)" text-anchor="middle"
+  <text x="{X_SVC+124}" y="480" transform="rotate(-90 {X_SVC+124} 480)" text-anchor="middle"
         fill="rgba(147,161,161,0.26)" font-family="ui-monospace, Menlo, monospace"
-        font-size="9" letter-spacing="0.14em">DUAL SOCKET · 32× DDR5 RDIMM · 8 TB MAX</text>
+        font-size="7" letter-spacing="0.14em">DUAL SOCKET · 24× DDR5 RDIMM · 6 TB MAX</text>
 </g>''')
 
     # Ревизия платы — по правому борту от марки. Она же ссылка: номер сборки это

@@ -7,7 +7,6 @@
 BOUNDS = (444, 134, 66, 562)
 
 from board.geom import SOCKET_H, X_VRM, Y_CPU0, Y_CPU1
-from board.ink import silk_inverse
 
 
 def render(cv):
@@ -49,5 +48,4 @@ def render(cv):
             # минусовая полоса по краю банки
             vrm.append(f'<path d="M{ccx-10} {cy+3.4} a10 10 0 0 0 5.6 5.8" fill="none" '
                        f'stroke="rgba(238,232,213,0.34)" stroke-width="2.4"/>')
-        vrm.append(silk_inverse(X_VRM - 2, y0 - 17, "VRM", 8))
     cv.add('<g class="decor">' + ''.join(vrm) + '</g>')

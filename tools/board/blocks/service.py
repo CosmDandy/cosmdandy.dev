@@ -7,7 +7,7 @@
 BOUNDS = (838, 98, 170, 618)
 
 from board.geom import LID_BTN, X_SVC
-from board.ink import hit, mono, silk_inverse
+from board.ink import hit, mono, silk_boxed, silk_inverse
 
 
 def dip_switch(x, y, n=4, on=(1, 3)):
@@ -15,8 +15,8 @@ def dip_switch(x, y, n=4, on=(1, 3)):
 
     on — номера переключателей в положении ON, считая с единицы.
     """
-    pitch, sw_w, sw_h = 15, 9, 26
-    pad_x, pad_y, label_h = 9, 8, 11
+    pitch, sw_w, sw_h = 8, 5, 14
+    pad_x, pad_y, label_h = 5, 4, 7
     body_w = pad_x * 2 + n * pitch - (pitch - sw_w)
     body_h = label_h + pad_y * 2 + sw_h
     parts = [
@@ -24,8 +24,8 @@ def dip_switch(x, y, n=4, on=(1, 3)):
         f'fill="#c9a06a" stroke="#7a5a34" stroke-width="1"/>',
         f'<rect x="{x+2.5}" y="{y+2.5}" width="{body_w-5}" height="{body_h-5}" rx="1.5" '
         f'fill="none" stroke="rgba(122,90,52,0.4)" stroke-width="0.7"/>',
-        f'<text x="{x+8}" y="{y+label_h}" fill="#3a2712" '
-        f'font-family="ui-monospace, Menlo, monospace" font-size="6" font-weight="600">ON</text>',
+        f'<text x="{x+4}" y="{y+label_h}" fill="#3a2712" '
+        f'font-family="ui-monospace, Menlo, monospace" font-size="4.5" font-weight="600">ON</text>',
     ]
     for i in range(n):
         cx = x + pad_x + i * pitch
@@ -37,7 +37,7 @@ def dip_switch(x, y, n=4, on=(1, 3)):
         slider_y = sy + (1.5 if is_on else sw_h - slider_h - 1.5)
         parts.append(f'<rect x="{cx+1}" y="{slider_y:.1f}" width="{sw_w-2}" height="{slider_h:.1f}" rx="1" '
                      f'fill="#e8e3d5" stroke="#8d979a" stroke-width="0.6"/>')
-        parts.append(mono(cx + sw_w / 2, y + body_h - 1.5, str(i + 1), 6, op=0.4))
+        parts.append(mono(cx + sw_w / 2, y + body_h - 1, str(i + 1), 4.5, op=0.4))
     return f'<g class="decor dip-switch">{"".join(parts)}</g>'
 from board.metal import pad
 
@@ -81,17 +81,17 @@ def render(cv):
     svc = [
         f'<circle cx="{X_SVC+34}" cy="300" r="23" fill="#1a2429" stroke="rgba(147,161,161,0.34)"/>',
         f'<circle cx="{X_SVC+34}" cy="300" r="15" fill="#0e171b"/>',
-        mono(X_SVC + 34, 340, "CMOS", 8, op=0.4),
+        silk_boxed(X_SVC + 34, 338, "CMOS", 7),
         f'<rect x="{X_SVC+84}" y="288" width="66" height="22" rx="2" fill="#1a2429" stroke="rgba(147,161,161,0.28)"/>',
-        mono(X_SVC + 117, 326, "microSD", 8, op=0.4),
+        silk_boxed(X_SVC + 117, 324, "microSD", 7),
         f'<rect x="{X_SVC+12}" y="120" width="52" height="26" rx="1" fill="#1e2a2f" stroke="rgba(147,161,161,0.30)"/>',
         f'<rect x="{X_SVC+90}" y="120" width="52" height="26" rx="1" fill="#1e2a2f" stroke="rgba(147,161,161,0.30)"/>',
-        mono(X_SVC + 78, 112, "P1 / P2", 8, op=0.38),
+        silk_boxed(X_SVC + 78, 110, "P1 / P2", 7),
         # Переключатели и легенда перемычки: то, ради чего вообще лезут под крышку
-        dip_switch(X_SVC + 10, 390, 4, on=(1, 3)),
-        mono(X_SVC + 46, 458, "SW3", 7, op=0.38),
-        dip_switch(X_SVC + 92, 390, 4, on=(2,)),
-        mono(X_SVC + 128, 458, "SW4", 7, op=0.38),
+        dip_switch(X_SVC + 10, 396, 4, on=(1, 3)),
+        silk_boxed(X_SVC + 29, 436, "SW3", 6),
+        dip_switch(X_SVC + 66, 396, 4, on=(2,)),
+        silk_boxed(X_SVC + 85, 436, "SW4", 6),
         jumper_table(X_SVC + 6, 466, "J29 BIOS BOOT FROM",
                      [("1-2", "PRIMARY BIOS"), ("2-3", "BACKUP BIOS")]),
     ]

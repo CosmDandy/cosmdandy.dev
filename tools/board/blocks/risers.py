@@ -11,7 +11,7 @@
 BOUNDS = (992, 160, 316, 400)
 
 from board.geom import X_IO, X_PCB_END, X_REAR
-from board.ink import mono, silk_inverse
+from board.ink import mono, silk_boxed, silk_inverse
 from board.lamps import act_led, fault_at
 from board.metal import hexgrid
 from board.ports import sfp
@@ -59,8 +59,7 @@ def render(cv):
             + f'<rect x="{x0+18}" y="{edge_y-10}" width="{cw}" height="9" rx="1" fill="#05090b" '
               f'stroke="rgba(147,161,161,0.30)"/>'
             + ''.join(f'<line x1="{x0+24+j*9}" y1="{edge_y-9}" x2="{x0+24+j*9}" y2="{edge_y-2}" '
-                      f'stroke="rgba(133,153,0,0.26)"/>' for j in range(int(cw // 9) - 1))
-            + mono(x0 + 18 + cw / 2, edge_y + 6, "48.51102.011", 5, op=0.30))
+                      f'stroke="rgba(133,153,0,0.26)"/>' for j in range(int(cw // 9) - 1)))
 
         # Сама карта: плата, крупный пассивный радиатор поверх чипа и клетки
         # портов на дальнем торце — у задней стенки. Вынимаешь райзер — карта
@@ -80,7 +79,7 @@ def render(cv):
                           f'x2="{x0+38+f*3.4:.1f}" y2="{card_y+35}" '
                           f'stroke="rgba(147,161,161,0.22)" stroke-width="1.2"/>'
                           for f in range(int(cw * 0.46 // 3.4) - 2))
-                + mono(x0 + 24, card_y + 52, "PCIE_X8_GF1 REV 1.01", 5, anchor="start", op=0.32))
+                + silk_boxed(x0 + 24 + 32, card_y + 50, "PCIE_X8_GF1 REV 1.01", 5))
 
         # Гнёзда на торце карты. Раньше они были нарисованы прямо на стенке и
         # ни к чему не вели: дырки в корпусе. Теперь видно, что это торец
@@ -117,7 +116,7 @@ def render(cv):
             stroke="rgba(147,161,161,0.34)"/>
       <rect x="{x0+18}" y="{edge_y+1}" width="{cw}" height="6" rx="1" fill="#060d10"/>
       {''.join(f'<line x1="{x0+22+j*9}" y1="{edge_y+1}" x2="{x0+22+j*9}" y2="{edge_y+7}" stroke="rgba(133,153,0,0.22)"/>' for j in range(int(cw // 9) - 1))}
-      {mono(x0 + 18 + cw / 2, edge_y + 22, f"RISER_{k+1} · PCIE_G5 ×16", 6, op=0.32)}
+      {silk_boxed(x0 + 18 + cw / 2, edge_y + 22, f"RISER_{k+1} · PCIE_G5 ×16", 6)}
     </g>''')
         cv.add(f'''<g class="pick riser" data-riser="{k+1}">
       <g class="pick-body">
@@ -129,14 +128,3 @@ def render(cv):
       {fault_at(cv, x0-14, y + 96, 5)}
       {stamp(x0 + 18, y + hh - 6 if up else y + 12, "райзеры")}
     </g>''')
-
-    # PCH и BMC — в проёме между райзерами.
-    cv.add(f'''<g class="decor">
-  <rect x="{X_REAR+16}" y="390" width="58" height="42" rx="3" fill="#16222a" stroke="rgba(147,161,161,0.34)"/>
-  {mono(X_REAR+45, 416, "PCH", 8, op=0.45)}
-  <rect x="{X_REAR+94}" y="388" width="60" height="46" rx="4" fill="#26333a" stroke="rgba(147,161,161,0.30)"/>
-  {''.join(f'<line x1="{X_REAR+100}" y1="{396+i*7}" x2="{X_REAR+148}" y2="{396+i*7}" stroke="rgba(147,161,161,0.18)" stroke-width="2"/>' for i in range(5))}
-  {mono(X_REAR+124, 416, "BMC", 8, op=0.45)}
-  <circle class="led-hb" cx="{X_REAR+182}" cy="396" r="4" fill="#859900"/>
-  {mono(X_REAR+182, 414, "HB", 6, op=0.36)}
-</g>''')
