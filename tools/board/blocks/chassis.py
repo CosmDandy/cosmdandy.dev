@@ -5,6 +5,7 @@
 
 from board.geom import H, W
 from board.geom import X_FRONT
+from board.lamps import glow_defs
 
 
 def rack_ears():
@@ -41,5 +42,8 @@ def rack_ears():
 
 
 def render(cv):
+    # Градиенты свечения ламп — общие на всю схему, поэтому объявляем их в
+    # самом первом блоке: дальше на них ссылаются все, кто ставит лампу.
+    cv.add(glow_defs())
     cv.add(f'<rect x="4" y="4" width="{W-8}" height="{H-8}" rx="14" fill="#141c20" stroke="rgba(147,161,161,0.30)"/>')
     cv.add(rack_ears())

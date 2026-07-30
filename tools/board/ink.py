@@ -5,7 +5,6 @@
 одна вещь.
 """
 
-from board.palette import PCB_DARK
 
 
 def mono(x, y, text, size=11, anchor="middle", op=0.5):
@@ -120,13 +119,20 @@ def block_frame(x, y, w, h, title, refs, title_dx=6):
     refdes. Инженер по такой рамке видит границы узла, не открывая схему.
     Держим её глухой: рамка крупная, и в полную силу она перетянула бы на
     себя внимание с подписей ссылок.
+
+    Заголовок стоит в своей рамочке, а не на плашке. Плашка была заливкой
+    цвета текстолита и глушила всё, что под ней, — а стоит она поверх платы,
+    где хватает и деталей, и разводки. Ширина считается по фактической
+    метрике моноширинного шрифта: прежняя была взята с запасом и торчала за
+    текст на треть строки.
     """
+    tw = len(title) * 6 * 0.62 + 7
     return (f'<g class="decor block-frame">'
             f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="2" fill="none" '
             f'stroke="rgba(232,227,213,0.16)" stroke-width="1" stroke-dasharray="7 4"/>'
-            f'<rect x="{x + title_dx}" y="{y - 5}" width="{len(title) * 4.4 + 8:.1f}" height="10" '
-            f'rx="1" fill="{PCB_DARK}"/>'
-            + mono(x + title_dx + 4, y + 3, title, 6, anchor="start", op=0.42)
+            f'<rect x="{x + title_dx}" y="{y - 5}" width="{tw:.1f}" height="10" rx="1" '
+            f'fill="none" stroke="rgba(232,227,213,0.24)" stroke-width="0.7"/>'
+            + mono(x + title_dx + 3.5, y + 3, title, 6, anchor="start", op=0.5)
             + mono(x + 10, y + h - 4, refs, 5, anchor="start", op=0.26)
             + '</g>')
 
