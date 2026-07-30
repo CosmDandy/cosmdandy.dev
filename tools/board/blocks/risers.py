@@ -8,7 +8,7 @@
 
 # Свой прямоугольник: сборка проверит, что узел из него не вышел.
 # Первая карта доходит до задней стенки: её торец — это гнёзда SFP+.
-BOUNDS = (992, 160, 316, 516)
+BOUNDS = (992, 160, 316, 400)
 
 from board.geom import X_IO, X_PCB_END, X_REAR
 from board.ink import mono, silk_inverse
@@ -21,11 +21,15 @@ from board.revision import stamp
 def render(cv):
     T, RI = 52, 18   # ширина стойки и радиус внутреннего угла
     # Подпись ведёт к торцу карты, а не к стенке: гнёзда принадлежат ей.
-    cv.callouts.append((X_IO - 30, 214, X_IO + 4, 214, "LinkedIn", "end",
+    cv.callouts.append((X_IO - 30, 228, X_IO + 4, 228, "LinkedIn", "end",
                         "https://linkedin.com/in/cosmdandy", "ocp"))
 
-    for k, (y, up) in enumerate(((186, True), (474, False))):
-        x0, x1, hh = X_REAR + 12, X_PCB_END - 6, 192
+    # Райзеры разного калибра, как на живой машине: верхний полноразмерный,
+    # под карту с портами, нижний вдвое тоньше — в него ставят что попроще.
+    # Задняя часть поделена по вертикали без нахлёстов: блок питания, райзер,
+    # мосты, второй райзер, интерфейсы платы, второй блок питания.
+    for k, (y, up, hh) in enumerate(((184, True, 192), (444, False, 92))):
+        x0, x1 = X_REAR + 12, X_PCB_END - 6
         if up:
             # полка сверху, стойка справа: вогнутый угол один — (x1-T, y+T)
             d = (f'M{x0} {y} H{x1} V{y+hh} H{x1-T} V{y+T+RI} '
@@ -128,11 +132,11 @@ def render(cv):
 
     # PCH и BMC — в проёме между райзерами.
     cv.add(f'''<g class="decor">
-  <rect x="{X_REAR+16}" y="398" width="62" height="62" rx="3" fill="#16222a" stroke="rgba(147,161,161,0.34)"/>
-  {mono(X_REAR+47, 434, "PCH", 9, op=0.45)}
-  <rect x="{X_REAR+94}" y="396" width="66" height="66" rx="4" fill="#26333a" stroke="rgba(147,161,161,0.30)"/>
-  {''.join(f'<line x1="{X_REAR+100}" y1="{404+i*8}" x2="{X_REAR+154}" y2="{404+i*8}" stroke="rgba(147,161,161,0.18)" stroke-width="2"/>' for i in range(7))}
-  {mono(X_REAR+127, 478, "BMC", 9, op=0.45)}
-  <circle class="led-hb" cx="{X_REAR+182}" cy="404" r="5" fill="#859900"/>
-  {mono(X_REAR+182, 424, "HB", 7, op=0.36)}
+  <rect x="{X_REAR+16}" y="390" width="58" height="42" rx="3" fill="#16222a" stroke="rgba(147,161,161,0.34)"/>
+  {mono(X_REAR+45, 416, "PCH", 8, op=0.45)}
+  <rect x="{X_REAR+94}" y="388" width="60" height="46" rx="4" fill="#26333a" stroke="rgba(147,161,161,0.30)"/>
+  {''.join(f'<line x1="{X_REAR+100}" y1="{396+i*7}" x2="{X_REAR+148}" y2="{396+i*7}" stroke="rgba(147,161,161,0.18)" stroke-width="2"/>' for i in range(5))}
+  {mono(X_REAR+124, 416, "BMC", 8, op=0.45)}
+  <circle class="led-hb" cx="{X_REAR+182}" cy="396" r="4" fill="#859900"/>
+  {mono(X_REAR+182, 414, "HB", 6, op=0.36)}
 </g>''')

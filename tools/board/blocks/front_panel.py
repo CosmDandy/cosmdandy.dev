@@ -5,7 +5,7 @@
 """
 
 # Свой прямоугольник: сборка проверит, что узел из него не вышел.
-BOUNDS = (0, 0, 224, 150)
+BOUNDS = (0, 0, 168, 150)
 
 from board.geom import FRONT_W, X_FRONT, Y_PANEL
 from board.ink import hit, mono
