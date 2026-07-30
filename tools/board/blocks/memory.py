@@ -6,13 +6,13 @@
 """
 
 # Свой прямоугольник: сборка проверит, что узел из него не вышел.
-BOUNDS = (488, 4, 300, 850)
+BOUNDS = (488, 4, 336, 850)
 
 from board.geom import BANK_N, PITCH, SLOT_H, X_CORE, X_TAG, Y_BANK_C, Y_BANK_L, Y_BANK_R
 
 # Габариты планки по глубине платы. Всё остальное в разъёме считается от них:
 # контакты, ключ и чипы должны сойтись при любой ширине.
-SOCK_W = 230
+SOCK_W = 258
 DIMM_W = SOCK_W - 6
 from board.ink import hit, silk_inverse
 from board.lamps import glow
@@ -34,8 +34,8 @@ def render(cv):
                       + ''.join(f'<line x1="{X_CORE+8+c*6}" y1="{y+2}" x2="{X_CORE+8+c*6}" '
                                 f'y2="{y+SLOT_H-2}" stroke="rgba(206,168,58,0.62)" '
                                 f'stroke-width="1.4"/>'
-                                for c in range(36))
-                      + f'<rect x="{X_CORE+92}" y="{y+1}" width="4" height="{SLOT_H-2}" '
+                                for c in range(40))
+                      + f'<rect x="{X_CORE+100}" y="{y+1}" width="4" height="{SLOT_H-2}" '
                         f'fill="#0f1a20"/>')
             # Планка: сверху видна её светлая кромка — торец текстолита, а под
             # ним чипы. На фото живого банка это первое, что бросается в глаза:
@@ -49,7 +49,7 @@ def render(cv):
           <g class="pick-body">
             <rect x="{X_CORE}" y="{y}" width="{DIMM_W}" height="{SLOT_H}" rx="0" fill="#13323a" stroke="rgba(147,161,161,0.30)"/>
             <rect x="{X_CORE+2}" y="{y+1}" width="{DIMM_W-4}" height="3.4" rx="1" fill="{edge}"/>
-            {''.join(f'<rect x="{X_CORE+12+c*36}" y="{y+5.4}" width="28" height="{SLOT_H-7}" rx="0.6" fill="#0d1519"/>' for c in range(6))}
+            {''.join(f'<rect x="{X_CORE+12+c*40}" y="{y+5.4}" width="28" height="{SLOT_H-7}" rx="0.6" fill="#0d1519"/>' for c in range(6))}
           </g>
           <path class="latch latch-l" d="M{X_CORE-7} {y+1} h6 v{SLOT_H-2} h-6 a2 2 0 0 1 -2 -2 v{-(SLOT_H-6)} a2 2 0 0 1 2 -2 Z"/>
           <path class="latch latch-r" d="M{X_CORE+DIMM_W+1} {y+1} h6 a2 2 0 0 1 2 2 v{SLOT_H-6} a2 2 0 0 1 -2 2 h-6 Z"/>
