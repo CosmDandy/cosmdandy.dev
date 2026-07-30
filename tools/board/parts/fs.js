@@ -544,11 +544,22 @@
       if (!node) return [{ t: 'ls: ' + target + ': No such file or directory', c: 'err' }];
       if (node.type === 'file') return [parsed.flags.l ? fsLsLine(fsLastSeg(path), node) : { t: fsLastSeg(path) }];
       let names = Object.keys(node.kids).sort();
-      if (!parsed.flags.a) names = names.filter(function (n) { return n.charAt(0) !== '.'; });
+      // Точка и две точки — такие же записи каталога, как остальные, и с -a
+      // их показывают. Без них ls -a выглядел как ls, только длиннее.
+      const dots = {};
+      if (parsed.flags.a) {
+        const up = path === '/' ? path : path.replace(/\/[^/]+$/, '') || '/';
+        dots['.'] = node;
+        dots['..'] = fsLookup(root, up) || node;
+        names = ['.', '..'].concat(names);
+      } else {
+        names = names.filter(function (n) { return n.charAt(0) !== '.'; });
+      }
       if (!names.length) return [];
+      const pick = function (n) { return dots[n] || node.kids[n]; };
       if (parsed.flags.l) {
         return [{ t: 'total ' + names.length, c: 'muted' }]
-          .concat(names.map(function (n) { return fsLsLine(n, node.kids[n]); }));
+          .concat(names.map(function (n) { return fsLsLine(n, pick(n)); }));
       }
       return [{ t: names.join('  ') }];
     }),
@@ -643,8 +654,18 @@
         if (node.type === 'dir') return [{ t: 'grep: ' + parsed.rest[1] + ': Is a directory', c: 'err' }];
         lines = node.read();
       }
+      // Шаблон сначала пробуем как регулярное выражение: на живой машине grep
+      // именно такой, и `grep "^CPU[01]"` там работает. Если выражение не
+      // компилируется, ищем подстроку — это лучше, чем упасть с ошибкой на
+      // скобке, которую человек имел в виду буквально.
+      let re = null;
+      try { re = new RegExp(pattern, parsed.flags.i ? 'i' : ''); } catch (e) { re = null; }
       const needle = parsed.flags.i ? pattern.toLowerCase() : pattern;
-      function hit(l) { const s = parsed.flags.i ? l.t.toLowerCase() : l.t; return s.indexOf(needle) !== -1; }
+      function hit(l) {
+        if (re) return re.test(l.t);
+        const s = parsed.flags.i ? l.t.toLowerCase() : l.t;
+        return s.indexOf(needle) !== -1;
+      }
       const matched = lines.filter(function (l) { return parsed.flags.v ? !hit(l) : hit(l); });
       return parsed.flags.c ? [{ t: String(matched.length) }] : matched;
     }),
@@ -678,8 +699,17 @@
       if (!node) return [{ t: 'find: ' + start + ': No such file or directory', c: 'err' }];
       const re = fsGlobToRe(parsed.flags.name);
       const out = [];
+      // Путь печатаем в том же виде, в каком его задали: `find . -name x`
+      // отвечает ./foo/x, а не /home/cosmdandy/foo/x. Так ведёт себя find, и
+      // так результат можно скопировать в следующую команду.
+      const relative = start.charAt(0) !== '/' && start !== '~';
+      const show = function (p) {
+        if (!relative) return p;
+        const tail = p.slice(startPath.length);
+        return start.replace(/\/$/, '') + (tail || '');
+      };
       (function walk(n, p) {
-        if (re.test(fsLastSeg(p))) out.push({ t: p });
+        if (re.test(fsLastSeg(p))) out.push({ t: show(p) });
         if (n.type === 'dir') {
           Object.keys(n.kids).sort().forEach(function (name) {
             walk(n.kids[name], p === '/' ? '/' + name : p + '/' + name);
