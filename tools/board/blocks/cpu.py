@@ -146,7 +146,7 @@ def render(cv):
                 f'<circle cx="{bx}" cy="{y+8}" r="5" fill="#101a1e" stroke="rgba(147,161,161,0.45)" stroke-width="1.6"/>'
                 f'</g>')
 
-    cv.callouts.append((X_TAG - 6, Y_CPU0 + 40, X_CORE + 40, Y_CPU0 + 40, "CV", "end", "https://cv.cosmdandy.dev", "cpu"))
+    cv.callouts.append((X_TAG - 44, Y_CPU0 + 40, X_CORE + 40, Y_CPU0 + 40, "CV", "end", "https://cv.cosmdandy.dev", "cpu"))
 
     cv.add(stamp(X_CORE + 40, Y_CPU0 - 8, "процессоры"))
 
