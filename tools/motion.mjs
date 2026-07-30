@@ -38,6 +38,8 @@ const SCENES = {
   fan:      { watch: '.fan .pick-body',     click: '.fan',      shots: 1, span: 900 },
   handle:   { watch: '.bay .bay-handle',    click: '.bay',      shots: 3, span: 900 },
   service:  { watch: '.stage',              click: '#svc-switch', shots: 0, span: 1100, plain: true },
+  // Сборка идёт сама при первом заходе: кликать нечего, смотрим ленту целиком.
+  assembly: { assembly: true },
 };
 
 const name = process.argv[2] ?? 'heatsink';
@@ -71,9 +73,40 @@ const page = await browser.newPage({ viewport: { width: 1500, height: 950 }, dev
                                      reducedMotion: 'no-preference' });
 await page.addInitScript(() => document.addEventListener('DOMContentLoaded',
   () => document.querySelectorAll('input').forEach(el => el.remove())));
+// Первый заход: состояние машины лежит в localStorage, и со второго раза
+// сборки уже не будет. Для сцены сборки чистим его до загрузки страницы.
+if (scene.assembly) await page.addInitScript(() => { try { localStorage.clear(); } catch (e) {} });
+await page.addInitScript(() => { try { localStorage.setItem('rig-view', 'rig'); } catch (e) {} });
 await page.goto(`http://127.0.0.1:${server.address().port}/index.html`, { waitUntil: 'load' });
-await page.waitForTimeout(400);
 await page.evaluate(() => document.body.classList.add('view-rig'));
+if (scene.assembly) {
+  // Считаем, сколько узлов уже на месте: узел сел, когда его анимация
+  // закончилась и он перестал быть прозрачным.
+  const t0 = Date.now();
+  for (let i = 0; i <= 20; i++) {
+    while (Date.now() - t0 < i * 420) await page.waitForTimeout(6);
+    const st = await page.evaluate(() => {
+      const seated = sel => [...document.querySelectorAll(sel)]
+        .filter(el => parseFloat(getComputedStyle(el).opacity) > 0.5).length;
+      const rig = document.getElementById('rig');
+      // Смотрим на то, что действительно садится: разъёмы и карманы остаются
+      // на плате, летят только модули.
+      return { fan: seated('.fan'), psu: seated('.psu'), cpu: seated('.cpu-slot .heatsink'),
+               dimm: seated('.dimm .pick-body'), riser: seated('.riser'), bay: seated('.bay'),
+               крышка: rig.classList.contains('lid-off') ? 'снята' : 'на месте',
+               сборка: rig.classList.contains('assembly') ? 'идёт' : 'закончена',
+               питание: ['init', 'standby', 'on'].find(c => rig.classList.contains(c)) ?? '—' };
+    });
+    console.log(String(Math.round((Date.now() - t0) / 100) / 10).padStart(5) + ' с  ' +
+      `вент ${st.fan}/8  бп ${st.psu}/2  цп ${st.cpu}/2  память ${String(st.dimm).padStart(2)}/24  ` +
+      `райзер ${st.riser}/2  диски ${st.bay}/7  крышка ${st.крышка}  ${st.сборка}  питание ${st.питание}`);
+    await page.screenshot({ path: join(OUT, `assembly-${String(i).padStart(2, '0')}.png`) });
+  }
+  console.log(`\nкадры: ${OUT}`);
+  await browser.close();
+  server.close();
+  process.exit(0);
+}
 await page.waitForTimeout(1800);
 if (!scene.plain) {
   await page.evaluate(() => document.getElementById('svc-switch')

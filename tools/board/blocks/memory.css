@@ -20,3 +20,15 @@
     transform: translateY(-13px);
     transition-delay: 0.12s;
   }
+
+  /* Сборка: планка входит в разъём коротким движением вниз — ход у неё
+     маленький, и размах должен быть таким же. Порядок задаёт --seat: банки
+     набиваются по каналам, а не подряд, и половины среднего банка достаются
+     разным процессорам. */
+  .rig.assembly .dimm .pick-body,
+  .rig.assembly .dimm .latch {
+    animation: seatDimm 0.42s var(--seat, 0s) cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  @keyframes seatDimm {
+    from { opacity: 0; transform: translateY(-22px); }
+  }

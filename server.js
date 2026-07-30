@@ -25,6 +25,26 @@
   const save = () => { try { localStorage.setItem('rig-state', JSON.stringify(state)); } catch (e) {} };
   const wait = (ms, fn) => window.setTimeout(fn, reduced ? 0 : ms);
 
+  // ── Сборка ─────────────────────────────────────────────────────────────
+  // Класс assembly стоит в разметке, поэтому машина начинает собираться сама,
+  // даже если скрипт не выполнится вовсе. Здесь мы только решаем, оставить
+  // сборку или оборвать, и что делать, когда последний узел сядет.
+  //
+  // Сколько она длится, спрашиваем у самих узлов: у каждого свой --seat, а
+  // расписание живёт в генераторе. Дублировать его здесь значит завести
+  // второе место, где написано «когда», и однажды они разойдутся.
+  function assemblyEnd() {
+    let last = 0;
+    chassis.querySelectorAll('[style*="--seat"]').forEach(function (el) {
+      last = Math.max(last, parseFloat(el.style.getPropertyValue('--seat')) || 0);
+    });
+    return (last + 0.9) * 1000;
+  }
+
+  function finishAssembly() {
+    rig.classList.remove('assembly');
+  }
+
   // ── Консоль ────────────────────────────────────────────────────────────
   function line(text, cls) {
     const d = document.createElement('div');
@@ -378,6 +398,7 @@
     'ПИТАНИЕ И СОСТОЯНИЕ',
     '  power on|off|cycle   — питание, powercycle как в racadm',
     '  reboot               — тёплая перезагрузка хоста',
+    '  assemble             — пересобрать машину с нуля, как при первом заходе',
     '  status               — сводка состояния узлов',
     '  sensors              — датчики: температуры, обороты, ватты',
     '  sel                  — журнал системных событий',
@@ -482,6 +503,19 @@
         line('graceful shutdown …', 'muted');
         powerOff();
         wait(1200, function () { line('power on', 'muted'); powerOn(); });
+        break;
+      case 'assemble':
+        // Пересборка: узлы снимаются со своих мест и садятся заново по тому
+        // же расписанию. Класс приходится снять и вернуть следующим кадром —
+        // иначе браузер не считает анимацию новой и ничего не проигрывает.
+        rig.classList.remove('assembly');
+        void chassis.offsetWidth;
+        rig.classList.add('assembly');
+        line('re-seating all units …', 'muted');
+        wait(assemblyEnd(), function () {
+          finishAssembly();
+          line('all units seated', 'ok');
+        });
         break;
       case 'fru': FRU.forEach(function (l) { line(l); }); break;
       case 'bios': BIOS.forEach(function (l) { line(l); }); break;
@@ -755,6 +789,19 @@
   // первый заход: показываем закрытую машину и снимаем крышку сами
   if (first && !reduced && !state.lid) wait(1500, function () { setLid(true); });
   else if (!first) setLid(true);
+
+  if (first && !reduced) {
+    line('chassis empty · fans and psu first', 'muted');
+    wait(3.0 * 1000, function () { line('cpu seated · dimms by channel', 'muted'); });
+    wait(5.1 * 1000, function () { line('risers in · drives last', 'muted'); });
+    wait(assemblyEnd(), function () {
+      finishAssembly();
+      line('all units seated · power on', 'ok');
+      powerOn();
+    });
+  } else {
+    finishAssembly();
+  }
 
   if (first && !reduced) {
     // Полный вход, как в стойке: подали дежурку, BMC инициализируется и

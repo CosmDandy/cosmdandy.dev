@@ -403,6 +403,21 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   .lid-on-btn:hover rect:nth-of-type(2) { stroke: var(--cyan); fill: #1c2a31; }
   .id-btn:hover circle:first-child { stroke: rgba(181,137,0,0.6); }
 
+  /* ── Сборка машины ─────────────────────────────────────────────────────
+   * Первый заход показывает пустое шасси и то, как в него ставят узлы.
+   * Расписание — в geom.py, оно приезжает сюда переменной --seat на каждом
+   * узле; как именно узел садится, описано в его собственном css.
+   *
+   * Класс стоит прямо в разметке: скрипт подключён с defer и мог не успеть
+   * до первого кадра. Скрипт его только снимает — и сразу, если машину уже
+   * видели или гость просил не анимировать.
+   */
+  .rig.assembly .callouts { opacity: 0; }
+  .rig.assembly .callouts { transition: opacity var(--fade); }
+  /* Пока идёт сборка, разбирать нечего: клики по полусобранной машине
+     оставляли бы узлы в состоянии, из которого их никто не вернёт. */
+  .rig.assembly .pick, .rig.assembly .unit { pointer-events: none; }
+
   /* ── Сервисный режим: извлечение поштучно ─────────────────────────────── */
   .rig.service .pick { cursor: grab; }
   .rig.service .pick.pulled .pick-body { transform: translateY(-24px); }
@@ -424,6 +439,15 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
      на его месте остаётся гнездо с направляющими. */
   .rig.service .bay.pulled .pick-body { transform: translateX(-104px); }
   .rig.service .bay.pulled .bay-handle { transform: translateX(-104px) rotate(-42deg); }
+
+  /* Сборка: диск задвигают спереди, тем же путём, которым он выезжает при
+     разборе, — только в обратную сторону. */
+  .rig.assembly .bay {
+    animation: seatBay 0.6s var(--seat, 0s) cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  @keyframes seatBay {
+    from { opacity: 0; transform: translateX(-104px); }
+  }
   /* ── fans ──────────────────────────────── */
   .fan-blades { transform-box: fill-box; transform-origin: center; animation: spin 2.1s linear infinite; animation-play-state: paused; }
   .rig.on .fan-blades { animation-play-state: running; }
@@ -439,6 +463,17 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
   .rig.service .fan.pulled .pick-body { transform: translateY(-30px) scale(1.03); }
+
+  /* Сборка: вентилятор опускают в стенку сверху — в 1U он входит вертикально,
+     между стойкой корзины и платой места нет ни для какого другого движения.
+     Момент посадки задаёт --seat, его проставляет генератор: расписание всей
+     сборки живёт в geom, а здесь только «откуда и как». */
+  .rig.assembly .fan {
+    animation: seatFan 0.62s var(--seat, 0s) cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  @keyframes seatFan {
+    from { opacity: 0; transform: translateY(-42px); }
+  }
   /* ── memory ──────────────────────────────── */
   /* Защёлки на живой плате — молочно-белый полупрозрачный пластик, и их две:
      по одной с каждого торца. Лампа ошибки сидит прямо в защёлке — «DIMM
@@ -462,9 +497,30 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
     transform: translateY(-13px);
     transition-delay: 0.12s;
   }
+
+  /* Сборка: планка входит в разъём коротким движением вниз — ход у неё
+     маленький, и размах должен быть таким же. Порядок задаёт --seat: банки
+     набиваются по каналам, а не подряд, и половины среднего банка достаются
+     разным процессорам. */
+  .rig.assembly .dimm .pick-body,
+  .rig.assembly .dimm .latch {
+    animation: seatDimm 0.42s var(--seat, 0s) cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  @keyframes seatDimm {
+    from { opacity: 0; transform: translateY(-22px); }
+  }
   /* ── risers ──────────────────────────────── */
   /* Райзер и блок питания выходят назад, из задней стенки. */
   .rig.service .riser.pulled .pick-body { transform: translateX(46px); }
+
+  /* Сборка: райзер опускают в свой разъём сверху, целиком — вместе с картой
+     и кронштейном. */
+  .rig.assembly .riser {
+    animation: seatRiser 0.72s var(--seat, 0s) cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  @keyframes seatRiser {
+    from { opacity: 0; transform: translateY(-56px); }
+  }
   /* ── psu ──────────────────────────────── */
   .rig.service .psu.pulled .pick-body { transform: translateX(74px); }
 
@@ -476,6 +532,15 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   .psu.pulled .led, .psu.pulled .led.aux,
   .psu.pulled .fault-sys, .psu.pulled .fault-sys.halo { fill-opacity: 0.1; animation: none; }
   .psu.pulled .fan-blades { animation-play-state: paused; }
+
+  /* Сборка: блок питания заходит сзади, из своего кармана. Едет он дальше
+     остальных — путь до разъёма у него длинный, и это видно по руке. */
+  .rig.assembly .psu {
+    animation: seatPsu 0.78s var(--seat, 0s) cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  @keyframes seatPsu {
+    from { opacity: 0; transform: translateX(96px); }
+  }
 
   /* ── cpu ──────────────────────────────── */
   /* Процессор остаётся в сокете — снимается радиатор, как руками. Под ним
@@ -516,6 +581,26 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   /* Кристалл живёт на процессоре и уезжает с ним: снятый процессор,
      светящийся на пустом сокете, — это уже не разбор, а фокус. */
   .rig.service .cpu-slot.opened .die { transform: translate(0, 116px) scale(0.96); }
+
+  /* Сборка: процессор с радиатором опускают в сокет сверху и слегка
+     доворачивают — так его и ставят, целясь по ключам. */
+  .rig.assembly .cpu-slot .heatsink,
+  .rig.assembly .cpu-slot .cpu-lid {
+    animation: seatCpu 0.7s var(--seat, 0s) cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  @keyframes seatCpu {
+    from { opacity: 0; transform: translateY(-52px) scale(0.94); }
+  }
+  /* Пустой сокет — это поле контактов: пока процессора нет, оно открыто, и
+     гаснет ровно тогда, когда его накрывают. both держит оба конца: до
+     старта видно, после — нет. */
+  .rig.assembly .cpu-slot .lga {
+    animation: lgaCover 0.45s var(--seat, 0s) linear both;
+  }
+  @keyframes lgaCover {
+    from { visibility: visible; opacity: 1; }
+    to   { visibility: hidden; opacity: 0; }
+  }
 
   /* ── front_panel ──────────────────────────────── */
   /* Кнопка питания — кольцо, поэтому у неё stroke, а не fill. Быстро мигает,

@@ -8,7 +8,8 @@
 # Свой прямоугольник: сборка проверит, что узел из него не вышел.
 BOUNDS = (488, 4, 360, 850)
 
-from board.geom import BANK_N, DIMM_SOCK_W, PITCH, SLOT_H, X_CORE, X_TAG, Y_BANK_C, Y_BANK_L, Y_BANK_R
+from board.geom import (BANK_N, DIMM_SOCK_W, PITCH, SEAT, SEAT_WAVE2, SLOT_H, X_CORE, X_TAG,
+                        Y_BANK_C, Y_BANK_L, Y_BANK_R)
 
 # Габариты планки по глубине платы. Всё остальное в разъёме считается от них:
 # контакты, ключ и чипы должны сойтись при любой ширине.
@@ -22,7 +23,15 @@ from board.revision import stamp
 def render(cv):
     LETTERS = "ABCDEFGH"
 
-    def bank(y0, n, code, label_y, first=1):
+    # Планки ставят не подряд, а по каналам: сперва первый слот каждого
+    # канала у обоих процессоров, потом второй. Средний банк поэтому набивают
+    # с двух концов — его половины принадлежат разным процессорам.
+    start, step = SEAT['dimm']
+
+    def wave(base):
+        return lambda i: f'{base + i * step:.2f}s'
+
+    def bank(y0, n, code, label_y, first=1, delay=None):
         slots = []
         for i in range(n):
             y = y0 + i * PITCH
@@ -43,7 +52,7 @@ def render(cv):
             edge = '#3f7d76' if i % 2 else '#397169'
             # зона наведения шире самой планки и перекрывает щель до соседней:
             # иначе курсор проваливается между слотами и клик уходит в никуда
-            slots.append(f'''<g class="pick dimm" data-dimm="{code}{i}">
+            slots.append(f'''<g class="pick dimm" data-dimm="{code}{i}" style="--seat:{delay(i)}">
           <rect class="hit" x="{X_CORE-8}" y="{y-1}" width="{SOCK_W+28}" height="{PITCH}" fill="#000" fill-opacity="0.001"/>
           {socket}
           <g class="pick-body">
@@ -66,9 +75,13 @@ def render(cv):
     # целиком, и на прежнем месте плашка легла прямо на сетевой контроллер.
     cv.callouts.append((X_TAG - 6, Y_BANK_C + 38, X_CORE - 10, Y_BANK_C + 110,
                         "Blog", "end", "https://blog.cosmdandy.dev", "dimm"))
-    cv.add(bank(Y_BANK_L, BANK_N, "L", 104, first=1))
-    cv.add(bank(Y_BANK_C, BANK_N, "C", 430, first=9))
-    cv.add(bank(Y_BANK_R, BANK_N, "R", 740, first=17))
+    half = BANK_N // 2
+    cv.add(bank(Y_BANK_L, BANK_N, "L", 104, first=1, delay=wave(start)))
+    # Верхняя половина среднего банка — вторые слоты CPU0, нижняя — первые
+    # слоты CPU1: одни идут во второй волне, другие в первой.
+    cv.add(bank(Y_BANK_C, BANK_N, "C", 430, first=9,
+                delay=lambda i: (wave(SEAT_WAVE2)(i) if i < half else wave(start)(i - half))))
+    cv.add(bank(Y_BANK_R, BANK_N, "R", 740, first=17, delay=wave(SEAT_WAVE2)))
     # Средний банк делят оба процессора: половина каналов уходит к одному,
     # половина к другому. По двенадцать планок на процессор — обычный расклад
     # для 1U, где на все восемь каналов места на плате уже нет.

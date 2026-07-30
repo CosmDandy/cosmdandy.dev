@@ -11,7 +11,7 @@
 # горит не блок, а место, из которого его вынули.
 BOUNDS = (982, 0, 356, 862)
 
-from board.geom import X_REAR
+from board.geom import X_REAR, seat
 from board.ink import mono
 from board.lamps import fault_at, glow, jitter
 from board.revision import stamp
@@ -24,11 +24,13 @@ def render(cv):
         grip_y = y + (88 if flip else 14)     # ручка — в противоположном
         # Карман отсека: блок вставляется в него, а не приклеен к стенке.
         # Без кармана два модуля читаются одной панелью на задней кромке.
-        psu = [(f'<rect x="{X_REAR-6}" y="{y-6}" width="312" height="157" rx="6" fill="#0c1316" '
+        bay = [(f'<rect x="{X_REAR-6}" y="{y-6}" width="312" height="157" rx="6" fill="#0c1316" '
                 f'stroke="rgba(147,161,161,0.20)"/>')]
         for gy in (y - 2, y + 143):
-            psu.append(f'<line x1="{X_REAR-2}" y1="{gy}" x2="{X_REAR+296}" y2="{gy}" '
+            bay.append(f'<line x1="{X_REAR-2}" y1="{gy}" x2="{X_REAR+296}" y2="{gy}" '
                        f'stroke="rgba(147,161,161,0.16)" stroke-width="2.4"/>')
+        cv.add('<g class="decor psu-bay">' + ''.join(bay) + '</g>')
+        psu = []
         psu.append(f'<rect x="{X_REAR}" y="{y}" width="300" height="145" rx="5" fill="#121a1e" stroke="rgba(147,161,161,0.26)"/>')
         # Жалюзи по верху корпуса: штампованные прорези, через них уходит
         # горячий воздух. Ряд идёт вдоль всего модуля, кроме торцов.
@@ -89,7 +91,7 @@ def render(cv):
             psu.append(f'{glow(cls, X_REAR + 60, ly, 4, color)}'
                        f'<circle class="{cls}" cx="{X_REAR+60}" cy="{ly}" r="4" fill="{color}"/>')
             psu.append(mono(X_REAR + 76, ly + 3, nm, 7, anchor="start", op=0.44))
-        cv.add(f'''<g class="pick psu" data-psu="{k+1}">
+        cv.add(f'''<g class="pick psu" data-psu="{k+1}" style="--seat:{seat('psu', k)}">
       <g class="pick-body">{''.join(psu)}</g>
       {fault_at(cv, X_REAR-18, y + (118 if flip else 26), 5)}
     </g>''')

@@ -68,6 +68,11 @@ await page.addInitScript(() => {
 });
 
 await page.goto(url, { waitUntil: 'load' });
+// Первый заход собирает машину на глазах у гостя: кадр в этот момент поймал
+// бы полупустое шасси. Ждём, пока последний узел сядет.
+await page.waitForFunction(
+  () => !document.getElementById('rig')?.classList.contains('assembly'),
+  null, { timeout: 20000 }).catch(() => {});
 await page.waitForTimeout(500);
 if (view === 'rig') await page.evaluate(() => document.body.classList.add('view-rig'));
 // сервисный режим включаем штатным тумблером: класс, поставленный руками,

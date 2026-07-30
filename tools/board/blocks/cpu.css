@@ -36,3 +36,23 @@
   /* Кристалл живёт на процессоре и уезжает с ним: снятый процессор,
      светящийся на пустом сокете, — это уже не разбор, а фокус. */
   .rig.service .cpu-slot.opened .die { transform: translate(0, 116px) scale(0.96); }
+
+  /* Сборка: процессор с радиатором опускают в сокет сверху и слегка
+     доворачивают — так его и ставят, целясь по ключам. */
+  .rig.assembly .cpu-slot .heatsink,
+  .rig.assembly .cpu-slot .cpu-lid {
+    animation: seatCpu 0.7s var(--seat, 0s) cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  @keyframes seatCpu {
+    from { opacity: 0; transform: translateY(-52px) scale(0.94); }
+  }
+  /* Пустой сокет — это поле контактов: пока процессора нет, оно открыто, и
+     гаснет ровно тогда, когда его накрывают. both держит оба конца: до
+     старта видно, после — нет. */
+  .rig.assembly .cpu-slot .lga {
+    animation: lgaCover 0.45s var(--seat, 0s) linear both;
+  }
+  @keyframes lgaCover {
+    from { visibility: visible; opacity: 1; }
+    to   { visibility: hidden; opacity: 0; }
+  }
