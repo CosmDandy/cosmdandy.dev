@@ -350,12 +350,16 @@ def silk_inverse(x, y, text, size=7):
     """Инверсная шелкография: светлая плашка, тёмный выбитый текст.
 
     Так подписывают то, что человек с отвёрткой должен найти сразу.
+
+    Краска на текстолите не бумажно-белая, а сероватая, и держим её заметно
+    глуше выносок: подписи ссылок — первое, что должно читаться на схеме, а
+    белая плашка того же тона забивала их даже будучи вчетверо мельче.
     """
     pad_x, pad_y = 5, 3
     w = len(text) * size * 0.62 + pad_x * 2
     h = size + pad_y * 2
     return (f'<rect x="{x}" y="{y}" width="{w:.1f}" height="{h}" rx="1.5" '
-            f'fill="#e8e3d5" fill-opacity="0.88" stroke="rgba(147,161,161,0.30)" stroke-width="0.6"/>'
+            f'fill="#c6c0ad" fill-opacity="0.55" stroke="rgba(147,161,161,0.24)" stroke-width="0.6"/>'
             f'<text x="{x+w/2:.1f}" y="{y+h-pad_y-1:.1f}" text-anchor="middle" fill="#0a1417" '
             f'font-family="ui-monospace, Menlo, monospace" font-size="{size}">{text}</text>')
 
@@ -480,6 +484,11 @@ pcb_w, pcb_h = X_REAR - 4 - X_PCB, H - 36
 # и крупным деталям не оставалось ни одного места — ни дросселя, ни радиатора.
 busy(X_CORE - 16, Y_BANK_L - 14, 348, Y_BANK_R + 8 * PITCH - Y_BANK_L + 20)
 busy(X_PCB + 14, 88, 60, 700)
+# Кронштейны райзеров: они рисуются много позже, но место занимают сейчас —
+# иначе крупный корпус садится в карман между блоками питания и скрывается
+# под сталью кронштейна. Так под платой пропал BMC.
+for ry in (186, 474):
+    busy(X_REAR + 12, ry, X_PCB_END - 18 - X_REAR, 192)
 # служебная зона: сами узлы и их подписи, а не прямоугольник на всю площадь
 for bx, by, bw, bh in ((X_SVC + 6, 108, 146, 46),    # P1/P2
                        (X_SVC + 2, 180, 150, 62),    # SATA / SlimSAS
@@ -519,6 +528,14 @@ add('<g class="decor vias">' + ''.join(
 # ── крупная рассыпуха ─────────────────────────────────────────────────────
 # Микросхемы на живой плате чёрные, и на каждой белый шильдик с партномером
 # и точка первого вывода. Ставим их до мелочи, чтобы места достались им.
+def fit(text, avail, size):
+    """Кегль, при котором строка влезает в отведённую ширину.
+
+    Моноширинный шрифт продвигается ровно на 0.6 em, поэтому ширину строки
+    можно посчитать заранее, не измеряя её в браузере.
+    """
+    return round(min(size, avail / (len(text) * 0.6)), 1)
+
 def chip_qfp(x, y, w, h, mark, sub):
     """Корпус с выводами по всем четырём сторонам — контроллеры и мосты."""
     # Шаг выводов мелкий: у контроллера их по три-четыре десятка на сторону,
@@ -533,30 +550,39 @@ def chip_qfp(x, y, w, h, mark, sub):
         py = y + 3 + k * 2
         pins.append(f'<line x1="{x}" y1="{py}" x2="{x-4}" y2="{py}" stroke="rgba(147,161,161,0.30)" stroke-width="0.8"/>')
         pins.append(f'<line x1="{x+w}" y1="{py}" x2="{x+w+4}" y2="{py}" stroke="rgba(147,161,161,0.30)" stroke-width="0.8"/>')
+    # Шильдик занимает середину корпуса, а точка первого вывода — угол за его
+    # пределами: на живой микросхеме надпись её обходит, а не наезжает.
+    lx, ly, lw, lh = x + w * 0.14, y + h * 0.26, w * 0.72, h * 0.54
     return (''.join(pins)
             + f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="2" fill="#080b0d" '
               f'stroke="rgba(147,161,161,0.30)"/>'
-            + f'<rect x="{x+w*0.16:.1f}" y="{y+h*0.2:.1f}" width="{w*0.68:.1f}" height="{h*0.6:.1f}" '
-              f'rx="1" fill="#e8e3d5" fill-opacity="0.88"/>'
-            + f'<text x="{x+w/2:.1f}" y="{y+h/2-1:.1f}" text-anchor="middle" fill="#0a1417" '
-              f'font-family="ui-monospace, Menlo, monospace" font-size="7">{mark}</text>'
-            + f'<text x="{x+w/2:.1f}" y="{y+h/2+8:.1f}" text-anchor="middle" fill="#0a1417" '
-              f'font-family="ui-monospace, Menlo, monospace" font-size="6">{sub}</text>'
-            + f'<circle cx="{x+6}" cy="{y+6}" r="2.2" fill="#268bd2" fill-opacity="0.8"/>')
+            + f'<rect x="{lx:.1f}" y="{ly:.1f}" width="{lw:.1f}" height="{lh:.1f}" '
+              f'rx="1" fill="#d9d3c1" fill-opacity="0.62"/>'
+            + f'<text x="{x+w/2:.1f}" y="{ly+lh*0.44:.1f}" text-anchor="middle" fill="#0a1417" '
+              f'font-family="ui-monospace, Menlo, monospace" font-size="{fit(mark, lw-4, 7)}">{mark}</text>'
+            + f'<text x="{x+w/2:.1f}" y="{ly+lh-2:.1f}" text-anchor="middle" fill="rgba(10,20,23,0.72)" '
+              f'font-family="ui-monospace, Menlo, monospace" font-size="{fit(sub, lw-4, 6)}">{sub}</text>'
+            + f'<circle cx="{x+4}" cy="{y+4}" r="1.7" fill="#268bd2" fill-opacity="0.7"/>')
 
-def chip_soic(x, y, w, h, mark):
-    """Выводы по двум сторонам — память, логика, датчики."""
+def chip_soic(x, y, w, h, mark, size=5.5):
+    """Выводы по двум сторонам — память, логика, датчики.
+
+    Ширину диктует маркировка: у длинного партномера и корпус длиннее. Точка
+    первого вывода стоит у самого края, надпись начинается после неё — иначе
+    точка садится прямо в название.
+    """
+    w = max(w, len(mark) * size * 0.6 + 15)
     pins = ''.join(
         f'<line x1="{x+4+k*5}" y1="{y}" x2="{x+4+k*5}" y2="{y-2.5}" stroke="rgba(147,161,161,0.32)"/>'
         f'<line x1="{x+4+k*5}" y1="{y+h}" x2="{x+4+k*5}" y2="{y+h+2.5}" stroke="rgba(147,161,161,0.32)"/>'
         for k in range(int(w // 5) - 1))
     return (pins
-            + f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="1.5" fill="#0a0e11" '
+            + f'<rect x="{x}" y="{y}" width="{w:.1f}" height="{h}" rx="1.5" fill="#0a0e11" '
               f'stroke="rgba(147,161,161,0.26)"/>'
-            + f'<text x="{x+w/2:.1f}" y="{y+h/2+3:.1f}" text-anchor="middle" '
-              f'fill="rgba(238,232,213,0.62)" font-family="ui-monospace, Menlo, monospace" '
-              f'font-size="6">{mark}</text>'
-            + f'<circle cx="{x+4}" cy="{y+h-3.5}" r="1.4" fill="rgba(238,232,213,0.5)"/>')
+            + f'<text x="{x+8+(w-11)/2:.1f}" y="{y+h/2+2.6:.1f}" text-anchor="middle" '
+              f'fill="rgba(238,232,213,0.58)" font-family="ui-monospace, Menlo, monospace" '
+              f'font-size="{size}">{mark}</text>'
+            + f'<circle cx="{x+3.4}" cy="{y+h-3.2}" r="1.2" fill="rgba(238,232,213,0.45)"/>')
 
 def transistor(x, y, big=False):
     """SOT-23 и DPAK: три вывода, у мощного — площадка теплоотвода."""
@@ -595,32 +621,47 @@ def xtal(x, y, mark="32.768kHz"):
     return (f'<rect x="{x}" y="{y}" width="16" height="8" rx="4" fill="#3a444a" '
             f'stroke="rgba(147,161,161,0.36)"/>'
             f'<rect x="{x+3}" y="{y+2}" width="10" height="4" rx="2" fill="rgba(147,161,161,0.10)"/>'
-            + mono(x + 8, y + 16, mark, 5, op=0.34))
+            # подпись от левого края корпуса: центрированная уезжала влево за
+            # отведённое место и садилась на соседа
+            + mono(x, y + 16, mark, 5, anchor="start", op=0.34))
 
 BIG = [('AST2600', 'U79', 44, 44), ('X710', 'U21', 38, 38), ('CPLD', 'U12', 32, 32),
-       ('PCIe SW', 'U44', 40, 40), ('TPM 2.0', 'U9', 26, 26)]
+       ('PCIe SW', 'U44', 40, 40), ('TPM 2.0', 'U9', 32, 26)]
 SOICS = [('D9LHR', 30, 13), ('PCA9557', 26, 11), ('MAX6642', 24, 11), ('W25Q256', 28, 12),
          ('ADM1278', 26, 11), ('LM75', 20, 10), ('SPI FLASH', 34, 12), ('TMP421', 22, 10)]
 parts = []
+lost = []
 spot = 0
 
-def place(w, h, draw):
+def place(w, h, draw, name='деталь'):
     """Кладём деталь в первое свободное место честного обхода платы.
 
     Псевдослучайные броски исчерпывались раньше, чем находилось место, и
     крупные детали просто не появлялись — ни одного дросселя и радиатора.
     Обход по сетке гарантирует, что если место есть, деталь встанет.
+
+    Не поместившееся запоминаем: молчаливая потеря деталей здесь уже
+    случалась дважды, и оба раза обнаружилась глазами, а не сборкой.
     """
     global spot
     spot += 1
     step = 14
     y0 = 26 + (spot * 37) % 90        # разное начало, иначе всё выстроится в ряд
-    for yy in range(y0, int(pcb_h) - int(h), step):
-        x0 = X_PCB + 16 + (spot * 53 + yy) % 70
-        for xx in range(x0, X_REAR - 10 - int(w), step):
-            if put(xx, yy, w, h):
-                parts.append(draw(xx, yy))
-                return True
+    # Три поля по убыванию удобства: от своей строки вниз, потом верх платы,
+    # потом карман между вырезами под блоки питания. Последний нужен под
+    # крупные корпуса: банки памяти и служебная зона съедают основное поле
+    # целиком, и корпус в 50 единиц туда уже не входит ни при каком обходе.
+    fields = ((X_PCB + 16, X_REAR - 10, y0, int(pcb_h)),
+              (X_PCB + 16, X_REAR - 10, 22, y0),
+              (X_REAR + 6, X_PCB_END - 12, Y_PSU_TOP + 10, Y_PSU_BOT - 10))
+    for xa, xb, ya, yb in fields:
+        for yy in range(int(ya), int(yb) - int(h), step):
+            x0 = xa + (spot * 53 + yy) % 70
+            for xx in list(range(x0, int(xb - w), step)) + list(range(xa, x0, step)):
+                if put(xx, yy, w, h):
+                    parts.append(draw(xx, yy))
+                    return True
+    lost.append(f'{name} {w:.0f}×{h:.0f}')
     return False
 
 # Голые футпринты под опции, которых в этой сборке нет. Координаты заданы
@@ -635,18 +676,23 @@ for k, (name, cols) in enumerate((("J150", 4), ("J156", 3), ("DEBUG CONN", 5))):
         pads_done += 1
 
 for mark, sub, w, h in BIG:
-    place(w + 8, h + 8, lambda x, y, m=mark, s=sub, w=w, h=h: chip_qfp(x + 4, y + 4, w, h, m, s))
+    place(w + 8, h + 8, lambda x, y, m=mark, s=sub, w=w, h=h: chip_qfp(x + 4, y + 4, w, h, m, s), mark)
 for mark, w, h in SOICS:
-    place(w + 6, h + 6, lambda x, y, m=mark, w=w, h=h: chip_soic(x + 3, y + 3, w, h, m))
+    # корпус вырастает под длинную маркировку — резервируем сразу по факту
+    w = max(w, len(mark) * 5.5 * 0.6 + 15)
+    place(w + 6, h + 6, lambda x, y, m=mark, w=w, h=h: chip_soic(x + 3, y + 3, w, h, m), mark)
 for i in range(14):
-    place(18, 18, lambda x, y, b=(i % 3 == 0): transistor(x + 2, y + 2, big=b))
+    place(18, 18, lambda x, y, b=(i % 3 == 0): transistor(x + 2, y + 2, big=b), 'транзистор')
 for i in range(7):
-    place(20, 20, lambda x, y: choke(x + 3, y + 3))
+    place(20, 20, lambda x, y: choke(x + 3, y + 3), 'дроссель')
 for i in range(4):
-    place(30, 26, lambda x, y: small_sink(x + 2, y + 2, 26, 22))
+    place(30, 26, lambda x, y: small_sink(x + 2, y + 2, 26, 22), 'радиатор')
 for i, mark in enumerate(("Y2 · 7.3728MHz", "Y4 · 32.768kHz", "OS1 · 50MHz")):
-    place(46, 22, lambda x, y, m=mark: xtal(x + 2, y + 2, m))
+    # место под кварц диктует подпись частоты, а не корпус: он вдвое короче
+    place(max(20, len(mark) * 3) + 6, 22, lambda x, y, m=mark: xtal(x + 2, y + 2, m), mark)
 add('<g class="decor parts">' + ''.join(parts) + '</g>')
+if lost:
+    print('НЕ РАЗМЕСТИЛОСЬ:', ', '.join(lost))
 
 silk = []
 # дорожки: пучками, со ступеньками — как разводка к сокетам
@@ -1058,14 +1104,16 @@ def heatsink(x, y):
     # Бумажный шильдик: партномер, штрих-код и предупреждение про рычаг.
     # На живом радиаторе он занимает треть верхней плоскости.
     lx, ly, lw, lh = x + 34, y + 30, SOCKET_W - 68, 56
-    tag = (f'<rect x="{lx}" y="{ly}" width="{lw}" height="{lh}" rx="2" fill="#e8e3d5" fill-opacity="0.82"/>'
+    # Бумага держится на 0.5: непрозрачный шильдик на тёмном радиаторе бил в
+    # глаза сильнее подписей ссылок, а он всего лишь фон.
+    tag = (f'<rect x="{lx}" y="{ly}" width="{lw}" height="{lh}" rx="2" fill="#cfc9b6" fill-opacity="0.5"/>'
            + ''.join(f'<rect x="{lx+8+k*3}" y="{ly+7}" width="{1.6 if k % 3 else 2.6}" height="14" '
-                     f'fill="rgba(10,20,23,0.78)"/>' for k in range(18))
-           + f'<text x="{lx+lw-8}" y="{ly+18}" text-anchor="end" fill="rgba(10,20,23,0.7)" '
+                     f'fill="rgba(10,20,23,0.62)"/>' for k in range(18))
+           + f'<text x="{lx+lw-8}" y="{ly+18}" text-anchor="end" fill="rgba(10,20,23,0.66)" '
              f'font-family="ui-monospace, Menlo, monospace" font-size="7">P/N 41Y9033</text>'
-           + f'<text x="{lx+lw/2}" y="{ly+36}" text-anchor="middle" fill="rgba(10,20,23,0.62)" '
+           + f'<text x="{lx+lw/2}" y="{ly+36}" text-anchor="middle" fill="rgba(10,20,23,0.58)" '
              f'font-family="ui-monospace, Menlo, monospace" font-size="6">PUSH WHILE ROTATING LEVER</text>'
-           + f'<text x="{lx+lw/2}" y="{ly+48}" text-anchor="middle" fill="rgba(10,20,23,0.42)" '
+           + f'<text x="{lx+lw/2}" y="{ly+48}" text-anchor="middle" fill="rgba(10,20,23,0.4)" '
              f'font-family="ui-monospace, Menlo, monospace" font-size="6">MADE IN A CONTAINER</text>')
     return (f'<g class="pick-body heatsink"><rect x="{x}" y="{y}" width="{SOCKET_W}" height="{SOCKET_H}" rx="6" '
             f'fill="#26333a" stroke="rgba(147,161,161,0.38)"/>{fins}{tag}{screws}</g>')
