@@ -19,19 +19,32 @@ def render(cv):
         slots = []
         for i in range(n):
             y = y0 + i * PITCH
-            # чередование чёрный/синий — как на плате
-            outer = '#16314a' if i % 2 else '#101a1f'
-            inner = '#0c2033' if i % 2 else '#0a1013'
+            # Разъём остаётся на плате, когда планку вынимают, поэтому он —
+            # отдельная фигура, а не часть модуля. Внутри золочёные контакты и
+            # ключ-перемычка не по центру: он и не даёт вставить планку задом.
+            socket = (f'<rect x="{X_CORE-2}" y="{y-1}" width="298" height="{SLOT_H+2}" rx="1" '
+                      f'fill="#05090b" stroke="rgba(147,161,161,0.26)"/>'
+                      + ''.join(f'<line x1="{X_CORE+8+c*6}" y1="{y+2}" x2="{X_CORE+8+c*6}" '
+                                f'y2="{y+SLOT_H-2}" stroke="rgba(184,150,51,0.34)"/>'
+                                for c in range(46))
+                      + f'<rect x="{X_CORE+118}" y="{y+1}" width="4" height="{SLOT_H-2}" '
+                        f'fill="#0f1a20"/>')
+            # Планка: сверху видна её светлая кромка — торец текстолита, а под
+            # ним чипы. На фото живого банка это первое, что бросается в глаза:
+            # ряд светлых полос, а не чёрных.
+            edge = '#5aa79e' if i % 2 else '#4f9a92'
             # зона наведения шире самой планки и перекрывает щель до соседней:
             # иначе курсор проваливается между слотами и клик уходит в никуда
             slots.append(f'''<g class="pick dimm" data-dimm="{code}{i}">
           <rect class="hit" x="{X_CORE-8}" y="{y-1}" width="326" height="{PITCH}" fill="#000" fill-opacity="0.001"/>
+          {socket}
           <g class="pick-body">
-            <rect x="{X_CORE}" y="{y}" width="292" height="{SLOT_H}" rx="0" fill="{outer}" stroke="rgba(147,161,161,0.30)"/>
-            <rect x="{X_CORE+6}" y="{y+3}" width="280" height="{SLOT_H-6}" rx="0" fill="{inner}"/>
-            <rect class="latch-fix" x="{X_CORE-5}" y="{y+1}" width="5" height="{SLOT_H-2}" rx="1"/>
-            <rect class="latch" x="{X_CORE+292}" y="{y+1}" width="7" height="{SLOT_H-2}" rx="1"/>
+            <rect x="{X_CORE}" y="{y}" width="292" height="{SLOT_H}" rx="0" fill="#13323a" stroke="rgba(147,161,161,0.30)"/>
+            <rect x="{X_CORE+2}" y="{y+1}" width="288" height="3.4" rx="1" fill="{edge}"/>
+            {''.join(f'<rect x="{X_CORE+14+c*34}" y="{y+5.4}" width="26" height="{SLOT_H-7}" rx="0.6" fill="#0d1519"/>' for c in range(8))}
           </g>
+          <path class="latch latch-l" d="M{X_CORE-7} {y+1} h6 v{SLOT_H-2} h-6 a2 2 0 0 1 -2 -2 v{-(SLOT_H-6)} a2 2 0 0 1 2 -2 Z"/>
+          <path class="latch latch-r" d="M{X_CORE+293} {y+1} h6 a2 2 0 0 1 2 2 v{SLOT_H-6} a2 2 0 0 1 -2 2 h-6 Z"/>
           {glow('fault', X_CORE + 304, y + SLOT_H / 2, 2.4, '#dc322f')}
           <circle class="fault" cx="{X_CORE+304}" cy="{y+SLOT_H/2}" r="2.4" fill="#dc322f"/>
           {silk_inverse(X_CORE + 310, y - 1, f"DIMM{first + i}", 6.5)}

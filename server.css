@@ -431,14 +431,28 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
 
   .rig.service .fan.pulled .pick-body { transform: translateY(-30px) scale(1.03); }
   /* ── memory ──────────────────────────────── */
-  /* В 1U планку держит одна защёлка: с другой стороны глухой упор. Лампа
-     ошибки сидит прямо в защёлке — «DIMM error LEDs are located in the
-     handles», как написано на схеме живой машины, — и потому загорается
-     только с той стороны, где нанесены буквы банка. */
-  .latch, .latch-fix { fill: rgba(147,161,161,0.26); transition: fill 0.15s steps(1, end); }
+  /* Защёлки на живой плате — молочно-белый полупрозрачный пластик, и их две:
+     по одной с каждого торца. Лампа ошибки сидит прямо в защёлке — «DIMM
+     error LEDs are located in the handles», как написано на схеме живой
+     машины, — поэтому при сбое желтеет именно она. */
+  .latch {
+    fill: rgba(226, 235, 231, 0.42);
+    transform-box: fill-box;
+    transition: fill 0.15s steps(1, end), transform var(--spring);
+  }
+  .latch-l { transform-origin: 100% 100%; }
+  .latch-r { transform-origin: 0% 100%; }
   .dimm.pulled .latch { fill: var(--amber); }
 
-  .rig.service .dimm.pulled .pick-body { transform: translateY(-11px); }
+  /* Планку не вынуть, пока защёлки закрыты, — поэтому сначала откидываются
+     они, и только потом модуль идёт вверх. Разъём при этом остаётся на
+     плате: он нарисован отдельно и никуда не едет. */
+  .rig.service .dimm.pulled .latch-l { transform: rotate(38deg); }
+  .rig.service .dimm.pulled .latch-r { transform: rotate(-38deg); }
+  .rig.service .dimm.pulled .pick-body {
+    transform: translateY(-13px);
+    transition-delay: 0.12s;
+  }
   /* ── risers ──────────────────────────────── */
   /* Райзер и блок питания выходят назад, из задней стенки. */
   .rig.service .riser.pulled .pick-body { transform: translateX(46px); }
