@@ -1,0 +1,14 @@
+  /* Подсказка дополнения. В <input> двух цветов не бывает, поэтому под полем
+     лежит зеркало: набранная часть в нём прозрачная и нужна только чтобы
+     занять ширину, а видно продолжение приглушённым тоном. Метрики обязаны
+     совпадать с полем до пикселя, иначе подсказка разъедется с текстом. */
+  .prompt-field { position: relative; flex: 1; min-width: 0; display: block; }
+  .prompt-field input { position: relative; z-index: 1; background: transparent; width: 100%; }
+  .ghost {
+    position: absolute; inset: 0; pointer-events: none; overflow: hidden;
+    white-space: pre; display: block;
+    font: inherit; letter-spacing: inherit;
+    line-height: normal;
+  }
+  .ghost-typed { color: transparent; font-style: normal; }
+  .ghost-rest { color: var(--dim); opacity: 0.7; font-style: normal; }
