@@ -4,8 +4,10 @@
   /* Сборка: райзер опускают в свой разъём сверху, целиком — вместе с картой
      и кронштейном. */
   .rig.assembly .riser {
-    animation: seatRiser var(--click) var(--seat, 0s) backwards;
+    animation: seatRiser var(--press-hard) var(--seat, 0s) backwards;
   }
+  /* Райзер садится всем разъёмом сразу, поэтому идёт туго и требует
+     дожима — за него для того и держат лепесток. */
   @keyframes seatRiser {
     from { opacity: 0; transform: translateY(-56px); }
   }

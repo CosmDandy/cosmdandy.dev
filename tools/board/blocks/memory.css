@@ -27,8 +27,10 @@
      разным процессорам. */
   .rig.assembly .dimm .pick-body,
   .rig.assembly .dimm .latch {
-    animation: seatDimm var(--click) var(--seat, 0s) backwards;
+    animation: seatDimm var(--press-hard) var(--seat, 0s) backwards;
   }
+  /* Планку не опускают, а вдавливают: она входит с сопротивлением и
+     садится, когда защёлки по торцам щёлкнут. */
   @keyframes seatDimm {
     from { opacity: 0; transform: translateY(-22px); }
   }

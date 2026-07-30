@@ -40,6 +40,14 @@ const SCENES = {
   service:  { watch: '.stage',              click: '#svc-switch', shots: 0, span: 1100, plain: true },
   // Сборка идёт сама при первом заходе: кликать нечего, смотрим ленту целиком.
   assembly: { assembly: true },
+  // Посадка одного узла крупным планом: ждём его --seat и снимаем ход.
+  'seat-dimm':  { assembly: true, seatOf: '.dimm', watch: '.dimm .pick-body' },
+  // Смотреть надо туда, где объявлена анимация посадки: у планки это тело
+  // модуля, у остальных — сам узел целиком.
+  'seat-fan':   { assembly: true, seatOf: '.fan', watch: '.fan' },
+  'seat-psu':   { assembly: true, seatOf: '.psu', watch: '.psu' },
+  'seat-bay':   { assembly: true, seatOf: '.bay', watch: '.bay' },
+  'seat-riser': { assembly: true, seatOf: '.riser', watch: '.riser' },
 };
 
 const name = process.argv[2] ?? 'heatsink';
@@ -79,6 +87,34 @@ if (scene.assembly) await page.addInitScript(() => { try { localStorage.clear();
 await page.addInitScript(() => { try { localStorage.setItem('rig-view', 'rig'); } catch (e) {} });
 await page.goto(`http://127.0.0.1:${server.address().port}/index.html`, { waitUntil: 'load' });
 await page.evaluate(() => document.body.classList.add('view-rig'));
+if (scene.seatOf) {
+  // Узел знает, когда его посадят: время лежит в его же --seat. Ждём этот
+  // момент и снимаем ход посадки часто — так виден характер движения, а не
+  // только факт, что узел появился.
+  const seatAt = await page.evaluate(sel => {
+    const el = document.querySelector(sel);
+    return parseFloat(el.style.getPropertyValue('--seat')) || 0;
+  }, scene.seatOf);
+  const t0 = Date.now();
+  console.log(`── ${name} ── посадка назначена на ${seatAt.toFixed(2)} с`);
+  for (let i = 0; i <= 16; i++) {
+    const at = (seatAt - 0.1) * 1000 + i * 80;
+    while (Date.now() - t0 < at) await page.waitForTimeout(5);
+    const m = await page.evaluate(sel => {
+      const el = document.querySelector(sel);
+      const cs = getComputedStyle(el);
+      const b = el.getBoundingClientRect();
+      return { tr: cs.transform, y: Math.round(b.y * 10) / 10, op: Math.round(cs.opacity * 100) / 100 };
+    }, scene.watch);
+    const off = /matrix\(([^)]+)\)/.exec(m.tr);
+    const dxy = off ? off[1].split(',').slice(4).map(v => Math.round(parseFloat(v) * 10) / 10).join(' ') : '—';
+    console.log(`${String(Math.round(Date.now() - t0)).padStart(5)} мс  сдвиг ${dxy.padStart(12)}  прозр ${m.op}`);
+  }
+  console.log(`\nкадры: ${OUT}`);
+  await browser.close();
+  server.close();
+  process.exit(0);
+}
 if (scene.assembly) {
   // Считаем, сколько узлов уже на месте: узел сел, когда его анимация
   // закончилась и он перестал быть прозрачным.
