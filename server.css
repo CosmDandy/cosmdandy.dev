@@ -84,7 +84,7 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   position: relative;
   z-index: 1;
   margin: 0 auto;
-  width: min(96vw, 1560px);
+  width: min(94vw, 1240px);
   padding: 0 12px;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
@@ -179,8 +179,9 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
 
   .chassis {
     position: relative;
-    transform-style: preserve-3d;
     transform: rotateX(46deg) scale(0.94);
+    will-change: transform;
+    backface-visibility: hidden;
     opacity: 0;
     transition: transform 1s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.6s ease;
   }
@@ -199,7 +200,7 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   .lid svg { display: block; width: 100%; height: auto; }
   .lid-btn-svg { pointer-events: auto; cursor: pointer; }
   .lid-btn-svg:hover rect:first-child { stroke: var(--cyan); fill: #22303a; }
-  .rig.lid-off .lid { transform: translateZ(300px) translateY(-34%); opacity: 0; }
+  .rig.lid-off .lid { transform: translateY(-30%) scale(1.03); opacity: 0; }
 
   /* ── Компоненты ───────────────────────────────────────────────────────── */
   /* Две роли, и они не совпадают. .unit называет себя ярлыком — это диск,
@@ -438,3 +439,14 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
 @media (max-width: 900px) {
   .rig-bottom { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* ── Связка узла и подписи ────────────────────────────────────────────────
+ * Наводишь на сетевую карту — загорается её подпись, и наоборот. Иначе
+ * непонятно, к чему относится ярлык.
+ */
+.unit .pick-body, .unit .body { transition: filter var(--fade); }
+.rig .unit.lit .pick-body,
+.rig .unit.lit .body { filter: brightness(1.35) saturate(1.15); }
+a.callout.lit .co-box { fill: #fff; stroke: var(--cyan); }
+a.callout.lit .co-line { stroke: var(--cyan); }
+a.callout.lit .co-dot { fill: var(--head); }

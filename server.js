@@ -414,6 +414,24 @@
   });
 
 
+
+  // ── Связка узла и подписи ──────────────────────────────────────────────
+  // Подсветка идёт в обе стороны: узел ↔ его выноска. Класс вместо :hover,
+  // потому что элементы лежат в разных ветках дерева.
+  function lit(group, on) {
+    chassis.querySelectorAll('[data-group="' + group + '"]').forEach(function (n) {
+      n.classList.toggle('lit', on);
+    });
+    chassis.querySelectorAll('[data-for="' + group + '"]').forEach(function (n) {
+      n.classList.toggle('lit', on);
+    });
+  }
+  chassis.querySelectorAll('[data-group], [data-for]').forEach(function (n) {
+    const g = n.dataset.group || n.dataset.for;
+    n.addEventListener('mouseenter', function () { lit(g, true); });
+    n.addEventListener('mouseleave', function () { lit(g, false); });
+  });
+
   // ── Приборы ────────────────────────────────────────────────────────────
   // Спарклайны в духе Oxide: значение и шестьдесят последних точек. Цифры
   // считаются из состояния машины, а не выдумываются: выключенный хост,
