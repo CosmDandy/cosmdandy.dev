@@ -352,3 +352,6 @@ tools/preview.png
 tools/__pycache__/
 tools/board/__pycache__/
 tools/board/blocks/__pycache__/
+
+# кадры покадровой съёмки движения (tools/motion.mjs)
+tools/motion/
