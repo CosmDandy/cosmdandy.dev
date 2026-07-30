@@ -1,6 +1,3 @@
-// СОБРАННЫЙ ФАЙЛ — правки затрёт следующая сборка.
-// Источники: tools/board/scripts/base.js и tools/board/blocks/*.js,
-// собирает tools/build.py. Поведение узла лежит рядом с его геометрией.
 /* Схема сервера: питание, сервисный режим, консоль.
  *
  * Два уровня взаимодействия. Пока сервисный режим выключен, машина работает
@@ -144,66 +141,9 @@
     })();
   }
 
-  // ── Питание ────────────────────────────────────────────────────────────
-  // Три состояния кнопки, как на настоящей машине: init — BMC поднимается и
-  // жать бесполезно; standby — можно включать; on — работает.
-  function setPower(mode) {
-    rig.classList.remove('init', 'standby', 'on');
-    rig.classList.add(mode);
-  }
+  // @block: front_panel
 
-  function powerOn() {
-    state.powered = true; save();
-    setPower('on');
-    // Порядок ровно такой, как видно вживую: сперва поднимается линк сетевой
-    // карты, следом BMC начинает биться, и только потом стартует хост.
-    wait(120, function () { rig.classList.add('net'); line('nic · link up 25G', 'ok'); });
-    wait(700, function () { rig.classList.add('bmc'); line('BMC 2.14 · heartbeat', 'ok'); });
-    wait(1100, runPost);
-    tick();
-  }
-
-  function powerOff() {
-    state.powered = false; save();
-    rig.classList.remove('net', 'bmc');
-    setPower('standby');
-    line('powering off', 'warn');
-    line('standby · bmc only', 'muted');
-    tick();
-  }
-
-  document.getElementById('power').addEventListener('click', function () {
-    if (rig.classList.contains('init')) {
-      line('power inhibited · bmc init', 'warn');
-      return;
-    }
-    if (state.powered) { powerOff(); } else { line('power on', 'muted'); powerOn(); }
-  });
-  document.getElementById('power').addEventListener('keydown', function (e) {
-    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.click(); }
-  });
-
-  // ── Опознание в стойке ─────────────────────────────────────────────────
-  const idBtn = document.getElementById('id-btn');
-  function toggleIdentify() {
-    const on = rig.classList.toggle('identify');
-    line(on ? 'identify: on · blue' : 'identify: off', 'muted');
-  }
-  idBtn.addEventListener('click', toggleIdentify);
-  idBtn.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleIdentify(); }
-  });
-
-  // ── Light Path Diagnostics ─────────────────────────────────────────────
-  const lpTab = document.getElementById('lp-tab');
-  function toggleLp() {
-    const on = rig.classList.toggle('lp-open');
-    line(on ? 'light path: extended' : 'light path: retracted', 'muted');
-  }
-  lpTab.addEventListener('click', toggleLp);
-  lpTab.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleLp(); }
-  });
+  // @block: lightpath
 
   // Какая лампа на панели отвечает за какой узел.
   const LP_MAP = {
@@ -261,47 +201,12 @@
   // из if по типам: чтобы добавить узел, приходилось править общий файл.
   const PICKS = [];
 
-  // Вентилятор: в логе нумеруются с единицы, как на корпусе, а в разметке —
-  // с нуля.
-  PICKS.push({
-    test: function (el) { return el.dataset.fan !== undefined; },
-    name: function (el) { return 'fan ' + (Number(el.dataset.fan) + 1); },
-  });
-  PICKS.push({
-    test: function (el) { return el.dataset.dimm !== undefined; },
-    name: function (el) { return 'dimm ' + el.dataset.dimm; },
-  });
-  PICKS.push({
-    test: function (el) { return el.dataset.unit && el.dataset.unit.startsWith('hdd'); },
-    name: function (el) { return el.dataset.unit; },
-  });
-  // Процессор разбирается в два приёма, как в жизни: сначала радиатор, потом
-  // сам процессор из-под него. Третий клик собирает узел обратно.
-  PICKS.push({
-    test: function (el) { return el.classList.contains('cpu-slot'); },
-    name: function (el) { return 'cpu' + el.dataset.cpu + ' heatsink'; },
-    pull: function (el, line) {
-      const n = el.dataset.cpu;
-      if (!el.classList.contains('pulled')) {
-        el.classList.add('pulled');
-        line('removed: радиатор CPU' + n, 'warn');
-      } else if (!el.classList.contains('opened')) {
-        el.classList.add('opened');
-        line('removed: процессор CPU' + n + ' · LGA 4677 socket open', 'warn');
-      } else {
-        el.classList.remove('pulled', 'opened');
-        line('inserted: CPU' + n + ' с радиатором', 'ok');
-      }
-    },
-  });
-  PICKS.push({
-    test: function (el) { return el.dataset.riser !== undefined; },
-    name: function (el) { return 'riser ' + el.dataset.riser; },
-  });
-  PICKS.push({
-    test: function (el) { return el.dataset.psu !== undefined; },
-    name: function (el) { return 'psu-' + el.dataset.psu; },
-  });
+  // @block: fans
+  // @block: memory
+  // @block: drives
+  // @block: cpu
+  // @block: risers
+  // @block: psu
 
   function unitName(el) {
     const kind = PICKS.find(function (k) { return k.test(el); });
