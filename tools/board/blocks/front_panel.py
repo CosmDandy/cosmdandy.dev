@@ -14,6 +14,7 @@ BOUNDS = (0, 0, 168, 190)
 from board.geom import BAY_DEPTH, FRONT_W, X_FRONT, Y_PANEL
 from board.ink import hit, mono
 from board.lamps import glow
+from board.metal import hexgrid
 
 # Лицевая часть панели диагностики. По высоте совпадает с выдвижной частью:
 # это одна деталь, просто видно её торец. Ширину берём от корзины — панель
@@ -40,6 +41,15 @@ def render(cv):
   <rect x="{X_FRONT}" y="6" width="{FRONT_W}" height="{Y_PANEL-14}" rx="4" fill="#151d21" stroke="rgba(147,161,161,0.28)"/>
   <line x1="{TAB_X+TAB_W+8}" y1="90" x2="{X_FRONT+FRONT_W-10}" y2="94" stroke="rgba(147,161,161,0.14)" stroke-width="1"/>
 </g>''')
+
+    # Поле кнопок — та же перфорированная сталь, что и нутро корзины: фронт
+    # у машины один лист, и панель управления не приклеена к нему отдельной
+    # деталью. Сетка и её шаг взяты у корзины, иначе шов виден.
+    px0 = TAB_X + TAB_W + 6
+    pw = X_FRONT + FRONT_W - 6 - px0
+    cv.add(f'<g class="decor"><rect x="{px0}" y="12" width="{pw}" height="{Y_PANEL-26}" rx="2" '
+           f'fill="#0a1013" stroke="rgba(147,161,161,0.18)"/>'
+           f'<g opacity="0.5">{hexgrid(px0 + 4, 16, pw - 8, Y_PANEL - 34, s=6, gap=5)}</g></g>')
 
     # Гнездо VGA: на серверах оно доживает там, где давно нет ни одного другого
     # аналогового порта — им подключают тележку с монитором прямо в стойке.
