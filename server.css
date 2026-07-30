@@ -18,7 +18,10 @@
  */
 body.view-card .rig { display: none; }
 body.view-rig main { display: none; }
-body.view-rig .rig { display: block; width: 100%; }
+/* Только display: ширину задаёт сама .rig. Здесь стояло width: 100%, и по
+   специфичности оно било потолок в .rig — сколько его ни правь, машина
+   растягивалась на весь экран. */
+body.view-rig .rig { display: block; }
 
 /* Кнопка вида — родная сестра переключателя темы: те же размеры, та же
    инверсная подложка, слева от неё. Иначе теряется на фоне. */
@@ -84,7 +87,11 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   position: relative;
   z-index: 1;
   margin: 0 auto;
-  width: min(94vw, 1240px);
+  /* Машина должна помещаться в экран целиком, вместе с консолью и приборами.
+     Потолок по ширине держит вторая половина: 46vh на сцену — при высоком
+     окне схема растёт, при низком остаётся видна вся. Множитель 1.84 — это
+     соотношение сторон viewBox. */
+  width: min(76vw, 46vh * 1.84, 880px);
   padding: 0 12px;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
@@ -112,13 +119,25 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   line-height: 1.55;
 }
 .rig.service .panel { display: block; }
+/* Заголовок консоли — её шильдик: слово console, модель машины, аптайм.
+   Модель здесь, а не в логе: лог для событий, а паспорт машины постоянный.
+   Всё серое, разной яркости; длинная спецификация обрезается, а не переносит
+   строку — заголовок должен остаться в одну строку при любой ширине. */
 .rig .panel h2 {
   margin: 0 0 8px;
   font-size: 0.68rem; font-weight: 600;
   letter-spacing: 0.14em; text-transform: uppercase;
   color: var(--dim);
-  display: flex; justify-content: space-between; align-items: center;
+  display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
 }
+.con-name { flex: none; }
+.con-spec {
+  flex: 1 1 auto; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  text-transform: none; letter-spacing: 0.02em; font-weight: 500;
+  color: rgba(88, 110, 117, 0.85);
+}
+.con-up { flex: none; font-variant-numeric: tabular-nums; }
 .console-log { height: 132px; overflow-y: auto; overscroll-behavior: contain;
                display: flex; flex-direction: column; gap: 2px; }
 .console-log div { white-space: pre-wrap; word-break: break-word; }
