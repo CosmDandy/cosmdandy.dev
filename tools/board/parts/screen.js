@@ -83,6 +83,8 @@
   // диспетчер режима выше.
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'F2' || crt.open) return;
+    // В покое Enter не перехватываем: он отправляет команду в консоли и
+    // нажимает кнопки на схеме. Кому F2 недоступна — есть команда bios.
     e.preventDefault();
     openSetup();
   }, true);
@@ -163,7 +165,7 @@
 
     push(HW.board.model + ' · ' + HW.fw.bios_vendor + ' ' + HW.fw.bios + ' (' + HW.fw.bios_date + ')', '', 160);
     push('Board REV ' + HW.board.rev + ' · ' + HW.board.sha, '', 120);
-    push('Press F2 to enter Setup', 'muted', 140);
+    push('Press ENTER or F2 to enter Setup', 'muted', 140);
 
     for (let n = 0; n < HW.cpu.n; n++) {
       const out = chassis.querySelector('.cpu-slot[data-cpu="' + n + '"].opened');
@@ -221,7 +223,11 @@
 
   function handlePostKey(e) {
     if (!postCtl) return;
-    if (e.key === 'F2') {
+    // Enter наравне с F2: на маке верхний ряд по умолчанию отдан яркости и
+    // громкости, и F2 туда просто не доходит — не заставлять же гостя
+    // держать Fn, чтобы попасть в setup. Пока открыт модальный экран, Enter
+    // ничем другим не занят: поле консоли под слоем фокуса не получает.
+    if (e.key === 'F2' || e.key === 'Enter') {
       e.preventDefault();
       if (postCtl.done) enterSetupFromPost();
       else postCtl.f2Pending = true;

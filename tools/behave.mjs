@@ -248,10 +248,11 @@ check('самотест поднимает экран', post.open && post.mode =
 check('под открытым слоем схема на паузе', post.dormant, String(post.dormant));
 check('строки самотеста идут и в консоль', (await logText()).includes('Memory Training'), 'лог');
 
-// 14. F2 из самотеста ведёт в setup — как на живой машине.
-await page.keyboard.press('F2');
+// 14. Enter из самотеста ведёт в setup. F2 работает наравне, но на маке
+// верхний ряд отдан яркости, и до страницы клавиша не доходит.
+await page.keyboard.press('Enter');
 await page.waitForTimeout(4200);
-check('F2 открывает setup', (await crt()).mode === 'setup', JSON.stringify(await crt()));
+check('Enter открывает setup', (await crt()).mode === 'setup', JSON.stringify(await crt()));
 
 // 15. Esc выходит без сохранения, F10 сохраняет. Разные ключи хранилища:
 // прошивку правят редко, а питание щёлкают каждый раз.
