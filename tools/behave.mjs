@@ -231,6 +231,55 @@ await page.waitForTimeout(400);
 const comp = await page.evaluate(() => window.__rig.complete('sen'));
 check('Tab дополняет команду', comp.length === 1 && comp[0] === 'sensors', comp.join(','));
 
+// 13. Полноэкранный слой. Он должен подниматься сам при включении питания
+// (самотест), пускать в setup по F2 и не оставлять схему считать анимации,
+// пока её всё равно не видно.
+const crt = () => page.evaluate(() => ({
+  open: !!document.getElementById('crt')?.open,
+  mode: document.getElementById('crt')?.dataset.mode ?? '',
+  dormant: document.getElementById('rig').classList.contains('dormant'),
+}));
+await page.evaluate(() => window.__rig.exec('power off'));
+await page.waitForTimeout(700);
+await page.evaluate(() => window.__rig.exec('power on'));
+await page.waitForTimeout(1600);
+const post = await crt();
+check('самотест поднимает экран', post.open && post.mode === 'post', JSON.stringify(post));
+check('под открытым слоем схема на паузе', post.dormant, String(post.dormant));
+check('строки самотеста идут и в консоль', (await logText()).includes('Memory Training'), 'лог');
+
+// 14. F2 из самотеста ведёт в setup — как на живой машине.
+await page.keyboard.press('F2');
+await page.waitForTimeout(4200);
+check('F2 открывает setup', (await crt()).mode === 'setup', JSON.stringify(await crt()));
+
+// 15. Esc выходит без сохранения, F10 сохраняет. Разные ключи хранилища:
+// прошивку правят редко, а питание щёлкают каждый раз.
+await page.keyboard.press('Escape');
+await page.waitForTimeout(400);
+check('Esc закрывает setup', !(await crt()).open, JSON.stringify(await crt()));
+
+// 16. top показывает те же метрики, что были в приборах, и уходит по q.
+await page.evaluate(() => window.__rig.exec('top'));
+await page.waitForTimeout(600);
+check('top открывает экран', (await crt()).mode === 'top', JSON.stringify(await crt()));
+await page.keyboard.press('q');
+await page.waitForTimeout(400);
+check('q закрывает top', !(await crt()).open, JSON.stringify(await crt()));
+
+// 17. Приборов в боковой колонке больше нет — их место заняла консоль.
+const gauges = await page.evaluate(() => document.querySelectorAll('.gauge').length);
+check('приборы удалены', gauges === 0, String(gauges));
+
+// 18. Конвейер и файловая система: команда отдаёт строки, фильтр их режет.
+check('конвейер фильтрует',
+  (await run('fans | grep FAN2')).split('\n').length === 1, await run('fans | grep FAN2'));
+check('wc считает строки', (await run('fans | wc -l')).trim().endsWith(String(spec.fan.n)),
+  await run('fans | wc -l'));
+check('/proc/cpuinfo знает про ядра',
+  (await run('cat /proc/cpuinfo | grep "model name" | wc -l')).trim()
+    .endsWith(String(spec.cpu.cores * spec.cpu.n * 2)), await run('cat /proc/cpuinfo | grep "model name" | wc -l'));
+
 const failed = results.filter(r => !r[1]);
 for (const [name, ok, got] of results) console.log(`  ${ok ? '·' : 'СЛОМАНО'} ${name}${ok ? '' : ` → ${got}`}`);
 if (errors.length) console.log(`  ОШИБКИ: ${errors.slice(0, 2).join(' | ')}`);
