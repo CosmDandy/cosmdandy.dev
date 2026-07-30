@@ -1,7 +1,3 @@
-/* СОБРАННЫЙ ФАЙЛ — правки затрёт следующая сборка.
- * Источники: tools/board/styles/base.css и tools/board/blocks/*.css,
- * собирает tools/build.py. Стили узла лежат рядом с его геометрией.
- */
 /* Схема сервера — интерактивная часть визитки.
  *
  * Прототип и генератор платы живут в server-proto: 32 слота памяти, восемь
@@ -340,148 +336,27 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
 
 
 
-  /* ── lightpath ──────────────────────────────── */
-  /* Light Path Diagnostics: панель выдвигается вперёд, за габарит корпуса. */
-  .lightpath {
-    transform: translateX(172px);
-    visibility: hidden;
-    fill-opacity: 0; stroke-opacity: 0;
-    transition: transform var(--spring), fill-opacity var(--fade), stroke-opacity var(--fade);
-    pointer-events: none;
-  }
-  .rig.lp-open .lightpath {
-    transform: translateX(0);
-    visibility: visible;
-    fill-opacity: 1; stroke-opacity: 1;
-  }
-  .lp { fill-opacity: 0.07; transition: fill-opacity 0.15s steps(1, end); }
-  /* Панель полного состава: шестнадцать ламп, как на живой машине. Узлы,
-     которые машина умеет диагностировать, зажигают свою; сетевая карта
-     светит LINK, райзер — PCI. Остальные лампы существуют, но в этой
-     сборке гореть им не от чего — так же и на настоящей панели. */
-  .rig.fault-mem .lp-mem, .rig.fault-cpu .lp-cpu, .rig.fault-fan .lp-fan,
-  .rig.fault-nic .lp-link, .rig.fault-rsr .lp-pci, .rig.fault-ps .lp-ps,
-  .rig.has-fault .lp-log, .rig.has-fault .lp-brd { fill-opacity: 1; }
-  .lp-tab { cursor: pointer; }
-  .lp-tab:hover rect { stroke: rgba(147,161,161,0.6); }
+  /* @block: lightpath */
 
   .silk { opacity: 0.85; }
 
-  /* ── service ──────────────────────────────── */
-  .svc-switch { cursor: pointer; }
-  .svc-knob { transition: transform var(--spring), fill var(--fade), stroke var(--fade); transform-box: fill-box; }
-  .rig.service .svc-knob { transform: translateX(52px); fill: rgba(181,137,0,0.35); stroke: rgba(181,137,0,0.7); }
-  .svc-switch:hover .svc-knob { stroke: rgba(147,161,161,0.7); }
+  /* @block: service */
 
-  /* ── lid ──────────────────────────────── */
-  /* Крышка. Лежит в тех же координатах, что и плата, поэтому накрывает
-     машину точно. Снимает её человек кнопкой cover; кликов не перехватывает. */
-  .lid {
-    position: absolute; inset: 0;
-    pointer-events: none;
-    z-index: 3;
-    transition: transform 0.9s cubic-bezier(0.32,0.72,0,1), opacity 0.7s ease;
-    z-index: 3;
-  }
-  .lid svg { display: block; width: 100%; height: auto; }
-  .lid-btn-svg { pointer-events: auto; cursor: pointer; }
-  .lid-btn-svg:hover rect:first-child { stroke: var(--cyan); fill: #22303a; }
-  .rig.lid-off .lid { transform: translateY(-30%) scale(1.03); opacity: 0; }
-
-  .id-btn, .lid-on-btn { cursor: pointer; }
-  .lid-on-btn { display: none; }
-  .rig.lid-off .lid-on-btn { display: block; }
-  .lid-on-btn:hover rect:nth-of-type(2) { stroke: var(--cyan); fill: #1c2a31; }
-  .id-btn:hover circle:first-child { stroke: rgba(181,137,0,0.6); }
+  /* @block: lid */
 
   /* ── Сервисный режим: извлечение поштучно ─────────────────────────────── */
   .rig.service .pick { cursor: grab; }
   .rig.service .pick.pulled .pick-body { transform: translateY(-24px); }
   /* Диск выезжает вперёд, к фронту — то есть влево. */
-  /* ── drives ──────────────────────────────── */
-  .rig.service .bay.pulled .pick-body { transform: translateX(-58px); }
-  /* ── fans ──────────────────────────────── */
-  .fan-blades { transform-box: fill-box; transform-origin: center; animation: spin 2.1s linear infinite; animation-play-state: paused; }
-  .rig.on .fan-blades { animation-play-state: running; }
+  /* @block: drives */
+  /* @block: fans */
+  /* @block: memory */
+  /* @block: risers */
+  /* @block: psu */
 
-  /* Вынули хотя бы один вентилятор — остальные уходят на максимум. Так ведёт
-     себя любая машина: контроллер теряет один поток и компенсирует оборотами.
-     Каждой лопасти генератор проставляет свой период инлайном, поэтому здесь
-     нужен !important. Вентилятор блока питания живёт своей жизнью — у него
-     отдельный контроллер, и в разгон он не идёт. */
-  .rig.on:has(.fan.pulled) .fan-blades:not(.aux) { animation-duration: 0.42s !important; }
-  .rig.on .fan.pulled .fan-blades { animation-play-state: paused; }
-  .fan.pulled .fan-blades { animation-play-state: paused; }
-  @keyframes spin { to { transform: rotate(360deg); } }
+  /* @block: cpu */
 
-  .rig.service .fan.pulled .pick-body { transform: translateY(-30px) scale(1.03); }
-  /* ── memory ──────────────────────────────── */
-  /* В 1U планку держит одна защёлка: с другой стороны глухой упор. Лампа
-     ошибки сидит прямо в защёлке — «DIMM error LEDs are located in the
-     handles», как написано на схеме живой машины, — и потому загорается
-     только с той стороны, где нанесены буквы банка. */
-  .latch, .latch-fix { fill: rgba(147,161,161,0.26); transition: fill 0.15s steps(1, end); }
-  .dimm.pulled .latch { fill: var(--amber); }
-
-  .rig.service .dimm.pulled .pick-body { transform: translateY(-11px); }
-  /* ── risers ──────────────────────────────── */
-  /* Райзер и блок питания выходят назад, из задней стенки. */
-  .rig.service .riser.pulled .pick-body { transform: translateX(46px); }
-  /* ── psu ──────────────────────────────── */
-  .rig.service .psu.pulled .pick-body { transform: translateX(74px); }
-
-  /* ── cpu ──────────────────────────────── */
-  /* Процессор остаётся в сокете — снимается радиатор, как руками. Под ним
-     открывается кристалл: по нему бежит тот же градиент, что по кнопке
-     «скачать» в резюме. Пока радиатор на месте, перелив выключен — он бы
-     зря крутил анимацию под непрозрачной крышкой. */
-  .die { visibility: hidden; }
-  .rig.service .cpu-slot.pulled .die { visibility: visible; }
-  /* Перелив идёт наискось, из левого нижнего угла в правый верхний — по
-     прямой он читался полосой засветки, а не игрой на полированном кремнии. */
-  .die-shine { animation: dieShine 4.5s ease-in-out infinite; }
-  @keyframes dieShine {
-    0%, 100% { transform: translate(0, 0); }
-    50%      { transform: translate(150px, -82px); }
-  }
-
-  /* Разбор процессора идёт в два приёма, как в жизни: сначала снимается
-     радиатор, и только потом из-под него — сам процессор. Радиатор уезжает
-     дальше, чем прежде: он размером с сокет, и на прежних 104 пикселях
-     закрывал место, куда должен лечь процессор. */
-  .heatsink, .cpu-lid { transition: transform var(--spring); }
-  .rig.service .cpu-slot.pulled .pick-body { transform: none; }
-  .rig.service .cpu-slot.pulled .heatsink { transform: translate(0, -164px) scale(0.92); }
-  .rig.service .cpu-slot.opened .cpu-lid { transform: translate(0, 116px) scale(0.96); }
-
-  /* Поле контактов: пока процессор на месте, его не видно — и правильно,
-     под ним нечего показывать. */
-  .lga { visibility: hidden; }
-  .rig.service .cpu-slot.opened .lga { visibility: visible; }
-  /* Кристалл живёт на процессоре и уезжает с ним: снятый процессор,
-     светящийся на пустом сокете, — это уже не разбор, а фокус. */
-  .rig.service .cpu-slot.opened .die { transform: translate(0, 116px) scale(0.96); }
-  .die { transition: transform var(--spring); }
-
-  /* ── front_panel ──────────────────────────────── */
-  /* Кнопка питания — кольцо, поэтому у неё stroke, а не fill. Быстро мигает,
-     пока поднимается BMC и жать нельзя; медленно — дежурный режим, можно
-     включать; ровно — машина работает. */
-  .pwr-led { stroke-opacity: 0; }
-  .rig.init .pwr-led { stroke-opacity: 1; animation: pwrblink 0.28s steps(1, end) infinite; }
-  .rig.standby .pwr-led { stroke-opacity: 1; animation: pwrblink 2.2s steps(1, end) infinite; }
-  .rig.on .pwr-led { stroke-opacity: 1; animation: none; }
-  @keyframes pwrblink { 0%, 49% { stroke-opacity: 1 } 50%, 100% { stroke-opacity: 0.08 } }
-  .rig.init .power-btn { cursor: not-allowed; }
-
-  /* Опознание в стойке: ровное резкое мигание, чтобы найти машину глазами. */
-  .led-id { fill-opacity: 0; }
-  .rig.identify .led-id { animation: idblink 1.1s steps(1, end) infinite; }
-  @keyframes idblink { 0%, 49% { fill-opacity: 1 } 50%, 100% { fill-opacity: 0 } }
-
-  .power-btn { cursor: pointer; }
-  .power-btn circle { transition: stroke var(--fade); }
-  .power-btn:hover .pwr-ring { stroke: var(--green); }
+  /* @block: front_panel */
 
   .hint {
     margin-top: 14px; text-align: center;

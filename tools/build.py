@@ -123,9 +123,39 @@ def build():
     return board, lid, report
 
 
+BLOCK_MARK = re.compile(r'^([ \t]*)/\* @block: ([a-z_]+) \*/[ \t]*$', re.MULTILINE)
+
+
+def build_css():
+    """Собрать server.css: база плюс стили узлов на своих местах.
+
+    Маркер `/* @block: имя */` стоит ровно там, где правила узла лежали в
+    едином файле. Это не украшение: при равной специфичности спор решает
+    порядок, и переезд правила вниз или вверх меняет вид, ничего не сломав
+    в синтаксисе.
+    """
+    base = (HERE / 'board/styles/base.css').read_text(encoding='utf-8')
+    used = []
+
+    def paste(m):
+        indent, name = m.group(1), m.group(2)
+        part = (HERE / f'board/blocks/{name}.css').read_text(encoding='utf-8').rstrip('\n')
+        used.append(name)
+        return f'{indent}/* ── {name} ──────────────────────────────── */\n{part}'
+
+    css = BLOCK_MARK.sub(paste, base)
+    head = ('/* СОБРАННЫЙ ФАЙЛ — правки затрёт следующая сборка.\n'
+            ' * Источники: tools/board/styles/base.css и tools/board/blocks/*.css,\n'
+            ' * собирает tools/build.py. Стили узла лежат рядом с его геометрией.\n'
+            ' */\n')
+    (HERE.parent / 'server.css').write_text(head + css, encoding='utf-8')
+    return used
+
+
 def main():
     board, lid, report = build()
     svg, lidart = board.svg(), lid.svg()
+    css_blocks = build_css()
 
     (HERE / 'board-v17.svg.part').write_text(svg, encoding='utf-8')
     (HERE / 'board-v17-lid.svg.part').write_text(lidart, encoding='utf-8')
@@ -143,6 +173,7 @@ def main():
 
     print(f'плата: {len(board.parts)} фрагментов, {len(svg)} символов; '
           f'крышка: {len(lidart)} символов')
+    print(f'стили: база + {len(css_blocks)} узлов ({", ".join(css_blocks)})')
     return report
 
 

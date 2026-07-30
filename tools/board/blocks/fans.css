@@ -1,0 +1,14 @@
+  .fan-blades { transform-box: fill-box; transform-origin: center; animation: spin 2.1s linear infinite; animation-play-state: paused; }
+  .rig.on .fan-blades { animation-play-state: running; }
+
+  /* Вынули хотя бы один вентилятор — остальные уходят на максимум. Так ведёт
+     себя любая машина: контроллер теряет один поток и компенсирует оборотами.
+     Каждой лопасти генератор проставляет свой период инлайном, поэтому здесь
+     нужен !important. Вентилятор блока питания живёт своей жизнью — у него
+     отдельный контроллер, и в разгон он не идёт. */
+  .rig.on:has(.fan.pulled) .fan-blades:not(.aux) { animation-duration: 0.42s !important; }
+  .rig.on .fan.pulled .fan-blades { animation-play-state: paused; }
+  .fan.pulled .fan-blades { animation-play-state: paused; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .rig.service .fan.pulled .pick-body { transform: translateY(-30px) scale(1.03); }

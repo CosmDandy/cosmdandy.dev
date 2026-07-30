@@ -1,0 +1,31 @@
+  /* Процессор остаётся в сокете — снимается радиатор, как руками. Под ним
+     открывается кристалл: по нему бежит тот же градиент, что по кнопке
+     «скачать» в резюме. Пока радиатор на месте, перелив выключен — он бы
+     зря крутил анимацию под непрозрачной крышкой. */
+  .die { visibility: hidden; }
+  .rig.service .cpu-slot.pulled .die { visibility: visible; }
+  /* Перелив идёт наискось, из левого нижнего угла в правый верхний — по
+     прямой он читался полосой засветки, а не игрой на полированном кремнии. */
+  .die-shine { animation: dieShine 4.5s ease-in-out infinite; }
+  @keyframes dieShine {
+    0%, 100% { transform: translate(0, 0); }
+    50%      { transform: translate(150px, -82px); }
+  }
+
+  /* Разбор процессора идёт в два приёма, как в жизни: сначала снимается
+     радиатор, и только потом из-под него — сам процессор. Радиатор уезжает
+     дальше, чем прежде: он размером с сокет, и на прежних 104 пикселях
+     закрывал место, куда должен лечь процессор. */
+  .heatsink, .cpu-lid { transition: transform var(--spring); }
+  .rig.service .cpu-slot.pulled .pick-body { transform: none; }
+  .rig.service .cpu-slot.pulled .heatsink { transform: translate(0, -164px) scale(0.92); }
+  .rig.service .cpu-slot.opened .cpu-lid { transform: translate(0, 116px) scale(0.96); }
+
+  /* Поле контактов: пока процессор на месте, его не видно — и правильно,
+     под ним нечего показывать. */
+  .lga { visibility: hidden; }
+  .rig.service .cpu-slot.opened .lga { visibility: visible; }
+  /* Кристалл живёт на процессоре и уезжает с ним: снятый процессор,
+     светящийся на пустом сокете, — это уже не разбор, а фокус. */
+  .rig.service .cpu-slot.opened .die { transform: translate(0, 116px) scale(0.96); }
+  .die { transition: transform var(--spring); }

@@ -1,0 +1,2 @@
+  /* Райзер и блок питания выходят назад, из задней стенки. */
+  .rig.service .riser.pulled .pick-body { transform: translateX(46px); }

@@ -1,0 +1,8 @@
+  /* В 1U планку держит одна защёлка: с другой стороны глухой упор. Лампа
+     ошибки сидит прямо в защёлке — «DIMM error LEDs are located in the
+     handles», как написано на схеме живой машины, — и потому загорается
+     только с той стороны, где нанесены буквы банка. */
+  .latch, .latch-fix { fill: rgba(147,161,161,0.26); transition: fill 0.15s steps(1, end); }
+  .dimm.pulled .latch { fill: var(--amber); }
+
+  .rig.service .dimm.pulled .pick-body { transform: translateY(-11px); }
