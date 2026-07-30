@@ -94,9 +94,10 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   width: 100%;
   padding: 0 12px;
   /* Размер машины. Ограничение по высоте главное: схема широкая и низкая,
-     и в экран она упирается высотой, а не шириной. 68vh на сцену оставляет
-     место имени сверху и консоли над машиной. 1.84 — соотношение viewBox. */
-  --rig-w: min(86vw, 66vh * 1.84, 1240px);
+     и в экран она упирается высотой, а не шириной. 1.67 — соотношение
+     viewBox после того, как справа убрали 164 единицы пустого поля: оно
+     отодвигало машину от приборов и читалось как дыра посреди экрана. */
+  --rig-w: min(78vh * 1.67, 1400px);
   color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
@@ -133,6 +134,10 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   letter-spacing: 0.14em; text-transform: uppercase;
   color: var(--dim);
   display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+  /* Заголовок сам flex-элемент колонки, и его min-width: auto распирал панель
+     изнутри: спецификация не переносится, значит min-content равен всей
+     строке. Ноль возвращает обрезку многоточием. */
+  min-width: 0;
 }
 .con-name { flex: none; }
 .con-spec {
@@ -327,6 +332,11 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   .led-link { fill-opacity: 0.12; transition: fill-opacity 0.15s steps(1, end); }
   .rig.net .led-link, .led-link.aux { fill-opacity: 1; }
 
+  /* Порт, к которому ничего не подключено: лампа активности стоит тёмной и
+     не мигает — рядом с ней янтарный линк, и вместе они читаются как связь
+     на пониженной скорости. */
+  .led-idle { fill-opacity: 0.3; }
+
   /* Heartbeat BMC: такой же резкий, но единственный строго ровный —
      короткая вспышка раз в секунду, всё остальное дёргается вразнобой. */
   .led-hb { fill-opacity: 0.1; }
@@ -409,10 +419,12 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
      зря крутил анимацию под непрозрачной крышкой. */
   .die { visibility: hidden; }
   .rig.service .cpu-slot.pulled .die { visibility: visible; }
+  /* Перелив идёт наискось, из левого нижнего угла в правый верхний — по
+     прямой он читался полосой засветки, а не игрой на полированном кремнии. */
   .die-shine { animation: dieShine 4.5s ease-in-out infinite; }
   @keyframes dieShine {
-    0%, 100% { transform: translateX(0); }
-    50%      { transform: translateX(150px); }
+    0%, 100% { transform: translate(0, 0); }
+    50%      { transform: translate(150px, -82px); }
   }
 
   .heatsink { transition: transform var(--spring); }
@@ -454,17 +466,34 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
  */
 .rig-body {
   display: grid;
-  grid-template-columns: minmax(0, 240px) auto minmax(0, 240px);
+  grid-template-columns: minmax(0, 1fr);
   align-items: start;
-  gap: 14px;
+  /* Зазор шире обычного: перспектива расширяет схему за габарит сцены
+     примерно на полсотни точек, и без запаса задняя панель подлезает
+     под приборы. */
+  gap: 28px;
 }
-.stage { grid-column: 2; width: var(--rig-w); }
-.gauges { grid-column: 3; }
+/* Сервисный режим открывает вторую колонку. Машина при этом занимает всё,
+   что осталось, — пустоты между ней и приборами больше нет. */
+.rig.service .rig-body { grid-template-columns: minmax(0, 1fr) 320px; }
+/* 96%, а не 100%: перспектива уводит нижний край схемы за габарит сцены,
+   и последние проценты — это запас, чтобы задняя панель не подлезала
+   под приборы. */
+.stage { width: min(96%, var(--rig-w)); margin: 0 auto; }
+
+.rig-side {
+  display: none;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 14px;
+  height: 100%;
+}
+.rig.service .rig-side { display: grid; }
 
 .rig.service .panel {
   display: flex; flex-direction: column;
-  width: var(--rig-w); height: 140px;
-  margin: 0 auto 14px;
+  width: auto; margin: 0;
+  min-height: 190px;
 }
 /* min-height: 0 обязателен: без него flex-элемент не сжимается ниже своего
    содержимого, лог растёт вместе с лентой и overflow-y никогда не срабатывает
@@ -484,7 +513,7 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
 /* Боковая колонка узкая — имя и значение идут столбиком, а не в строку.
    Строкой они помещаются только на очень широком окне, а переносить их
    по-разному на разных экранах хуже, чем один плотный вид везде. */
-.gauge { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1px; }
+.gauge { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1px; min-width: 0; }
 .g-name {
   font-size: 0.6rem; letter-spacing: 0.14em; text-transform: uppercase;
   color: var(--dim);
@@ -500,14 +529,12 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
 .gauge.off .g-line { stroke: rgba(147,161,161,0.3); }
 .gauge.off .g-area { fill: rgba(147,161,161,0.06); }
 
-.rig.service .gauges { display: grid; }
+.rig.service .gauges { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; }
 
 /* Узкое окно: приборам не хватает боковой колонки, уводим их под машину. */
 @media (max-width: 1100px) {
-  .rig-body { grid-template-columns: minmax(0, 1fr); }
-  .stage { grid-column: 1; width: 100%; }
-  .gauges { grid-column: 1; margin-top: 14px; }
-  .rig.service .panel { width: 100%; }
+  .rig.service .rig-body { grid-template-columns: minmax(0, 1fr); }
+  .stage { width: 100%; }
 }
 
 /* ── Связка узла и подписи ────────────────────────────────────────────────
