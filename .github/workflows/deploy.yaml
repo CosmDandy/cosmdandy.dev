@@ -36,26 +36,29 @@ jobs:
           # checkout по умолчанию оставляет токен в .git/config, откуда его
           # прочитает любой следующий шаг.
           persist-credentials: false
-          # Вся история: из неё собираются ревизии платы для ленты. Держать
-          # их в репозитории означало бы хранить каждую версию дважды —
-          # в коммите и рядом файлом.
-          fetch-depth: 0
 
       # Копируем явным списком, а не «всё, кроме служебного»: список короткий и
       # не преподносит сюрпризов, когда в корне появится новый файл.
       #
       # CNAME намеренно не копируется — он нужен был GitHub Pages, а на
       # Cloudflare домен привязан к воркеру в дашборде.
-      # Ревизии платы: по одному SVG на коммит, который её менял.
-      - name: Выгрузить историю платы
-        run: python3 tools/history.py
-
+      #
+      # history/ здесь нет намеренно. Лента ревизий — инструмент разработки:
+      # ею сравнивают, как плата выглядела раньше, и гостю визитки она не
+      # нужна. Раньше её выгружал отдельный шаг, и в выдачу уезжало тридцать
+      # мегабайт SVG — по копии платы на каждый коммит. Выключателя лента не
+      # требует: скрипт ищет history/index.json, не находит и молча остаётся
+      # спрятанной. Локально файлы делает tools/history.py, и там она
+      # работает как работала.
+      #
+      # Отсюда же checkout без fetch-depth: полная история нужна была только
+      # выгрузке ревизий.
       - name: Собрать _site
         run: |
           mkdir -p _site
           cp index.html 404.html style.css server.css server.js _site/
           cp robots.txt sitemap.xml site.webmanifest _headers _site/
-          cp -r assets fonts history _site/
+          cp -r assets fonts _site/
           echo "Содержимое _site:"
           find _site -type f | sort
 
@@ -122,6 +125,9 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: read
+      # Адрес превью пишем комментарием в сам PR. Иначе за ним надо лезть в
+      # сводку прогона, а смотреть глазами хочется по ссылке из обсуждения.
+      pull-requests: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -143,13 +149,29 @@ jobs:
 
       - name: Ссылка на превью
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
           OUTPUT: ${{ steps.upload.outputs.command-output }}
         run: |
+          # grep без совпадения возвращает единицу, и присваивание уронило бы
+          # шаг: bash здесь запущен с -e.
+          url=$(printf '%s' "$OUTPUT" \
+            | grep -oE 'https://[A-Za-z0-9.-]+\.workers\.dev' | head -1 || true)
+          if [ -z "$url" ]; then
+            url="адрес не найден в выводе wrangler"
+          fi
           {
             echo "### Превью этой версии"
             echo
-            echo '```'
-            printf '%s' "$OUTPUT" | grep -i "preview" \
-              || echo "адрес не найден в выводе wrangler"
-            echo '```'
+            echo "$url"
           } >> "$GITHUB_STEP_SUMMARY"
+          # Через printf, а не многострочной кавычкой: внутри блока YAML у
+          # второй строки остался бы отступ в десять пробелов, а это для
+          # markdown уже кодовый блок.
+          body=$(printf 'Превью: %s\n\nСобрано из `%s`. Прод отдаёт текущую версию.' \
+            "$url" "$SHA")
+          # Правим свой прошлый комментарий, а не плодим новый на каждый push:
+          # в обсуждении должен остаться один адрес — актуальный.
+          gh pr comment "$PR" --body "$body" --edit-last \
+            || gh pr comment "$PR" --body "$body"
