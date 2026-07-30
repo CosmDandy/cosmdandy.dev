@@ -268,6 +268,17 @@ await page.keyboard.press('q');
 await page.waitForTimeout(400);
 check('q закрывает top', !(await crt()).open, JSON.stringify(await crt()));
 
+// 16б. В каждом режиме видна ровно одна панель. Панели переключаются
+// атрибутом hidden, а у каждой свой display — правило браузера для [hidden]
+// ему проигрывает, и все три показывались разом, тремя окнами внахлёст.
+await page.evaluate(() => window.__rig.exec('bios'));
+await page.waitForTimeout(400);
+const shown = await page.evaluate(() => ['.crt-post', '.crt-setup', '.crt-top']
+  .filter(s => getComputedStyle(document.querySelector(s)).display !== 'none'));
+check('в setup видна одна панель', shown.length === 1 && shown[0] === '.crt-setup', shown.join(','));
+await page.keyboard.press('Escape');
+await page.waitForTimeout(300);
+
 // 17. Приборов в боковой колонке больше нет — их место заняла консоль.
 const gauges = await page.evaluate(() => document.querySelectorAll('.gauge').length);
 check('приборы удалены', gauges === 0, String(gauges));
