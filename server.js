@@ -413,6 +413,88 @@
     setView(document.body.classList.contains('view-rig') ? 'card' : 'rig');
   });
 
+
+  // ── Приборы ────────────────────────────────────────────────────────────
+  // Спарклайны в духе Oxide: значение и шестьдесят последних точек. Цифры
+  // считаются из состояния машины, а не выдумываются: выключенный хост,
+  // вынутый вентилятор или планка сразу видны и в числе, и в графике.
+  const GAUGES = Array.from(document.querySelectorAll('.gauge')).map(function (el) {
+    return {
+      el: el,
+      key: el.dataset.metric,
+      value: el.querySelector('.g-value'),
+      line: el.querySelector('.g-line'),
+      area: el.querySelector('.g-area'),
+      hist: [],
+    };
+  });
+  const HIST = 60;
+
+  function metric(key) {
+    const on = rig.classList.contains('on');
+    const fansOut = chassis.querySelectorAll('.fan.pulled').length;
+    const dimmsOut = chassis.querySelectorAll('.dimm.pulled').length;
+    const drivesOut = chassis.querySelectorAll('.bay.pulled').length;
+    if (!on) {
+      // на дежурке живёт только BMC: сеть управления и её потребление
+      if (key === 'power') return { v: 12 + Math.random() * 2, text: '12 W', warn: false, off: true };
+      if (key === 'net') return { v: 0.02, text: '0.02 Gb/s', warn: false, off: true };
+      return { v: 0, text: '—', warn: false, off: true };
+    }
+    switch (key) {
+      case 'cpu': {
+        const v = 34 + Math.sin(Date.now() / 9000) * 12 + Math.random() * 9;
+        return { v: v, text: v.toFixed(0) + ' %', warn: v > 80 };
+      }
+      case 'temp': {
+        const v = 42 + fansOut * 6 + Math.random() * 4;
+        return { v: v, text: v.toFixed(0) + ' °C', warn: v > 60 };
+      }
+      case 'net': {
+        const v = 6 + Math.sin(Date.now() / 5200) * 4 + Math.random() * 3;
+        return { v: v, text: v.toFixed(1) + ' Gb/s', warn: false };
+      }
+      case 'iops': {
+        const base = 240 - drivesOut * 38;
+        const v = Math.max(0, base + Math.sin(Date.now() / 3100) * 60 + Math.random() * 40);
+        return { v: v, text: Math.round(v) + 'k', warn: drivesOut > 0 };
+      }
+      case 'power': {
+        const v = 318 + fansOut * 26 - dimmsOut * 3 + Math.random() * 30;
+        return { v: v, text: Math.round(v) + ' W', warn: false };
+      }
+    }
+    return { v: 0, text: '—', warn: false };
+  }
+
+  function drawGauges() {
+    GAUGES.forEach(function (g) {
+      const m = metric(g.key);
+      g.hist.push(m.v);
+      if (g.hist.length > HIST) g.hist.shift();
+      g.value.textContent = m.text;
+      g.el.classList.toggle('warn', !!m.warn);
+      g.el.classList.toggle('off', !!m.off);
+
+      const lo = Math.min.apply(null, g.hist);
+      const hi = Math.max.apply(null, g.hist);
+      const span = hi - lo || 1;
+      const pts = g.hist.map(function (v, i) {
+        const x = (i / (HIST - 1)) * 120;
+        const y = 32 - ((v - lo) / span) * 28;
+        return x.toFixed(1) + ',' + y.toFixed(1);
+      });
+      g.line.setAttribute('points', pts.join(' '));
+      // заливку замыкаем по нижней кромке, иначе площадь висит в воздухе
+      const first = pts.length ? pts[0].split(',')[0] : '0';
+      const last = pts.length ? pts[pts.length - 1].split(',')[0] : '0';
+      g.area.setAttribute('points', first + ',34 ' + pts.join(' ') + ' ' + last + ',34');
+    });
+  }
+
+  drawGauges();
+  window.setInterval(drawGauges, 1000);
+
   // ── Запуск ─────────────────────────────────────────────────────────────
   const first = !state.visited;
   state.visited = true; save();

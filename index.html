@@ -146,15 +146,6 @@
         единственное, что видно на узких экранах.
     -->
     <section class="rig" id="rig" aria-label="Схема сервера: компоненты — ссылки на разделы">
-        <div class="panel">
-            <h2>console <span id="uptime">--:--</span></h2>
-            <div class="console-log" id="log"></div>
-            <form class="prompt" id="prompt-form" autocomplete="off">
-                <span class="ps1">cosmdandy@cd93:~$</span>
-                <input id="prompt" type="text" spellcheck="false" aria-label="Команда"
-                       placeholder="help — список команд">
-            </form>
-        </div>
 
         <header class="rig-id">
             <h2>Timofey Kondrashin</h2>
@@ -826,6 +817,66 @@
             </svg>
                 </div>
             </div>
+        </div>
+
+        <div class="rig-bottom">
+        <div class="panel">
+            <h2>console <span id="uptime">--:--</span></h2>
+            <div class="console-log" id="log"></div>
+            <form class="prompt" id="prompt-form" autocomplete="off">
+                <span class="ps1">cosmdandy@cd93:~$</span>
+                <input id="prompt" type="text" spellcheck="false" aria-label="Команда"
+                       placeholder="help — список команд">
+            </form>
+        </div>
+
+        <!--
+            Приборы. Значения не выдуманы на ходу: они считаются из состояния
+            машины — выключенный хост, вынутый вентилятор или планка памяти
+            сразу видны в цифрах и на графике.
+        -->
+        <aside class="gauges" aria-label="Метрики машины">
+            <div class="gauge" data-metric="cpu">
+                <span class="g-name">cpu load</span>
+                <span class="g-value">—</span>
+                <svg class="g-spark" viewBox="0 0 120 34" preserveAspectRatio="none" aria-hidden="true">
+                    <polyline class="g-line" fill="none" points=""/>
+                    <polyline class="g-area" points=""/>
+                </svg>
+            </div>
+            <div class="gauge" data-metric="temp">
+                <span class="g-name">cpu temp</span>
+                <span class="g-value">—</span>
+                <svg class="g-spark" viewBox="0 0 120 34" preserveAspectRatio="none" aria-hidden="true">
+                    <polyline class="g-line" fill="none" points=""/>
+                    <polyline class="g-area" points=""/>
+                </svg>
+            </div>
+            <div class="gauge" data-metric="net">
+                <span class="g-name">network</span>
+                <span class="g-value">—</span>
+                <svg class="g-spark" viewBox="0 0 120 34" preserveAspectRatio="none" aria-hidden="true">
+                    <polyline class="g-line" fill="none" points=""/>
+                    <polyline class="g-area" points=""/>
+                </svg>
+            </div>
+            <div class="gauge" data-metric="iops">
+                <span class="g-name">nvme iops</span>
+                <span class="g-value">—</span>
+                <svg class="g-spark" viewBox="0 0 120 34" preserveAspectRatio="none" aria-hidden="true">
+                    <polyline class="g-line" fill="none" points=""/>
+                    <polyline class="g-area" points=""/>
+                </svg>
+            </div>
+            <div class="gauge" data-metric="power">
+                <span class="g-name">power draw</span>
+                <span class="g-value">—</span>
+                <svg class="g-spark" viewBox="0 0 120 34" preserveAspectRatio="none" aria-hidden="true">
+                    <polyline class="g-line" fill="none" points=""/>
+                    <polyline class="g-area" points=""/>
+                </svg>
+            </div>
+        </aside>
         </div>
     </section>
 
