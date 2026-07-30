@@ -2,7 +2,7 @@
 //
 //   node tools/preview.mjs              вид сервера, кадр в tools/preview.png
 //   node tools/preview.mjs --card       вид карточки
-//   node tools/preview.mjs --service    сервисный режим (консоль и приборы)
+//   node tools/preview.mjs --service    сервисный режим (консоль и разбор)
 //
 // Почему свой сервер, а не file://: по file:// браузер блокирует шрифты по
 // CORS, и в консоли висят ошибки, не имеющие отношения к делу.
@@ -76,7 +76,7 @@ await page.waitForFunction(
 await page.waitForTimeout(500);
 if (view === 'rig') await page.evaluate(() => document.body.classList.add('view-rig'));
 // сервисный режим включаем штатным тумблером: класс, поставленный руками,
-// пропустит всё, что делает обработчик (раскладку консоли, приборы, лог)
+// пропустит всё, что делает обработчик (раскладку консоли и лог)
 if (service) await page.evaluate(() => document.getElementById('svc-switch')?.dispatchEvent(
   new MouseEvent('click', { bubbles: true })));
 await page.waitForTimeout(1000);

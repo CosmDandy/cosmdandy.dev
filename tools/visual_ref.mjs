@@ -104,18 +104,15 @@ for (const [name, setup] of Object.entries(STATES)) {
   await page.waitForTimeout(300);
   await setup(page);
   await page.waitForTimeout(700);
-  // Консоль и приборы показывают время и текущие обороты — они меняются от
-  // прогона к прогону, и сверка ловила бы их, а не правки в стилях.
+  // Консоль показывает время и бегущий журнал — он меняется от прогона к
+  // прогону, и сверка ловила бы его, а не правки в стилях. Подсказку
+  // дополнения гасим по той же причине: она зависит от истории команд.
   await page.evaluate(() => {
     const log = document.getElementById('log');
     if (log) log.textContent = '';
     const up = document.getElementById('uptime');
     if (up) up.textContent = '--:--';
-    document.querySelectorAll('.g-value').forEach(el => { el.textContent = ''; });
-    // Спарклайны рисуются по накопленным отсчётам и меняются каждую секунду:
-    // без этого сверка ловит бег графика, а не правки в стилях.
-    document.querySelectorAll('.g-spark path, .g-spark polyline, .g-area')
-      .forEach(el => el.removeAttribute('d'));
+    document.querySelectorAll('.ghost-typed, .ghost-rest').forEach(el => { el.textContent = ''; });
   });
   await page.waitForTimeout(120);
 

@@ -29,7 +29,7 @@ tools/sync.sh
 ```bash
 node tools/preview.mjs              # вид сервера, кадр в tools/preview.png
 node tools/preview.mjs --card       # вид карточки
-node tools/preview.mjs --service    # сервисный режим: консоль и приборы
+node tools/preview.mjs --service    # сервисный режим: консоль и разбор
 node tools/preview.mjs /tmp/x.png   # кадр в своё место
 ```
 
