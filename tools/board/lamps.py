@@ -8,7 +8,7 @@ SVG-элементе создаёт composited layer, и в браузере э�
 `.pick.pulled .fault` до неё не достаёт, и горят не те лампы.
 """
 
-from board.palette import GLOW3
+from board.palette import GLOW_STOPS, GLOW_TINT
 
 # Общий такт индикации. Всё, что мигает и вращается, меняется только в
 # моменты, кратные этому шагу, — и в кадре, где щёлкнула одна лампа, щёлкают
@@ -38,16 +38,36 @@ def jitter(i, base, spread, salt=0):
     return quant(base + ((i * 37 + salt * 13 + 11) % 100) / 100 * spread)
 
 
-def glow(cls, cx, cy, r, color, extra=''):
-    """Мягкий ореол: три круга с убывающей плотностью вместо одного жёсткого.
+def glow_id(color):
+    """Имя градиента свечения по цвету лампы."""
+    return 'glow-' + color.lstrip('#')
 
-    Радиальный градиент был бы точнее, но paint server отваливается при
-    трансформациях — поэтому только сплошные заливки.
+
+def glow_defs():
+    """Градиенты свечения — по одному на цвет лампы, на всю схему.
+
+    Объявляем через objectBoundingBox: градиент тянется по габариту своего
+    круга, поэтому один и тот же годится и для лампы диска радиусом три, и
+    для системной радиусом пять.
     """
-    tones = GLOW3.get(color, ('rgba(147,161,161,0.14)', 'rgba(147,161,161,0.09)', 'rgba(147,161,161,0.04)'))
-    return ''.join(
-        f'<circle class="{cls} halo" cx="{cx}" cy="{cy}" r="{r*k:.1f}" fill="{t}"{extra}/>'
-        for k, t in zip((1.7, 2.5, 3.4), tones))
+    grads = []
+    for color, tint in GLOW_TINT.items():
+        stops = ''.join(f'<stop offset="{off}%" stop-color="rgba({tint},{op})"/>'
+                        for off, op in GLOW_STOPS)
+        grads.append(f'<radialGradient id="{glow_id(color)}">{stops}</radialGradient>')
+    return '<defs>' + ''.join(grads) + '</defs>'
+
+
+def glow(cls, cx, cy, r, color, extra=''):
+    """Мягкий ореол вокруг лампы: один круг с радиальным градиентом.
+
+    Раньше их было три, с убывающей плотностью, — так изображали затухание
+    сплошными заливками. Кроме лишних фигур это давало три видимых кольца
+    вместо плавного свечения.
+    """
+    tint = GLOW_TINT.get(color)
+    fill = f'url(#{glow_id(color)})' if tint else 'rgba(147,161,161,0.10)'
+    return f'<circle class="{cls} halo" cx="{cx}" cy="{cy}" r="{r*3.4:.1f}" fill="{fill}"{extra}/>' 
 
 
 def act_led(i, cx, cy, r, color, salt=0, aux=False):
