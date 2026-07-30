@@ -4,7 +4,7 @@
 регистр занятости уже знает, где стоят детали.
 """
 
-from board.geom import H, X_IO, X_PCB, X_REAR, X_SVC, X_VRM, Y_BANK_C, Y_BANK_L, Y_BANK_R, Y_CPU0, Y_CPU1
+from board.geom import H, X_IO, X_PCB, X_REAR, X_SVC, Y_BANK_C, Y_BANK_L, Y_BANK_R
 from board.ink import silk_frame
 
 
@@ -14,8 +14,6 @@ def render(cv):
         (X_PCB + 60, Y_BANK_L - 16, "DIMM_CPU0_A0"),
         (X_PCB + 60, Y_BANK_C - 16, "DIMM_CPU0_A1 / CPU1_A0"),
         (X_PCB + 60, Y_BANK_R - 16, "DIMM_CPU1_A1"),
-        (X_VRM - 30, Y_CPU0 - 12, "VR_CPU0"),
-        (X_VRM - 30, Y_CPU1 - 12, "VR_CPU1"),
         (X_SVC + 8, 96, "PWR_CONN"),
         (X_SVC + 8, 250, "SATA_0-2"),
         (X_SVC + 8, 360, "BAT1 · CR2032"),
@@ -23,8 +21,6 @@ def render(cv):
         (X_SVC + 8, 512, "TPM_HDR"),
         (X_SVC + 8, 556, "USB_INT"),
         (X_SVC + 8, 600, "NMI_SW"),
-        (X_REAR + 14, 378, "PCH · C741"),
-        (X_REAR + 92, 378, "BMC · AST2600"),
         (X_REAR + 14, 176, "RISER_1 · PCIE_G5"),
         (X_REAR + 14, 686, "RISER_2 · PCIE_G5"),
         (X_IO - 96, 176, "OCP_3.0 · 2×25G"),

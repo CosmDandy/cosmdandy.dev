@@ -63,6 +63,22 @@ def silk_inverse(x, y, text, size=7):
             f'font-family="ui-monospace, Menlo, monospace" font-size="{size}">{text}</text>')
 
 
+def silk_boxed(cx, cy, text, size=7, op=0.5):
+    """Центрированная подпись в тонкой рамке.
+
+    То же, что silk_frame, но от середины: подписи узлов набирались по центру
+    детали, и без рамки светлый текст висел прямо на разводке. Рамка отделяет
+    его от фона — на живой плате обозначение печатают именно так.
+    """
+    w = len(text) * size * 0.62 + 8
+    h = size + 6
+    return (f'<rect x="{cx-w/2:.1f}" y="{cy-h/2:.1f}" width="{w:.1f}" height="{h}" rx="1" fill="none" '
+            f'stroke="rgba(232,227,213,{op * 0.55:.2f})" stroke-width="0.7"/>'
+            f'<text x="{cx:.1f}" y="{cy+size/2-0.5:.1f}" text-anchor="middle" '
+            f'fill="rgba(232,227,213,{op:.2f})" '
+            f'font-family="ui-monospace, Menlo, monospace" font-size="{size}">{text}</text>')
+
+
 def silk_frame(x, y, text, size=7, op=0.6):
     """Обозначение разъёма: светлый текст в тонкой рамке.
 

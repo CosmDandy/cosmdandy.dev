@@ -6,15 +6,42 @@
 и с подписями ссылок.
 
 Пучки идут не по кривой, а ступенькой — прямо, скос ровно в 45°, снова
-прямо. И идут они между узлами: от колодок вентиляторов к питанию ядра, от
-сокетов к банкам памяти, от служебной зоны к задней панели. Разводка «из
-ниоткуда в никуда» читается как штриховка, а не как плата.
+прямо. И идут они между настоящими узлами: от колодок вентиляторов к
+питанию ядра, от сокетов к банкам памяти, от коммутатора линий к райзерам.
+Разводка «из ниоткуда в никуда» читается как штриховка, а не как плата.
+
+Калибра три, и они означают разное. Магистраль — межпроцессорная шина и
+линии PCIe: широкий пучок, по ширине в две трети сокета. Средние — питание
+и периферия. Тонкие — короткие связки от магистрали к своей обвязке.
 
 Слой лежит под всем остальным: на живой плате дорожки уходят под корпуса,
 а не обходят их поверху, поэтому BUSY здесь не спрашивается.
 """
 
-from board.geom import X_CORE, X_PCB, X_PCB_END, X_REAR, X_SVC, Y_BANK_C, Y_BANK_L, Y_BANK_R, Y_CPU0, Y_CPU1
+from board.geom import (
+    BANK_N,
+    CHIPS,
+    FAN_N,
+    PITCH,
+    SOCKET_H,
+    SOCKET_W,
+    X_CORE,
+    X_IO,
+    X_PCB,
+    X_PCB_END,
+    X_REAR,
+    X_SOCK,
+    X_SVC,
+    X_VRM,
+    Y_BANK_C,
+    Y_BANK_L,
+    Y_BANK_R,
+    Y_CPU0,
+    Y_CPU1,
+    fan_foot_y,
+)
+
+BANK_H = BANK_N * PITCH
 
 
 def render(cv):
@@ -53,26 +80,58 @@ def render(cv):
                     knots.append((mx + abs(d), by))
         return paths, knots
 
-    # Узлы, между которыми есть что разводить. Координаты взяты из тех же
-    # констант, что и сами узлы: сдвинется сокет — поедет и шина к нему.
-    J_CONN = [(X_PCB + 48, 96 + i * 122) for i in range(6)]
-    SVC_X = X_SVC + 10
+    chip = {name: (x, y, w, h) for name, _sub, x, y, w, h in CHIPS}
+
+    def right_of(name, dy=0):
+        """Точка выхода шины из корпуса — от правого борта, к центру платы."""
+        x, y, w, h = chip[name]
+        return x + w, y + h / 2 + dy
 
     LINKS = []
-    # питание и тахометры вентиляторов идут от колодок к VRM обоих сокетов
-    for i, (jx, jy) in enumerate(J_CONN):
-        # X_VRM объявлен ниже, у самих дросселей; здесь та же кромка сокета
-        LINKS.append((jx, jy, X_CORE - 32, (Y_CPU0 if i < 3 else Y_CPU1) + 30 + i * 14,
-                      12, 3.0, 'trunk', False))
-    # сокет — банки памяти: три шины, по одной на банк
-    for by in (Y_BANK_L + 50, Y_BANK_C + 110, Y_BANK_R + 50):
-        LINKS.append((X_CORE - 12, by, X_CORE - 12, by + 40, 9, 3.2, 'mid', True))
-    # сокеты — служебная зона и дальше на заднюю панель
-    for sy, ty in ((Y_CPU0 + 40, 150), (Y_CPU0 + 110, 300), (Y_CPU1 + 40, 560), (Y_CPU1 + 110, 700)):
-        LINKS.append((X_CORE + 300, sy, SVC_X + 130, ty, 11, 3.0, 'trunk', False))
+    # Межпроцессорная шина: самая широкая на плате. Ширина пучка — две трети
+    # сокета, ровно как выглядит UPI между двумя LGA на живой машине.
+    LINKS.append((X_SOCK + SOCKET_W / 2, Y_CPU0 + SOCKET_H, X_SOCK + SOCKET_W / 2, Y_CPU1,
+                  25, 4, 'trunk', True))
+    # Сокет — свои банки: каждый процессор держит два банка, ближний и средний.
+    for cy, by, bx in ((Y_CPU0, Y_BANK_L + BANK_H, X_CORE + 70),
+                       (Y_CPU0 + SOCKET_H, Y_BANK_C, X_CORE + 120),
+                       (Y_CPU1, Y_BANK_C + BANK_H, X_CORE + 180),
+                       (Y_CPU1 + SOCKET_H, Y_BANK_R, X_CORE + 230)):
+        LINKS.append((bx, min(cy, by), bx, max(cy, by), 13, 4, 'trunk', True))
+    # Питание и тахометры вентиляторов: своя шина от каждой колодки к VRM того
+    # сокета, который этот модуль продувает.
+    for i in range(FAN_N):
+        fy = fan_foot_y(i) + 8
+        LINKS.append((X_PCB + 22, fy, X_VRM - 26, (Y_CPU0 if i < 4 else Y_CPU1) + 20 + (i % 4) * 30,
+                      6, 3.0, 'mid', False))
+    # Коммутатор линий — райзеры: две широкие шины PCIe в карман между блоками
+    # питания. Это второй по калибру пучок после межпроцессорной шины.
+    for ty, n in ((250, 16), (500, 12)):
+        LINKS.append((right_of('PCIe SW')[0], right_of('PCIe SW')[1], X_REAR + 60, ty,
+                      n, 3.6, 'trunk', False))
+    # Коммутатор берёт линии у обоих сокетов
+    for cy in (Y_CPU0 + SOCKET_H - 30, Y_CPU1 + 30):
+        LINKS.append((right_of('PCIe SW')[0], right_of('PCIe SW')[1], X_CORE - 26, cy,
+                      9, 3.2, 'mid', False))
+    # Сетевой контроллер стоит у самой панели: к нему идёт шина от коммутатора,
+    # а от него — короткие линии к гнёздам.
+    LINKS.append((*right_of('PCIe SW', 24), X_REAR + 6, 400, 8, 3.2, 'mid', False))
+    LINKS.append((*right_of('X710'), X_IO - 40, 420, 7, 3.0, 'mid', False))
+    # BMC — служебная зона и оба сокета: он опрашивает всё, поэтому шин у него
+    # много, но узких.
+    LINKS.append((*right_of('AST2600'), X_SVC + 20, 190, 7, 3.0, 'mid', False))
+    for cy in (Y_CPU0 + 40, Y_CPU1 + 100):
+        LINKS.append((*right_of('AST2600', 10), X_CORE - 30, cy, 5, 2.8, 'fine', False))
+    # Чипсет — сокет и служебная зона
+    LINKS.append((*right_of('PCH C741'), X_CORE - 30, Y_CPU0 + 70, 11, 3.2, 'mid', False))
+    LINKS.append((*right_of('PCH C741', 12), X_SVC + 20, 300, 6, 3.0, 'fine', False))
+    # Логика питания — к дросселям обоих сокетов и к TPM
+    for cy in (Y_CPU0 + 120, Y_CPU1 + 60):
+        LINKS.append((*right_of('CPLD'), X_VRM - 30, cy, 5, 3.0, 'fine', False))
+    LINKS.append((*right_of('TPM 2.0'), X_SVC + 20, 620, 5, 3.0, 'fine', False))
     # служебная зона — задняя панель и карман райзеров
     for sy, ty in ((170, 300), (330, 430), (470, 560), (640, 620)):
-        LINKS.append((SVC_X + 20, sy, X_REAR + 80, ty, 8, 3.2, 'mid', False))
+        LINKS.append((X_SVC + 30, sy, X_REAR + 80, ty, 8, 3.2, 'mid', False))
     for sy, ty in ((250, 300), (420, 380), (560, 610)):
         LINKS.append((X_REAR + 20, sy, X_PCB_END - 20, ty, 7, 3.4, 'mid', False))
     # гребёнки вдоль кромок — шины земли и питания
@@ -84,6 +143,19 @@ def render(cv):
     for ax, ay, bx, by, n, pitch, tier, vert in LINKS:
         paths, kn = bundle(ax, ay, bx, by, n, pitch, vert)
         tiers[tier].extend(paths)
+        knots.extend(kn)
+
+    # Одиночные длинные трассы: не всё на плате идёт пучком, часть цепей
+    # тянется через полплаты сама по себе. Они и разбивают регулярность
+    # пучков, из-за которой разводка читалась штриховкой.
+    for i, (ax, ay, bx, by) in enumerate((
+            (X_PCB + 30, 60, X_SVC + 40, 120),
+            (X_PCB + 30, 806, X_SVC + 40, 740),
+            (X_CORE - 40, 26, X_REAR - 30, 96),
+            (X_CORE - 40, 838, X_REAR - 30, 770),
+            (X_PCB + 40, 430, X_REAR - 40, 430))):
+        paths, kn = bundle(ax, ay, bx, by, 1 + i % 2, 5, False)
+        tiers['mid'].extend(paths)
         knots.extend(kn)
 
     # Тонкая мелочь: короткие связки от магистрали к ближайшей детали. Их много

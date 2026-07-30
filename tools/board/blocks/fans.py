@@ -11,7 +11,7 @@
 # Свой прямоугольник: сборка проверит, что узел из него не вышел.
 BOUNDS = (184, 6, 244, 832)
 
-from board.geom import FAN_W, X_FAN, X_PCB, H
+from board.geom import FAN_H, FAN_N, FAN_STEP, FAN_W, X_FAN, X_PCB, H, fan_foot_y
 from board.ink import mono, silk_inverse
 from board.lamps import fault_at, jitter
 from board.revision import stamp
@@ -20,8 +20,6 @@ from board.revision import stamp
 def render(cv):
     cv.add(f'<rect class="decor" x="{X_FAN}" y="20" width="{FAN_W}" height="{H-40}" rx="0" fill="#0f1619" stroke="rgba(147,161,161,0.28)"/>')
     cv.add(stamp(X_FAN + 6, 14, "вентиляторы"))
-    FAN_N = 8
-    FAN_STEP = (H - 52) / FAN_N
     for i in range(FAN_N):
         y = 26 + i * FAN_STEP
         # Крыльчатки нарочно шире своей половины и заходят одна на другую:
@@ -42,7 +40,7 @@ def render(cv):
                           f'stroke="rgba(147,161,161,0.26)" style="animation-duration:{jitter(i, 0.42, 0.24, k)}s"/>')
             rotors.append(f'<circle cx="{cx}" cy="{cy}" r="{rr*0.3:.1f}" fill="#0a1215" stroke="rgba(147,161,161,0.22)"/>')
 
-        h = FAN_STEP - 8
+        h = FAN_H
         # Оранжевые язычки по бокам — за них вентилятор и вынимают на горячую.
         # На живой машине они единственное цветное пятно в корзине. Рисуем их
         # до корпуса: язычок утоплен в раму, и наружу торчит только половина.
@@ -66,8 +64,11 @@ def render(cv):
         # плате. Нога и провода — часть вентилятора: тянешь его, и они уходят
         # вместе с ним, отцепляясь от платы. Лампа при этом остаётся на плате:
         # горит не вентилятор, а его посадочное место.
-        px, py = X_FAN + FAN_W - 26, y + 10
-        fy, sx = y + 20, X_PCB + 6
+        # Нога приходит на плату против середины модуля: лампа его посадочного
+        # места должна стоять напротив своего вентилятора, а не у его края.
+        # Ординату считает geom — по ней же разводка тянет шину к этой колодке.
+        px, py = X_FAN + FAN_W - 26, fan_foot_y(i)
+        fy, sx = fan_foot_y(i), X_PCB + 6
         wires = ''.join(
             f'<path d="M{px+16} {py+4+k*3} C{px+40} {py+4+k*3}, {sx-30} {fy+3+k*3}, {sx} {fy+3+k*3}" '
             f'fill="none" stroke="{c}" stroke-width="1.5" stroke-opacity="0.6"/>'
