@@ -82,9 +82,12 @@
   // экран закрыт — F2 открывает setup, экран открыт — клавишу разбирает
   // диспетчер режима выше.
   document.addEventListener('keydown', function (e) {
-    if (e.key !== 'F2' || crt.open) return;
-    // В покое Enter не перехватываем: он отправляет команду в консоли и
-    // нажимает кнопки на схеме. Кому F2 недоступна — есть команда bios.
+    if (crt.open) return;
+    // F2 — как на живой машине. Enter — для тех, у кого верхний ряд отдан
+    // системе, но только когда фокус ни на чём: в поле консоли он отправляет
+    // команду, на кнопке схемы — нажимает её, и отбирать его там нельзя.
+    const idle = document.activeElement === document.body || document.activeElement === null;
+    if (e.key !== 'F2' && !(e.key === 'Enter' && idle)) return;
     e.preventDefault();
     openSetup();
   }, true);
