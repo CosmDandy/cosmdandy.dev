@@ -20,6 +20,7 @@ from board.geom import RISER, X_IO, X_PCB_END, X_REAR, seat
 from board.ink import mono, silk_boxed
 from board.lamps import act_led, fault_at
 from board.metal import hexgrid
+from board.palette import COLD
 from board.ports import sfp
 from board.revision import stamp
 from board.spec import PORTS
@@ -106,16 +107,18 @@ def render(cv):
                               f'stroke-width="1.4"/>' for r in range(int((hh - 34) // 11)))
                     + silk_boxed(X_IO + 43, blank_y + hh - 22, "SLOT 2 · FREE", 6))
 
-        # Лепесток-ручка на внешнем торце: райзер вынимают вверх, взявшись за него.
+        # Лепесток-ручка на внешнем торце: райзер вынимают вверх, взявшись за
+        # него. Голубой, а не терракотовый: райзер меняют только на
+        # обесточенной машине, и цвет ручки — это и есть предупреждение.
         ty = y + (-10 if up else hh - 6)
         py = y + (6 if up else hh - T + 6)
         tab = (
             # торцевой: наполовину за габаритом стойки
-            f'<rect x="{x1-T+10}" y="{ty}" width="{T-24}" height="16" rx="2" fill="#cb4b16" '
+            f'<rect x="{x1-T+10}" y="{ty}" width="{T-24}" height="16" rx="2" fill="{COLD}" '
             f'stroke="rgba(238,232,213,0.55)" stroke-width="1.2"/>'
             f'<rect x="{x1-T+16}" y="{ty+4}" width="{T-36}" height="8" rx="1" fill="rgba(238,232,213,0.22)"/>'
             # на полке, ближе к центру машины: за него райзер и качают
-            f'<rect x="{x0-8}" y="{py}" width="16" height="{T-12}" rx="2" fill="#cb4b16" '
+            f'<rect x="{x0-8}" y="{py}" width="16" height="{T-12}" rx="2" fill="{COLD}" '
             f'stroke="rgba(238,232,213,0.55)" stroke-width="1.2"/>'
             f'<rect x="{x0-4}" y="{py+5}" width="8" height="{T-22}" rx="1" fill="rgba(238,232,213,0.22)"/>')
 
