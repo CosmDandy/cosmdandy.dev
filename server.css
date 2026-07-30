@@ -102,8 +102,7 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
 /* Консоль — часть сервисного режима, снизу под машиной. */
 .rig .panel {
   display: none;
-  width: min(78%, 820px);
-  margin: 14px auto 0;
+  margin: 0;
   border: 1px solid var(--edge);
   border-radius: 6px;
   background: linear-gradient(180deg, rgba(9,34,40,0.92) 0%, rgba(7,26,31,0.88) 100%);
@@ -137,14 +136,6 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
                 color: var(--head); font: inherit; caret-color: var(--cyan); }
 .prompt input::placeholder { color: rgba(88,110,117,0.75); }
 
-/* Консоль — отдельный экран над машиной, уже её по ширине. */
-  .panel.console {
-    display: none;
-    width: min(78%, 820px);
-    margin: 0 auto 4px;
-    border-radius: 6px;
-    padding: 10px 12px 8px;
-  }
 
   /* Приглашение: консоль не только пишет, в неё можно печатать. */
   .prompt { display: flex; align-items: baseline; gap: 6px; margin-top: 8px;
