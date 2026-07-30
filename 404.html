@@ -11,11 +11,27 @@
         // Before the first paint, otherwise the wrong theme flashes for a
         // fraction of a second. An empty store means "follow the system", so
         // only what the user picked by hand is written here.
+        //
+        // Живёт этот выбор недолго и уступает системе: рядом с ним лежит
+        // отметка, когда его сделали и какая тема была тогда у системы. Если
+        // система с тех пор передумала — скажем, наступила ночь и она ушла в
+        // тёмную — или если выбор просто отлежал свои часы, он снимается, и
+        // страница снова идёт за системой.
         (function () {
-            var saved = null;
-            try { saved = localStorage.getItem('theme'); } catch (e) {}
-            if (saved !== 'light' && saved !== 'dark') saved = null;
+            var LIFE = 4 * 60 * 60 * 1000;
             var system = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+            var saved = null;
+            try {
+                if (+localStorage.getItem('theme-at') > Date.now() - LIFE
+                    && localStorage.getItem('theme-sys') === system) {
+                    saved = localStorage.getItem('theme');
+                } else {
+                    localStorage.removeItem('theme');
+                    localStorage.removeItem('theme-at');
+                    localStorage.removeItem('theme-sys');
+                }
+            } catch (e) {}
+            if (saved !== 'light' && saved !== 'dark') saved = null;
             document.documentElement.setAttribute('data-theme', saved || system);
         })();
     </script>
@@ -160,16 +176,29 @@
         // The theme switch. Two states in the interface, three in meaning:
         // while localStorage is empty the page follows the system and reacts
         // to it changing on the fly.
+        //
+        // Это же состояние и основное: ручной выбор из него только временно
+        // выводит, а потом всё возвращается само.
         const themeSwitch = document.getElementById('theme-switch');
         const systemLight = window.matchMedia('(prefers-color-scheme: light)');
 
-        function savedTheme() {
+        // Выбор запоминаем вместе с обстоятельствами: временем и тем, какая
+        // тема была у системы в тот момент. По ним скрипт в <head> и решает,
+        // жив ли ещё выбор к следующему заходу.
+        function rememberTheme(theme) {
             try {
-                const v = localStorage.getItem('theme');
-                return v === 'light' || v === 'dark' ? v : null;
-            } catch (e) {
-                return null;
-            }
+                localStorage.setItem('theme', theme);
+                localStorage.setItem('theme-at', String(Date.now()));
+                localStorage.setItem('theme-sys', systemLight.matches ? 'light' : 'dark');
+            } catch (e) {}
+        }
+
+        function forgetTheme() {
+            try {
+                localStorage.removeItem('theme');
+                localStorage.removeItem('theme-at');
+                localStorage.removeItem('theme-sys');
+            } catch (e) {}
         }
 
         function labelTheme(theme) {
@@ -194,14 +223,19 @@
 
         themeSwitch.addEventListener('click', () => {
             const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-            try { localStorage.setItem('theme', next); } catch (e) {}
+            rememberTheme(next);
             setTheme(next, true);
         });
 
         // While there is no choice we follow the system, including when it is
         // switched right now without reloading the page.
+        //
+        // Система главнее выбора: сменила тему прямо сейчас — ручной выбор
+        // снимается. Ровно то же сделал бы скрипт в <head> при следующем
+        // заходе, только без перезагрузки.
         systemLight.addEventListener('change', e => {
-            if (!savedTheme()) setTheme(e.matches ? 'light' : 'dark', true);
+            forgetTheme();
+            setTheme(e.matches ? 'light' : 'dark', true);
         });
 
         labelTheme(document.documentElement.getAttribute('data-theme') || 'dark');
