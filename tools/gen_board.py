@@ -26,7 +26,30 @@ opacity на SVG-элементе создаёт composited layer, и в бра�
 import math
 import re
 
-W, H = 1314, 863
+from board.canvas import Canvas
+from board.geom import (
+    BAY_N, BAY_TOP, BAY_W, CAP, FAN_W, FRONT_W, GROUP_GAP, GROUP_H, GROUPS, H,
+    PITCH, SLOT_H, SOCKET_H, SOCKET_W, W, X_BP, X_CORE, X_FAN, X_FRONT, X_IO,
+    X_PCB, X_PCB_END, X_REAR, X_SOCK, X_SVC, X_TAG, X_VRM, Y_BANK_C, Y_BANK_L,
+    Y_BANK_R, Y_CPU0, Y_CPU1, Y_PANEL, Y_PSU_BOT, Y_PSU_TOP, LID_BTN,
+)
+from board.ink import block_frame, callout, empty_pads, hit, mono, silk_frame, silk_inverse, tag
+from board.lamps import act_led, fault, glow, jitter
+from board.lamps import fault_at as _fault_at
+from board.metal import (
+    hexgrid, idc_header, ihs_path, pad, power_header, rating_label, relief, service_label,
+)
+from board.palette import GLOW, GLOW3, PCB_DARK, SILVER, SILVER_DIM, SILVER_LIT
+
+# Холст сборки. Алиасы — чтобы код блоков остался дословно тем же: на этом
+# шаге переносим определения, а не переписываем вызовы.
+_C = Canvas()
+add, busy, free, put = _C.add, _C.busy, _C.free, _C.put
+P, BUSY, CALLOUTS = _C.parts, _C.taken, _C.callouts
+
+def fault_at(cx, cy, r=4.5, shift=18):
+    return _fault_at(_C, cx, cy, r, shift)
+
 import subprocess
 
 # Ревизия платы — это ревизия репозитория: номер сборки равен числу коммитов,
@@ -67,101 +90,11 @@ def stamp(x, y, prefix, anchor="start", op=0.3):
             + mono(x, y, f"P/N {sha.upper()}", 6, anchor=anchor, op=op)
             + '</a>')
 
-P = []
-def add(s): P.append(s)
 
-def mono(x, y, text, size=11, anchor="middle", op=0.5):
-    return (f'<text x="{x}" y="{y}" text-anchor="{anchor}" fill="rgba(147,161,161,{op})" '
-            f'font-family="ui-monospace, Menlo, monospace" font-size="{size}">{text}</text>')
 
-def jitter(i, base, spread, salt=0):
-    """Детерминированный разброс: индикаторы не должны мигать в такт."""
-    return round(base + ((i * 37 + salt * 13 + 11) % 100) / 100 * spread, 2)
 
-GLOW = {'#2aa198': 'rgba(42,161,152,0.20)', '#859900': 'rgba(133,153,0,0.20)',
-        '#b58900': 'rgba(181,137,0,0.22)', '#268bd2': 'rgba(38,139,210,0.22)',
-        '#dc322f': 'rgba(220,50,47,0.22)'}
 
-GLOW3 = {
-    '#2aa198': ('rgba(42,161,152,0.16)', 'rgba(42,161,152,0.10)', 'rgba(42,161,152,0.05)'),
-    '#859900': ('rgba(133,153,0,0.16)', 'rgba(133,153,0,0.10)', 'rgba(133,153,0,0.05)'),
-    '#b58900': ('rgba(181,137,0,0.18)', 'rgba(181,137,0,0.11)', 'rgba(181,137,0,0.05)'),
-    '#268bd2': ('rgba(38,139,210,0.18)', 'rgba(38,139,210,0.11)', 'rgba(38,139,210,0.05)'),
-    '#f4d03f': ('rgba(244,208,63,0.22)', 'rgba(244,208,63,0.13)', 'rgba(244,208,63,0.06)'),
-}
 
-def glow(cls, cx, cy, r, color, extra=''):
-    """Мягкий ореол: три круга с убывающей плотностью вместо одного жёсткого.
-
-    Радиальный градиент был бы точнее, но paint server отваливается при
-    трансформациях — поэтому только сплошные заливки.
-    """
-    tones = GLOW3.get(color, ('rgba(147,161,161,0.14)', 'rgba(147,161,161,0.09)', 'rgba(147,161,161,0.04)'))
-    return ''.join(
-        f'<circle class="{cls} halo" cx="{cx}" cy="{cy}" r="{r*k:.1f}" fill="{t}"{extra}/>'
-        for k, t in zip((1.7, 2.5, 3.4), tones))
-
-def act_led(i, cx, cy, r, color, salt=0, aux=False):
-    """Лампа активности: резкая, ступенчатая, у каждой свой период и фаза.
-
-    aux=True — узел питается от дежурки и работает при выключенной машине:
-    так живут BMC, порт управления и сами блоки питания.
-    """
-    d = jitter(i, 0.7, 1.6, salt)
-    delay = -jitter(i, 0, 2.2, salt + 5)
-    cls = 'led led-act aux' if aux else 'led led-act'
-    style = f' style="animation-duration:{d}s;animation-delay:{delay}s"'
-    return (glow(cls, cx, cy, r, color, style) +
-            f'<circle class="{cls}" cx="{cx}" cy="{cy}" r="{r}" fill="{color}"{style}/>')
-
-def fault_at(cx, cy, r=4.5, shift=18):
-    """Лампа со сдвигом, если выбранное место уже занято креплением."""
-    for dy in (0, -shift, shift, -2 * shift, 2 * shift):
-        if free(cx - r - 4, cy + dy - r - 4, 2 * r + 8, 2 * r + 8):
-            busy(cx - r - 4, cy + dy - r - 4, 2 * r + 8, 2 * r + 8)
-            return fault(cx, cy + dy, r)
-    busy(cx - r - 4, cy - r - 4, 2 * r + 8, 2 * r + 8)
-    return fault(cx, cy, r)
-
-def fault(cx, cy, r=4.5):
-    """Лампа на плате: в покое матовая и всё равно заметная, при сбое горит.
-
-    Подложка нужна, чтобы лампу было видно и на выключенной машине — иначе
-    непонятно, где вообще искать индикацию.
-    """
-    return (f'<circle cx="{cx}" cy="{cy}" r="{r+2.5}" fill="#20282d" stroke="rgba(147,161,161,0.34)" stroke-width="1"/>'
-            f'<circle cx="{cx}" cy="{cy}" r="{r}" fill="#8d979a"/>'
-            + glow('fault', cx, cy, r, '#f4d03f')
-            + f'<circle class="fault" cx="{cx}" cy="{cy}" r="{r}" fill="#f4d03f"/>')
-
-def tag(x_center, y, text):
-    """Ярлык узла. Держим внутри габарита: за краем его срезает."""
-    return (f'<g class="tag"><rect x="{x_center-78}" y="{y-15}" width="156" height="30" rx="6"/>'
-            f'<text x="{x_center}" y="{y+6}" text-anchor="middle">{text}</text></g>')
-
-def callout(tx, ty, ax, ay, text, anchor="start", href=None, unit=None):
-    """Постоянная выноска-ссылка: якорь на узле, линия и подпись.
-
-    На визитке подписи обязаны быть видны сразу и вести по адресу — гость не
-    должен догадываться, что по железу надо водить курсором.
-    """
-    w = len(text) * 9 + 26
-    x0 = tx if anchor == "start" else tx - w
-    inner = (f'<circle class="co-dot" cx="{ax}" cy="{ay}" r="3.4"/>'
-             f'<path class="co-line" d="M{ax} {ay} L{tx + (10 if anchor == "start" else -10)} {ty}" fill="none"/>'
-             f'<rect class="co-box" x="{x0}" y="{ty-14}" width="{w}" height="28" rx="3"/>'
-             f'<text class="co-text" x="{x0 + w/2}" y="{ty+6}" text-anchor="middle">{text}</text>')
-    # data-for связывает подпись с узлом: наводишь на сетевую карту — горит её
-    # подпись, наводишь на подпись — горит карта. Без него подсветка
-    # односторонняя, и непонятно, к чему относится ярлык.
-    attr = f' data-for="{unit}"' if unit else ''
-    if href:
-        return f'<a class="callout" href="{href}" target="_blank" rel="noopener"{attr}>{inner}</a>'
-    return f'<g class="callout"{attr}>{inner}</g>'
-
-def hit(x, y, w, h):
-    """Зона захвата: без неё клик проваливается в щели между фигурами."""
-    return f'<rect class="hit" x="{x}" y="{y}" width="{w}" height="{h}" fill="#000" fill-opacity="0.001"/>'
 
 def rj45(x, y, w=52, h=30):
     """Гнездо RJ45: прямоугольник с ключом-выемкой сверху."""
@@ -183,50 +116,11 @@ def sfp(x, y, w=58, h=26):
 # Плата плотная, и мелочь то и дело садилась на монтажные отверстия и на
 # чужие подписи. Каждый крупный элемент отмечает свой прямоугольник, а мелочь
 # и шелкография перед вставкой спрашивают, свободно ли.
-BUSY = []
-CALLOUTS = []   # постоянные подписи: (x текста, y текста, x якоря, y якоря, текст, сторона)
-
-def busy(x, y, w, h, pad=3):
-    BUSY.append((x - pad, y - pad, x + w + pad, y + h + pad))
-
-def free(x, y, w, h):
-    for (x1, y1, x2, y2) in BUSY:
-        if x < x2 and x + w > x1 and y < y2 and y + h > y1:
-            return False
-    return True
-
-def put(x, y, w, h):
-    """Занять место, если свободно. Возвращает True, если получилось."""
-    if not free(x, y, w, h):
-        return False
-    busy(x, y, w, h)
-    return True
 
 # ── зоны по глубине ───────────────────────────────────────────────────────
-X_FRONT  = 6      # фронт: блок управления сверху, отсеки дисков под ним
-X_BP     = 160    # backplane — вплотную к корзине, диски кончаются на 159
-X_FAN    = 192    # стенка вентиляторов
-FAN_W    = 180    # шире прежнего: заняла место, освободившееся у backplane
-X_PCB    = 382    # плата
-X_CORE   = 504    # слоты памяти
-X_SVC    = 842    # служебная зона: батарея, microSD, M.2
-X_REAR   = 1004   # отсеки БП
-X_IO     = 1214   # задняя панель
-
-FRONT_W  = 156
-Y_PANEL  = 150
 
 # ── зоны по ширине: 8 DIMM | CPU0 | 16 DIMM | CPU1 | 8 DIMM ───────────────
 # Планки стали толще, зазоры между ними и до сокета — меньше.
-PITCH = 14
-SLOT_H = 12
-Y_BANK_L, Y_CPU0, Y_BANK_C, Y_CPU1, Y_BANK_R = 40, 160, 318, 550, 708
-SOCKET_W, SOCKET_H = 230, 150   # LGA 4677 заметно прямоугольный
-
-Y_PSU_TOP, Y_PSU_BOT = 172, 690
-X_PCB_END = 1206
-
-X_TAG = 470       # ярлыки ядра платы — в пустой левой части, друг под другом
 
 def rack_ears():
     """Уши стойки на фронте: сверху и снизу, торчат за габарит шасси.
@@ -347,270 +241,16 @@ def jumper_table(x, y, title, rows):
     return f'<g class="decor jumper-table">{"".join(parts)}</g>'
 
 
-def silk_inverse(x, y, text, size=7):
-    """Инверсная шелкография: светлая плашка, тёмный выбитый текст.
-
-    Так подписывают то, что человек с отвёрткой должен найти сразу.
-
-    Краска на текстолите не бумажно-белая, а сероватая, и держим её заметно
-    глуше выносок: подписи ссылок — первое, что должно читаться на схеме, а
-    белая плашка того же тона забивала их даже будучи вчетверо мельче.
-    """
-    pad_x, pad_y = 5, 3
-    w = len(text) * size * 0.62 + pad_x * 2
-    h = size + pad_y * 2
-    return (f'<rect x="{x}" y="{y}" width="{w:.1f}" height="{h}" rx="1.5" '
-            f'fill="#c6c0ad" fill-opacity="0.55" stroke="rgba(147,161,161,0.24)" stroke-width="0.6"/>'
-            f'<text x="{x+w/2:.1f}" y="{y+h-pad_y-1:.1f}" text-anchor="middle" fill="#0a1417" '
-            f'font-family="ui-monospace, Menlo, monospace" font-size="{size}">{text}</text>')
 
 
 # ── металл ────────────────────────────────────────────────────────────────
 # Выводы, площадки и контакты делаем серебром, а не той же серой краской,
 # что и шелкография: на живой плате олово — единственное, что бликует, и
 # именно по нему глаз отделяет деталь от рисунка под ней.
-SILVER = "#b8c4c8"          # луженый вывод
-SILVER_DIM = "#7e8f95"      # он же в тени
-SILVER_LIT = "#dfe8ea"      # блик по верхней кромке
-
-def pad(x, y, w, h, r=0.6):
-    """Контактная площадка: олово с бликом сверху и тенью снизу."""
-    return (f'<rect x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="{h:.1f}" rx="{r}" fill="{SILVER_DIM}"/>'
-            f'<rect x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="{h - 0.8:.1f}" rx="{r}" fill="{SILVER}"/>'
-            f'<rect x="{x + 0.4:.1f}" y="{y + 0.3:.1f}" width="{max(0.6, w - 0.8):.1f}" height="0.6" '
-            f'fill="{SILVER_LIT}" fill-opacity="0.55"/>')
-
-def relief(x, y, w, h, rx=1):
-    """Фаска корпуса: светлая кромка сверху, тень снизу. Дешевле тени и не
-    создаёт слоя композитинга, в отличие от filter."""
-    return (f'<path d="M{x + rx:.1f} {y:.1f} H{x + w - rx:.1f}" stroke="rgba(223,232,234,0.20)" '
-            f'stroke-width="0.9" fill="none"/>'
-            f'<path d="M{x + rx:.1f} {y + h:.1f} H{x + w - rx:.1f}" stroke="rgba(0,0,0,0.38)" '
-            f'stroke-width="1.1" fill="none"/>')
-
-def ihs_path(x, y):
-    """Контур крышки процессора: ключи по бокам и срез у первого вывода.
-
-    Живёт отдельной функцией, потому что по этому же контуру режется
-    перелив кристалла: прямоугольный клип превращал крышку обратно в
-    плашку и съедал ключи, ради которых всё и делалось.
-    """
-    ix, iy = x + 40, y + 34
-    iw, ih = SOCKET_W - 80, SOCKET_H - 68
-    notch, cut = 9, 12
-    return (f'M{ix + cut} {iy} '
-            f'H{ix + iw / 2 - notch} '
-            f'a{notch} {notch} 0 0 0 {notch * 2} 0 '
-            f'H{ix + iw} '
-            f'V{iy + ih / 2 - notch} '
-            f'a{notch} {notch} 0 0 0 0 {notch * 2} '
-            f'V{iy + ih} '
-            f'H{ix + iw / 2 + notch} '
-            f'a{notch} {notch} 0 0 0 -{notch * 2} 0 '
-            f'H{ix} '
-            f'V{iy + cut} Z')
-
-def idc_header(x, y, pins, label, vertical=False):
-    """Шлейфовая гребёнка: два ряда контактов в пластиковом бортике.
-
-    К таким идут плоские шлейфы на переднюю панель, к кнопке питания, к
-    USB и к датчику вскрытия. Прорезь-ключ с одной стороны — чтобы шлейф
-    не воткнули наоборот; на живой плате её видно сразу.
-    """
-    n = pins // 2
-    w, h = n * 4.4 + 8, 13
-    if vertical:
-        w, h = h, w
-    body = (f'<rect x="{x}" y="{y}" width="{w:.1f}" height="{h:.1f}" rx="1" fill="#12191d" '
-            f'stroke="rgba(147,161,161,0.34)" stroke-width="1.1"/>')
-    pins_svg = []
-    for k in range(n):
-        for r in range(2):
-            if vertical:
-                px, py = x + 3.4 + r * 5.2, y + 5 + k * 4.4
-            else:
-                px, py = x + 5 + k * 4.4, y + 3.4 + r * 5.2
-            pins_svg.append(pad(px, py, 2.2, 2.2, 0.3))
-    # ключ: вырез в бортике посередине длинной стороны
-    if vertical:
-        key = (f'<rect x="{x + w - 2.6:.1f}" y="{y + h / 2 - 3:.1f}" width="2.6" height="6" '
-               f'fill="#0a1013"/>')
-    else:
-        key = (f'<rect x="{x + w / 2 - 3:.1f}" y="{y + h - 2.6:.1f}" width="6" height="2.6" '
-               f'fill="#0a1013"/>')
-    tag = (mono(x + w / 2, y + h + 8, label, 5.5, op=0.34) if not vertical
-           else mono(x + w + 2, y + h / 2, label, 5.5, anchor="start", op=0.34))
-    return body + ''.join(pins_svg) + key + relief(x, y, w, h) + tag
 
 
-def power_header(x, y, label="P12V_BP"):
-    """Питающий хедер 2×4: восемь толстых контактов в рамке с защёлкой.
-
-    От разъёмов данных отличается сразу — шаг крупнее, контакты втрое
-    толще: через них идёт ток в десятки ампер, а не сигнал.
-    """
-    w, h = 30, 20
-    out = [f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="2" fill="#161f24" '
-           f'stroke="rgba(147,161,161,0.40)" stroke-width="1.3"/>']
-    for r in range(2):
-        for c in range(4):
-            out.append(pad(x + 3.6 + c * 6.2, y + 4 + r * 7, 4, 4.6, 0.8))
-    # защёлка на верхней стенке
-    out.append(f'<path d="M{x + w / 2 - 5} {y} v-3.4 h10 v3.4" fill="none" '
-               f'stroke="rgba(147,161,161,0.40)" stroke-width="1.3"/>')
-    out.append(relief(x, y, w, h, 2))
-    out.append(mono(x + w / 2, y + h + 9, label, 5.5, op=0.36))
-    return ''.join(out)
 
 
-def block_frame(x, y, w, h, title, refs):
-    """Контурная рамка функционального блока со списком позиций.
-
-    Приём IBM: группа обводится по текстолиту, рядом печатается перечень
-    refdes. Инженер по такой рамке видит границы узла, не открывая схему.
-    Держим её глухой: рамка крупная, и в полную силу она перетянула бы на
-    себя внимание с подписей ссылок.
-    """
-    return (f'<g class="decor block-frame">'
-            f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="2" fill="none" '
-            f'stroke="rgba(232,227,213,0.16)" stroke-width="1" stroke-dasharray="7 4"/>'
-            f'<rect x="{x + 6}" y="{y - 5}" width="{len(title) * 4.4 + 8:.1f}" height="10" '
-            f'rx="1" fill="{PCB_DARK}"/>'
-            + mono(x + 10, y + 3, title, 6, anchor="start", op=0.42)
-            + mono(x + 10, y + h - 4, refs, 5, anchor="start", op=0.26)
-            + '</g>')
-
-def hexgrid(x, y, w, h, s=7, gap=5.5):
-    """Гексагональная перфорация: ею облегчают широкую часть кронштейна."""
-    out, dx, dy = [], s * 1.5 + gap, (s + gap / 2) * 1.732
-    row = 0
-    cy = y + s
-    while cy < y + h - s * 0.6:
-        cx = x + s + (dx / 2 if row % 2 else 0)
-        while cx < x + w - s * 0.9:
-            pts = ' '.join(f'{cx + s*0.86*dxx:.1f},{cy + s*dyy:.1f}' for dxx, dyy in
-                           ((0, -1), (1, -0.5), (1, 0.5), (0, 1), (-1, 0.5), (-1, -0.5)))
-            out.append(f'<polygon points="{pts}" fill="#0a1216" stroke="rgba(147,161,161,0.16)"/>')
-            cx += dx
-        cy += dy / 2
-        row += 1
-    return ''.join(out)
-
-def silk_frame(x, y, text, size=7, op=0.6):
-    """Обозначение разъёма: светлый текст в тонкой рамке.
-
-    Так на плате помечают позиции — J-номера, колодки питания, банки. Рамку
-    печатают той же краской, что и текст, и она отделяет обозначение от
-    разводки под ним: без неё надпись теряется в дорожках.
-    """
-    w = len(text) * size * 0.62 + 8
-    h = size + 6
-    return (f'<rect x="{x}" y="{y}" width="{w:.1f}" height="{h}" rx="1" fill="none" '
-            f'stroke="rgba(232,227,213,{op * 0.62:.2f})" stroke-width="0.7"/>'
-            f'<text x="{x+4}" y="{y+h-4.5:.1f}" fill="rgba(232,227,213,{op})" '
-            f'font-family="ui-monospace, Menlo, monospace" font-size="{size}">{text}</text>')
-
-
-def empty_pads(x, y, cols, rows, pitch=8, pad_w=3.5, pad_h=2):
-    """Непропаянное посадочное место: голые площадки без детали.
-
-    На живой плате их полно — под опции, которых в этой сборке нет.
-    """
-    cells = []
-    for r in range(rows):
-        for c in range(cols):
-            px, py = x + c * pitch, y + r * pitch
-            cells.append(f'<rect x="{px:.1f}" y="{py:.1f}" width="{pad_w}" height="{pad_h}" rx="0.5" '
-                         f'fill="#8d979a" fill-opacity="0.5" stroke="rgba(147,161,161,0.28)" stroke-width="0.4"/>')
-    w = (cols - 1) * pitch + pad_w
-    h = (rows - 1) * pitch + pad_h
-    x0, y0, x1, y1 = x - 4, y - 4, x + w + 4, y + h + 4
-    outline = (f'<path d="M{x0+6} {y0} H{x1} V{y1} H{x0} V{y0+6} Z" fill="none" '
-               f'stroke="rgba(147,161,161,0.24)" stroke-width="1" stroke-dasharray="3 2"/>')
-    return f'<g class="decor empty-footprint">{outline}{"".join(cells)}</g>'
-
-
-def service_label(x, y, w, h, title, lines):
-    """Сервисная табличка на крышке: кирпичная шапка и светлое поле.
-
-    Поле держим на fill-opacity, а не сплошной белой заливкой: крышка тёмная,
-    и непрозрачная бумага на ней выжигает глаза.
-    """
-    head_h = h * 0.19
-    body_y = y + head_h
-    body_h = h - head_h
-    parts = [
-        f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="3" fill="#e8e3d5" fill-opacity="0.78" '
-        f'stroke="rgba(147,161,161,0.35)" stroke-width="1.2"/>',
-        f'<path d="M{x} {y+head_h:.1f} V{y+3} Q{x} {y} {x+3} {y} H{x+w-3} Q{x+w} {y} {x+w} {y+3} '
-        f'V{y+head_h:.1f} Z" fill="#cb4b16"/>',
-    ]
-    icon_r = head_h * 0.34
-    icx, icy = x + head_h * 0.6, y + head_h / 2
-    for i in range(4):
-        parts.append(f'<ellipse cx="{icx:.1f}" cy="{icy-icon_r*0.55:.1f}" rx="{icon_r*0.30:.1f}" '
-                     f'ry="{icon_r*0.55:.1f}" fill="#161005" transform="rotate({i*90} {icx:.1f} {icy:.1f})"/>')
-    parts.append(f'<circle cx="{icx:.1f}" cy="{icy:.1f}" r="{icon_r*0.16:.1f}" fill="#161005"/>')
-    parts.append(f'<text x="{x+head_h*1.05:.1f}" y="{y+head_h/2+head_h*0.16:.1f}" text-anchor="start" '
-                 f'fill="#161005" font-family="ui-monospace, Menlo, monospace" '
-                 f'font-size="{max(8, head_h*0.46):.1f}" font-weight="700" letter-spacing="0.04em">{title}</text>')
-    line_h = body_h / (len(lines) + 1)
-    for i, ln in enumerate(lines):
-        parts.append(f'<text x="{x+10}" y="{body_y + line_h*(i+1):.1f}" text-anchor="start" fill="#161005" '
-                     f'fill-opacity="0.82" font-family="ui-monospace, Menlo, monospace" font-size="7.5">{ln}</text>')
-    return ''.join(parts)
-
-
-def rating_label(x, y, num):
-    """Шильдик питания своего ввода: номер блока на всех метках один.
-
-    Жёлтые квадраты по краям — предупреждение, что вводов два и обесточить
-    надо оба. Единственное цветное пятно на крышке настоящей машины.
-    """
-    w, h = 300, 46
-    yw, ow = 50, 34
-    dw = w - 2 * yw - 2 * ow
-
-    def bolt(cx, cy, sz):
-        tri = (f'<path d="M{cx:.1f} {cy-sz:.1f} L{cx+sz*0.9:.1f} {cy+sz*0.75:.1f} '
-               f'L{cx-sz*0.9:.1f} {cy+sz*0.75:.1f} Z" fill="none" stroke="#161005" '
-               f'stroke-width="{max(1, sz*0.14):.1f}"/>')
-        zig = (f'<path d="M{cx+sz*0.10:.1f} {cy-sz*0.55:.1f} L{cx-sz*0.30:.1f} {cy+sz*0.08:.1f} '
-               f'L{cx+sz*0.02:.1f} {cy+sz*0.08:.1f} L{cx-sz*0.16:.1f} {cy+sz*0.62:.1f} '
-               f'L{cx+sz*0.40:.1f} {cy-sz*0.10:.1f} L{cx+sz*0.08:.1f} {cy-sz*0.10:.1f} Z" fill="#161005"/>')
-        return tri + zig
-
-    def yellow(zx, num):
-        cx, cy, sz = zx + yw * 0.36, y + h * 0.42, h * 0.26
-        return (f'<rect x="{zx}" y="{y}" width="{yw}" height="{h}" fill="#f2c200" '
-                f'stroke="rgba(20,20,10,0.5)" stroke-width="1"/>' + bolt(cx, cy, sz)
-                + f'<text x="{zx+yw*0.72:.1f}" y="{y+h*0.68:.1f}" text-anchor="middle" fill="#161005" '
-                  f'font-family="ui-monospace, Menlo, monospace" font-size="{h*0.48:.1f}" '
-                  f'font-weight="700">{num}</text>')
-
-    def orange(zx, num):
-        return (f'<rect x="{zx}" y="{y}" width="{ow}" height="{h}" fill="#cb4b16" '
-                f'stroke="rgba(20,20,10,0.4)" stroke-width="1"/>'
-                f'<path d="M{zx+ow*0.22:.1f} {y+h*0.30:.1f} q{ow*0.14:.1f} -{h*0.16:.1f} {ow*0.28:.1f} 0 '
-                f'q{ow*0.14:.1f} {h*0.16:.1f} {ow*0.28:.1f} 0" fill="none" stroke="#161005" stroke-width="1.4"/>'
-                + f'<text x="{zx+ow/2:.1f}" y="{y+h*0.78:.1f}" text-anchor="middle" fill="#161005" '
-                  f'font-family="ui-monospace, Menlo, monospace" font-size="{h*0.40:.1f}" '
-                  f'font-weight="700">{num}</text>')
-
-    x_o2, x_dark = x + yw, x + yw + ow
-    x_o1, x_y1 = x_dark + dw, x_dark + dw + ow
-    lines = ["100-127Vac 5,3A · 200-240Vac 2,6A · 50/60Hz",
-             "100-127Vac 7,8A · 200-240Vac 3,8A",
-             "-48 to -60Vdc, 18,34A"]
-    line_h = h / (len(lines) + 1)
-    dark = (f'<rect x="{x_dark:.1f}" y="{y}" width="{dw:.1f}" height="{h}" fill="#10171a" '
-            f'stroke="rgba(147,161,161,0.28)" stroke-width="1"/>'
-            + ''.join(f'<text x="{x_dark+6:.1f}" y="{y+line_h*(i+1):.1f}" text-anchor="start" '
-                      f'fill="rgba(238,232,213,0.72)" font-family="ui-monospace, Menlo, monospace" '
-                      f'font-size="4.4">{ln}</text>' for i, ln in enumerate(lines)))
-    return (yellow(x, num) + orange(x_o2, num) + dark + orange(x_o1, num) + yellow(x_y1, num)
-            + f'<rect x="{x}" y="{y}" width="{w}" height="{h}" fill="none" '
-              f'stroke="rgba(20,20,10,0.55)" stroke-width="1.2"/>')
 
 
 # ── шасси ─────────────────────────────────────────────────────────────────
@@ -1186,7 +826,6 @@ add(f'''<g class="unit" data-unit="plate" data-group="plate"
 
 # ── VRM: вплотную к сокетам ───────────────────────────────────────────────
 # Дроссели питают ядро и физически сидят рядом с ним, а не в стороне.
-X_VRM = X_CORE - 20   # почти касается левого края сокета
 vrm = []
 for y0 in (Y_CPU0, Y_CPU1):
     n = SOCKET_H // 14
@@ -1291,11 +930,6 @@ add(f'''<g class="lp-tab" id="lp-tab" role="button" tabindex="0" aria-label="П�
 # ── фронт: шесть отсеков 2.5″ тремя группами по два ──────────────────────
 # Диски в 1U ходят парами: два каддика в группе, между группами — стойка
 # корзины. Подписи развёрнуты вдоль салазок, скругления минимальные.
-BAY_TOP, BAY_N, GROUPS = Y_PANEL + 8, 6, 3
-GROUP_GAP = 10
-BAY_W = FRONT_W / 2
-GROUP_H = (H - 12 - BAY_TOP - GROUP_GAP * (GROUPS - 1)) / GROUPS
-CAP = 46
 for i in range(BAY_N):
     g, k = i // 2, i % 2
     x = X_FRONT + k * BAY_W
@@ -1633,7 +1267,6 @@ def ilm(x, y):
 
 CALLOUTS.append((X_TAG - 6, Y_CPU0 + 40, X_CORE + 40, Y_CPU0 + 40, "CV", "end", "https://cv.cosmdandy.dev", "cpu"))
 
-X_SOCK = X_CORE + 40
 add(stamp(X_CORE + 40, Y_CPU0 - 8, "процессоры"))
 
 # Градиент кристалла и обрезка по крышкам процессоров. Наискось, из левого
@@ -1692,7 +1325,6 @@ add('<g class="decor">' + ''.join(svc) + '</g>')
 
 # Кнопка крышки стоит ровно над тумблером сервисного режима — и на плате, и
 # на самой крышке, в одних и тех же координатах: меняется только надпись.
-LID_BTN = (X_SVC + 26, 508, 86)     # x, y, сторона квадрата
 add(f'''<g class="lid-on-btn" id="lid-on" role="button" tabindex="0" aria-label="Надеть крышку">
   {hit(LID_BTN[0]-6, LID_BTN[1]-6, LID_BTN[2]+12, LID_BTN[2]+12)}
   <rect x="{LID_BTN[0]}" y="{LID_BTN[1]}" width="{LID_BTN[2]}" height="{LID_BTN[2]}" rx="3"
