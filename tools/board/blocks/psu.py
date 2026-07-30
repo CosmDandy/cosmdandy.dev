@@ -69,7 +69,7 @@ def render(cv):
         psu.append(f'<circle cx="{X_REAR+267}" cy="{fan_y+25}" r="25" fill="#0d1417" stroke="rgba(147,161,161,0.18)"/>')
         psu.append(f'<path class="fan-blades aux" d="M{X_REAR+267} {fan_y+3} L{X_REAR+275} {fan_y+25} L{X_REAR+267} {fan_y+47} L{X_REAR+259} {fan_y+25} Z '
                    f'M{X_REAR+245} {fan_y+25} L{X_REAR+267} {fan_y+17} L{X_REAR+289} {fan_y+25} L{X_REAR+267} {fan_y+33} Z" '
-                   f'fill="rgba(34,48,54,0.5)" stroke="rgba(147,161,161,0.22)" style="animation-duration:{jitter(k, 0.55, 0.3)}s"/>')
+                   f'fill="rgba(34,48,54,0.5)" stroke="rgba(147,161,161,0.22)" style="animation-delay:-{jitter(k, 0.3, 1.4)}s"/>')
         # шильдик с характеристиками
         psu.append(f'<rect x="{X_REAR+96}" y="{y+30}" width="126" height="86" rx="3" '
                    f'fill="#e8e3d5" fill-opacity="0.10" stroke="rgba(147,161,161,0.22)"/>')

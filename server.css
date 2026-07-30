@@ -144,6 +144,18 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
       0, 0.003 14%, 0.009 24%, 0.018 31%, 0.30 35%, 0.66 39%, 0.83 44%,
       0.90 52%, 0.945 63%, 0.975 76%, 0.993 88%, 1);
 
+  /* Темп индикации. Держим его в одном месте: лампы мигают часто, чтобы
+     машина выглядела живой, крыльчатки крутятся быстро, чтобы читались
+     размазанными. Важно другое — все они ступенчатые, а не плавные:
+     измерения показали, что плавное вращение стоит на четверть дороже
+     ступенчатого, потому что просит перерисовку в каждом кадре монитора. */
+  --blink: 1.4s;
+  --beat: 1s;
+  --spin: 1s;
+  /* Периоды подобраны так, чтобы все переключения ложились на сетку в
+     двадцатую долю секунды: 1.4 с делится на 28 позиций вспышек, оборот
+     крыльчатки — на 20 положений, пульс и мигание — на круглые доли. */
+
   /* Посадка. У каждого узла свой характер, и это не украшение: планку
      дожимают до щелчка защёлок, вентилятор идёт туго по направляющим,
      блок питания влетает в карман одним движением, а диск сперва скользит
@@ -364,32 +376,58 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   /* Дежурка: BMC, порт управления и сами блоки питания работают всегда —
      машина выключена, а они уже под напряжением. */
   .led.aux { fill-opacity: 1; }
-  .led-act.aux { animation: act 1.4s steps(1, end) infinite; }
+  .led-act.aux { animation: act var(--blink) steps(1, end) infinite; }
   .fan-blades.aux { animation-play-state: running; }
 
+  /* Рисунок вспышек. Все точки переключения кратны 5% от периода, а период
+     кратен секунде, — значит любое изменение приходится на общий такт в
+     десятую долю секунды. Числа тут не косметика: сдвинешь на процент, и
+     лампа начнёт перерисовывать сцену в свои собственные кадры. */
   @keyframes act {
-    0%, 9%    { fill-opacity: 1 }
-    10%, 23%  { fill-opacity: 0.1 }
-    24%, 31%  { fill-opacity: 1 }
-    32%, 37%  { fill-opacity: 0.1 }
-    38%, 54%  { fill-opacity: 1 }
-    55%, 62%  { fill-opacity: 0.1 }
-    63%, 69%  { fill-opacity: 1 }
-    70%, 81%  { fill-opacity: 0.1 }
-    82%, 88%  { fill-opacity: 1 }
-    89%, 96%  { fill-opacity: 0.1 }
-    97%, 100% { fill-opacity: 1 }
+    0.00% { fill-opacity: 1 }
+    3.57% { fill-opacity: 1 }
+    7.14% { fill-opacity: 1 }
+    10.71% { fill-opacity: 0.1 }
+    14.29% { fill-opacity: 0.1 }
+    17.86% { fill-opacity: 0.1 }
+    21.43% { fill-opacity: 0.1 }
+    25.00% { fill-opacity: 1 }
+    28.57% { fill-opacity: 1 }
+    32.14% { fill-opacity: 0.1 }
+    35.71% { fill-opacity: 0.1 }
+    39.29% { fill-opacity: 1 }
+    42.86% { fill-opacity: 1 }
+    46.43% { fill-opacity: 1 }
+    50.00% { fill-opacity: 1 }
+    53.57% { fill-opacity: 1 }
+    57.14% { fill-opacity: 0.1 }
+    60.71% { fill-opacity: 0.1 }
+    64.29% { fill-opacity: 1 }
+    67.86% { fill-opacity: 1 }
+    71.43% { fill-opacity: 0.1 }
+    75.00% { fill-opacity: 0.1 }
+    78.57% { fill-opacity: 0.1 }
+    82.14% { fill-opacity: 1 }
+    85.71% { fill-opacity: 1 }
+    89.29% { fill-opacity: 0.1 }
+    92.86% { fill-opacity: 0.1 }
+    96.43% { fill-opacity: 1 }
+    100% { fill-opacity: 1 }
   }
-  /* Период и фаза приходят инлайн от генератора — каждая лампа своя.
-     Ядро лампы щёлкает резко, ореол за ним следует плавно: так вспышка
-     читается, но не рябит. */
-  .rig.on .led-act { animation: act 1.4s steps(1, end) infinite; }
+  /* Фаза приходит инлайн от генератора, период общий. Ореол щёлкает вместе
+     с ядром, а не переползает плавно: плавный ореол — это перерисовка на
+     каждом кадре монитора, и сорок ламп разом не давали сцене простоя. */
+  .rig.on .led-act { animation: act var(--blink) steps(1, end) infinite; }
   .halo { transition: fill-opacity 0.35s ease; }
-  .rig.on .led-act.halo { animation: act 1.4s ease-in-out infinite; }
+  /* Ореол не мигает: он и так виден, а анимаций в сцене от него втрое
+     больше, чем ламп, — по три круга на каждую. Браузер обновляет каждую
+     анимацию в каждом кадре, и эта плата не зависит от того, изменилось
+     ли что-нибудь на экране. */
+  .rig.on .led-act.halo { animation: none; fill-opacity: 0.75; }
   .led-hb.halo, .fault.halo, .fault-sys.halo, .led-id.halo { transition: fill-opacity 0.4s ease; }
-  .rig:not(.init) .led-hb.halo { animation: hb 1.05s ease-in-out infinite; }
-  .pick.pulled .fault.halo, .rig.has-fault .fault-sys.halo { animation: faultblink 0.9s ease-in-out infinite; }
-  .rig.identify .led-id.halo { animation: idblink 1.1s ease-in-out infinite; }
+  .rig:not(.init) .led-hb.halo { animation: none; fill-opacity: 0.6; }
+  .pick.pulled .fault.halo, .rig.has-fault .fault-sys.halo { animation: faultblink var(--beat) steps(1, end) infinite; }
+  .rig.identify .led-id.halo { animation: idblink var(--beat) steps(1, end) infinite; }
 
   /* Линк сети поднимается первым — раньше, чем стартует хост. */
   .led-link { fill-opacity: 0.12; transition: fill-opacity 0.15s steps(1, end); }
@@ -403,16 +441,16 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   /* Heartbeat BMC: такой же резкий, но единственный строго ровный —
      короткая вспышка раз в секунду, всё остальное дёргается вразнобой. */
   .led-hb { fill-opacity: 0.1; }
-  .rig:not(.init) .led-hb { animation: hb 1.05s steps(1, end) infinite; }
-  @keyframes hb { 0%, 13% { fill-opacity: 1 } 14%, 100% { fill-opacity: 0.1 } }
+  .rig:not(.init) .led-hb { animation: hb var(--beat) steps(1, end) infinite; }
+  @keyframes hb { 0%, 10% { fill-opacity: 1 } 15%, 100% { fill-opacity: 0.1 } }
 
   /* Неисправность. .fault — лампа своего узла и лежит внутри него, поэтому
      загорается ровно у того, что вынули. .fault-sys — общая, спереди и
      сзади, и зажигается от любой ошибки. */
   circle.fault, circle.fault-sys { fill-opacity: 0; transition: fill-opacity 0.15s steps(1, end); }
-  .pick.pulled > .fault, .pick.pulled .fault { fill-opacity: 1; animation: faultblink 0.9s steps(1, end) infinite; }
-  .rig.has-fault .fault-sys { fill-opacity: 1; animation: faultblink 0.9s steps(1, end) infinite; }
-  @keyframes faultblink { 0%, 54% { fill-opacity: 1 } 55%, 100% { fill-opacity: 0.05 } }
+  .pick.pulled > .fault, .pick.pulled .fault { fill-opacity: 1; animation: faultblink var(--beat) steps(1, end) infinite; }
+  .rig.has-fault .fault-sys { fill-opacity: 1; animation: faultblink var(--beat) steps(1, end) infinite; }
+  @keyframes faultblink { 0%, 50% { fill-opacity: 1 } 55%, 100% { fill-opacity: 0.05 } }
 
 
 
@@ -498,6 +536,13 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
      оставляли бы узлы в состоянии, из которого их никто не вернёт. */
   .rig.assembly .pick, .rig.assembly .unit { pointer-events: none; }
 
+  /* Схема ушла с экрана или вкладку свернули — крутить нечего. Пауза, а не
+     отмена: анимации продолжатся с того же места, включая недоигранную
+     сборку. */
+  .rig.dormant *, .rig.dormant *::before, .rig.dormant *::after {
+    animation-play-state: paused !important;
+  }
+
   /* ── Сервисный режим: извлечение поштучно ─────────────────────────────── */
   .rig.service .pick { cursor: grab; }
   .rig.service .pick.pulled .pick-body { transform: translateY(-24px); }
@@ -533,7 +578,16 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
     from { opacity: 0; transform: translateX(-104px); }
   }
   /* ── fans ──────────────────────────────── */
-  .fan-blades { transform-box: fill-box; transform-origin: center; animation: spin 2.1s linear infinite; animation-play-state: paused; }
+  /* Вращение ступенями, а не плавно: двадцать положений за оборот. На
+     секунде оборота глаз ступеней не различает, а браузер вместо ста сорока
+     четырёх перерисовок в секунду делает двадцать — плавное вращение по
+     замеру стоит на четверть дороже. Период общий, вразнобой крыльчатки
+     разводит сдвиг фазы: он приходит инлайн. */
+  .fan-blades {
+    transform-box: fill-box; transform-origin: center;
+    animation: spin var(--spin) steps(20, end) infinite;
+    animation-play-state: paused;
+  }
   .rig.on .fan-blades { animation-play-state: running; }
 
   /* Вынули хотя бы один вентилятор — остальные уходят на максимум. Так ведёт
@@ -541,7 +595,7 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
      Каждой лопасти генератор проставляет свой период инлайном, поэтому здесь
      нужен !important. Вентилятор блока питания живёт своей жизнью — у него
      отдельный контроллер, и в разгон он не идёт. */
-  .rig.on:has(.fan.pulled) .fan-blades:not(.aux) { animation-duration: 0.42s !important; }
+  .rig.on:has(.fan.pulled) .fan-blades:not(.aux) { animation-duration: 0.55s !important; }
   .rig.on .fan.pulled .fan-blades { animation-play-state: paused; }
   .fan.pulled .fan-blades { animation-play-state: paused; }
   @keyframes spin { to { transform: rotate(360deg); } }
@@ -667,7 +721,11 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   }
   /* Перелив идёт наискось, из левого нижнего угла в правый верхний — по
      прямой он читался полосой засветки, а не игрой на полированном кремнии. */
-  .die-shine { animation: dieShine 4.5s ease-in-out infinite; }
+  /* Перелив по кремнию — самая дорогая анимация на схеме: большая полоса с
+     градиентом под clip-path, и раньше она перерисовывалась в каждом кадре
+     монитора. Восемьдесят ступеней за восемь секунд дают те же десять
+     перерисовок в секунду, что и у ламп, и попадают в общий такт. */
+  .die-shine { animation: dieShine 8s steps(80, end) infinite; }
   @keyframes dieShine {
     0%, 100% { transform: translate(0, 0); }
     50%      { transform: translate(150px, -82px); }
@@ -734,15 +792,15 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
      пока поднимается BMC и жать нельзя; медленно — дежурный режим, можно
      включать; ровно — машина работает. */
   .pwr-led { stroke-opacity: 0; }
-  .rig.init .pwr-led { stroke-opacity: 1; animation: pwrblink 0.28s steps(1, end) infinite; }
-  .rig.standby .pwr-led { stroke-opacity: 1; animation: pwrblink 2.2s steps(1, end) infinite; }
+  .rig.init .pwr-led { stroke-opacity: 1; animation: pwrblink 0.4s steps(1, end) infinite; }
+  .rig.standby .pwr-led { stroke-opacity: 1; animation: pwrblink 2s steps(1, end) infinite; }
   .rig.on .pwr-led { stroke-opacity: 1; animation: none; }
   @keyframes pwrblink { 0%, 49% { stroke-opacity: 1 } 50%, 100% { stroke-opacity: 0.08 } }
   .rig.init .power-btn { cursor: not-allowed; }
 
   /* Опознание в стойке: ровное резкое мигание, чтобы найти машину глазами. */
   .led-id { fill-opacity: 0; }
-  .rig.identify .led-id { animation: idblink 1.1s steps(1, end) infinite; }
+  .rig.identify .led-id { animation: idblink var(--beat) steps(1, end) infinite; }
   @keyframes idblink { 0%, 49% { fill-opacity: 1 } 50%, 100% { fill-opacity: 0 } }
 
   .power-btn { cursor: pointer; }
