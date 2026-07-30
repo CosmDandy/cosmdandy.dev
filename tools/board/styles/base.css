@@ -360,6 +360,8 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   .cables { opacity: 0.9; }
 
 
+  /* @part: term */
+
   /* ── Индикация ────────────────────────────────────────────────────────── */
   /* Гасим лампы через fill-opacity, а не через opacity. opacity на SVG-узле
      поднимает его в отдельный composited layer, и эти слои перекрывали сцену
@@ -576,7 +578,7 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
 .rig-side {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   gap: 14px;
   height: 100%;
   /* Колонка нулевой ширины: приборы из неё не должны торчать, пока их не
@@ -598,52 +600,19 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
    — прокрутки нет, а панель разъезжается. */
 .rig.service .console-log { flex: 1 1 0; height: auto; min-height: 0; }
 
-.gauges {
-  display: none;
-  gap: 8px;
-  padding: 12px 14px;
-  border: 1px solid var(--edge);
-  border-radius: 6px;
-  background: linear-gradient(180deg, rgba(9,34,40,0.92) 0%, rgba(7,26,31,0.88) 100%);
-  font-family: ui-monospace, "SF Mono", Menlo, monospace;
-}
 
-/* Боковая колонка узкая — имя и значение идут столбиком, а не в строку.
-   Строкой они помещаются только на очень широком окне, а переносить их
-   по-разному на разных экранах хуже, чем один плотный вид везде. */
-.gauge { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1px; min-width: 0; }
-.g-name {
-  font-size: 0.6rem; letter-spacing: 0.14em; text-transform: uppercase;
-  color: var(--dim);
-}
-.g-value { font-size: 0.9rem; color: var(--head); font-variant-numeric: tabular-nums; }
-.g-spark { grid-column: 1 / -1; width: 100%; height: 26px; display: block; margin-top: 1px; }
-.g-line { stroke: var(--cyan); stroke-width: 1.4; vector-effect: non-scaling-stroke; }
-.g-area { fill: rgba(42,161,152,0.14); stroke: none; }
-.gauge.warn .g-line { stroke: var(--amber); }
-.gauge.warn .g-area { fill: rgba(181,137,0,0.16); }
-.gauge.warn .g-value { color: var(--amber); }
-.gauge.off .g-value { color: var(--dim); }
-.gauge.off .g-line { stroke: rgba(147,161,161,0.3); }
-.gauge.off .g-area { fill: rgba(147,161,161,0.06); }
-
-.rig.service .gauges { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; }
-
-/* Узкое окно: приборам не хватает боковой колонки, уводим их под машину. */
+/* Узкое окно: колонке не хватает места сбоку, уводим её под машину. */
 @media (max-width: 1100px) {
   .rig.service .rig-body { grid-template-columns: minmax(0, 1fr); }
   /* Потолок оставляем: голое width: 100% било по нему и растягивало машину
      на всю колонку, из-за чего приборы под ней уезжали за экран. */
   .stage { width: min(100%, var(--rig-w)); }
-  /* Колонка одна, поэтому приборы становятся третьей строкой — иначе они
-     остались бы в несуществующей второй колонке. Машина при этом ужимается:
-     под ней теперь стоят и лента, и приборы, и на прежнем размере страница
+  /* Колонка одна, поэтому консоль становится третьей строкой — иначе она
+     осталась бы в несуществующей второй колонке. Машина при этом ужимается:
+     под ней теперь стоят и лента, и консоль, и на прежнем размере страница
      обзаводилась прокруткой. */
   .rig-side { grid-area: 3 / 1 / 4 / 2; }
   .rig.service { --rig-w: min(46vh * 1.74, 1200px); }
-  /* Приборы под машиной ложатся в четыре колонки, а не в две: в ширину
-     места вдоволь, а в высоту — нет, её занимает сама машина. */
-  .rig.service .gauges { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .rig.service .panel { min-height: 140px; }
 }
 
@@ -798,3 +767,5 @@ a.callout.lit .co-dot { fill: var(--head); }
 @media (max-width: 860px) {
   .tl-meta { display: none; }
 }
+
+/* TODO-part: screen */

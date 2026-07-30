@@ -205,7 +205,11 @@
   }
 
   function powerOn() {
-    state.powered = true; save();
+    state.powered = true;
+    // Аптайм — время работы хоста, а не вкладки: без этой отметки uptime
+    // считал от загрузки страницы и переживал power off, не заметив его.
+    state.bootAt = Date.now();
+    save();
     setPower('on');
     // Порядок ровно такой, как видно вживую: сперва поднимается линк сетевой
     // карты, следом BMC начинает биться, и только потом стартует хост.
@@ -313,7 +317,6 @@
 
   function toggleService() {
     const on = rig.classList.toggle('service');
-    if (on) drawGauges();
     line(on ? 'service mode engaged · терминал и диагностика' : 'service mode released',
          on ? 'warn' : 'muted');
     if (on) initTimeline();     // лента нужна только разобранной машине
@@ -435,217 +438,288 @@
     window.open(href, '_blank', 'noopener');
   });
 
-  // ── Терминал ───────────────────────────────────────────────────────────
-  // Консоль не только пишет, но и слушает: те же действия, что кнопками, но
-  // словами. Ссылки в прототипе не открываются — команда печатает адрес.
-  const LINKS = {
-    blog: 'https://blog.cosmdandy.dev',
-    cv: 'https://cv.cosmdandy.dev',
-    github: 'https://github.com/cosmdandy',
-    linkedin: 'https://linkedin.com/in/cosmdandy',
-    telegram: 'https://t.me/cosmdandy',
-    email: 'mailto:i@cosmdandy.dev',
-  };
+  // ── Терминал: ядро оболочки ────────────────────────────────────────────
+  // Раньше здесь была лестница из case по именам команд. Она работала, но
+  // имена команд существовали только как метки switch и текст в справке —
+  // поэтому ни дополнить по Tab, ни собрать help из самого списка было
+  // нечем, а справка расходилась с реальностью молча.
+  //
+  // Теперь команда объявляет себя сама: имя, группа, краткая строка помощи,
+  // кандидаты для дополнения и функция. Функция ВОЗВРАЩАЕТ строки, а не
+  // печатает их, — иначе не собрать конвейер: grep должен получить то, что
+  // вернула предыдущая ступень, а не читать чужой вывод из лога.
 
-  const HELP = [
-    'ПИТАНИЕ И СОСТОЯНИЕ',
-    '  power on|off|cycle   — питание, powercycle как в racadm',
-    '  reboot               — тёплая перезагрузка хоста',
-    '  assemble             — пересобрать машину с нуля, как при первом заходе',
-    '  status               — сводка состояния узлов',
-    '  sensors              — датчики: температуры, обороты, ватты',
-    '  sel                  — журнал системных событий',
-    'ЖЕЛЕЗО',
-    '  fru                  — паспорт машины: модель, серийник, ревизия',
-    '  dimm                 — карта заполнения памяти по каналам',
-    '  nvme list            — накопители в отсеках',
-    '  lspci                — устройства на шинах PCIe',
-    '  fans                 — обороты и состояние вентиляторов',
-    'ОБСЛУЖИВАНИЕ',
-    '  cover open|close     — снять или поставить крышку',
-    '  service on|off       — сервисный режим, извлечение узлов',
-    '  id on|off            — опознание в стойке',
-    '  lightpath            — выдвинуть панель диагностики',
-    '  bios                 — ключевые настройки прошивки',
-    'ПРОЧЕЕ',
-    '  links · open <имя> · whoami · uptime · clear · help',
-  ];
+  const CMDS = new Map();
 
-  // Данные машины: те же числа, что нарисованы на плате.
-  const FRU = [
-    'Manufacturer   : COSMDANDY',
-    'Product Name   : CD93-FS1',
-    'Board Revision : 13',
-    'Serial Number  : CD93-2026-0730',
-    'BIOS Version   : 2.6.1  (2026-05-14)',
-    'BMC Firmware   : 2.14.3  (AST2600)',
-    'CPU            : 2× Xeon Scalable · LGA 4677 · 32c/64t',
-    'Memory         : 32× DDR5 RDIMM 5600 MT/s · 1.0 TiB',
-    'Storage        : 6× U.2 NVMe · 1× Optane P5800X',
-    'Network        : 2× 25G SFP+ (OCP 3.0) · 2× 1GbE · 1× MLAN',
-  ];
-
-  const SEL = [
-    ['0x0012', 'System Boot Initiated', 'ok'],
-    ['0x0013', 'Memory Training Complete · 32 of 32', 'ok'],
-    ['0x0014', 'Fan Bay 6 · Empty · airflow reduced', 'warn'],
-    ['0x0015', 'PSU-1 Input 220V · redundancy full', 'ok'],
-    ['0x0016', 'BMC Heartbeat Established', 'ok'],
-  ];
-
-  const BIOS = [
-    'Boot Mode              : UEFI',
-    'Secure Boot            : Enabled',
-    'SR-IOV                 : Enabled',
-    'Hyper-Threading        : Enabled',
-    'Memory Mode            : Independent · 8 channels/CPU',
-    'Power Profile          : Performance Per Watt (OS)',
-    'System Profile         : Custom · C-States off',
-    'Boot Order             : 1) NVMe 0  2) PXE 25G  3) BMC Virtual Media',
-  ];
-
-  const LSPCI = [
-    '00:00.0 Host bridge: Intel Sapphire Rapids DMI',
-    '17:00.0 Non-Volatile memory controller: NVMe SSD 3.84TB',
-    '18:00.0 Non-Volatile memory controller: Optane P5800X',
-    '31:00.0 Ethernet controller: 25G SFP28 OCP 3.0 (rev 02)',
-    '65:00.0 Ethernet controller: 1GbE dual-port',
-    'b1:00.0 PCI bridge: Riser 1 · PCIe Gen5 x16',
-    'b2:00.0 PCI bridge: Riser 2 · PCIe Gen5 x16',
-    'ff:1e.0 Baseboard Management Controller: AST2600',
-  ];
-
-  function svcOn(on) {
-    if (rig.classList.contains('service') !== on) toggleService();
+  function cmd(spec) {
+    // Порядок вставки частей задаёт порядок регистрации, и перепутанные
+    // маркеры молча перетирали бы команды. Пусть лучше падает громко.
+    if (CMDS.has(spec.name)) throw new Error('команда уже объявлена: ' + spec.name);
+    CMDS.set(spec.name, spec);
+    (spec.alias || []).forEach(function (a) {
+      CMDS.set(a, Object.assign({}, spec, { alias_of: spec.name }));
+    });
   }
 
-  function exec(raw) {
-    const [cmd, arg] = raw.trim().toLowerCase().split(/\s+/);
-    if (!cmd) return;
-    line('$ ' + raw.trim(), 'muted');
-    switch (cmd) {
-      case 'help': HELP.forEach(function (h) { line(h); }); break;
-      case 'power':
-        if (arg === 'off') { if (state.powered) powerOff(); else line('уже выключен', 'muted'); }
-        else if (arg === 'on') {
-          if (rig.classList.contains('init')) line('power inhibited · bmc init', 'warn');
-          else if (state.powered) line('уже работает', 'muted');
-          else { line('power on', 'muted'); powerOn(); }
-        } else if (arg === 'cycle') {
-          if (!state.powered) { line('power on', 'muted'); powerOn(); }
-          else { powerOff(); wait(1000, function () { line('power on', 'muted'); powerOn(); }); }
-        } else line('power on|off|cycle', 'warn');
-        break;
-      case 'cover':
-        if (arg === 'open') { setLid(true); line('cover removed', 'ok'); }
-        else if (arg === 'close') { setLid(false); line('cover in place', 'ok'); }
-        else line('cover open|close', 'warn');
-        break;
-      case 'service':
-        if (arg === 'on' || arg === 'off') svcOn(arg === 'on');
-        else line('service on|off', 'warn');
-        break;
-      case 'id':
-        if (arg === 'on' || arg === 'off') {
-          if (rig.classList.contains('identify') !== (arg === 'on')) toggleIdentify();
-        } else line('id on|off', 'warn');
-        break;
-      case 'lightpath': toggleLp(); break;
-      case 'reboot':
-        if (!state.powered) { line('машина выключена · power on', 'warn'); break; }
-        line('graceful shutdown …', 'muted');
-        powerOff();
-        wait(1200, function () { line('power on', 'muted'); powerOn(); });
-        break;
-      case 'assemble':
-        line('re-seating all units …', 'muted');
-        reassemble();
-        wait(assemblyEnd(), function () { line('all units seated', 'ok'); });
-        break;
-      case 'fru': FRU.forEach(function (l) { line(l); }); break;
-      case 'bios': BIOS.forEach(function (l) { line(l); }); break;
-      case 'lspci': LSPCI.forEach(function (l) { line(l); }); break;
-      case 'sel':
-        line('ID      EVENT', 'muted');
-        SEL.forEach(function (e) { line(e[0] + '  ' + e[1], e[2]); });
-        break;
-      case 'sensors': {
-        if (!state.powered) { line('датчики доступны только на работающей машине', 'warn'); break; }
-        const missing = chassis.querySelectorAll('.fan.pulled').length + 1;   // один слот пуст всегда
-        line('CPU0 Temp      ' + (41 + missing * 3 + Math.round(Math.random() * 6)) + ' °C', 'ok');
-        line('CPU1 Temp      ' + (39 + missing * 3 + Math.round(Math.random() * 6)) + ' °C', 'ok');
-        line('Inlet Temp     ' + (21 + Math.round(Math.random() * 2)) + ' °C', 'ok');
-        line('Fan Speed      ' + (12400 + missing * 1800 + Math.round(Math.random() * 600)) + ' RPM',
-             missing > 1 ? 'warn' : 'ok');
-        line('PSU Input      ' + (318 + Math.round(Math.random() * 44)) + ' W', 'ok');
-        line('DIMM Populated ' + (32 - chassis.querySelectorAll('.dimm.pulled').length) + ' of 32', 'ok');
-        break;
-      }
-      case 'fans': {
-        const pulled = new Set(Array.from(chassis.querySelectorAll('.fan.pulled'))
-          .map(function (f) { return Number(f.dataset.fan); }));
-        for (let n = 0; n < 8; n++) {
-          if (n === 5) { line('FAN' + (n + 1) + '  —      empty bay', 'warn'); continue; }
-          if (pulled.has(n)) { line('FAN' + (n + 1) + '  —      removed', 'warn'); continue; }
-          line('FAN' + (n + 1) + '  ' + (12100 + Math.round(Math.random() * 900)) + '  RPM  ok', 'ok');
-        }
-        break;
-      }
-      case 'dimm': {
-        const out = chassis.querySelectorAll('.dimm.pulled').length;
-        line('CPU0  A0-H0  8/8   5600 MT/s  RDIMM 32GB', 'ok');
-        line('CPU0  A1-H1  8/8   5600 MT/s  RDIMM 32GB', 'ok');
-        line('CPU1  A0-H0  8/8   5600 MT/s  RDIMM 32GB', 'ok');
-        line('CPU1  A1-H1  8/8   5600 MT/s  RDIMM 32GB', 'ok');
-        line('Total       ' + (32 - out) + ' of 32 · ' + ((32 - out) * 32 / 1024).toFixed(2) + ' TiB',
-             out ? 'warn' : 'ok');
-        break;
-      }
-      case 'nvme': {
-        if (arg && arg !== 'list') { line('nvme list', 'warn'); break; }
-        for (let n = 0; n < 6; n++) {
-          const opt = n === 2;
-          line('/dev/nvme' + n + '  ' + (opt ? 'INTEL OPTANE P5800X  1.6 TB ' : 'U.2 NVMe Gen4        3.84 TB')
-               + '  ' + (opt ? '  100% ' : '   98% ') + 'life', opt ? 'ok' : 'muted');
-        }
-        break;
-      }
-      case 'uptime': {
-        const s2 = Math.floor((Date.now() - t0) / 1000);
-        line(state.powered ? 'up ' + Math.floor(s2 / 60) + ' min ' + (s2 % 60) + ' sec · 1 user'
-                           : 'standby · хост выключен', state.powered ? 'ok' : 'muted');
-        break;
-      }
-      case 'status': {
-        const pulled = chassis.querySelectorAll('.pulled').length;
-        line('power   : ' + (state.powered ? 'on' : 'standby'), state.powered ? 'ok' : 'muted');
-        line('cover   : ' + (rig.classList.contains('lid-off') ? 'removed' : 'in place'));
-        line('service : ' + (rig.classList.contains('service') ? 'on' : 'off'));
-        line('health  : ' + (pulled ? 'degraded · вынуто узлов: ' + pulled : 'ok'),
-             pulled ? 'warn' : 'ok');
-        break;
-      }
-      case 'links':
-        Object.keys(LINKS).forEach(function (k) { line(k.padEnd(9) + LINKS[k]); });
-        break;
-      case 'open':
-        if (LINKS[arg]) line(LINKS[arg], 'ok');
-        else line('нет такого раздела · попробуй links', 'warn');
-        break;
-      case 'clear': log.innerHTML = ''; break;
-      case 'whoami': line('Timofey Kondrashin · DevOps', 'ok'); break;
-      default: line('неизвестная команда: ' + cmd + ' · help', 'warn');
+  // Настройки прошивки объявляет экран (parts/screen.js), а он выполняется
+  // ниже по файлу. До первого нажатия клавиши его уже нет смысла ждать, но
+  // если экран не собран вовсе — команды должны работать, просто без
+  // настроек. Отсюда try: обращение к необъявленной переменной бросает.
+  function nvBag() {
+    try { return nv; } catch (e) { return {}; }
+  }
+
+  let cwd = '/home/cosmdandy';
+
+  // ── Разбор строки ──────────────────────────────────────────────────────
+  // Было: split по пробелам и всё в нижний регистр — то есть ровно два
+  // слова, и путь /Proc превращался в /proc. Теперь регистр сохраняется:
+  // пути и шаблоны grep к нему чувствительны. К нижнему приводится только
+  // имя команды при поиске в реестре.
+
+  function lex(raw) {
+    const stages = [];
+    let argv = [];
+    let token = '';
+    let quote = '';
+    let has = false;
+
+    function push() {
+      if (has) { argv.push(token); token = ''; has = false; }
     }
+
+    for (let i = 0; i < raw.length; i++) {
+      const ch = raw[i];
+      if (quote) {
+        if (ch === quote) quote = ''; else { token += ch; has = true; }
+      } else if (ch === '"' || ch === "'") {
+        quote = ch; has = true;
+      } else if (ch === ' ' || ch === '\t') {
+        push();
+      } else if (ch === '|') {
+        push();
+        stages.push(argv);
+        argv = [];
+      } else {
+        token += ch; has = true;
+      }
+    }
+    push();
+    stages.push(argv);
+    return stages.filter(function (s) { return s.length; });
   }
 
-  const promptInput = document.getElementById('prompt');
-
-  // История команд, как в любой оболочке: стрелки листают назад и вперёд.
-  // pos === history.length означает «строка, которую сейчас набирают»;
-  // её черновик сохраняем, чтобы он вернулся, когда долистаешь вниз.
+  // ── История ────────────────────────────────────────────────────────────
   const history = [];
   let pos = 0;
   let draft = '';
+
+  // `!!` — предыдущая строка, `!7` — седьмая, `!se` — последняя на «se».
+  // Развёрнутое печатается эхом и кладётся в историю уже развёрнутым: так
+  // ведёт себя bash, и так понятно, что именно выполнилось.
+  function expand(raw) {
+    const s = raw.trim();
+    if (s[0] !== '!' || !s.length) return raw;
+    const rest = s.slice(1);
+    if (rest === '!') return history[history.length - 1] || '';
+    if (/^\d+$/.test(rest)) return history[Number(rest) - 1] || '';
+    for (let i = history.length - 1; i >= 0; i--) {
+      if (history[i].indexOf(rest) === 0) return history[i];
+    }
+    return '';
+  }
+
+  // ── Выполнение ─────────────────────────────────────────────────────────
+
+  function found(name) {
+    return CMDS.get(String(name).toLowerCase());
+  }
+
+  function runStage(argv, stdin) {
+    const spec = found(argv[0]);
+    if (!spec) {
+      const near = suggest(argv[0]);
+      return [{ t: 'неизвестная команда: ' + argv[0] + (near ? ' · может быть ' + near + '?' : ''), c: 'err' }];
+    }
+    if (spec.sink && stdin) {
+      return [{ t: spec.name + ': экранная команда не читается по конвейеру', c: 'err' }];
+    }
+    if (spec.needs === 'power' && !state.powered) {
+      return [{ t: spec.name + ': машина выключена · power on', c: 'warn' }];
+    }
+    const out = spec.run({
+      argv: argv,
+      args: argv.slice(1),
+      stdin: stdin || null,
+      cwd: cwd,
+      setCwd: function (p) { cwd = p; refreshPs1(); },
+      nv: nvBag(),
+      HW: HW,
+      rig: rig,
+      chassis: chassis,
+      line: line,
+    });
+    return out || [];
+  }
+
+  // Похожая команда для подсказки при опечатке: считаем общий префикс, этого
+  // хватает — список короткий, а расстояние Левенштейна тут излишество.
+  function suggest(word) {
+    const w = String(word).toLowerCase();
+    let best = '';
+    let score = 0;
+    CMDS.forEach(function (spec, name) {
+      let i = 0;
+      while (i < w.length && i < name.length && w[i] === name[i]) i++;
+      if (i > score) { score = i; best = name; }
+    });
+    return score >= 2 ? best : '';
+  }
+
+  function exec(raw) {
+    const expanded = expand(raw);
+    if (expanded !== raw.trim() && expanded) line('$ ' + expanded, 'muted');
+    else line('$ ' + raw.trim(), 'muted');
+    const text = expanded || raw;
+    if (!text.trim()) return [];
+
+    if (/[<>]|&&/.test(text)) {
+      line('перенаправление не поддерживается: файловая система только на чтение', 'err');
+      return [];
+    }
+
+    const stages = lex(text);
+    let out = null;
+    for (let i = 0; i < stages.length; i++) out = runStage(stages[i], out);
+    (out || []).forEach(function (row) { line(row.t, row.c || ''); });
+    return out || [];
+  }
+
+  // ── Справка собирается из реестра ──────────────────────────────────────
+  // Пока список команд лежал отдельным массивом, он расходился с самим
+  // switch: команда была, а строки про неё не было, и наоборот.
+  cmd({
+    name: 'help',
+    group: 'ОБОЛОЧКА',
+    brief: 'этот список; help <команда> — подробно',
+    usage: 'help [команда]',
+    complete: function (argv, i) { return i === 1 ? names() : []; },
+    run: function (ctx) {
+      const one = ctx.args[0] && found(ctx.args[0]);
+      if (one) {
+        return [{ t: one.usage || one.name, c: 'ok' },
+                { t: '  ' + one.brief, c: 'muted' }]
+          .concat(one.help ? one.help.map(function (h) { return { t: '  ' + h, c: 'muted' }; }) : []);
+      }
+      const groups = new Map();
+      CMDS.forEach(function (spec, name) {
+        if (spec.alias_of) return;
+        const g = spec.group || 'ПРОЧЕЕ';
+        if (!groups.has(g)) groups.set(g, []);
+        groups.get(g).push({ name: name, brief: spec.brief });
+      });
+      const out = [];
+      groups.forEach(function (list, g) {
+        out.push({ t: g, c: 'ok' });
+        list.forEach(function (c) {
+          out.push({ t: '  ' + c.name + ' '.repeat(Math.max(1, 18 - c.name.length)) + '— ' + c.brief, c: 'muted' });
+        });
+      });
+      out.push({ t: 'Tab дополняет · ↑↓ история · !! повтор · Ctrl+C сброс', c: 'muted' });
+      return out;
+    },
+  });
+
+  cmd({
+    name: 'clear', group: 'ОБОЛОЧКА', brief: 'очистить лог', usage: 'clear',
+    run: function () { log.innerHTML = ''; return []; },
+  });
+
+  cmd({
+    name: 'history', group: 'ОБОЛОЧКА', brief: 'что уже набирали', usage: 'history',
+    run: function () {
+      return history.map(function (h, i) { return { t: String(i + 1).padStart(4) + '  ' + h, c: 'muted' }; });
+    },
+  });
+
+  function names() {
+    const out = [];
+    CMDS.forEach(function (spec, name) { if (!spec.alias_of) out.push(name); });
+    return out.sort();
+  }
+
+  // ── Дополнение ─────────────────────────────────────────────────────────
+  // Кандидаты берём у самой команды: она одна знает, что стоит на месте
+  // своего аргумента — пути, ключи или имена ссылок.
+  function complete(text) {
+    const stages = lex(text);
+    const argv = stages.length ? stages[stages.length - 1] : [];
+    const tail = text.endsWith(' ') ? '' : (argv[argv.length - 1] || '');
+    const i = text.endsWith(' ') ? argv.length : argv.length - 1;
+    let list = [];
+    if (i <= 0) {
+      list = names();
+    } else {
+      const spec = found(argv[0]);
+      if (spec && spec.complete) list = spec.complete(argv, i) || [];
+    }
+    return list.filter(function (c) { return c.indexOf(tail) === 0 && c !== tail; });
+  }
+
+  // Что дорисовать серым: сначала кандидат дополнения, если он один или у
+  // всех общий префикс; если кандидатов нет — последняя команда из истории
+  // с таким началом, как в fish.
+  function ghostFor(text) {
+    if (!text) return '';
+    const cand = complete(text);
+    if (cand.length) {
+      const tailStart = text.length - (text.split(/\s+/).pop() || '').length;
+      let common = cand[0];
+      for (let k = 1; k < cand.length; k++) {
+        let j = 0;
+        while (j < common.length && j < cand[k].length && common[j] === cand[k][j]) j++;
+        common = common.slice(0, j);
+      }
+      const typed = text.slice(tailStart);
+      if (common.length > typed.length) return common.slice(typed.length);
+      return '';
+    }
+    for (let i = history.length - 1; i >= 0; i--) {
+      if (history[i].indexOf(text) === 0) return history[i].slice(text.length);
+    }
+    return '';
+  }
+
+  // ── Поле ввода ─────────────────────────────────────────────────────────
+  const promptInput = document.getElementById('prompt');
+  const ghostTyped = document.querySelector('.ghost-typed');
+  const ghostRest = document.querySelector('.ghost-rest');
+  const ps1Cwd = document.getElementById('ps1-cwd');
+
+  function refreshPs1() {
+    if (ps1Cwd) ps1Cwd.textContent = cwd === '/home/cosmdandy' ? '~' : cwd;
+  }
+  refreshPs1();
+
+  // Подсказку рисуем зеркалом под полем: в <input> двух цветов не бывает.
+  // Набранное в зеркале прозрачное — оно нужно только чтобы занять ширину,
+  // а видно продолжение приглушённым тоном.
+  function paintGhost() {
+    if (!ghostRest) return;
+    const text = promptInput.value;
+    const atEnd = promptInput.selectionStart === text.length;
+    const rest = atEnd ? ghostFor(text) : '';
+    ghostTyped.textContent = text;
+    ghostRest.textContent = rest;
+    ghostTyped.parentNode.style.transform = 'translateX(' + -promptInput.scrollLeft + 'px)';
+  }
+
+  function takeGhost() {
+    if (!ghostRest || !ghostRest.textContent) return false;
+    promptInput.value += ghostRest.textContent;
+    paintGhost();
+    return true;
+  }
 
   document.getElementById('prompt-form').addEventListener('submit', function (e) {
     e.preventDefault();
@@ -653,11 +727,61 @@
     if (raw && history[history.length - 1] !== raw) history.push(raw);
     pos = history.length;
     draft = '';
-    exec(promptInput.value);
+    if (raw) exec(raw);
     promptInput.value = '';
+    paintGhost();
   });
 
+  promptInput.addEventListener('input', paintGhost);
+  promptInput.addEventListener('scroll', paintGhost);
+
   promptInput.addEventListener('keydown', function (e) {
+    // Ctrl+W не вешаем: в браузере он закрывает вкладку и не отменяется.
+    if (e.ctrlKey && !e.altKey && !e.metaKey) {
+      const k = e.key.toLowerCase();
+      if (k === 'c') {
+        e.preventDefault();
+        line('^C', 'muted');
+        promptInput.value = ''; paintGhost();
+        return;
+      }
+      if (k === 'l') { e.preventDefault(); log.innerHTML = ''; return; }
+      if (k === 'u') { e.preventDefault(); promptInput.value = ''; paintGhost(); return; }
+      if (k === 'a') { e.preventDefault(); promptInput.setSelectionRange(0, 0); paintGhost(); return; }
+      if (k === 'e') {
+        e.preventDefault();
+        const end = promptInput.value.length;
+        promptInput.setSelectionRange(end, end); paintGhost();
+        return;
+      }
+      if (k === 'k') {
+        e.preventDefault();
+        promptInput.value = promptInput.value.slice(0, promptInput.selectionStart);
+        paintGhost();
+        return;
+      }
+    }
+
+    if (e.key === 'Tab') {
+      e.preventDefault();               // иначе фокус уедет на ссылку под полем
+      if (takeGhost()) return;
+      const cand = complete(promptInput.value);
+      if (cand.length > 1) {
+        line(cand.join('  '), 'muted');
+      }
+      return;
+    }
+
+    if (e.key === 'Escape') {
+      if (ghostRest && ghostRest.textContent) { e.preventDefault(); ghostRest.textContent = ''; }
+      return;
+    }
+
+    if (e.key === 'ArrowRight' || e.key === 'End') {
+      if (promptInput.selectionStart === promptInput.value.length && takeGhost()) e.preventDefault();
+      return;
+    }
+
     if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
     if (!history.length) return;
     e.preventDefault();                       // иначе курсор прыгает в начало строки
@@ -668,11 +792,22 @@
       pos = Math.min(history.length, pos + 1);
     }
     promptInput.value = pos === history.length ? draft : history[pos];
+    paintGhost();
     // курсор в конец: иначе он остаётся там, где был, и правка идёт с середины
     const end = promptInput.value.length;
     window.requestAnimationFrame(function () { promptInput.setSelectionRange(end, end); });
   });
 
+  // Ручка для проверок. Через поле ввода терминал не потестировать: сборка
+  // chromium в контейнере роняет рендерер на любом <input>, и инструменты
+  // удаляют поля до отрисовки страницы.
+  window.__rig = {
+    exec: function (s) { return exec(s); },
+    complete: complete,
+    ghost: ghostFor,
+    cwd: function () { return cwd; },
+    names: names,
+  };
 
   // ── Переключатель видов ────────────────────────────────────────────────
   // Визитка и схема — два способа показать одно и то же. Выбор запоминается,
@@ -724,21 +859,10 @@
     n.addEventListener('mouseleave', function () { lit(g, false); });
   });
 
-  // ── Приборы ────────────────────────────────────────────────────────────
-  // Спарклайны в духе Oxide: значение и шестьдесят последних точек. Цифры
-  // считаются из состояния машины, а не выдумываются: выключенный хост,
-  // вынутый вентилятор или планка сразу видны и в числе, и в графике.
-  const GAUGES = Array.from(document.querySelectorAll('.gauge')).map(function (el) {
-    return {
-      el: el,
-      key: el.dataset.metric,
-      value: el.querySelector('.g-value'),
-      line: el.querySelector('.g-line'),
-      area: el.querySelector('.g-area'),
-      hist: [],
-    };
-  });
-  const HIST = 60;
+  // ── Железо: что машина о себе рассказывает ─────────────────────────────
+  // Единственное место, где считаются показатели датчиков. Раньше их считали
+  // дважды — приборы в боковой колонке по одной формуле, команда sensors по
+  // другой, — и температуры в них расходились.
 
   function metric(key) {
     const on = rig.classList.contains('on');
@@ -777,38 +901,357 @@
     return { v: 0, text: '—', warn: false };
   }
 
-  function drawGauges() {
-    GAUGES.forEach(function (g) {
-      const m = metric(g.key);
-      g.hist.push(m.v);
-      if (g.hist.length > HIST) g.hist.shift();
-      g.value.textContent = m.text;
-      g.el.classList.toggle('warn', !!m.warn);
-      g.el.classList.toggle('off', !!m.off);
+  // ── Что машина о себе рассказывает ─────────────────────────────────────
+  // Ни одного числа в командах: состав приходит из паспорта, наличие — из
+  // DOM, настройки — из NVRAM. Раньше здесь стояли литералы, и консоль
+  // обещала тридцать две планки при двадцати четырёх нарисованных.
 
-      const lo = Math.min.apply(null, g.hist);
-      const hi = Math.max.apply(null, g.hist);
-      const span = hi - lo || 1;
-      const pts = g.hist.map(function (v, i) {
-        const x = (i / (HIST - 1)) * 120;
-        const y = 32 - ((v - lo) / span) * 28;
-        return x.toFixed(1) + ',' + y.toFixed(1);
-      });
-      g.line.setAttribute('points', pts.join(' '));
-      // заливку замыкаем по нижней кромке, иначе площадь висит в воздухе
-      const first = pts.length ? pts[0].split(',')[0] : '0';
-      const last = pts.length ? pts[pts.length - 1].split(',')[0] : '0';
-      g.area.setAttribute('points', first + ',34 ' + pts.join(' ') + ' ' + last + ',34');
-    });
+  function counts(sel) {
+    return chassis.querySelectorAll(sel).length;
   }
 
-  drawGauges();
-  // Приборы живут только в сервисном режиме. Раньше они пересчитывались и
-  // перерисовывали свои графики каждую секунду всегда — даже свёрнутыми в
-  // нулевую колонку, где их никто не видит.
-  window.setInterval(function () {
-    if (rig.classList.contains('service') && !rig.classList.contains('dormant')) drawGauges();
-  }, 1000);
+  function pulledNums(sel, attr) {
+    const out = new Set();
+    chassis.querySelectorAll(sel).forEach(function (el) { out.add(Number(el.dataset[attr])); });
+    return out;
+  }
+
+  // Планки: сколько стоит и сколько вынуто — по банкам, как они нарисованы.
+  function dimmState() {
+    const total = HW.dimm ? HW.dimm.slots : counts('.dimm');
+    const out = counts('.dimm.pulled');
+    return { total: total, out: out, in: total - out,
+             gb: (total - out) * (HW.dimm ? HW.dimm.size_gb : 0) };
+  }
+
+  // Логических процессоров столько, сколько их видит система: ядра на сокет
+  // из паспорта, урезанные настройкой Active Cores, удвоенные при SMT, и
+  // всё это только по тем сокетам, что сейчас на месте.
+  function cpuState(nv) {
+    const spec = HW.cpu || {};
+    const sockets = Math.max(0, (spec.n || 0) - counts('.cpu-slot.pulled'));
+    const perSocket = nv && nv.cores && nv.cores !== 'All' ? Number(nv.cores) : (spec.cores || 0);
+    const smt = !nv || nv.ht !== 'Disabled';
+    return { sockets: sockets, cores: perSocket * sockets,
+             threads: perSocket * sockets * (smt ? 2 : 1), smt: smt, spec: spec };
+  }
+
+  function upSeconds() {
+    return Math.floor((Date.now() - (state.bootAt || t0)) / 1000);
+  }
+
+  // ── Журнал событий ─────────────────────────────────────────────────────
+  // Раньше sel печатал пять неизменных строк, две из которых были неправдой.
+  // Теперь это настоящий журнал: сюда пишет всё, что с машиной случилось.
+  const SEL_LOG = [];
+
+  function selAdd(text, cls) {
+    SEL_LOG.push({ id: 0x12 + SEL_LOG.length, t: text, c: cls || 'ok' });
+    if (SEL_LOG.length > 64) SEL_LOG.shift();
+  }
+
+  cmd({
+    name: 'sel', group: 'СОСТОЯНИЕ', brief: 'журнал системных событий', usage: 'sel',
+    run: function () {
+      if (!SEL_LOG.length) return [{ t: 'журнал пуст', c: 'muted' }];
+      return [{ t: 'ID      EVENT', c: 'muted' }].concat(SEL_LOG.map(function (e) {
+        return { t: '0x' + e.id.toString(16).padStart(4, '0') + '  ' + e.t, c: e.c };
+      }));
+    },
+  });
+
+  cmd({
+    name: 'status', group: 'СОСТОЯНИЕ', brief: 'питание, крышка, здоровье', usage: 'status',
+    run: function (ctx) {
+      const cpu = cpuState(ctx.nv);
+      const dimm = dimmState();
+      const gone = [];
+      if (counts('.fan.pulled')) gone.push(counts('.fan.pulled') + ' вент.');
+      if (dimm.out) gone.push(dimm.out + ' планок');
+      if (counts('.bay.pulled')) gone.push(counts('.bay.pulled') + ' дисков');
+      if (counts('.psu.pulled')) gone.push(counts('.psu.pulled') + ' БП');
+      if (counts('.riser.pulled')) gone.push(counts('.riser.pulled') + ' райзеров');
+      if (counts('.cpu-slot.pulled')) gone.push(counts('.cpu-slot.pulled') + ' ЦП');
+      return [
+        { t: 'power   : ' + (state.powered ? 'on' : 'standby'), c: state.powered ? 'ok' : 'muted' },
+        { t: 'cover   : ' + (rig.classList.contains('lid-off') ? 'removed' : 'in place') },
+        { t: 'service : ' + (rig.classList.contains('service') ? 'on' : 'off') },
+        { t: 'cpu     : ' + cpu.sockets + '× ' + (cpu.spec.short || '—') + ' · '
+             + cpu.cores + 'c/' + cpu.threads + 't' },
+        { t: 'memory  : ' + dimm.in + ' of ' + dimm.total + ' · ' + (dimm.gb / 1024).toFixed(2) + ' TiB' },
+        { t: 'health  : ' + (gone.length ? 'degraded · вынуто: ' + gone.join(', ') : 'ok'),
+          c: gone.length ? 'warn' : 'ok' },
+      ];
+    },
+  });
+
+  cmd({
+    name: 'sensors', group: 'СОСТОЯНИЕ', brief: 'температуры, обороты, ватты',
+    usage: 'sensors [шаблон]', needs: 'power',
+    run: function (ctx) {
+      const out = counts('.fan.pulled');
+      const dimm = dimmState();
+      const rows = [
+        { t: 'CPU0 Temp      ' + Math.round(metric('temp').v) + ' °C', c: out ? 'warn' : 'ok' },
+        { t: 'CPU1 Temp      ' + Math.round(metric('temp').v - 2) + ' °C', c: out ? 'warn' : 'ok' },
+        { t: 'Inlet Temp     ' + (21 + Math.round(Math.random() * 2)) + ' °C', c: 'ok' },
+        { t: 'Fan Speed      ' + (HW.fan.rpm_nom + out * 1800) + ' RPM', c: out ? 'warn' : 'ok' },
+        { t: 'PSU Input      ' + Math.round(metric('power').v) + ' W',
+          c: counts('.psu.pulled') ? 'warn' : 'ok' },
+        { t: 'PSU Redundancy ' + (HW.psu.n - counts('.psu.pulled')) + ' of ' + HW.psu.n,
+          c: counts('.psu.pulled') ? 'warn' : 'ok' },
+        { t: 'DIMM Populated ' + dimm.in + ' of ' + dimm.total, c: dimm.out ? 'warn' : 'ok' },
+      ];
+      const pat = ctx.args[0];
+      return pat ? rows.filter(function (r) { return r.t.toLowerCase().indexOf(pat.toLowerCase()) >= 0; }) : rows;
+    },
+  });
+
+  cmd({
+    name: 'fans', group: 'ЖЕЛЕЗО', brief: 'обороты по модулям', usage: 'fans',
+    run: function () {
+      // Пустых мест в стенке нет: восемь модулей, все живые. Прежний вывод
+      // сообщал о пустом отсеке FAN6, которого никогда не существовало.
+      const pulled = pulledNums('.fan.pulled', 'fan');
+      const rows = [];
+      for (let n = 0; n < HW.fan.n; n++) {
+        if (pulled.has(n)) { rows.push({ t: 'FAN' + (n + 1) + '  —      removed', c: 'warn' }); continue; }
+        const rpm = HW.fan.rpm_nom + pulled.size * 1800 + Math.round(Math.random() * 400);
+        rows.push({ t: 'FAN' + (n + 1) + '  ' + rpm + '  RPM  ok', c: 'ok' });
+      }
+      return rows;
+    },
+  });
+
+  cmd({
+    name: 'dimm', group: 'ЖЕЛЕЗО', brief: 'планки по банкам', usage: 'dimm',
+    run: function (ctx) {
+      const out = pulledCodes();
+      const rows = [];
+      HW.dimm.banks.forEach(function (b) {
+        let gone = 0;
+        for (let i = 0; i < b.n; i++) if (out.has(b.code + i)) gone++;
+        const owner = b.cpu === 'split' ? 'CPU0/1' : 'CPU' + b.cpu;
+        rows.push({
+          t: owner.padEnd(7) + b.ch.padEnd(12) + (b.n - gone) + '/' + b.n + '   '
+             + HW.dimm.speed + ' MT/s  ' + HW.dimm.kind + ' ' + HW.dimm.size_gb + 'GB',
+          c: gone ? 'warn' : 'ok',
+        });
+      });
+      const d = dimmState();
+      const freq = ctx.nv && ctx.nv.memfreq && ctx.nv.memfreq !== 'Auto' ? ctx.nv.memfreq : HW.dimm.speed;
+      rows.push({ t: 'Total  ' + d.in + ' of ' + d.total + ' · ' + (d.gb / 1024).toFixed(2)
+                     + ' TiB @ ' + freq, c: d.out ? 'warn' : 'ok' });
+      return rows;
+    },
+  });
+
+  function pulledCodes() {
+    const out = new Set();
+    chassis.querySelectorAll('.dimm.pulled').forEach(function (el) { out.add(el.dataset.dimm); });
+    return out;
+  }
+
+  cmd({
+    name: 'nvme', group: 'ЖЕЛЕЗО', brief: 'накопители в корзине', usage: 'nvme list',
+    complete: function (argv, i) { return i === 1 ? ['list'] : []; },
+    run: function (ctx) {
+      if (ctx.args[0] && ctx.args[0] !== 'list') return [{ t: 'nvme list', c: 'warn' }];
+      const gone = pulledNums('.bay.pulled', 'unit');
+      const pulledIds = new Set();
+      chassis.querySelectorAll('.bay.pulled').forEach(function (el) {
+        pulledIds.add(Number(String(el.dataset.unit).replace('hdd', '')));
+      });
+      return HW.bay.filter(function (b) { return !b.filler; }).map(function (b) {
+        if (pulledIds.has(b.bay) || gone.has(b.bay)) {
+          return { t: '/dev/nvme' + b.bay + '  —  removed', c: 'warn' };
+        }
+        return { t: '/dev/nvme' + b.bay + '  ' + b.model.padEnd(21) + b.tb + ' TB  '
+                    + b.life + '% life', c: b.kind === 'Optane' ? 'ok' : 'muted' };
+      });
+    },
+  });
+
+  cmd({
+    name: 'lscpu', group: 'ЖЕЛЕЗО', brief: 'процессоры и топология', usage: 'lscpu',
+    run: function (ctx) {
+      const c = cpuState(ctx.nv);
+      const numa = ctx.nv && ctx.nv.numa === 'Disabled' ? 1 : c.sockets;
+      return [
+        { t: 'Architecture        : x86_64' },
+        { t: 'CPU(s)              : ' + c.threads },
+        { t: 'Thread(s) per core  : ' + (c.smt ? 2 : 1) },
+        { t: 'Core(s) per socket  : ' + (c.sockets ? c.cores / c.sockets : 0) },
+        { t: 'Socket(s)           : ' + c.sockets, c: c.sockets < (c.spec.n || 0) ? 'warn' : '' },
+        { t: 'Model name          : ' + c.spec.model },
+        { t: 'CPU max MHz         : ' + Math.round((c.spec.boost || 0) * 1000) },
+        { t: 'L3 cache            : ' + c.spec.l3 + ' MiB' },
+        { t: 'NUMA node(s)        : ' + Math.max(1, numa) },
+      ];
+    },
+  });
+
+  cmd({
+    name: 'lspci', group: 'ЖЕЛЕЗО', brief: 'устройства на шине', usage: 'lspci',
+    run: function () {
+      // Перечисляем то, что нарисовано: микросхемы из паспорта, диски из
+      // корзины, райзеры с их картами. Пустой райзер так и помечен.
+      const rows = [];
+      HW.chips.forEach(function (chip, i) {
+        rows.push({ t: (i + 1).toString(16).padStart(2, '0') + ':00.0  ' + chip.ref.padEnd(5)
+                       + chip.mark, c: 'muted' });
+      });
+      HW.bay.filter(function (b) { return !b.filler; }).forEach(function (b) {
+        rows.push({ t: '17:0' + b.bay + '.0  NVMe  ' + b.model + ' ' + b.tb + ' TB' });
+      });
+      HW.riser.forEach(function (r) {
+        rows.push({ t: 'b' + r.slot + ':00.0  PCI bridge · Riser ' + r.slot + ' · ' + r.link
+                       + (r.empty ? ' · пуст' : ' · ' + r.card), c: r.empty ? 'muted' : '' });
+      });
+      return rows;
+    },
+  });
+
+  cmd({
+    name: 'fru', group: 'ЖЕЛЕЗО', brief: 'паспорт машины', usage: 'fru',
+    run: function () {
+      const d = dimmState();
+      const disks = HW.bay.filter(function (b) { return !b.filler; });
+      return [
+        { t: 'Manufacturer   : ' + HW.board.vendor },
+        { t: 'Product Name   : ' + HW.board.model + ' · ' + HW.board.form },
+        { t: 'Board Revision : ' + HW.board.rev },
+        { t: 'Serial Number  : ' + HW.board.sha },
+        { t: 'BIOS Version   : ' + HW.fw.bios + '  (' + HW.fw.bios_date + ')' },
+        { t: 'BMC Firmware   : ' + HW.fw.bmc + '  (' + HW.fw.bmc_chip + ')' },
+        { t: 'CPU            : ' + HW.cpu.n + '× ' + HW.cpu.model + ' · ' + HW.cpu.socket
+             + ' · ' + HW.cpu.cores + 'c/' + HW.cpu.threads + 't' },
+        { t: 'Memory         : ' + d.total + '× ' + HW.dimm.kind + ' ' + HW.dimm.size_gb
+             + 'GB ' + HW.dimm.speed + ' MT/s · ' + (d.total * HW.dimm.size_gb / 1024).toFixed(2) + ' TiB' },
+        { t: 'Storage        : ' + disks.length + '× NVMe (' + disks.filter(function (b) {
+            return b.kind === 'Optane'; }).length + '× Optane)' },
+        { t: 'Network        : ' + HW.ports.sfp + ' · ' + HW.ports.eth + ' · ' + HW.ports.mgmt },
+        { t: 'Power          : ' + HW.psu.n + '× ' + HW.psu.watt + ' W ' + HW.psu.model },
+        { t: 'Cooling        : ' + HW.fan.n + '× ' + HW.fan.model },
+      ];
+    },
+  });
+
+  cmd({
+    name: 'uptime', group: 'СОСТОЯНИЕ', brief: 'сколько работает хост', usage: 'uptime',
+    run: function () {
+      if (!state.powered) return [{ t: 'standby · хост выключен', c: 'muted' }];
+      const s = upSeconds();
+      return [{ t: 'up ' + Math.floor(s / 60) + ' min ' + (s % 60) + ' sec · 1 user', c: 'ok' }];
+    },
+  });
+
+  cmd({
+    name: 'whoami', group: 'ОБОЛОЧКА', brief: 'кто в консоли', usage: 'whoami',
+    run: function () { return [{ t: 'root', c: 'ok' }]; },
+  });
+
+  // ── Управление ─────────────────────────────────────────────────────────
+
+  function svcOn(on) {
+    if (rig.classList.contains('service') !== on) toggleService();
+  }
+
+  cmd({
+    name: 'power', group: 'УПРАВЛЕНИЕ', brief: 'питание машины', usage: 'power on|off|cycle',
+    complete: function (argv, i) { return i === 1 ? ['on', 'off', 'cycle'] : []; },
+    run: function (ctx) {
+      const arg = String(ctx.args[0] || '').toLowerCase();
+      if (arg === 'off') {
+        if (!state.powered) return [{ t: 'уже выключен', c: 'muted' }];
+        powerOff();
+        return [];
+      }
+      if (arg === 'on') {
+        if (rig.classList.contains('init')) return [{ t: 'power inhibited · bmc init', c: 'warn' }];
+        if (state.powered) return [{ t: 'уже работает', c: 'muted' }];
+        powerOn();
+        return [];
+      }
+      if (arg === 'cycle') {
+        if (!state.powered) { powerOn(); return []; }
+        powerOff();
+        wait(1000, function () { powerOn(); });
+        return [];
+      }
+      return [{ t: 'power on|off|cycle', c: 'warn' }];
+    },
+  });
+
+  cmd({
+    name: 'reboot', group: 'УПРАВЛЕНИЕ', brief: 'перезагрузить хост', usage: 'reboot',
+    needs: 'power',
+    run: function () {
+      powerOff();
+      wait(1200, function () { powerOn(); });
+      return [{ t: 'graceful shutdown …', c: 'muted' }];
+    },
+  });
+
+  cmd({
+    name: 'service', group: 'УПРАВЛЕНИЕ', brief: 'сервисный режим', usage: 'service on|off',
+    complete: function (argv, i) { return i === 1 ? ['on', 'off'] : []; },
+    run: function (ctx) {
+      const arg = String(ctx.args[0] || '').toLowerCase();
+      if (arg !== 'on' && arg !== 'off') return [{ t: 'service on|off', c: 'warn' }];
+      svcOn(arg === 'on');
+      return [];
+    },
+  });
+
+  cmd({
+    name: 'id', group: 'УПРАВЛЕНИЕ', brief: 'опознание в стойке', usage: 'id on|off',
+    complete: function (argv, i) { return i === 1 ? ['on', 'off'] : []; },
+    run: function (ctx) {
+      const arg = String(ctx.args[0] || '').toLowerCase();
+      if (arg !== 'on' && arg !== 'off') return [{ t: 'id on|off', c: 'warn' }];
+      if (rig.classList.contains('identify') !== (arg === 'on')) toggleIdentify();
+      return [];
+    },
+  });
+
+  cmd({
+    name: 'lightpath', group: 'УПРАВЛЕНИЕ', brief: 'панель диагностики', usage: 'lightpath',
+    run: function () { toggleLp(); return []; },
+  });
+
+  // Ссылки: отдельной команды со списком больше нет — open без аргумента
+  // печатает адреса, с аргументом открывает. Тот же список лежит в
+  // /home/cosmdandy/links.txt и потому пайпится.
+  const LINKS = {
+    blog: 'https://blog.cosmdandy.dev',
+    cv: 'https://cv.cosmdandy.dev',
+    github: 'https://github.com/cosmdandy',
+    linkedin: 'https://linkedin.com/in/cosmdandy',
+    telegram: 'https://t.me/cosmdandy',
+    email: 'mailto:i@cosmdandy.dev',
+  };
+
+  cmd({
+    name: 'open', group: 'ОБОЛОЧКА', brief: 'адреса разделов; open <имя> — открыть',
+    usage: 'open [blog|cv|github|linkedin|telegram|email]',
+    complete: function (argv, i) { return i === 1 ? Object.keys(LINKS) : []; },
+    run: function (ctx) {
+      const key = String(ctx.args[0] || '').toLowerCase();
+      if (!key) {
+        return Object.keys(LINKS).map(function (k) {
+          return { t: k.padEnd(9) + LINKS[k], c: 'muted' };
+        });
+      }
+      if (!LINKS[key]) return [{ t: 'нет такого раздела · open', c: 'warn' }];
+      window.open(LINKS[key], '_blank', 'noopener');
+      return [{ t: LINKS[key], c: 'ok' }];
+    },
+  });
+
+  // TODO-part: fs
+
+  // TODO-part: screen
 
   // ── Запуск ─────────────────────────────────────────────────────────────
   const first = !state.visited;
