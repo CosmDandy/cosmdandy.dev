@@ -8,7 +8,7 @@
 
 # Свой прямоугольник: сборка проверит, что узел из него не вышел.
 # Слева выходит за габарит шасси: вынутый диск выезжает наружу, как в жизни.
-BOUNDS = (-120, 148, 292, 710)
+BOUNDS = (-120, 194, 292, 664)
 
 from board.geom import (
     BAY_DEPTH, BAY_N, BAY_TOP, BAY_W, CAP, FRONT_W, GROUP_GAP, GROUP_H, H, X_FRONT,

@@ -16,3 +16,14 @@
   .power-btn { cursor: pointer; }
   .power-btn circle { transition: stroke var(--fade); }
   .power-btn:hover .pwr-ring { stroke: var(--green); }
+
+  /* Квадратные лампы на лицевой части панели диагностики. Базовое правило
+     гасит только круглые — там селектор по элементу, — поэтому эти гасим
+     здесь. Включает их та же пара классов, что и круглые: у неё
+     специфичность выше, и спорить тут не о чем. */
+  .sq-led { fill-opacity: 0; transition: fill-opacity 0.15s steps(1, end); }
+
+  /* Лампа информации: событие есть, но это не отказ. Горит ровно, без
+     мигания — мигает только ошибка, иначе панель начинает рябить. */
+  .led-info { fill-opacity: 0; transition: fill-opacity var(--fade); }
+  .rig.has-fault .led-info { fill-opacity: 0.5; }

@@ -1,13 +1,16 @@
   /* Light Path Diagnostics: панель выдвигается вперёд, за габарит корпуса. */
   .lightpath {
-    transform: translateX(172px);
+    transform: translateX(194px);
     visibility: hidden;
     fill-opacity: 0; stroke-opacity: 0;
     transition: transform var(--spring), fill-opacity var(--fade), stroke-opacity var(--fade);
     pointer-events: none;
   }
+  /* Выдвинутая панель упирается в свою лицевую часть, а не висит от неё в
+     стороне: 22 — ровно зазор между правым краем рисунка панели и левой
+     кромкой язычка. */
   .rig.lp-open .lightpath {
-    transform: translateX(0);
+    transform: translateX(22px);
     visibility: visible;
     fill-opacity: 1; stroke-opacity: 1;
   }
@@ -20,4 +23,6 @@
   .rig.fault-nic .lp-link, .rig.fault-rsr .lp-pci, .rig.fault-ps .lp-ps,
   .rig.has-fault .lp-log, .rig.has-fault .lp-brd { fill-opacity: 1; }
   .lp-tab { cursor: pointer; }
-  .lp-tab:hover rect { stroke: rgba(147,161,161,0.6); }
+  /* Подсвечиваем корпус язычка, а не всё, что на нём стоит:
+     лампы — тоже прямоугольники, и общий селектор обводил их. */
+  .lp-tab:hover > rect { stroke: rgba(147,161,161,0.6); }

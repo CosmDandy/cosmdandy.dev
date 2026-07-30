@@ -343,14 +343,17 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   /* ── lightpath ──────────────────────────────── */
   /* Light Path Diagnostics: панель выдвигается вперёд, за габарит корпуса. */
   .lightpath {
-    transform: translateX(172px);
+    transform: translateX(194px);
     visibility: hidden;
     fill-opacity: 0; stroke-opacity: 0;
     transition: transform var(--spring), fill-opacity var(--fade), stroke-opacity var(--fade);
     pointer-events: none;
   }
+  /* Выдвинутая панель упирается в свою лицевую часть, а не висит от неё в
+     стороне: 22 — ровно зазор между правым краем рисунка панели и левой
+     кромкой язычка. */
   .rig.lp-open .lightpath {
-    transform: translateX(0);
+    transform: translateX(22px);
     visibility: visible;
     fill-opacity: 1; stroke-opacity: 1;
   }
@@ -363,7 +366,9 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   .rig.fault-nic .lp-link, .rig.fault-rsr .lp-pci, .rig.fault-ps .lp-ps,
   .rig.has-fault .lp-log, .rig.has-fault .lp-brd { fill-opacity: 1; }
   .lp-tab { cursor: pointer; }
-  .lp-tab:hover rect { stroke: rgba(147,161,161,0.6); }
+  /* Подсвечиваем корпус язычка, а не всё, что на нём стоит:
+     лампы — тоже прямоугольники, и общий селектор обводил их. */
+  .lp-tab:hover > rect { stroke: rgba(147,161,161,0.6); }
 
   .silk { opacity: 0.85; }
 
@@ -511,6 +516,17 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   .power-btn { cursor: pointer; }
   .power-btn circle { transition: stroke var(--fade); }
   .power-btn:hover .pwr-ring { stroke: var(--green); }
+
+  /* Квадратные лампы на лицевой части панели диагностики. Базовое правило
+     гасит только круглые — там селектор по элементу, — поэтому эти гасим
+     здесь. Включает их та же пара классов, что и круглые: у неё
+     специфичность выше, и спорить тут не о чем. */
+  .sq-led { fill-opacity: 0; transition: fill-opacity 0.15s steps(1, end); }
+
+  /* Лампа информации: событие есть, но это не отказ. Горит ровно, без
+     мигания — мигает только ошибка, иначе панель начинает рябить. */
+  .led-info { fill-opacity: 0; transition: fill-opacity var(--fade); }
+  .rig.has-fault .led-info { fill-opacity: 0.5; }
 
   .hint {
     margin-top: 14px; text-align: center;
