@@ -388,10 +388,38 @@
   }
 
   const promptInput = document.getElementById('prompt');
+
+  // История команд, как в любой оболочке: стрелки листают назад и вперёд.
+  // pos === history.length означает «строка, которую сейчас набирают»;
+  // её черновик сохраняем, чтобы он вернулся, когда долистаешь вниз.
+  const history = [];
+  let pos = 0;
+  let draft = '';
+
   document.getElementById('prompt-form').addEventListener('submit', function (e) {
     e.preventDefault();
+    const raw = promptInput.value.trim();
+    if (raw && history[history.length - 1] !== raw) history.push(raw);
+    pos = history.length;
+    draft = '';
     exec(promptInput.value);
     promptInput.value = '';
+  });
+
+  promptInput.addEventListener('keydown', function (e) {
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+    if (!history.length) return;
+    e.preventDefault();                       // иначе курсор прыгает в начало строки
+    if (e.key === 'ArrowUp') {
+      if (pos === history.length) draft = promptInput.value;
+      pos = Math.max(0, pos - 1);
+    } else {
+      pos = Math.min(history.length, pos + 1);
+    }
+    promptInput.value = pos === history.length ? draft : history[pos];
+    // курсор в конец: иначе он остаётся там, где был, и правка идёт с середины
+    const end = promptInput.value.length;
+    window.requestAnimationFrame(function () { promptInput.setSelectionRange(end, end); });
   });
 
 
