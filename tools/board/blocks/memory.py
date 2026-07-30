@@ -4,7 +4,8 @@
 """
 
 # Свой прямоугольник: сборка проверит, что узел из него не вышел.
-BOUNDS = (488, 12, 352, 812)
+# Банки заходят на сокеты и доходят до нижней кромки платы.
+BOUNDS = (488, 12, 352, 846)
 
 from board.geom import PITCH, SLOT_H, X_CORE, X_TAG, Y_BANK_C, Y_BANK_L, Y_BANK_R
 from board.ink import hit, silk_inverse
@@ -25,14 +26,15 @@ def render(cv):
             socket = (f'<rect x="{X_CORE-2}" y="{y-1}" width="298" height="{SLOT_H+2}" rx="1" '
                       f'fill="#05090b" stroke="rgba(147,161,161,0.26)"/>'
                       + ''.join(f'<line x1="{X_CORE+8+c*6}" y1="{y+2}" x2="{X_CORE+8+c*6}" '
-                                f'y2="{y+SLOT_H-2}" stroke="rgba(184,150,51,0.34)"/>'
+                                f'y2="{y+SLOT_H-2}" stroke="rgba(206,168,58,0.62)" '
+                                f'stroke-width="1.4"/>'
                                 for c in range(46))
                       + f'<rect x="{X_CORE+118}" y="{y+1}" width="4" height="{SLOT_H-2}" '
                         f'fill="#0f1a20"/>')
             # Планка: сверху видна её светлая кромка — торец текстолита, а под
             # ним чипы. На фото живого банка это первое, что бросается в глаза:
             # ряд светлых полос, а не чёрных.
-            edge = '#5aa79e' if i % 2 else '#4f9a92'
+            edge = '#3f7d76' if i % 2 else '#397169'
             # зона наведения шире самой планки и перекрывает щель до соседней:
             # иначе курсор проваливается между слотами и клик уходит в никуда
             slots.append(f'''<g class="pick dimm" data-dimm="{code}{i}">

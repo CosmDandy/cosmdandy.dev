@@ -5,9 +5,9 @@
 """
 
 # Свой прямоугольник: сборка проверит, что узел из него не вышел.
-# Шире корпуса: оранжевый фиксатор торчит за задний торец — за него и
-# зажимают, пока блок не выйдет из кармана.
-BOUNDS = (982, 0, 340, 848)
+# Заметно шире корпуса: и петля-ручка, и оранжевый фиксатор выходят за
+# задний торец — иначе за них не взяться рукой в стойке.
+BOUNDS = (982, 0, 356, 848)
 
 from board.geom import X_REAR
 from board.ink import mono
@@ -40,22 +40,26 @@ def render(cv):
         # сидит в кармане. На живом блоке она чёрная, у нас светлая: на тёмном
         # шасси чёрная петля просто пропадала бы.
         mid = y + 72
-        bail_x = X_REAR + 268
-        psu.append(f'<path d="M{bail_x} {mid-26} h26 a13 13 0 0 1 13 13 v26 a13 13 0 0 1 -13 13 h-26" '
-                   f'fill="none" stroke="rgba(198,209,213,0.78)" stroke-width="5" '
+        # Петля уходит далеко за торец: за неё берутся рукой, а рука не
+        # помещается в зазор между блоком и стенкой стойки. Прежний вылет в
+        # десяток единиц читался как утолщение корпуса, а не как ручка.
+        bail_x = X_REAR + 292
+        psu.append(f'<path d="M{bail_x} {mid-30} h30 a15 15 0 0 1 15 15 v30 a15 15 0 0 1 -15 15 h-30" '
+                   f'fill="none" stroke="rgba(198,209,213,0.82)" stroke-width="6" '
                    f'stroke-linecap="round" stroke-linejoin="round"/>')
-        psu.append(f'<path d="M{bail_x+6} {mid-20} h20 a8 8 0 0 1 8 8 v14 a8 8 0 0 1 -8 8 h-20" '
-                   f'fill="none" stroke="rgba(13,20,24,0.5)" stroke-width="1.2"/>')
-        for ay in (mid - 26, mid + 26):        # оси, на которых петля откидывается
-            psu.append(f'<circle cx="{bail_x}" cy="{ay}" r="3.6" fill="#0d1418" '
+        psu.append(f'<path d="M{bail_x+7} {mid-23} h23 a9 9 0 0 1 9 9 v16 a9 9 0 0 1 -9 9 h-23" '
+                   f'fill="none" stroke="rgba(13,20,24,0.5)" stroke-width="1.4"/>')
+        for ay in (mid - 30, mid + 30):        # оси, на которых петля откидывается
+            psu.append(f'<circle cx="{bail_x}" cy="{ay}" r="4" fill="#0d1418" '
                        f'stroke="rgba(147,161,161,0.5)" stroke-width="1.6"/>')
-        # Стопор — стальной язычок, а не цветная накладка: он ничего не
-        # обозначает, он держит. Тоже выходит за торец, и пока его не отжать,
-        # блок из кармана не пойдёт.
-        psu.append(f'<path d="M{X_REAR+292} {mid-9} h26 l6 9 -6 9 h-26 Z" '
-                   f'fill="#aab8bd" stroke="rgba(13,20,24,0.45)" stroke-width="1.2"/>')
-        psu.append(f'<path d="M{X_REAR+296} {mid-4} h18 M{X_REAR+296} {mid+4} h18" '
-                   f'stroke="rgba(13,20,24,0.35)" stroke-width="1.4"/>')
+        # Фиксатор оранжевый — он из того же ряда, что язычки вентиляторов и
+        # защёлки дисков: цвет означает «это трогают руками на горячую».
+        # Выходит за торец дальше ручки, иначе до него не дотянуться.
+        psu.append(f'<path d="M{X_REAR+286} {mid-32} h34 l8 11 -8 11 h-34 Z" '
+                   f'fill="#cb4b16" stroke="rgba(238,232,213,0.55)" stroke-width="1.3"/>')
+        for g in range(2):
+            psu.append(f'<line x1="{X_REAR+294}" y1="{mid-26+g*8}" x2="{X_REAR+316}" y2="{mid-26+g*8}" '
+                       f'stroke="rgba(20,20,10,0.34)" stroke-width="1.6"/>')
         # вентилятор
         psu.append(f'<rect x="{X_REAR+238}" y="{fan_y-4}" width="58" height="58" rx="4" fill="#0b1215" stroke="rgba(147,161,161,0.22)"/>')
         psu.append(f'<circle cx="{X_REAR+267}" cy="{fan_y+25}" r="25" fill="#0d1417" stroke="rgba(147,161,161,0.18)"/>')
