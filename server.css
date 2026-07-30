@@ -394,8 +394,13 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
     fill-opacity: 1; stroke-opacity: 1;
   }
   .lp { fill-opacity: 0.07; transition: fill-opacity 0.15s steps(1, end); }
+  /* Панель полного состава: шестнадцать ламп, как на живой машине. Узлы,
+     которые машина умеет диагностировать, зажигают свою; сетевая карта
+     светит LINK, райзер — PCI. Остальные лампы существуют, но в этой
+     сборке гореть им не от чего — так же и на настоящей панели. */
   .rig.fault-mem .lp-mem, .rig.fault-cpu .lp-cpu, .rig.fault-fan .lp-fan,
-  .rig.fault-nic .lp-nic, .rig.fault-rsr .lp-rsr, .rig.fault-ps .lp-ps { fill-opacity: 1; }
+  .rig.fault-nic .lp-link, .rig.fault-rsr .lp-pci, .rig.fault-ps .lp-ps,
+  .rig.has-fault .lp-log, .rig.has-fault .lp-brd { fill-opacity: 1; }
   .lp-tab { cursor: pointer; }
   .lp-tab:hover rect { stroke: rgba(147,161,161,0.6); }
 
@@ -546,6 +551,17 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   .rig.service .rig-body { grid-template-columns: minmax(0, 1fr); }
   .stage { width: 100%; }
 }
+
+/* ── Партномера узлов ─────────────────────────────────────────────────────
+ * У каждого узла на плате отпечатан хэш коммита, который его последним менял.
+ * Клик копирует номер и открывает этот коммит — так же, как по партномеру на
+ * живой плате ищут деталь в каталоге.
+ */
+a.stamp { cursor: pointer; }
+a.stamp text { transition: fill-opacity var(--fade); }
+a.stamp:hover text { fill-opacity: 0.85; }
+a.stamp:focus-visible { outline: none; }
+a.stamp:focus-visible text { fill-opacity: 1; }
 
 /* ── Связка узла и подписи ────────────────────────────────────────────────
  * Наводишь на сетевую карту — загорается её подпись, и наоборот. Иначе

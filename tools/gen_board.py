@@ -40,6 +40,31 @@ def git(*args, default=""):
 
 BOARD_REV = git("rev-list", "--count", "HEAD", default="0")
 BOARD_SHA = git("rev-parse", "--short=7", "HEAD", default="0000000").upper()
+REPO = "https://github.com/CosmDandy/cosmdandy.dev"
+
+# У каждого узла свой партномер, и это хэш коммита, который его последний раз
+# менял. Границы блоков — заголовки вида «# ── имя ───» в этом же файле, а
+# историю диапазона строк git умеет отслеживать сам, через log -L.
+_SRC = __file__
+_LINES = open(_SRC, encoding="utf-8").read().split("\n")
+_HEADS = [(i + 1, l) for i, l in enumerate(_LINES) if l.startswith("# ── ")]
+
+def block_sha(prefix):
+    """Хэш коммита, последним изменившего блок с таким заголовком."""
+    for k, (ln, text) in enumerate(_HEADS):
+        if text.startswith("# ── " + prefix):
+            end = _HEADS[k + 1][0] - 1 if k + 1 < len(_HEADS) else len(_LINES)
+            out = git("log", "-1", "--format=%h", "-L", f"{ln},{end}:tools/{_SRC.rsplit('/', 1)[-1]}")
+            return (out.split("\n")[0] or "0000000")[:7]
+    return "0000000"
+
+def stamp(x, y, prefix, anchor="start", op=0.3):
+    """Партномер узла: хэш его последнего коммита, ссылкой на этот коммит."""
+    sha = block_sha(prefix)
+    return (f'<a class="stamp" href="{REPO}/commit/{sha}" target="_blank" rel="noopener" '
+            f'data-sha="{sha}">'
+            + mono(x, y, f"P/N {sha.upper()}", 6, anchor=anchor, op=op)
+            + '</a>')
 
 P = []
 def add(s): P.append(s)
@@ -846,6 +871,8 @@ for i in range(BAY_N):
 CALLOUTS.append((X_FRONT + FRONT_W + 30, BAY_TOP + 46, X_FRONT + FRONT_W - 10, BAY_TOP + 24,
                  "GitHub", "start", "https://github.com/cosmdandy", "hdd"))
 
+add(stamp(X_FRONT + 4, H - 18, "фронт: шесть отсеков"))
+
 # ── backplane ─────────────────────────────────────────────────────────────
 bp = [f'<rect x="{X_BP}" y="8" width="18" height="{H-16}" rx="0" fill="#0e3a40" stroke="rgba(133,153,0,0.24)"/>']
 for i in range(BAY_N):
@@ -875,6 +902,7 @@ add('<g class="decor cables">' + ''.join(cables) + '</g>')
 # предупреждением о продуве. Перегородка делит корзину на две секции, как на
 # реальном шасси. Рисуем после жгутов, поэтому стенка их перекрывает.
 add(f'<rect class="decor" x="{X_FAN}" y="20" width="{FAN_W}" height="{H-40}" rx="0" fill="#0f1619" stroke="rgba(147,161,161,0.28)"/>')
+add(stamp(X_FAN + 6, 14, "вентиляторы"))
 FAN_N, FAN_EMPTY = 8, -1   # пустых слотов нет
 FAN_STEP = (H - 52) / FAN_N
 for i in range(FAN_N):
@@ -987,6 +1015,7 @@ add(bank(Y_BANK_L, 8, "L", 104, first=1))
 add(bank(Y_BANK_C, 16, "C", 430, first=9))
 add(bank(Y_BANK_R, 8, "R", 740, first=25))
 add(mono(X_CORE+155, Y_BANK_L-8, "CPU0 · A0–H0", 9, op=0.45))
+add(stamp(X_CORE, Y_BANK_L - 20, "память"))
 add(mono(X_CORE+155, Y_BANK_C-8, "CPU0 · A1–H1  /  CPU1 · A0–H0", 9, op=0.45))
 add(mono(X_CORE+155, Y_BANK_R-8, "CPU1 · A1–H1", 9, op=0.45))
 
@@ -1064,6 +1093,7 @@ def ilm(x, y):
 CALLOUTS.append((X_TAG - 6, Y_CPU0 + 40, X_CORE + 40, Y_CPU0 + 40, "CV", "end", "https://cv.cosmdandy.dev", "cpu"))
 
 X_SOCK = X_CORE + 40
+add(stamp(X_CORE + 40, Y_CPU0 - 8, "процессоры"))
 
 # Градиент кристалла и обрезка по крышкам процессоров. Наискось, из левого
 # нижнего угла в правый верхний: по прямой он читался как полоса засветки,
@@ -1174,6 +1204,7 @@ for k, (y, flip) in enumerate([(22, False), (696, True)]):
         w = 1.4 if b % 3 else 2.8
         psu.append(f'<rect x="{X_REAR+16}" y="{y+34+b*4}" width="24" height="{w}" fill="rgba(147,161,161,0.22)"/>')
     psu.append(mono(X_REAR + 62, y + 24, name, 11, op=0.5))
+    psu.append(stamp(X_REAR + 16, y + 138, "блоки питания"))
     # AC, DC и ошибка — ровно тот набор, что подписан на наклейке живого БП.
     # Вход под напряжением всегда: AC горит и на выключенной машине.
     for dy, cls, color, nm in ((0, "led aux", "#859900", "AC"),
@@ -1268,6 +1299,7 @@ for k, (y, up) in enumerate(((186, True), (474, False))):
         {tab}
       </g>
       {fault_at(x0-14, y + 96, 5)}
+      {stamp(x0 + 18, y + hh - 6 if up else y + 12, "райзеры")}
     </g>''')
 
 # PCH и BMC — в проёме между райзерами.
@@ -1344,6 +1376,7 @@ add(f'''<g class="unit" data-unit="bmc" data-group="bmc" data-href="mailto:i@cos
   {mono(X_IO+43, 568, "MLAN · BMC", 9, op=0.55)}
 </g>''')
 
+add(stamp(X_IO + 43, 700, "задняя панель", anchor="middle"))
 add(f'''<g class="decor">
   <rect x="{X_IO}" y="588" width="86" height="30" rx="4" fill="#121a1e" stroke="rgba(147,161,161,0.22)"/>
   <rect x="{X_IO+12}" y="595" width="18" height="11" rx="1.5" fill="#0a1417" stroke="rgba(147,161,161,0.2)"/>

@@ -442,6 +442,20 @@
 
 
 
+  // ── Партномера узлов ───────────────────────────────────────────────────
+  // Клик по хэшу копирует его и открывает коммит: на живой плате по
+  // партномеру так же ищут деталь, только в бумажном каталоге.
+  chassis.addEventListener('click', function (e) {
+    const stamp = e.target.closest('a.stamp');
+    if (!stamp) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const sha = stamp.dataset.sha;
+    if (navigator.clipboard) navigator.clipboard.writeText(sha).catch(function () {});
+    line('p/n ' + sha + ' скопирован · открываю коммит', 'ok');
+    window.open(stamp.getAttribute('href'), '_blank', 'noopener');
+  }, true);   // на перехвате: иначе клик уйдёт в разбор машины
+
   // ── Связка узла и подписи ──────────────────────────────────────────────
   // Подсветка идёт в обе стороны: узел ↔ его выноска. Класс вместо :hover,
   // потому что элементы лежат в разных ветках дерева.
