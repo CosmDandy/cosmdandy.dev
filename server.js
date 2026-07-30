@@ -1,14 +1,15 @@
 // СОБРАННЫЙ ФАЙЛ — правки затрёт следующая сборка.
 // Источники: tools/board/scripts/base.js и tools/board/blocks/*.js,
 // собирает tools/build.py. Поведение узла лежит рядом с его геометрией.
-/* Схема сервера: питание, сервисный режим, консоль.
+/* Server schematic: power, service mode, console.
  *
- * Два уровня взаимодействия. Пока сервисный режим выключен, машина работает
- * как визитка: клик по узлу ведёт по адресу. Тумблер SERVICE на плате
- * превращает её в стенд — узлы вынимаются, снизу открывается консоль.
+ * Two levels of interaction. While service mode is off, the machine works as
+ * a business card: clicking a unit follows its address. The SERVICE switch on
+ * the board turns it into a test bench — units come out, and the console
+ * opens underneath.
  *
- * Состояние (питание, крышка) переживает перезагрузку страницы через
- * localStorage, поэтому повторный заход не начинается с полной анимации.
+ * State (power, cover) survives a page reload through localStorage, so a
+ * repeat visit does not start from the full animation.
  */
 (function () {
   const rig = document.getElementById('rig');
@@ -16,10 +17,11 @@
   const chassis = document.getElementById('chassis');
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  // Паспорт машины: что за железо тут стоит. Печатает генератор — те же
-  // числа, что напечатаны на текстолите, так что консоль и плата разойтись
-  // не могут. Всё остальное считается по DOM (что сейчас на месте) и по
-  // NVRAM (как настроено). Литералов в командах быть не должно.
+  // The machine's passport: what hardware is standing here. The generator
+  // prints it — the same numbers that are printed on the silkscreen, so the
+  // console and the board cannot drift apart. Everything else is derived from
+  // the DOM (what is in place right now) and from NVRAM (how it is
+  // configured). There must be no literals in the commands.
   let HW = {};
   try { HW = JSON.parse(document.getElementById('rig-spec').textContent); } catch (e) {}
 
@@ -29,9 +31,9 @@
     if (raw) state = Object.assign(state, JSON.parse(raw));
   } catch (e) {}
 
-  // Состав машины в шапке консоли — из паспорта. Пока он был написан в
-  // разметке руками, там стояли тридцать две планки памяти при двадцати
-  // четырёх нарисованных.
+  // The machine's configuration in the console header comes from the
+  // passport. While it was written into the markup by hand, it claimed
+  // thirty-two memory sticks against the twenty-four actually drawn.
   const specLine = document.querySelector('.con-spec');
   if (specLine && HW.board) {
     specLine.textContent = [
@@ -46,14 +48,15 @@
   const save = () => { try { localStorage.setItem('rig-state', JSON.stringify(state)); } catch (e) {} };
   const wait = (ms, fn) => window.setTimeout(fn, reduced ? 0 : ms);
 
-  // ── Сборка ─────────────────────────────────────────────────────────────
-  // Класс assembly стоит в разметке, поэтому машина начинает собираться сама,
-  // даже если скрипт не выполнится вовсе. Здесь мы только решаем, оставить
-  // сборку или оборвать, и что делать, когда последний узел сядет.
+  // ── Assembly ───────────────────────────────────────────────────────────
+  // The assembly class sits in the markup, so the machine starts assembling
+  // itself even if the script never runs at all. Here we only decide whether
+  // to let the assembly play out or cut it short, and what to do once the
+  // last unit is seated.
   //
-  // Сколько она длится, спрашиваем у самих узлов: у каждого свой --seat, а
-  // расписание живёт в генераторе. Дублировать его здесь значит завести
-  // второе место, где написано «когда», и однажды они разойдутся.
+  // How long it lasts we ask the units themselves: each has its own --seat,
+  // and the schedule lives in the generator. Duplicating it here would mean a
+  // second place that says «when», and one day the two would drift apart.
   function assemblyEnd() {
     let last = 0;
     chassis.querySelectorAll('[style*="--seat"]').forEach(function (el) {
@@ -66,20 +69,21 @@
     rig.classList.remove('assembly');
   }
 
-  /** Пересобрать машину: снять узлы и посадить заново по расписанию. */
+  /** Reassemble the machine: pull the units and seat them again on schedule. */
   function reassemble() {
     if (rig.classList.contains('assembly')) return;
-    // Класс приходится снять и вернуть следующим кадром — иначе браузер не
-    // считает анимацию новой и ничего не проигрывает.
+    // The class has to be removed and put back on the next frame — otherwise
+    // the browser does not count the animation as new and plays nothing.
     rig.classList.remove('assembly');
     void chassis.offsetWidth;
     rig.classList.add('assembly');
     wait(assemblyEnd(), finishAssembly);
   }
 
-  // ── Адрес под курсором ─────────────────────────────────────────────────
-  // Куда ведёт узел, видно до клика: подсказка идёт за курсором и разбирает
-  // адрес на части — схема глуше, хост в цвет схемы, путь обычным тоном.
+  // ── The address under the cursor ───────────────────────────────────────
+  // Where a unit leads is visible before the click: the hint follows the
+  // cursor and takes the address apart — the scheme dimmer, the host in the
+  // schematic's colour, the path in the ordinary tone.
   const linkHint = document.getElementById('link-hint');
 
   function showLinkHint(href, x, y) {
@@ -90,7 +94,8 @@
         + '<span class="lh-host">' + m[2] + '</span>' + m[3]
       : href;
     linkHint.classList.add('on');
-    // Держим подсказку в окне: у правого края она уходила бы за экран.
+    // Keep the hint inside the window: near the right edge it would run off
+    // the screen.
     const w = linkHint.offsetWidth, h = linkHint.offsetHeight;
     const left = Math.min(x + 18, window.innerWidth - w - 12);
     const top = Math.min(Math.max(y - h - 14, 10), window.innerHeight - h - 10);
@@ -103,8 +108,8 @@
 
   if (linkHint) {
     rig.addEventListener('mousemove', function (e) {
-      // В сервисном режиме узлы разбирают, а не открывают: подсказка там
-      // обещала бы переход, которого не будет.
+      // In service mode units are taken apart, not opened: the hint there
+      // would promise a navigation that is not going to happen.
       const target = rig.classList.contains('service')
         ? null : e.target.closest('a.callout, .unit[data-href]');
       const href = target && (target.getAttribute('href') || target.dataset.href);
@@ -113,7 +118,7 @@
     rig.addEventListener('mouseleave', hideLinkHint);
   }
 
-  // ── Консоль ────────────────────────────────────────────────────────────
+  // ── Console ────────────────────────────────────────────────────────────
   function line(text, cls) {
     const d = document.createElement('div');
     d.className = cls || '';
@@ -124,16 +129,17 @@
   }
 
 
-  // ── Лента ревизий ──────────────────────────────────────────────────────
-  // Плату собирает код, и каждая её правка — коммит. Значит по плате можно
-  // ходить назад: версии лежат отдельными файлами и грузятся по требованию.
-  // Держать все четырнадцать в странице означало бы три мегабайта ради
-  // функции, которой пользуются раз.
+  // ── Revision strip ─────────────────────────────────────────────────────
+  // The board is assembled by code, and every edit to it is a commit. So the
+  // board can be walked backwards: the versions live in separate files and
+  // are loaded on demand. Keeping all fourteen in the page would mean three
+  // megabytes for a feature used once.
   //
-  // И пользуются ею при разработке: лентой сравнивают, как плата выглядела
-  // раньше. Гостю визитки она не нужна, поэтому в выдачу ревизии не
-  // копируются, а страница за ними даже не тянется — запрос вернул бы 404 и
-  // оставил красную строку в консоли на ровном месте.
+  // And it is used during development: the strip is how you compare what the
+  // board looked like earlier. A visitor to the business card has no need for
+  // it, so the revisions are not copied into the build, and the page does not
+  // even reach for them — the request would return 404 and leave a red line
+  // in the console for no reason at all.
   const LOCAL = ['localhost', '127.0.0.1', '::1', '[::1]'].indexOf(location.hostname) >= 0;
   const timeline = document.getElementById('timeline');
   const board = document.getElementById('board');
@@ -148,7 +154,7 @@
   let revs = [];
   let revPos = -1;
   let revLoading = false;
-  const revCache = new Map();      // sha → разметка, чтобы не качать дважды
+  const revCache = new Map();      // sha → markup, so nothing is fetched twice
 
   function paintTimeline() {
     const last = revs.length - 1;
@@ -196,11 +202,12 @@
       if (!res.ok) throw new Error(res.status);
       revs = await res.json();
     } catch (err) {
-      return;                       // истории нет — ленты тоже, молча
+      return;                       // no history — no strip either, silently
     }
     if (revs.length < 2) return;
-    // Текущая плата уже в странице: кладём её в кэш последней версией,
-    // иначе возврат «в сегодня» перекачивал бы то, что и так на экране.
+    // The current board is already in the page: we put it into the cache as
+    // the latest version, otherwise coming back «to today» would re-fetch
+    // what is on the screen anyway.
     revCache.set(revs[revs.length - 1].sha, board.innerHTML);
     revPos = revs.length - 1;
     tlRange.max = String(revs.length - 1);
@@ -212,7 +219,7 @@
   tlRange.addEventListener('input', function () { showRev(Number(tlRange.value)); });
   tlPrev.addEventListener('click', function () { showRev(revPos - 1); });
   tlNext.addEventListener('click', function () { showRev(revPos + 1); });
-  // Стрелками ходить удобнее, чем мышью, но только когда лента на экране
+  // Arrows are handier than the mouse, but only while the strip is on screen
   document.addEventListener('keydown', function (e) {
     if (timeline.hidden || !rig.classList.contains('service')) return;
     if (e.target.closest('input, textarea')) return;
@@ -220,10 +227,11 @@
     if (e.key === 'ArrowRight') { e.preventDefault(); showRev(revPos + 1); }
   });
 
-  // Самотест печатает экран: строки идут и на него, и в консоль — как на
-  // машине с подключённым монитором и открытым SOL. Сами строки собираются
-  // из паспорта, состояния схемы и настроек прошивки, поэтому вынутая планка
-  // видна и здесь. Всё это живёт в parts/screen.js.
+  // The self-test is printed by the screen: the lines go both to it and to
+  // the console — as on a machine with a monitor attached and SOL open. The
+  // lines themselves are built from the passport, the state of the schematic
+  // and the firmware settings, so a pulled memory stick shows up here too.
+  // All of that lives in parts/screen.js.
   function runPost() {
     screenPost();
   }
@@ -293,7 +301,7 @@
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleLp(); }
   });
 
-  // Какая лампа на панели отвечает за какой узел.
+  // Which lamp on the panel answers for which unit.
   const LP_MAP = {
     mem: '.dimm.pulled',
     cpu: '.cpu-slot.pulled',
@@ -314,18 +322,20 @@
     tick();
   }
 
-  // ── Экономия на невидимом ──────────────────────────────────────────────
-  // Анимация в SVG перерисовывает сцену независимо от того, смотрит ли на неё
-  // кто-нибудь: браузер честно крутит крыльчатки и в свёрнутой вкладке, и
-  // когда схему увели за край экрана. Ставим на паузу — вернёшься, и лопасть
-  // продолжит с того же положения, а не прыгнет.
+  // ── Saving on the invisible ────────────────────────────────────────────
+  // An SVG animation repaints the scene whether or not anyone is looking at
+  // it: the browser dutifully spins the fan blades in a minimised tab and
+  // when the schematic has been scrolled off the screen. We put it on pause —
+  // come back, and a blade carries on from the same position instead of
+  // jumping.
   const chassisBox = document.querySelector('.chassis');
   let onScreen = true;
 
   function dormancy() {
-    // Пока поверх машины стоит полноэкранный слой, схему тоже считать
-    // незачем: её не видно, а перерисовывать полупрозрачный слой поверх
-    // анимирующегося SVG — самое дорогое, что тут можно сделать.
+    // While a full-screen layer stands over the machine there is no point in
+    // computing the schematic either: it is not visible, and repainting a
+    // semi-transparent layer over an animating SVG is the most expensive
+    // thing that can be done here.
     rig.classList.toggle('dormant', document.hidden || !onScreen || screenOpen());
   }
 
@@ -337,7 +347,7 @@
   }
   document.addEventListener('visibilitychange', dormancy);
 
-  // ── Время работы ───────────────────────────────────────────────────────
+  // ── Uptime ─────────────────────────────────────────────────────────────
   let t0 = Date.now();
   const uptimeEl = document.getElementById('uptime');
 
@@ -347,21 +357,23 @@
     uptimeEl.textContent = String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
   }
 
-  // ── Сервисный режим ────────────────────────────────────────────────────
+  // ── Service mode ───────────────────────────────────────────────────────
   const svcSwitch = document.getElementById('svc-switch');
 
   function toggleService() {
     const on = rig.classList.toggle('service');
     line(on ? 'service mode engaged · терминал и диагностика' : 'service mode released',
          on ? 'warn' : 'muted');
-    if (on) initTimeline();     // лента нужна только разобранной машине
-    // Панель диагностики сама не выезжает: в сервисном режиме она нужна не
-    // всегда, а места занимает много. Закрыть её при выходе — другое дело:
-    // снаружи сервисного режима ей висеть незачем.
+    if (on) initTimeline();     // the strip is only for a stripped-down machine
+    // The diagnostics panel does not slide out by itself: in service mode it
+    // is not always wanted, and it takes up a lot of room. Closing it on the
+    // way out is another matter: outside service mode there is no reason for
+    // it to hang there.
     if (!on && rig.classList.contains('lp-open')) toggleLp();
     if (!on) {
-      // Собираем машину целиком: узел мог остаться и на промежуточной
-      // ступени — с откинутой ручкой диска или снятым радиатором.
+      // Assemble the machine completely: a unit could have been left at an
+      // intermediate step too — with a drive latch flipped open or a heatsink
+      // taken off.
       chassis.querySelectorAll('.pulled, .unlatched').forEach(function (p) {
         p.classList.remove('pulled', 'opened', 'unlatched');
       });
@@ -373,9 +385,10 @@
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleService(); }
   });
 
-  // Реестр узлов. Каждый блок сам говорит, как он называется в логе и,
-  // если разбирается не одним движением, как именно. Раньше это была лестница
-  // из if по типам: чтобы добавить узел, приходилось править общий файл.
+  // The registry of units. Every block says for itself what it is called in
+  // the log and, if it does not come apart in one motion, exactly how. This
+  // used to be a ladder of ifs over types: to add a unit you had to edit the
+  // shared file.
   const PICKS = [];
 
   // Вентилятор: в логе нумеруются с единицы, как на корпусе, а в разметке —
@@ -448,15 +461,16 @@
     return kind ? kind.name(el) : (el.dataset.unit || 'unit');
   }
 
-  // Пока сервисный режим выключен, машина работает как визитка: клик по узлу
-  // ведёт по адресу. Включил SERVICE — те же клики разбирают машину.
+  // While service mode is off, the machine works as a business card: clicking
+  // a unit follows its address. Turn SERVICE on — the same clicks take the
+  // machine apart.
   chassis.addEventListener('click', function (e) {
     if (rig.classList.contains('service')) {
       const pick = e.target.closest('.pick');
       if (!pick) return;
       e.preventDefault();
-      // Узел со своим сценарием разбора — например, процессор, который
-      // снимается в два приёма, — обрабатывает себя сам.
+      // A unit with its own removal script — the processor, say, which comes
+      // off in two steps — handles itself.
       const kind = PICKS.find(function (k) { return k.test(pick); });
       if (kind && kind.pull) {
         kind.pull(pick, line);
@@ -474,6 +488,16 @@
     if (href.startsWith('mailto:')) { window.location.href = href; return; }
     window.open(href, '_blank', 'noopener');
   });
+
+  // The callouts are real <a> elements; service mode hides them in css. This
+  // is the second line, and it covers a different way of pressing: css takes
+  // the label out from under the pointer and out of the tab order, while here
+  // the activation itself is cancelled — from the keyboard or from anywhere
+  // else. Listening on .rig rather than on the labels, because the revision
+  // timeline rewrites the whole board and per-label listeners would go with it.
+  rig.addEventListener('click', function (e) {
+    if (rig.classList.contains('service') && e.target.closest('a.callout')) e.preventDefault();
+  }, true);
 
   // ── Терминал: ядро оболочки ────────────────────────────────────────────
   // Раньше здесь была лестница из case по именам команд. Она работала, но
@@ -846,9 +870,10 @@
     names: names,
   };
 
-  // ── Переключатель видов ────────────────────────────────────────────────
-  // Визитка и схема — два способа показать одно и то же. Выбор запоминается,
-  // чтобы вернувшийся гость попал туда же, где был.
+  // ── View switch ────────────────────────────────────────────────────────
+  // The business card and the schematic are two ways of showing the same
+  // thing. The choice is remembered, so a returning visitor lands where they
+  // left off.
   const viewBtn = document.getElementById('view-switch');
   function setView(v) {
     document.body.classList.toggle('view-rig', v === 'rig');
@@ -865,9 +890,9 @@
 
 
 
-  // ── Партномера узлов ───────────────────────────────────────────────────
-  // Клик по хэшу копирует его и открывает коммит: на живой плате по
-  // партномеру так же ищут деталь, только в бумажном каталоге.
+  // ── Part numbers of the units ──────────────────────────────────────────
+  // Clicking the hash copies it and opens the commit: on a real board a part
+  // number is looked up the same way, only in a paper catalogue.
   chassis.addEventListener('click', function (e) {
     const stamp = e.target.closest('a.stamp');
     if (!stamp) return;
@@ -877,7 +902,7 @@
     if (navigator.clipboard) navigator.clipboard.writeText(sha).catch(function () {});
     line('p/n ' + sha + ' скопирован · открываю коммит', 'ok');
     window.open(stamp.getAttribute('href'), '_blank', 'noopener');
-  }, true);   // на перехвате: иначе клик уйдёт в разбор машины
+  }, true);   // on capture: otherwise the click goes into taking the machine apart
 
   // ── Связка узла и подписи ──────────────────────────────────────────────
   // Подсветка идёт в обе стороны: узел ↔ его выноска. Класс вместо :hover,
@@ -2058,20 +2083,28 @@
     }),
   });
 
-  // ── Полноэкранный слой: POST → BIOS Setup → top ─────────────────────────
-  // <dialog> выбран не ради вида, а ради двух вещей разом: showModal() кладёт
-  // разметку в top layer (поверх схемы и всего остального без возни с
-  // z-index) и одним движением делает окружающее дерево inert — а на схеме
-  // Enter/Space нажимают кнопки, а стрелки листают ленту ревизий, и слой не
-  // должен до них дотягиваться. Inert — первый рубеж; вторым стоит перехват
-  // keydown на document в фазе capture ниже: если что-то всё же попробует
-  // добраться до фона, поймаем раньше, чем событие до него дойдёт.
+  // ── Screen of the machine: POST → BIOS Setup → top ──────────────────────
+  // The screen is the service cover turned into a display: a panel the size of
+  // the board that slides in from above. It used to be a <dialog> opened with
+  // showModal(), which bought two things at once — the top layer and an inert
+  // background — but it also covered the whole page, and a monitor plugged
+  // into this server covers the server, not the room.
   //
-  // Три режима — одна и та же разметка, div'ы прячутся друг за друга через
-  // hidden. Отдельных диалогов не заводим: тогда пришлось бы решать, какой
-  // из них сейчас «настоящий» top layer, а showModal() у второго диалога,
-  // пока открыт первый, попросту бросает исключение.
+  // Both of those we now do by hand. Stacking is plain z-index inside the
+  // stage. Inert goes on the parts of the page the screen must not reach: on
+  // the schematic Enter and Space press buttons and the arrows page through
+  // revisions, so a keystroke meant for BIOS Setup must not land there. Inert
+  // is the first line of defence; the second is the capture-phase keydown on
+  // document below, which catches anything that still tries to get through.
+  //
+  // Three modes share one piece of markup, the panes hide behind each other
+  // with the hidden attribute.
   const crt = document.getElementById('crt');
+  // Everything that must stop answering mouse and keyboard while the screen is
+  // up. The screen sits next to .chassis rather than inside it precisely so
+  // that inert on the schematic does not swallow the screen along with it.
+  const SHADOWED = '.chassis, .rig-side, .timeline, .rig-id, main,' +
+                   ' .theme-switch, .assemble-btn, .view-switch';
   const postPane = document.getElementById('crt-post');
   const postLog = document.getElementById('crt-post-log');
   const setupPane = document.getElementById('crt-setup');
@@ -2095,33 +2128,47 @@
   // выполняется выше по файлу, и до объявления let обращение бросает.
   function screenOpen() { return crtOpen; }
 
+  function shadow(on) {
+    document.querySelectorAll(SHADOWED).forEach(function (el) {
+      if (on) el.setAttribute('inert', ''); else el.removeAttribute('inert');
+    });
+  }
+
   function openCrt(mode) {
     crt.dataset.mode = mode;
     postPane.hidden = mode !== 'post';
     setupPane.hidden = mode !== 'setup';
     topPane.hidden = mode !== 'top';
-    if (!crt.open) crt.showModal();
+    crt.classList.add('on');
+    crt.setAttribute('aria-hidden', 'false');
+    shadow(true);
+    // Focus has to be moved by hand — showModal() used to do it. Without this
+    // the first keystroke would go to whatever was focused before.
+    crt.focus({ preventScroll: true });
     crtOpen = true;
     dormancy();
   }
-  function closeCrt() {
-    if (crt.open) crt.close();
-  }
 
-  // Родной Esc диалога сам закрывает его через cancel → close, но у нас в
-  // каждом режиме свой смысл Esc (пропустить POST, выйти из setup без
-  // сохранения, закрыть top) — решает его наш обработчик ниже, а не браузер.
-  crt.addEventListener('cancel', function (e) { e.preventDefault(); });
-  // По экрану самотеста кликают, чтобы он ушёл, — и это разумно. Не даём
-  // закрыть только машину, которой не с чего грузиться: там экран и должен
-  // стоять, пока не зайдёшь в setup и не поменяешь порядок загрузки.
-  crt.addEventListener('click', function () {
-    if (crt.dataset.mode === 'post' && postCtl && postCtl.done) { postCtl = null; closeCrt(); }
-  });
-  crt.addEventListener('close', function () {
+  function closeCrt() {
+    if (!crtOpen) return;
+    crt.classList.remove('on');
+    crt.setAttribute('aria-hidden', 'true');
+    shadow(false);
     crtOpen = false;
     dormancy();
     closeTop();
+  }
+
+  // The screen takes focus, so it needs to be focusable — but only as a
+  // target, never as a tab stop of its own.
+  crt.tabIndex = -1;
+
+  // Clicking the self-test screen to dismiss it is the natural thing to do.
+  // The only machine we refuse to let go is the one with nothing to boot
+  // from: there the screen belongs on until you enter setup and change the
+  // boot order.
+  crt.addEventListener('click', function () {
+    if (crt.dataset.mode === 'post' && postCtl && postCtl.done) { postCtl = null; closeCrt(); }
   });
 
   // Один обработчик на все три режима: диспетчер смотрит на dataset.mode,
@@ -2129,7 +2176,7 @@
   // post → setup внутри одного открытого диалога не пришлось бы гадать,
   // сколько старых обработчиков уже навешано.
   document.addEventListener('keydown', function (e) {
-    if (!crt.open) return;
+    if (!crtOpen) return;
     const mode = crt.dataset.mode;
     if (mode === 'post') handlePostKey(e);
     else if (mode === 'setup') handleSetupKey(e);
@@ -2142,7 +2189,7 @@
   // экран закрыт — F2 открывает setup, экран открыт — клавишу разбирает
   // диспетчер режима выше.
   document.addEventListener('keydown', function (e) {
-    if (crt.open) return;
+    if (crtOpen) return;
     // F2 — как на живой машине. Enter — для тех, у кого верхний ряд отдан
     // системе, но только когда фокус ни на чём: в поле консоли он отправляет
     // команду, на кнопке схемы — нажимает её, и отбирать его там нельзя.
@@ -2271,7 +2318,7 @@
 
   function crtPostLine(t, c) {
     line(t, c);                 // в консоль — всегда, независимо от того, открыт ли экран
-    if (!crt.open) return;
+    if (!crtOpen) return;
     const d = document.createElement('div');
     if (c) d.className = c;
     d.textContent = t;
@@ -2326,6 +2373,11 @@
 
     let i = 0;
     (function step() {
+      // The run may have been abandoned mid-flight: clicking the self-test
+      // away nulls postCtl while the next line is still on the timer, and a
+      // second POST replaces it outright. Either way this chain has nothing
+      // left to print — without the guard it read .skip off null and threw.
+      if (!postCtl) return;
       if (i >= built.lines.length) {
         postCtl.done = true;
         if (postCtl.f2Pending) { enterSetupFromPost(); return; }

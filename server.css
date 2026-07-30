@@ -2,37 +2,40 @@
  * Источники: tools/board/styles/base.css и tools/board/blocks/*.css,
  * собирает tools/build.py. Стили узла лежат рядом с его геометрией.
  */
-/* Схема сервера — интерактивная часть визитки.
+/* Server schematic — the interactive half of the personal card.
  *
- * Прототип и генератор платы живут в server-proto: 32 слота памяти, восемь
- * вентиляторов и шелкографию собирает скрипт, руками такое не пишут.
+ * The prototype and the board generator live in server-proto: 32 memory slots,
+ * eight fans and the silkscreen are put together by a script, nobody writes
+ * that by hand.
  *
- * Два уровня. Обычный: подписи-выноски видны сразу, узлы работают как ссылки.
- * Сервисный (тумблер SERVICE на плате): узлы вынимаются, появляется консоль,
- * выезжает панель диагностики.
+ * Two levels. Normal: the callout labels are visible at once, the units work
+ * as links. Service (the SERVICE switch on the board): units come out, the
+ * console appears, the diagnostics panel slides out.
  *
- * Про заливки. Схема однажды теряла фон целиком, и подозревали то градиенты,
- * то opacity на SVG-узлах. Виновато было другое: правило вида
- * `.fault { fill-opacity: 0 }` матчило сам .rig, а fill-opacity наследуется
- * всеми потомками. Поэтому селекторы ламп сужены до circle.fault, а гасим мы
- * их через fill-opacity, а не opacity — opacity поднимает узел в отдельный
- * слой. Градиенты при этом работают: по кристаллу процессора бежит
- * url(#die-shine) прямо внутри наклонённой сцены.
+ * About fills. The schematic once lost its background entirely, and the blame
+ * went first to gradients, then to opacity on SVG nodes. Neither was it: a
+ * rule like `.fault { fill-opacity: 0 }` matched .rig itself, and fill-opacity
+ * is inherited by every descendant. That is why the lamp selectors are
+ * narrowed to circle.fault, and why we put lamps out through fill-opacity and
+ * not opacity — opacity lifts a node into a layer of its own. Gradients do
+ * work meanwhile: url(#die-shine) runs across the CPU die right inside the
+ * tilted stage.
  */
 
-/* ── Два вида одной визитки ───────────────────────────────────────────────
- * Карточка со списком ссылок и схема сервера. Переключаются кнопкой рядом с
- * темой, выбор запоминается. Центрирует их body — он уже flex по центру.
+/* ── Two views of one card ────────────────────────────────────────────────
+ * The card with the list of links, and the server schematic. A button next to
+ * the theme one switches them, the choice is remembered. body centres them —
+ * it is a centring flex already.
  */
 body.view-card .rig { display: none; }
 body.view-rig main { display: none; }
-/* Только display: ширину задаёт сама .rig. Здесь стояло width: 100%, и по
-   специфичности оно било потолок в .rig — сколько его ни правь, машина
-   растягивалась на весь экран. */
+/* display only: .rig sets its own width. There used to be width: 100% here,
+   and on specificity it beat the ceiling inside .rig — however much you edited
+   that ceiling, the machine stretched across the whole screen. */
 body.view-rig .rig { display: block; }
 
-/* Кнопка вида — родная сестра переключателя темы: те же размеры, та же
-   инверсная подложка, слева от неё. Иначе теряется на фоне. */
+/* The view button is the theme switch's own sister: same size, same inverse
+   backing, sitting to its left. Otherwise it gets lost against the page. */
 .view-switch {
     position: fixed;
     top: 24px;
@@ -57,8 +60,9 @@ body.view-rig .rig { display: block; }
         transform    0.44s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-/* Кнопка пересборки: та же плитка, что у вида и темы, третьей в ряду.
-   Показываем только на схеме — в виде карточки пересобирать нечего. */
+/* The reassemble button: the same tile as the view and theme ones, third in
+   the row. Shown on the schematic only — in card view there is nothing to
+   reassemble. */
 .assemble-btn {
     position: fixed;
     top: 24px;
@@ -85,8 +89,9 @@ body.view-rig .rig { display: block; }
 body.view-rig .assemble-btn { display: grid; }
 .assemble-btn svg { width: 21px; height: 21px; display: block; }
 .assemble-btn:hover { transform: translate3d(0, -1px, 0); }
-/* Пока сборка идёт, кнопка отжата и повторно не срабатывает: второй запуск
-   поверх первого сбивал бы расписание, и часть узлов оставалась бы вне. */
+/* While the assembly runs the button is released and does not fire again: a
+   second run on top of the first would knock the schedule out, and some of
+   the units would stay outside the machine. */
 .rig.assembly ~ .assemble-btn,
 body:has(.rig.assembly) .assemble-btn { opacity: 0.45; pointer-events: none; }
 .assemble-btn:active svg { transform: rotate(-40deg); }
@@ -109,13 +114,14 @@ body:has(.rig.assembly) .assemble-btn { opacity: 0.45; pointer-events: none; }
         color     var(--theme-fade);
 }
 
-/* Показываем то, куда переключимся: в виде карточки — стойку, и наоборот. */
+/* We show where the click leads: in card view — the rack, and the reverse. */
 .icon-card { opacity: 0; transform: rotate(-90deg) scale(0.5); }
 .icon-rack { opacity: 1; transform: none; }
 body.view-rig .icon-rack { opacity: 0; transform: rotate(90deg) scale(0.5); }
 body.view-rig .icon-card { opacity: 1; transform: none; }
 
-/* Схеме нужны свои цветовые роли: у визитки токены названы иначе. */
+/* The schematic needs colour roles of its own: the card names its tokens
+   differently. */
 .rig {
   --ink:  #93a1a1;
   --dim:  #586e75;
@@ -126,40 +132,51 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   --red:   #dc322f;
   --edge: rgba(147, 161, 161, 0.22);
   --fade: 0.45s cubic-bezier(0.32, 0.72, 0, 1);
-  /* Пружина осталась для мелочи — защёлок и язычков. Крупное едет по
-     --glide: длинный ease-out без отскока. Радиатор размером с сокет, и
-     пружинный доводчик на нём читался рывком, а не движением руки. */
+  /* The spring is left for the small parts — latches and tabs. Anything big
+     travels on --glide: a long ease-out with no bounce. The heatsink is the
+     size of the socket, and a spring settle on it read as a jerk rather than
+     as a hand moving. */
   --spring: 0.6s cubic-bezier(0.34, 1.3, 0.64, 1);
   --glide: 0.72s cubic-bezier(0.22, 1, 0.36, 1);
-  /* Щелчок: узел на защёлке сначала не поддаётся, потом срывается и дальше
-     идёт свободно, замедляясь. Так вынимают планку, вентилятор, райзер и
-     блок питания — всё, что фиксируется. Процессор так не ходит: его не
-     дёргают, а поднимают, поэтому у него остаётся --glide.
+  /* Switching the mode is the largest movement on the page: a column opens
+     up, the machine shrinks, the instruments slide in. On --glide it read as
+     a jerk, and not because the curve is bad: in the same three quarters of a
+     second the whole composition travels here, not a single unit. A second
+     and a half on the same bounce-free curve — starts at once, brakes for
+     a long time. */
+  --svc: 1.5s cubic-bezier(0.22, 1, 0.36, 1);
+  /* The click: a latched unit refuses to move at first, then breaks free and
+     runs on freely, slowing down. That is how a DIMM, a fan, a riser and a
+     power supply come out — everything that is held by a catch. The CPU does
+     not move that way: it is not yanked but lifted, so it keeps --glide.
 
-     Треть времени узел стоит почти на месте, за следующие семь процентов
-     проходит две трети пути — это и есть срыв, — а остаток доводится еле
-     заметно. Разрыв между рывком и доводкой держим большим намеренно: на
-     мягкой кривой щелчок читается просто быстрым движением. */
+     For a third of the time the unit stands almost still, over the next seven
+     per cent it covers two thirds of the distance — that is the break-free —
+     and the remainder is settled barely visibly. The gap between the yank and
+     the settling is kept large on purpose: on a soft curve the click just
+     reads as a fast movement. */
   --click: 0.9s linear(
       0, 0.003 14%, 0.009 24%, 0.018 31%, 0.30 35%, 0.66 39%, 0.83 44%,
       0.90 52%, 0.945 63%, 0.975 76%, 0.993 88%, 1);
 
-  /* Темп индикации. Держим его в одном месте: лампы мигают часто, чтобы
-     машина выглядела живой, крыльчатки крутятся быстро, чтобы читались
-     размазанными. Важно другое — все они ступенчатые, а не плавные:
-     измерения показали, что плавное вращение стоит на четверть дороже
-     ступенчатого, потому что просит перерисовку в каждом кадре монитора. */
+  /* The tempo of the indication. Kept in one place: lamps blink often so the
+     machine looks alive, the fan blades spin fast so they read as blurred.
+     What matters more is that all of them are stepped and not smooth:
+     measurements showed that a smooth spin costs a quarter more than a
+     stepped one, because it asks for a repaint on every frame of the
+     monitor. */
   --blink: 1.4s;
   --beat: 1s;
   --spin: 1s;
-  /* Периоды подобраны так, чтобы все переключения ложились на сетку в
-     двадцатую долю секунды: 1.4 с делится на 28 позиций вспышек, оборот
-     крыльчатки — на 20 положений, пульс и мигание — на круглые доли. */
+  /* The periods are chosen so that every switch falls on a grid of a
+     twentieth of a second: 1.4 s divides into 28 blink positions, one turn of
+     a fan into 20 positions, the pulse and the blink into round fractions. */
 
-  /* Посадка. У каждого узла свой характер, и это не украшение: планку
-     дожимают до щелчка защёлок, вентилятор идёт туго по направляющим,
-     блок питания влетает в карман одним движением, а диск сперва скользит
-     свободно и упирается только в самом конце. */
+  /* Seating. Every unit has a character of its own, and that is not
+     decoration: a DIMM is pressed home until the latches click, a fan goes
+     stiffly down its guides, a power supply flies into its bay in one motion,
+     and a drive first slides freely and only meets resistance at the very
+     end. */
   --press-hard: 0.95s linear(
       0, 0.20 10%, 0.40 20%, 0.53 29%, 0.585 38%, 0.60 48%, 0.615 57%,
       0.68 64%, 0.88 71%, 1.03 78%, 1.01 86%, 1);
@@ -174,20 +191,23 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   margin: 0 auto;
   width: 100%;
   padding: 0 12px;
-  /* Размер машины. Ограничение по высоте главное: схема широкая и низкая,
-     и в экран она упирается высотой, а не шириной. 1.66 — соотношение
-     viewBox, а он симметричен относительно корпуса: слева и справа ровно по
-     120 единиц, сверху и снизу по 36. Запас слева нужен под выезжающий диск,
-     и пока справа его не было, корпус стоял на семьдесят шесть единиц правее
-     середины — глазом это читалось как «машина не по центру». Запас сверху и
-     снизу появился под уши стойки: они вылетают вбок, за боковые стенки. */
+  /* The size of the machine. The height limit is the main one: the schematic
+     is wide and low, and it runs into the screen by height, not by width.
+     1.66 is the viewBox ratio, and the viewBox is symmetric about the
+     chassis: exactly 120 units left and right, 36 top and bottom. The margin
+     on the left is there for the drive that slides out, and while there was
+     none on the right the chassis stood seventy-six units right of centre —
+     to the eye that read as "the machine is off centre". The top and bottom
+     margins appeared for the rack ears: they stick out sideways, past the
+     side walls. */
   --rig-w: min(68vh * 1.66, 1200px);
   color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
 .rig *, .rig *::before, .rig *::after { box-sizing: border-box; }
 
-/* Имя и статус видны в обоих видах — это визитка, а не только схема. */
+/* Name and status are visible in both views — this is a personal card, not
+   only a schematic. */
 .rig-id { text-align: center; margin: 0 auto 18px; }
 .rig-id h2 { margin: 0 0 4px; font-size: 1.5rem; font-weight: 600;
              letter-spacing: -0.02em; color: var(--heading); }
@@ -195,7 +215,7 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
 .rig-id .now { margin: 0; font-size: 0.8rem; color: var(--now); }
 .rig-id .now .live-dot { margin-right: 7px; }
 
-/* Консоль — часть сервисного режима, снизу под машиной. */
+/* The console is part of service mode, below the machine. */
 .rig .panel {
   display: none;
   margin: 0;
@@ -208,19 +228,20 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   line-height: 1.55;
 }
 .rig.service .panel { display: block; }
-/* Заголовок консоли — её шильдик: слово console, модель машины, аптайм.
-   Модель здесь, а не в логе: лог для событий, а паспорт машины постоянный.
-   Всё серое, разной яркости; длинная спецификация обрезается, а не переносит
-   строку — заголовок должен остаться в одну строку при любой ширине. */
+/* The console heading is its nameplate: the word console, the machine model,
+   the uptime. The model belongs here and not in the log: the log is for
+   events, while the machine's passport is permanent. All grey, at different
+   brightness; a long spec is clipped rather than wrapped — the heading has to
+   stay on one line at any width. */
 .rig .panel h2 {
   margin: 0 0 8px;
   font-size: 0.68rem; font-weight: 600;
   letter-spacing: 0.14em; text-transform: uppercase;
   color: var(--dim);
   display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
-  /* Заголовок сам flex-элемент колонки, и его min-width: auto распирал панель
-     изнутри: спецификация не переносится, значит min-content равен всей
-     строке. Ноль возвращает обрезку многоточием. */
+  /* The heading is itself a flex item of the column, and its min-width: auto
+     pushed the panel apart from the inside: the spec does not wrap, so
+     min-content equals the whole line. Zero brings the ellipsis back. */
   min-width: 0;
 }
 .con-name { flex: none; }
@@ -249,13 +270,13 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
 .prompt input::placeholder { color: rgba(88,110,117,0.75); }
 
 
-  /* Приглашение: консоль не только пишет, в неё можно печатать. */
+  /* The prompt: the console does not only print, you can type into it. */
   .prompt { display: flex; align-items: baseline; gap: 6px; margin-top: 8px;
             border-top: 1px solid rgba(147,161,161,0.14); padding-top: 7px; }
 
 
 
-  /* ── Панели ───────────────────────────────────────────────────────────── */
+  /* ── Panels ───────────────────────────────────────────────────────────── */
   .panel {
     border: 1px solid var(--edge);
     border-radius: 12px;
@@ -273,18 +294,18 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   .bar { height: 3px; border-radius: 2px; background: rgba(147,161,161,0.14); overflow: hidden; margin: 2px 0 8px; }
   .bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--cyan), var(--green)); width: 0; transition: width 0.9s ease; }
 
-  /* ── Сцена ────────────────────────────────────────────────────────────── */
-  /* Наклон вернули: пропадающие заливки были не от 3D, а от градиентов —
-     paint server отваливался при трансформации группы. Градиентов в SVG
-     больше нет, перспектива безопасна. */
+  /* ── Stage ────────────────────────────────────────────────────────────── */
+  /* The tilt is back: the disappearing fills came not from the 3D but from
+     the gradients — the paint server fell off when the group was transformed.
+     There are no gradients left in the SVG, so perspective is safe. */
   .stage { position: relative; perspective: 1700px; perspective-origin: 50% 42%;
            display: flex; justify-content: center; }
   .stage > .chassis { width: 100%; margin: 0 auto; position: relative; z-index: 1; }
 
-  /* Тот же цветной ореол, что под карточкой ссылок: машина не должна висеть
-     на голом фоне, когда у карточки он есть. Размах меньше — сцена и так
-     вдвое шире карточки, и на полном blur(160px) свечение расползлось бы на
-     весь экран. */
+  /* The same coloured halo as under the card of links: the machine must not
+     hang on a bare background while the card has one. The spread is smaller —
+     the stage is twice as wide as the card to begin with, and at the full
+     blur(160px) the glow would crawl across the whole screen. */
   .rig-glow {
     position: absolute; inset: 4% 12%;
     border-radius: 80px;
@@ -314,69 +335,83 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   .chassis svg { display: block; width: 100%; height: auto; overflow: visible; }
 
 
-  /* ── Компоненты ───────────────────────────────────────────────────────── */
-  /* Две роли, и они не совпадают. .unit называет себя ярлыком — это диск,
-     банк памяти, процессор, сетевая карта. .pick физически вынимается —
-     планка, диск, вентилятор, радиатор. Банк памяти это один .unit с
-     шестнадцатью .pick внутри: ярлык один на банк, поднимается планка. */
+  /* ── Components ───────────────────────────────────────────────────────── */
+  /* Two roles, and they do not coincide. A .unit names itself with a tag —
+     that is a drive, a memory bank, a CPU, a network card. A .pick physically
+     comes out — a DIMM, a drive, a fan, a heatsink. A memory bank is one
+     .unit with sixteen .pick inside it: one tag per bank, and it is the DIMM
+     that lifts. */
   .unit { cursor: pointer; }
   .rig.service .unit { cursor: grab; }
   .pick-body {
     transform-box: fill-box; transform-origin: center;
     transition: transform var(--glide);
   }
-  /* Наведение: узел чуть приподнимается и подсвечивается. Восемь точек
-     подъёма читались так, будто деталь уже вынули; три — как отклик. */
+  /* Hover: the unit lifts a little and brightens. Eight points of lift read
+     as though the part had already been pulled; three read as a response. */
   .pick:hover .pick-body { transform: translateY(-3px); filter: brightness(1.2) saturate(1.08); }
   .pick .pick-body { transition: transform var(--glide), filter var(--fade); }
 
-  /* Ярлык живёт рядом со своим узлом и не выходит за край картинки.
-     Теней на SVG больше нет намеренно: в Safari фильтр внутри preserve-3d
-     заливает сцену белым — это и был «белый экран» в сервисном режиме. */
+  /* The tag lives next to its unit and does not run past the edge of the
+     picture. There are deliberately no shadows on the SVG any more: in Safari
+     a filter inside preserve-3d floods the stage white — that was the "white
+     screen" in service mode. */
   .unit .tag { fill-opacity: 0; transition: fill-opacity var(--fade); pointer-events: none; }
   .unit:hover .tag, .unit:focus-visible .tag { fill-opacity: 1; }
   .unit:focus-visible { outline: none; }
-  /* Выноски. Гость должен видеть, куда нажимать, без наведения — поэтому
-     подписи постоянные, а наведение лишь подсвечивает нужную. */
+  /* Callouts. A visitor has to see where to click without hovering — so the
+     labels are permanent, and hover only highlights the one in question. */
   .callouts { pointer-events: none; }
   a.callout { pointer-events: auto; cursor: pointer; }
   a.callout:hover .co-box { fill: #fff; stroke: var(--cyan); stroke-width: 2.4; }
   a.callout:hover .co-line { stroke: var(--cyan); }
   a.callout:focus-visible { outline: none; }
   a.callout:focus-visible .co-box { stroke: var(--cyan); stroke-width: 2.2; }
-  /* В сервисном режиме выноски убираются совсем: там разбирают машину, а не
-     читают, куда ведёт узел. Заодно они переставали спорить с вынутыми
-     деталями, которые едут ровно сквозь них. */
-  .rig.service .callouts { opacity: 0; pointer-events: none; }
+  /* In service mode the callouts go away entirely: there the machine is taken
+     apart, not read, and the labels stopped fighting the pulled units that
+     travel straight through them.
+     It has to be `visibility`, not `opacity` and not `pointer-events`. A
+     transparent <a> is still hit-tested, so the labels kept opening links no
+     one could see; and `pointer-events: none` on the group is undone by the
+     `auto` on a.callout above — pointer-events is inherited, but a descendant
+     may always opt back in. `visibility` inherits the same way, so nothing
+     inside .callouts may declare `visible`; on that condition it does both
+     jobs at once: nothing to hit, and the anchors leave the tab order, so
+     Enter cannot reach them either. */
+  .rig.service .callouts { visibility: hidden; }
   .co-dot { fill: var(--cyan); stroke: rgba(9,32,38,0.85); stroke-width: 1.8; }
   .co-line { stroke: rgba(42,161,152,0.8); stroke-width: 2.2; }
-  /* Подложка — не украшение: без неё светлая бирка сливается с шильдиками
-     радиаторов и наклейками блоков питания, которых на плате хватает. */
+  /* The backing is not decoration: without it the light label merges with the
+     heatsink nameplates and the power supply stickers, of which the board has
+     plenty. */
   .co-shadow { fill: rgba(3, 14, 18, 0.55); }
   .co-box { fill: rgba(245, 241, 228, 0.98); stroke: rgba(6, 26, 31, 0.9); stroke-width: 1.6; }
-  /* Цвет корешка приходит атрибутом от генератора — у каждого сервиса свой.
-     Правило с fill здесь перебивало бы его: презентационный атрибут слабее
-     любого стиля, и все семь бирок снова стали бы одинаковыми. */
+  /* The colour of the spine arrives as an attribute from the generator — one
+     per service. A fill rule here would override it: a presentation attribute
+     is weaker than any style, and all seven labels would go identical
+     again. */
   .co-text {
     fill: #06222a; font-family: ui-monospace, Menlo, monospace;
     font-size: 22px; font-weight: 700; letter-spacing: 0.01em;
   }
-  /* Вторая строка отвечает на «а что это»: без неё бирка называет сервис,
-     но не говорит, зачем по нему щёлкать. */
+  /* The second line answers "and what is this": without it the label names
+     the service but does not say why one would click it. */
   .co-sub {
     fill: rgba(6, 34, 42, 0.6); font-family: ui-monospace, Menlo, monospace;
     font-size: 12.5px; font-weight: 500; letter-spacing: 0.02em;
   }
-  /* Значок сервиса — тот же, что в карточке ссылок: гость видит один и тот
-     же знак в обоих видах визитки и узнаёт его быстрее, чем читает. */
+  /* The service icon is the same one as in the card of links: a visitor sees
+     the same mark in both views of the card and recognises it faster than he
+     reads it. */
   .co-icon { fill: none; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
-  /* Стрелка «наружу» — веб-конвенция: ссылка откроется в новой вкладке. */
+  /* The outward arrow is a web convention: the link opens in a new tab. */
   .co-ext path {
     stroke: rgba(6, 34, 42, 0.45); stroke-width: 1.9;
     stroke-linecap: round; stroke-linejoin: round;
   }
-  /* Блик проходит по бирке ровно один раз, когда машина собрана: он говорит
-     «сюда можно нажать», а повторяясь, превратился бы в мигающий баннер. */
+  /* The shine crosses the label exactly once, when the machine is assembled:
+     it says "this can be clicked", and repeated it would turn into a blinking
+     banner. */
   .co-shine { fill: rgba(255, 255, 255, 0.9); opacity: 0; }
   .rig:not(.assembly) .co-shine {
     animation: coShine 0.85s calc(1.15s + var(--tag-order, 0) * 0.14s) ease-out 1;
@@ -688,15 +723,21 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
     transform-box: fill-box;
     transition: fill 0.15s steps(1, end), transform var(--spring);
   }
-  .latch-l { transform-origin: 100% 100%; }
-  .latch-r { transform-origin: 0% 100%; }
+  /* The hinge sits at the outboard end of the socket, not next to the module:
+     a latch tips away from the DIMM it holds. Hence the pivot is the far
+     corner of each ear — left one on its left edge, right one on its right. */
+  .latch-l { transform-origin: 0% 100%; }
+  .latch-r { transform-origin: 100% 100%; }
   .dimm.pulled .latch { fill: var(--amber); }
 
   /* Планку не вынуть, пока защёлки закрыты, — поэтому сначала откидываются
      они, и только потом модуль идёт вверх. Разъём при этом остаётся на
      плате: он нарисован отдельно и никуда не едет. */
-  .rig.service .dimm.pulled .latch-l { transform: rotate(38deg); }
-  .rig.service .dimm.pulled .latch-r { transform: rotate(-38deg); }
+  /* Open means outward: the board runs front-to-right, so the front ear swings
+     toward -X and the rear one toward +X — both away from the socket, never
+     across the module. A positive angle is clockwise in SVG. */
+  .rig.service .dimm.pulled .latch-l { transform: rotate(-38deg); }
+  .rig.service .dimm.pulled .latch-r { transform: rotate(38deg); }
   .rig.service .dimm.pulled .pick-body {
     transform: translateY(-13px);
     transition-delay: 0.12s;
@@ -715,8 +756,8 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
      момент, когда модуль дожали, — отсюда та же задержка --seat. */
   .rig.assembly .latch-l { animation: latchL var(--press-hard) var(--seat, 0s) backwards; }
   .rig.assembly .latch-r { animation: latchR var(--press-hard) var(--seat, 0s) backwards; }
-  @keyframes latchL { from { transform: rotate(38deg); } }
-  @keyframes latchR { from { transform: rotate(-38deg); } }
+  @keyframes latchL { from { transform: rotate(-38deg); } }
+  @keyframes latchR { from { transform: rotate(38deg); } }
   /* Планку не опускают, а вдавливают: она входит с сопротивлением и
      садится, когда защёлки по торцам щёлкнут. */
   @keyframes seatDimm {
@@ -930,9 +971,9 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
      окна, хотя по разметке стоит ровно. */
   padding: 0 26px;
   transition:
-    grid-template-columns var(--glide),
-    column-gap var(--glide),
-    row-gap var(--glide);
+    grid-template-columns var(--svc),
+    column-gap var(--svc),
+    row-gap var(--svc);
 }
 /* Сервисный режим открывает вторую колонку. Машина при этом занимает всё,
    что осталось, и плавно уходит влево — ровно на половину появившейся
@@ -945,15 +986,17 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   grid-template-columns: minmax(0, 1fr) clamp(380px, 32vw, 640px);
   column-gap: 24px; row-gap: 14px;
 }
-/* Машина прижата к левому краю колонки и никуда за него не уходит. Уводить
-   её дальше нельзя: диск в сервисном режиме выезжает из корзины влево, и
-   всё, что машина отдала за кромку окна, отнимается у него — вынуть диск
-   становится нечем. Поэтому вместо сдвига схема просто занимает колонку
-   целиком и ужимается, когда та узкая. */
+/* Машина занимает колонку целиком и ужимается вместе с ней. Уводить её за
+   левую кромку окна нельзя: диск в сервисном режиме выезжает из корзины
+   влево, и всё, что машина отдала за край, отнимается у него — вынуть диск
+   становится нечем.
+   Полей тут больше нет, и это не уборка. Стояло margin-left: 0, и
+   переключение начиналось рывком: auto-поля не интерполируются, машина
+   мгновенно перепрыгивала к левому краю и только потом колонка начинала
+   ехать. Теперь меняется одна величина — ширина колонки, — а схема идёт за
+   ней сама, оставаясь в своей колонке по центру. */
 .rig.service .stage {
   width: min(100%, var(--rig-w));
-  margin-left: 0;
-  margin-right: auto;
 }
 
 /* Места в гриде заданы явно. Без этого лента, объявившая себе первую
@@ -979,7 +1022,9 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   overflow: hidden;
   opacity: 0;
   transform: translateX(28px);
-  transition: opacity var(--fade), transform var(--glide);
+  /* Приборы идут в такт с колонкой, которая под них раздвигается: разъехавшись
+     по длительности, они читались как два отдельных движения. */
+  transition: opacity var(--svc), transform var(--svc);
 }
 .rig.service .rig-side { opacity: 1; transform: none; }
 
@@ -1192,15 +1237,24 @@ a.callout.lit .co-dot { fill: var(--head); }
 }
 
 /* ── screen ──────────────────────────────── */
-/* Полноэкранный слой: POST → BIOS Setup → top.
+/* Screen of the machine: POST → BIOS Setup → top.
  *
- * #crt лежит в body рядом с .rig, а не внутри неё — поэтому переменные .rig
- * сюда не докатываются вовсе (custom property наследуется по DOM-дереву, а
- * не по слою отрисовки). Красим слой полностью своими токенами: иначе синий
- * экран BIOS Setup поехал бы вместе со сменой темы страницы, а он обязан
- * быть синим всегда, как на живой машине.
+ * This is the service cover turned into a display. The panel sits in the
+ * board's own box, leans into the same plane as the chassis and arrives from
+ * above with the motion of a cover being put back on. It used to be a
+ * full-page layer, and on a personal card that was wrong: it covered the
+ * name, the view switch and the machine itself, while all it has to show is
+ * what a monitor plugged into this server would show.
+ *
+ * Every token here is local on purpose. Inheriting .rig colours would drag
+ * the blue of BIOS Setup along with the page theme, and that blue has to stay
+ * blue the way it does on a live machine.
+ *
+ * Sizes inside are in container units (cqw/cqh), not viewport units: the
+ * panel is now the size of the machine rather than the size of the window,
+ * and vh/vw would set type three times larger than the box holding it.
  */
-#crt {
+.crt {
   --crt-ink:   #93a1a1;
   --crt-dim:   #586e75;
   --crt-head:  #eee8d5;
@@ -1219,24 +1273,60 @@ a.callout.lit .co-dot { fill: var(--head); }
   --bios-sel-fg:  #000000;
   --bios-help-bg: #0000c0;
 
-  position: fixed;
+  position: absolute;
   inset: 0;
-  width: 100vw;
-  height: 100vh;
-  max-width: none;
-  max-height: none;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: var(--crt-bg);
+  z-index: 5;
+  /* The panes measure themselves against this box, not against the window. */
+  container-type: size;
+  box-sizing: border-box;
+  padding: 0.7cqw;
+  border-radius: 6px;
+  background: #161f24;
+  border: 1px solid rgba(147, 161, 161, 0.34);
+  box-shadow: 0 20px 46px rgba(0, 0, 0, 0.45);
   color: var(--crt-ink);
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* The plane of the machine: the same tilt .chassis settles into. Hidden by
+     visibility rather than display, so the slide keeps its transition — and
+     so container queries still have a box to measure. */
+  /* Origin stays at the default centre so the settled panel lands in exactly
+     the plane .chassis sits in; pivoting at the top edge projected it a few
+     dozen points lower and wider than the machine underneath. */
+  transform: rotateX(13deg) translate3d(0, -108%, 0);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    transform 1.05s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.5s ease,
+    visibility 0s linear 1.05s;
 }
 
-/* Просто затемнение фона — без backdrop-filter: блюр дорогой, владелец его
-   отверг ради этой же схемы (см. .rig-glow — там та же причина). */
-#crt::backdrop {
-  background: rgba(0, 0, 0, 0.72);
+.crt.on {
+  transform: rotateX(13deg);
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition:
+    transform 1.05s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.4s ease,
+    visibility 0s;
+}
+
+/* The glass itself: the cover carries a bezel, the picture lives inside it. */
+.crt-glass {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--crt-bg);
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crt, .crt.on { transition: opacity 0.2s ease, visibility 0s; }
+  .crt { transform: rotateX(13deg); }
 }
 
 /* ── POST ─────────────────────────────────────────────────────────────── */
@@ -1244,18 +1334,18 @@ a.callout.lit .co-dot { fill: var(--head); }
    и правило браузера [hidden] { display: none } с нулевой специфичностью ему
    проигрывает. Без этой строки самотест, setup и top видны одновременно,
    тремя окнами поверх друг друга. */
-#crt [hidden] { display: none !important; }
+.crt [hidden] { display: none !important; }
 
 .crt-post {
   box-sizing: border-box;
   width: 100%;
   height: 100%;
-  padding: 6vh 8vw;
+  padding: 5cqh 6cqw;
   display: flex;
   flex-direction: column;
   justify-content: center;
   gap: 2px;
-  font-size: clamp(13px, 1.6vw, 20px);
+  font-size: clamp(9px, 1.9cqw, 17px);
   line-height: 1.7;
 }
 .crt-post-log > div { white-space: pre; }
@@ -1264,7 +1354,7 @@ a.callout.lit .co-dot { fill: var(--head); }
 .crt-post-log .err   { color: var(--crt-red); }
 .crt-post-log .muted { color: var(--crt-dim); }
 .crt-post-hint {
-  margin-top: 24px;
+  margin-top: 3cqh;
   color: var(--crt-dim);
   font-size: 0.7em;
 }
@@ -1278,7 +1368,7 @@ a.callout.lit .co-dot { fill: var(--head); }
   flex-direction: column;
   background: var(--bios-bg);
   color: var(--bios-text);
-  font-size: clamp(12px, 1.3vw, 16px);
+  font-size: clamp(8px, 1.5cqw, 15px);
 }
 .crt-setup-tabs {
   display: flex;
@@ -1308,7 +1398,7 @@ a.callout.lit .co-dot { fill: var(--head); }
 .crt-setup-rows {
   flex: 3;
   min-width: 0;
-  padding: 14px 18px;
+  padding: 1.6cqh 2cqw;
   overflow-y: auto;
 }
 .crt-row {
@@ -1326,7 +1416,7 @@ a.callout.lit .co-dot { fill: var(--head); }
 .crt-setup-help {
   flex: 2;
   min-width: 0;
-  padding: 14px 16px;
+  padding: 1.6cqh 1.8cqw;
   background: var(--bios-help-bg);
   border-left: 2px solid var(--bios-border);
   font-size: 0.9em;
@@ -1350,27 +1440,27 @@ a.callout.lit .co-dot { fill: var(--head); }
   box-sizing: border-box;
   width: 100%;
   height: 100%;
-  padding: 3vh 4vw;
+  padding: 4cqh 4cqw;
   display: flex;
   flex-direction: column;
-  gap: 3vh;
+  gap: 3cqh;
 }
 .crt-top-head {
   color: var(--crt-head);
-  font-size: clamp(13px, 1.4vw, 18px);
+  font-size: clamp(9px, 1.6cqw, 16px);
   white-space: pre-wrap;
 }
 .crt-top-grid {
   flex: 1;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(16cqw, 1fr));
+  gap: 2cqw;
   align-content: start;
 }
 .crt-top-card {
   border: 1px solid var(--crt-dim);
   border-radius: 6px;
-  padding: 14px 16px;
+  padding: 1.6cqh 1.8cqw;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1383,12 +1473,12 @@ a.callout.lit .co-dot { fill: var(--head); }
 }
 .crt-top-value {
   color: var(--crt-cyan);
-  font-size: clamp(28px, 4vw, 44px);
+  font-size: clamp(16px, 3.6cqw, 38px);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 .crt-top-value.warn { color: var(--crt-amber); }
-.crt-top-spark { width: 100%; height: 48px; display: block; }
+.crt-top-spark { width: 100%; height: 6cqh; display: block; }
 .crt-top-hint {
   color: var(--crt-dim);
   font-size: 0.75em;

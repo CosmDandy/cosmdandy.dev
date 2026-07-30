@@ -27,7 +27,6 @@ from board.geom import (
 SOCK_W = DIMM_SOCK_W
 DIMM_W = SOCK_W - 6
 from board.ink import hit, mono, silk_inverse
-from board.lamps import glow
 from board.revision import stamp
 from board.spec import DIMM
 
@@ -72,8 +71,6 @@ def render(cv):
           </g>
           <path class="latch latch-l" d="M{X_CORE-7} {y+1} h6 v{SLOT_H-2} h-6 a2 2 0 0 1 -2 -2 v{-(SLOT_H-6)} a2 2 0 0 1 2 -2 Z"/>
           <path class="latch latch-r" d="M{X_CORE+DIMM_W+1} {y+1} h6 a2 2 0 0 1 2 2 v{SLOT_H-6} a2 2 0 0 1 -2 2 h-6 Z"/>
-          {glow('fault', X_CORE + DIMM_W + 12, y + SLOT_H / 2, 2.4, '#dc322f')}
-          <circle class="fault" cx="{X_CORE+DIMM_W+12}" cy="{y+SLOT_H/2}" r="2.4" fill="#dc322f"/>
           {silk_inverse(X_CORE + DIMM_W + 18, y - 1, f"DIMM{first + i}", 6.5)}
           {mono(X_CORE + 24, y + SLOT_H - 4, f"{DIMM['size_gb']}GB {DIMM['kind']} {DIMM['speed']}", 5.5, anchor="start", op=0.30)}
         </g>''')

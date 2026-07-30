@@ -1,17 +1,25 @@
-  // ── Полноэкранный слой: POST → BIOS Setup → top ─────────────────────────
-  // <dialog> выбран не ради вида, а ради двух вещей разом: showModal() кладёт
-  // разметку в top layer (поверх схемы и всего остального без возни с
-  // z-index) и одним движением делает окружающее дерево inert — а на схеме
-  // Enter/Space нажимают кнопки, а стрелки листают ленту ревизий, и слой не
-  // должен до них дотягиваться. Inert — первый рубеж; вторым стоит перехват
-  // keydown на document в фазе capture ниже: если что-то всё же попробует
-  // добраться до фона, поймаем раньше, чем событие до него дойдёт.
+  // ── Screen of the machine: POST → BIOS Setup → top ──────────────────────
+  // The screen is the service cover turned into a display: a panel the size of
+  // the board that slides in from above. It used to be a <dialog> opened with
+  // showModal(), which bought two things at once — the top layer and an inert
+  // background — but it also covered the whole page, and a monitor plugged
+  // into this server covers the server, not the room.
   //
-  // Три режима — одна и та же разметка, div'ы прячутся друг за друга через
-  // hidden. Отдельных диалогов не заводим: тогда пришлось бы решать, какой
-  // из них сейчас «настоящий» top layer, а showModal() у второго диалога,
-  // пока открыт первый, попросту бросает исключение.
+  // Both of those we now do by hand. Stacking is plain z-index inside the
+  // stage. Inert goes on the parts of the page the screen must not reach: on
+  // the schematic Enter and Space press buttons and the arrows page through
+  // revisions, so a keystroke meant for BIOS Setup must not land there. Inert
+  // is the first line of defence; the second is the capture-phase keydown on
+  // document below, which catches anything that still tries to get through.
+  //
+  // Three modes share one piece of markup, the panes hide behind each other
+  // with the hidden attribute.
   const crt = document.getElementById('crt');
+  // Everything that must stop answering mouse and keyboard while the screen is
+  // up. The screen sits next to .chassis rather than inside it precisely so
+  // that inert on the schematic does not swallow the screen along with it.
+  const SHADOWED = '.chassis, .rig-side, .timeline, .rig-id, main,' +
+                   ' .theme-switch, .assemble-btn, .view-switch';
   const postPane = document.getElementById('crt-post');
   const postLog = document.getElementById('crt-post-log');
   const setupPane = document.getElementById('crt-setup');
@@ -35,33 +43,47 @@
   // выполняется выше по файлу, и до объявления let обращение бросает.
   function screenOpen() { return crtOpen; }
 
+  function shadow(on) {
+    document.querySelectorAll(SHADOWED).forEach(function (el) {
+      if (on) el.setAttribute('inert', ''); else el.removeAttribute('inert');
+    });
+  }
+
   function openCrt(mode) {
     crt.dataset.mode = mode;
     postPane.hidden = mode !== 'post';
     setupPane.hidden = mode !== 'setup';
     topPane.hidden = mode !== 'top';
-    if (!crt.open) crt.showModal();
+    crt.classList.add('on');
+    crt.setAttribute('aria-hidden', 'false');
+    shadow(true);
+    // Focus has to be moved by hand — showModal() used to do it. Without this
+    // the first keystroke would go to whatever was focused before.
+    crt.focus({ preventScroll: true });
     crtOpen = true;
     dormancy();
   }
-  function closeCrt() {
-    if (crt.open) crt.close();
-  }
 
-  // Родной Esc диалога сам закрывает его через cancel → close, но у нас в
-  // каждом режиме свой смысл Esc (пропустить POST, выйти из setup без
-  // сохранения, закрыть top) — решает его наш обработчик ниже, а не браузер.
-  crt.addEventListener('cancel', function (e) { e.preventDefault(); });
-  // По экрану самотеста кликают, чтобы он ушёл, — и это разумно. Не даём
-  // закрыть только машину, которой не с чего грузиться: там экран и должен
-  // стоять, пока не зайдёшь в setup и не поменяешь порядок загрузки.
-  crt.addEventListener('click', function () {
-    if (crt.dataset.mode === 'post' && postCtl && postCtl.done) { postCtl = null; closeCrt(); }
-  });
-  crt.addEventListener('close', function () {
+  function closeCrt() {
+    if (!crtOpen) return;
+    crt.classList.remove('on');
+    crt.setAttribute('aria-hidden', 'true');
+    shadow(false);
     crtOpen = false;
     dormancy();
     closeTop();
+  }
+
+  // The screen takes focus, so it needs to be focusable — but only as a
+  // target, never as a tab stop of its own.
+  crt.tabIndex = -1;
+
+  // Clicking the self-test screen to dismiss it is the natural thing to do.
+  // The only machine we refuse to let go is the one with nothing to boot
+  // from: there the screen belongs on until you enter setup and change the
+  // boot order.
+  crt.addEventListener('click', function () {
+    if (crt.dataset.mode === 'post' && postCtl && postCtl.done) { postCtl = null; closeCrt(); }
   });
 
   // Один обработчик на все три режима: диспетчер смотрит на dataset.mode,
@@ -69,7 +91,7 @@
   // post → setup внутри одного открытого диалога не пришлось бы гадать,
   // сколько старых обработчиков уже навешано.
   document.addEventListener('keydown', function (e) {
-    if (!crt.open) return;
+    if (!crtOpen) return;
     const mode = crt.dataset.mode;
     if (mode === 'post') handlePostKey(e);
     else if (mode === 'setup') handleSetupKey(e);
@@ -82,7 +104,7 @@
   // экран закрыт — F2 открывает setup, экран открыт — клавишу разбирает
   // диспетчер режима выше.
   document.addEventListener('keydown', function (e) {
-    if (crt.open) return;
+    if (crtOpen) return;
     // F2 — как на живой машине. Enter — для тех, у кого верхний ряд отдан
     // системе, но только когда фокус ни на чём: в поле консоли он отправляет
     // команду, на кнопке схемы — нажимает её, и отбирать его там нельзя.
@@ -211,7 +233,7 @@
 
   function crtPostLine(t, c) {
     line(t, c);                 // в консоль — всегда, независимо от того, открыт ли экран
-    if (!crt.open) return;
+    if (!crtOpen) return;
     const d = document.createElement('div');
     if (c) d.className = c;
     d.textContent = t;
@@ -266,6 +288,11 @@
 
     let i = 0;
     (function step() {
+      // The run may have been abandoned mid-flight: clicking the self-test
+      // away nulls postCtl while the next line is still on the timer, and a
+      // second POST replaces it outright. Either way this chain has nothing
+      // left to print — without the guard it read .skip off null and threw.
+      if (!postCtl) return;
       if (i >= built.lines.length) {
         postCtl.done = true;
         if (postCtl.f2Pending) { enterSetupFromPost(); return; }

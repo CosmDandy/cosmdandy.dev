@@ -12,15 +12,21 @@
     transform-box: fill-box;
     transition: fill 0.15s steps(1, end), transform var(--spring);
   }
-  .latch-l { transform-origin: 100% 100%; }
-  .latch-r { transform-origin: 0% 100%; }
+  /* The hinge sits at the outboard end of the socket, not next to the module:
+     a latch tips away from the DIMM it holds. Hence the pivot is the far
+     corner of each ear — left one on its left edge, right one on its right. */
+  .latch-l { transform-origin: 0% 100%; }
+  .latch-r { transform-origin: 100% 100%; }
   .dimm.pulled .latch { fill: var(--amber); }
 
   /* Планку не вынуть, пока защёлки закрыты, — поэтому сначала откидываются
      они, и только потом модуль идёт вверх. Разъём при этом остаётся на
      плате: он нарисован отдельно и никуда не едет. */
-  .rig.service .dimm.pulled .latch-l { transform: rotate(38deg); }
-  .rig.service .dimm.pulled .latch-r { transform: rotate(-38deg); }
+  /* Open means outward: the board runs front-to-right, so the front ear swings
+     toward -X and the rear one toward +X — both away from the socket, never
+     across the module. A positive angle is clockwise in SVG. */
+  .rig.service .dimm.pulled .latch-l { transform: rotate(-38deg); }
+  .rig.service .dimm.pulled .latch-r { transform: rotate(38deg); }
   .rig.service .dimm.pulled .pick-body {
     transform: translateY(-13px);
     transition-delay: 0.12s;
@@ -39,8 +45,8 @@
      момент, когда модуль дожали, — отсюда та же задержка --seat. */
   .rig.assembly .latch-l { animation: latchL var(--press-hard) var(--seat, 0s) backwards; }
   .rig.assembly .latch-r { animation: latchR var(--press-hard) var(--seat, 0s) backwards; }
-  @keyframes latchL { from { transform: rotate(38deg); } }
-  @keyframes latchR { from { transform: rotate(-38deg); } }
+  @keyframes latchL { from { transform: rotate(-38deg); } }
+  @keyframes latchR { from { transform: rotate(38deg); } }
   /* Планку не опускают, а вдавливают: она входит с сопротивлением и
      садится, когда защёлки по торцам щёлкнут. */
   @keyframes seatDimm {

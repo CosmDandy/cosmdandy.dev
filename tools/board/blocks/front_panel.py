@@ -13,7 +13,7 @@ BOUNDS = (0, 0, 168, 190)
 
 from board.geom import BAY_DEPTH, FRONT_W, X_FRONT, Y_PANEL
 from board.ink import hit, mono
-from board.lamps import glow
+from board.lamps import glow, lamp
 from board.metal import hexgrid
 
 # Лицевая часть панели диагностики. По высоте совпадает с выдвижной частью:
@@ -128,6 +128,6 @@ def render(cv):
     for p in range(4):
         lx, ly = cx + 1 + (p % 2) * 11, net_y + (p // 2) * 12
         net.append(f'<circle cx="{lx}" cy="{ly}" r="2.6" fill="#0a1013" stroke="rgba(147,161,161,0.22)"/>')
-        net.append(f'<circle class="led-link" cx="{lx}" cy="{ly}" r="2.6" fill="#859900"/>')
+        net.append(lamp('led-link', lx, ly, 2.6, '#859900'))
     cv.add(f'<g class="decor">{"".join(net)}'
            f'{mono(TAB_X + TAB_W / 2, TAB_Y + TAB_H - 8, "LIGHT PATH", 6.5, op=0.34)}</g>')
