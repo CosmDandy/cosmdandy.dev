@@ -364,6 +364,21 @@ def silk_inverse(x, y, text, size=7):
             f'font-family="ui-monospace, Menlo, monospace" font-size="{size}">{text}</text>')
 
 
+def silk_frame(x, y, text, size=7, op=0.6):
+    """Обозначение разъёма: светлый текст в тонкой рамке.
+
+    Так на плате помечают позиции — J-номера, колодки питания, банки. Рамку
+    печатают той же краской, что и текст, и она отделяет обозначение от
+    разводки под ним: без неё надпись теряется в дорожках.
+    """
+    w = len(text) * size * 0.62 + 8
+    h = size + 6
+    return (f'<rect x="{x}" y="{y}" width="{w:.1f}" height="{h}" rx="1" fill="none" '
+            f'stroke="rgba(232,227,213,{op * 0.62:.2f})" stroke-width="0.7"/>'
+            f'<text x="{x+4}" y="{y+h-4.5:.1f}" fill="rgba(232,227,213,{op})" '
+            f'font-family="ui-monospace, Menlo, monospace" font-size="{size}">{text}</text>')
+
+
 def empty_pads(x, y, cols, rows, pitch=8, pad_w=3.5, pad_h=2):
     """Непропаянное посадочное место: голые площадки без детали.
 
@@ -471,8 +486,15 @@ add(f'<rect x="4" y="4" width="{W-8}" height="{H-8}" rx="14" fill="#141c20" stro
 add(rack_ears())
 
 # ── плата: прямоугольник с двумя вырезами под БП ──────────────────────────
-add(f'''<path d="M{X_PCB} 18 H{X_REAR-4} V{Y_PSU_TOP} H{X_PCB_END} V{Y_PSU_BOT}
-  H{X_REAR-4} V{H-18} H{X_PCB} Z" fill="#0e3a40" stroke="rgba(133,153,0,0.22)" stroke-width="1.4"/>''')
+# Заливка темнее прежней: поверх неё ложится разводка светлым тоном, и если
+# оставить фон как был, дорожки на нём не проявятся.
+PCB_DARK = "#0a3037"
+PCB_PATH = (f'M{X_PCB} 18 H{X_REAR-4} V{Y_PSU_TOP} H{X_PCB_END} V{Y_PSU_BOT} '
+            f'H{X_REAR-4} V{H-18} H{X_PCB} Z')
+add(f'<path d="{PCB_PATH}" fill="{PCB_DARK}" stroke="rgba(133,153,0,0.22)" stroke-width="1.4"/>')
+# Тем же контуром режем разводку: пучок, уходящий за кромку, иначе тянется
+# по шасси, а медь за краем текстолита не бывает.
+add(f'<clipPath id="pcb-clip"><path d="{PCB_PATH}"/></clipPath>')
 
 # ── шелкография: то, чем настоящая плата отличается от чертежа ───────────
 # Дорожки, посадочные места мелочи, тестовые точки, обозначения позиций.
@@ -500,11 +522,111 @@ for bx, by, bw, bh in ((X_SVC + 6, 108, 146, 46),    # P1/P2
                        (X_SVC + 6, 612, 130, 100)):  # тумблер SERVICE
     busy(bx, by, bw, bh)
 
+# ── разводка ──────────────────────────────────────────────────────────────
+# Плата одного тона выглядит крашеной доской. На живой её тон рвут дорожки:
+# медь под маской просвечивает иначе, чем текстолит. Держим их еле заметными
+# — это фактура, а не рисунок: разводка, которую видно, спорит и с деталями,
+# и с подписями ссылок.
+#
+# Пучки идут не по кривой, а ступенькой — прямо, скос ровно в 45°, снова
+# прямо. И идут они между узлами: от колодок вентиляторов к питанию ядра, от
+# сокетов к банкам памяти, от служебной зоны к задней панели. Разводка «из
+# ниоткуда в никуда» читается как штриховка, а не как плата.
+#
+# Слой лежит под всем остальным: на живой плате дорожки уходят под корпуса,
+# а не обходят их поверху, поэтому BUSY здесь не спрашивается.
+TIERS = {                       # тон и толщина по калибру шины
+    'trunk': ("rgba(52,170,178,0.17)", 2.4),
+    'mid':   ("rgba(44,150,160,0.15)", 1.3),
+    'fine':  ("rgba(38,132,142,0.13)", 0.8),
+}
+
+def bundle(x0, y0, x1, y1, n=6, pitch=4, vertical=False):
+    """Пучок параллельных дорожек со скосом в 45° посередине.
+
+    Возвращает пути и точки, где пучок ломается: на изломах разводки и
+    сидят переходные отверстия — там дорожка меняет слой.
+    """
+    paths, knots = [], []
+    for k in range(n):
+        off = (k - (n - 1) / 2) * pitch
+        if vertical:
+            ax, ay, bx, by = x0 + off, y0, x1 + off, y1
+            d = bx - ax
+            my = ay + (by - ay) * 0.38
+            paths.append(f'M{ax:.0f} {ay:.0f} V{my:.0f} '
+                         f'L{ax + d:.0f} {my + abs(d):.0f} V{by:.0f}')
+            if k % 3 == 0:
+                knots.append((ax, my))
+                knots.append((ax + d, my + abs(d)))
+        else:
+            ax, ay, bx, by = x0, y0 + off, x1, y1 + off
+            d = by - ay
+            mx = ax + (bx - ax) * 0.38
+            paths.append(f'M{ax:.0f} {ay:.0f} H{mx:.0f} '
+                         f'L{mx + abs(d):.0f} {by:.0f} H{bx:.0f}')
+            if k % 3 == 0:
+                knots.append((mx, ay))
+                knots.append((mx + abs(d), by))
+    return paths, knots
+
+# Узлы, между которыми есть что разводить. Координаты взяты из тех же
+# констант, что и сами узлы: сдвинется сокет — поедет и шина к нему.
+J_CONN = [(X_PCB + 48, 96 + i * 122) for i in range(6)]
+SVC_X = X_SVC + 10
+
+LINKS = []
+# питание и тахометры вентиляторов идут от колодок к VRM обоих сокетов
+for i, (jx, jy) in enumerate(J_CONN):
+    # X_VRM объявлен ниже, у самих дросселей; здесь та же кромка сокета
+    LINKS.append((jx, jy, X_CORE - 32, (Y_CPU0 if i < 3 else Y_CPU1) + 30 + i * 14,
+                  12, 3.0, 'trunk', False))
+# сокет — банки памяти: три шины, по одной на банк
+for by in (Y_BANK_L + 50, Y_BANK_C + 110, Y_BANK_R + 50):
+    LINKS.append((X_CORE - 12, by, X_CORE - 12, by + 40, 9, 3.2, 'mid', True))
+# сокеты — служебная зона и дальше на заднюю панель
+for sy, ty in ((Y_CPU0 + 40, 150), (Y_CPU0 + 110, 300), (Y_CPU1 + 40, 560), (Y_CPU1 + 110, 700)):
+    LINKS.append((X_CORE + 300, sy, SVC_X + 130, ty, 11, 3.0, 'trunk', False))
+# служебная зона — задняя панель и карман райзеров
+for sy, ty in ((170, 300), (330, 430), (470, 560), (640, 620)):
+    LINKS.append((SVC_X + 20, sy, X_REAR + 80, ty, 8, 3.2, 'mid', False))
+for sy, ty in ((250, 300), (420, 380), (560, 610)):
+    LINKS.append((X_REAR + 20, sy, X_PCB_END - 20, ty, 7, 3.4, 'mid', False))
+# гребёнки вдоль кромок — шины земли и питания
+LINKS.append((X_PCB + 12, 40, X_PCB + 12, 800, 5, 3.0, 'trunk', True))
+LINKS.append((X_REAR - 16, 40, X_REAR - 16, 800, 5, 3.0, 'trunk', True))
+
+tiers = {k: [] for k in TIERS}
+knots = []
+for ax, ay, bx, by, n, pitch, tier, vert in LINKS:
+    paths, kn = bundle(ax, ay, bx, by, n, pitch, vert)
+    tiers[tier].extend(paths)
+    knots.extend(kn)
+
+# Тонкая мелочь: короткие связки от магистрали к ближайшей детали. Их много
+# и они узкие — именно они дают плате зернистость вблизи.
+for i in range(150):
+    kx, ky = knots[(i * 7) % len(knots)]
+    dx = (16 + (i % 5) * 11) * (1 if i % 3 else -1)
+    dy = (12 + (i % 4) * 9) * (1 if i % 2 else -1)
+    paths, kn = bundle(kx, ky, kx + dx, ky + dy, 2 + i % 3, 2.6, i % 5 == 4)
+    tiers['fine'].extend(paths)
+    if i % 4 == 0:
+        knots.extend(kn)
+
+add('<g class="decor traces" clip-path="url(#pcb-clip)" fill="none">'
+    + ''.join(f'<path d="{" ".join(tiers[t])}" stroke="{c}" stroke-width="{w}"/>'
+              for t, (c, w) in TIERS.items() if tiers[t])
+    + '</g>')
+
 # ── переходные отверстия ──────────────────────────────────────────────────
 # Их на плате тысячи, и это единственное тёплое пятно в холодной палитре:
 # в отверстие затянута медь, маска на него не заходит. Рисуем прежде всего
 # остального — на живой плате via уходят под корпуса, а не лежат поверх.
-vias = []
+#
+# Крупные сидят на изломах дорожек — там переход между слоями и нужен.
+# Мелкая россыпь идёт полем: ею прошивают полигоны земли.
+vias = [(x, y) for x, y in knots]
 for i in range(430):
     # три манеры: рядами вдоль дорожек, кучками у корпусов и вразнобой
     mode = i % 3
@@ -521,9 +643,25 @@ for i in range(430):
     else:
         vias.append((X_PCB + 18 + (i * 197) % (pcb_w - 40),
                      26 + (i * 149) % (pcb_h - 30)))
+
+# Мелочь — вдвое меньше диаметром, и её вдвое больше: ряды вдоль магистралей
+# и прошивка полигонов между ними.
+small_vias = []
+for i in range(560):
+    if i % 4:
+        sx = X_PCB + 16 + (i * 89) % (pcb_w - 34)
+        sy = 24 + (i * 157) % (pcb_h - 26)
+    else:
+        kx, ky = knots[i % len(knots)]
+        sx, sy = kx + (i % 5) * 4 - 8, ky + ((i // 5) % 3) * 4 - 4
+    small_vias.append((sx, sy))
 add('<g class="decor vias">' + ''.join(
     f'<circle cx="{vx}" cy="{vy}" r="1.6" fill="none" stroke="rgba(184,115,51,0.34)" stroke-width="1.1"/>'
-    for vx, vy in vias) + '</g>')
+    for vx, vy in vias)
+    # Мелочь одним путём: полтысячи отдельных кружков стоили бы полтысячи
+    # узлов DOM, а рисуют они одно и то же зерно.
+    + '<path fill="none" stroke="rgba(184,115,51,0.26)" stroke-width="1.5" stroke-linecap="round" d="'
+    + ' '.join(f'M{sx:.0f} {sy:.0f}h0.4' for sx, sy in small_vias) + '"/></g>')
 
 # ── крупная рассыпуха ─────────────────────────────────────────────────────
 # Микросхемы на живой плате чёрные, и на каждой белый шильдик с партномером
@@ -828,7 +966,7 @@ for y0 in (Y_CPU0, Y_CPU1):
         vrm.append(f'<rect x="{X_VRM}" y="{y}" width="18" height="10" rx="1.5" '
                    f'fill="#1a2429" stroke="rgba(147,161,161,0.20)"/>')
         vrm.append(f'<rect x="{X_VRM-22}" y="{y+1}" width="15" height="8" rx="1" fill="rgba(147,161,161,0.16)"/>')
-    vrm.append(mono(X_VRM + 6, y0 - 8, "VRM", 9, op=0.4))
+    vrm.append(silk_inverse(X_VRM - 2, y0 - 17, "VRM", 8))
 add('<g class="decor">' + ''.join(vrm) + '</g>')
 
 # ── фронт: блок управления ────────────────────────────────────────────────
@@ -1049,7 +1187,7 @@ def bank(y0, n, code, label_y, first=1):
           </g>
           {glow('fault', X_CORE + 304, y + SLOT_H / 2, 2.4, '#dc322f')}
           <circle class="fault" cx="{X_CORE+304}" cy="{y+SLOT_H/2}" r="2.4" fill="#dc322f"/>
-          {mono(X_CORE + 312, y + SLOT_H - 1, f"DIMM{first + i}", 8, anchor="start", op=0.42)}
+          {silk_inverse(X_CORE + 310, y - 1, f"DIMM{first + i}", 6.5)}
         </g>''')
     return f'''<g class="unit" data-unit="dimm-{code}" data-group="dimm" data-href="https://blog.cosmdandy.dev">
       {hit(X_CORE-8, y0-4, 340, n * PITCH + 6)}
@@ -1060,10 +1198,10 @@ CALLOUTS.append((X_TAG - 6, Y_BANK_C + 110, X_CORE - 10, Y_BANK_C + 110, "Blog",
 add(bank(Y_BANK_L, 8, "L", 104, first=1))
 add(bank(Y_BANK_C, 16, "C", 430, first=9))
 add(bank(Y_BANK_R, 8, "R", 740, first=25))
-add(mono(X_CORE+155, Y_BANK_L-8, "CPU0 · A0–H0", 9, op=0.45))
+add(silk_inverse(X_CORE + 96, Y_BANK_L - 18, "CPU0 · A0–H0", 8))
 add(stamp(X_CORE, Y_BANK_L - 20, "память"))
-add(mono(X_CORE+155, Y_BANK_C-8, "CPU0 · A1–H1  /  CPU1 · A0–H0", 9, op=0.45))
-add(mono(X_CORE+155, Y_BANK_R-8, "CPU1 · A1–H1", 9, op=0.45))
+add(silk_inverse(X_CORE + 42, Y_BANK_C - 18, "CPU0 · A1–H1  /  CPU1 · A0–H0", 8))
+add(silk_inverse(X_CORE + 96, Y_BANK_R - 18, "CPU1 · A1–H1", 8))
 
 # ── процессоры ────────────────────────────────────────────────────────────
 def socket(x, y):
@@ -1316,7 +1454,7 @@ for k, (y, up) in enumerate(((186, True), (474, False))):
             f'stroke="rgba(147,161,161,0.26)"/>'
             + ''.join(f'<line x1="{x0+26+j*14}" y1="{edge_y+1}" x2="{x0+26+j*14}" y2="{edge_y+7}" '
                       f'stroke="rgba(133,153,0,0.30)"/>' for j in range(int(cw // 14) - 1))
-            + mono(x0 + 18 + cw / 2, slot_y + 30, "PCIe ×16", 8, op=0.36))
+            + silk_inverse(x0 + 18 + cw / 2 - 26, slot_y + 22, "PCIe ×16", 7))
     # Лепесток-ручка на внешнем торце: райзер вынимают вверх, взявшись за него.
     ty = y + (-10 if up else hh - 6)
     py = y + (6 if up else hh - T + 6)
@@ -1463,10 +1601,10 @@ CANDIDATES = [
     (X_IO - 96, 464, "MLAN · IPMI 2.0"),
 ]
 for (x, y, text) in CANDIDATES:
-    w = len(text) * 5 + 6
-    if not put(x, y - 9, w, 12):
+    w = len(text) * 4.4 + 10
+    if not put(x, y - 12, w, 15):
         continue
-    marks.append(mono(x, y, text, 7, anchor="start", op=0.46))
+    marks.append(silk_frame(x, y - 11, text, 7))
 
 # мелочь в оставшихся свободных карманах платы
 for i in range(150):
