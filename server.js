@@ -244,7 +244,7 @@
     if (on && !rig.classList.contains('lp-open')) toggleLp();
     if (!on && rig.classList.contains('lp-open')) toggleLp();
     if (!on) {
-      chassis.querySelectorAll('.pulled').forEach(function (p) { p.classList.remove('pulled'); });
+      chassis.querySelectorAll('.pulled').forEach(function (p) { p.classList.remove('pulled', 'opened'); });
       updateFault();
     }
   }
@@ -270,6 +270,23 @@
       const pick = e.target.closest('.pick');
       if (!pick) return;
       e.preventDefault();
+      // Процессор разбирается в два приёма: сначала радиатор, потом сам
+      // процессор из-под него. Третий клик собирает узел обратно.
+      if (pick.classList.contains('cpu-slot')) {
+        const n = pick.dataset.cpu;
+        if (!pick.classList.contains('pulled')) {
+          pick.classList.add('pulled');
+          line('removed: радиатор CPU' + n, 'warn');
+        } else if (!pick.classList.contains('opened')) {
+          pick.classList.add('opened');
+          line('removed: процессор CPU' + n + ' · LGA 4677 socket open', 'warn');
+        } else {
+          pick.classList.remove('pulled', 'opened');
+          line('inserted: CPU' + n + ' с радиатором', 'ok');
+        }
+        updateFault();
+        return;
+      }
       const pulled = pick.classList.toggle('pulled');
       line((pulled ? 'removed: ' : 'inserted: ') + unitName(pick), pulled ? 'warn' : 'ok');
       updateFault();

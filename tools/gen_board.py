@@ -388,6 +388,98 @@ def relief(x, y, w, h, rx=1):
             f'<path d="M{x + rx:.1f} {y + h:.1f} H{x + w - rx:.1f}" stroke="rgba(0,0,0,0.38)" '
             f'stroke-width="1.1" fill="none"/>')
 
+def ihs_path(x, y):
+    """Контур крышки процессора: ключи по бокам и срез у первого вывода.
+
+    Живёт отдельной функцией, потому что по этому же контуру режется
+    перелив кристалла: прямоугольный клип превращал крышку обратно в
+    плашку и съедал ключи, ради которых всё и делалось.
+    """
+    ix, iy = x + 40, y + 34
+    iw, ih = SOCKET_W - 80, SOCKET_H - 68
+    notch, cut = 9, 12
+    return (f'M{ix + cut} {iy} '
+            f'H{ix + iw / 2 - notch} '
+            f'a{notch} {notch} 0 0 0 {notch * 2} 0 '
+            f'H{ix + iw} '
+            f'V{iy + ih / 2 - notch} '
+            f'a{notch} {notch} 0 0 0 0 {notch * 2} '
+            f'V{iy + ih} '
+            f'H{ix + iw / 2 + notch} '
+            f'a{notch} {notch} 0 0 0 -{notch * 2} 0 '
+            f'H{ix} '
+            f'V{iy + cut} Z')
+
+def idc_header(x, y, pins, label, vertical=False):
+    """Шлейфовая гребёнка: два ряда контактов в пластиковом бортике.
+
+    К таким идут плоские шлейфы на переднюю панель, к кнопке питания, к
+    USB и к датчику вскрытия. Прорезь-ключ с одной стороны — чтобы шлейф
+    не воткнули наоборот; на живой плате её видно сразу.
+    """
+    n = pins // 2
+    w, h = n * 4.4 + 8, 13
+    if vertical:
+        w, h = h, w
+    body = (f'<rect x="{x}" y="{y}" width="{w:.1f}" height="{h:.1f}" rx="1" fill="#12191d" '
+            f'stroke="rgba(147,161,161,0.34)" stroke-width="1.1"/>')
+    pins_svg = []
+    for k in range(n):
+        for r in range(2):
+            if vertical:
+                px, py = x + 3.4 + r * 5.2, y + 5 + k * 4.4
+            else:
+                px, py = x + 5 + k * 4.4, y + 3.4 + r * 5.2
+            pins_svg.append(pad(px, py, 2.2, 2.2, 0.3))
+    # ключ: вырез в бортике посередине длинной стороны
+    if vertical:
+        key = (f'<rect x="{x + w - 2.6:.1f}" y="{y + h / 2 - 3:.1f}" width="2.6" height="6" '
+               f'fill="#0a1013"/>')
+    else:
+        key = (f'<rect x="{x + w / 2 - 3:.1f}" y="{y + h - 2.6:.1f}" width="6" height="2.6" '
+               f'fill="#0a1013"/>')
+    tag = (mono(x + w / 2, y + h + 8, label, 5.5, op=0.34) if not vertical
+           else mono(x + w + 2, y + h / 2, label, 5.5, anchor="start", op=0.34))
+    return body + ''.join(pins_svg) + key + relief(x, y, w, h) + tag
+
+
+def power_header(x, y, label="P12V_BP"):
+    """Питающий хедер 2×4: восемь толстых контактов в рамке с защёлкой.
+
+    От разъёмов данных отличается сразу — шаг крупнее, контакты втрое
+    толще: через них идёт ток в десятки ампер, а не сигнал.
+    """
+    w, h = 30, 20
+    out = [f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="2" fill="#161f24" '
+           f'stroke="rgba(147,161,161,0.40)" stroke-width="1.3"/>']
+    for r in range(2):
+        for c in range(4):
+            out.append(pad(x + 3.6 + c * 6.2, y + 4 + r * 7, 4, 4.6, 0.8))
+    # защёлка на верхней стенке
+    out.append(f'<path d="M{x + w / 2 - 5} {y} v-3.4 h10 v3.4" fill="none" '
+               f'stroke="rgba(147,161,161,0.40)" stroke-width="1.3"/>')
+    out.append(relief(x, y, w, h, 2))
+    out.append(mono(x + w / 2, y + h + 9, label, 5.5, op=0.36))
+    return ''.join(out)
+
+
+def block_frame(x, y, w, h, title, refs):
+    """Контурная рамка функционального блока со списком позиций.
+
+    Приём IBM: группа обводится по текстолиту, рядом печатается перечень
+    refdes. Инженер по такой рамке видит границы узла, не открывая схему.
+    Держим её глухой: рамка крупная, и в полную силу она перетянула бы на
+    себя внимание с подписей ссылок.
+    """
+    return (f'<g class="decor block-frame">'
+            f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="2" fill="none" '
+            f'stroke="rgba(232,227,213,0.16)" stroke-width="1" stroke-dasharray="7 4"/>'
+            f'<rect x="{x + 6}" y="{y - 5}" width="{len(title) * 4.4 + 8:.1f}" height="10" '
+            f'rx="1" fill="{PCB_DARK}"/>'
+            + mono(x + 10, y + 3, title, 6, anchor="start", op=0.42)
+            + mono(x + 10, y + h - 4, refs, 5, anchor="start", op=0.26)
+            + '</g>')
+
 def hexgrid(x, y, w, h, s=7, gap=5.5):
     """Гексагональная перфорация: ею облегчают широкую часть кронштейна."""
     out, dx, dy = [], s * 1.5 + gap, (s + gap / 2) * 1.732
@@ -545,7 +637,9 @@ pcb_w, pcb_h = X_REAR - 4 - X_PCB, H - 36
 # держим по фактическим габаритам: щедрый запас съедал всю свободную площадь,
 # и крупным деталям не оставалось ни одного места — ни дросселя, ни радиатора.
 busy(X_CORE - 16, Y_BANK_L - 14, 348, Y_BANK_R + 8 * PITCH - Y_BANK_L + 20)
-busy(X_PCB + 14, 88, 60, 700)
+# полоса жгутов: по факту они кончаются на колодках в X_PCB+48, и лишние
+# 16 единиц запаса отнимали единственное место под силовой хедер
+busy(X_PCB + 14, 88, 44, 700)
 # Кронштейны райзеров: они рисуются много позже, но место занимают сейчас —
 # иначе крупный корпус садится в карман между блоками питания и скрывается
 # под сталью кронштейна. Так под платой пропал BMC.
@@ -561,6 +655,26 @@ for bx, by, bw, bh in ((X_SVC + 6, 108, 146, 46),    # P1/P2
                        (X_SVC + 2, 438, 154, 62),   # таблица перемычки
                        (X_SVC + 6, 612, 130, 100)):  # тумблер SERVICE
     busy(bx, by, bw, bh)
+
+# ── разъёмы у кромки ─────────────────────────────────────────────────────
+# Гребёнки шлейфов идут вдоль левой кромки платы, за полосой жгутов: от них
+# плоские шлейфы уходят на фронт — к кнопке питания, к USB, к датчику
+# вскрытия. Ставим их до рассыпухи: она занимает плату почти целиком, и
+# всё, что не заняло место заранее, потом уже не помещается.
+edge = []
+HEADERS = [(10, "FP_PANEL"), (8, "FP_USB"), (6, "INTRUSION"), (10, "SATA_PWR")]
+for k, (pins, label) in enumerate(HEADERS):
+    hx, hy = X_CORE - 42, 60 + k * 170
+    if put(hx - 3, hy - 3, 26, (pins // 2) * 4.4 + 16):
+        edge.append(idc_header(hx, hy, pins, label, vertical=True))
+
+# Силовой хедер: 12 вольт на backplane дисков. Стоит со стороны корзины —
+# тянуть силовой жгут через всю машину никто не станет.
+for hx, hy in ((X_CORE - 52, 700), (X_CORE - 52, 300), (X_CORE - 52, 480)):
+    if put(hx - 4, hy - 6, 34, 40):
+        edge.append(power_header(hx, hy))
+        break
+add('<g class="decor">' + ''.join(edge) + '</g>')
 
 # ── разводка ──────────────────────────────────────────────────────────────
 # Плата одного тона выглядит крашеной доской. На живой её тон рвут дорожки:
@@ -1391,21 +1505,37 @@ def socket(x, y):
     # В одном углу срезан угол и стоит треугольник — метка первого вывода.
     ihs_x, ihs_y = x + 40, y + 34
     ihs_w, ihs_h = SOCKET_W - 80, SOCKET_H - 68
-    notch = 9          # глубина ключа
-    cut = 12           # срез угла у первого вывода
-    ihs = (f'M{ihs_x + cut} {ihs_y} '
-           f'H{ihs_x + ihs_w / 2 - notch} '
-           f'a{notch} {notch} 0 0 0 {notch * 2} 0 '     # ключ по верхней кромке
-           f'H{ihs_x + ihs_w} '
-           f'V{ihs_y + ihs_h / 2 - notch} '
-           f'a{notch} {notch} 0 0 0 0 {notch * 2} '     # ключ по правой
-           f'V{ihs_y + ihs_h} '
-           f'H{ihs_x + ihs_w / 2 + notch} '
-           f'a{notch} {notch} 0 0 0 -{notch * 2} 0 '
-           f'H{ihs_x} '
-           f'V{ihs_y + cut} Z')
+    notch, cut = 9, 12      # те же ключ и срез, что задаёт ihs_path
+    ihs = ihs_path(x, y)
+    # Поле контактов: у LGA ножек на процессоре нет, они на сокете —
+    # 4677 подпружиненных лепестков. Пока процессор на месте, поля не видно;
+    # снимешь — и это самое узнаваемое место на плате. Всё поле рисуем одним
+    # путём: отдельными фигурами это были бы тысячи узлов DOM.
+    px0, py0 = ihs_x - 2, ihs_y - 2
+    pw, ph = ihs_w + 4, ihs_h + 4
+    step = 2.6
+    dots = ' '.join(
+        f'M{px0 + 3 + c * step:.1f} {py0 + 3 + r * step:.1f}h0.5'
+        for r in range(int((ph - 6) // step)) for c in range(int((pw - 6) // step)))
+    lga = (f'<g class="lga">'
+           f'<rect x="{px0}" y="{py0}" width="{pw}" height="{ph}" rx="1" fill="#0a1013" '
+           f'stroke="rgba(147,161,161,0.30)"/>'
+           f'<path d="{dots}" stroke="rgba(212,175,84,0.62)" stroke-width="1.2" '
+           f'stroke-linecap="round" fill="none"/>'
+           # рамка держателя с направляющими штырями по углам
+           f'<rect x="{px0-4}" y="{py0-4}" width="{pw+8}" height="{ph+8}" rx="2" fill="none" '
+           f'stroke="rgba(147,161,161,0.40)" stroke-width="1.6"/>'
+           + ''.join(f'<circle cx="{px0 + gx}" cy="{py0 + gy}" r="2.6" fill="#1b2429" '
+                     f'stroke="rgba(147,161,161,0.44)"/>'
+                     for gx in (-8, pw + 8) for gy in (-8, ph + 8))
+           + f'</g>')
+
     s = [f'<rect x="{x}" y="{y}" width="{SOCKET_W}" height="{SOCKET_H}" rx="4" fill="#101a1e" stroke="rgba(147,161,161,0.42)"/>',
          f'<rect x="{x+14}" y="{y+14}" width="{SOCKET_W-28}" height="{SOCKET_H-28}" rx="2" fill="#0b1316" stroke="rgba(147,161,161,0.26)"/>',
+         lga,
+         # Сам процессор — отдельная группа: он снимается вторым, после
+         # радиатора, и уезжает вниз, открывая поле контактов.
+         f'<g class="cpu-lid">',
          # подложка процессора видна из-под крышки узкой каймой
          f'<rect x="{ihs_x-5}" y="{ihs_y-5}" width="{ihs_w+10}" height="{ihs_h+10}" rx="1" '
          f'fill="#123028" stroke="rgba(133,153,0,0.30)"/>',
@@ -1419,6 +1549,7 @@ def socket(x, y):
          f'stroke="rgba(147,161,161,0.34)" stroke-width="1.2"/>',
          f'<path d="M{ihs_x + 3} {ihs_y + 12} l7 0 l-3.5 -7 z" fill="rgba(238,232,213,0.5)"/>',
          mono(x + SOCKET_W/2, y + SOCKET_H/2 + 4, "LGA 4677", 10, op=0.55),
+         '</g>',
          f'<path d="M{x+SOCKET_W/2} {y+24} l-5 8 h10 z" fill="rgba(147,161,161,0.32)"/>',
          mono(x + SOCKET_W/2 + 26, y + 32, "INSTALL", 7, anchor="start", op=0.3)]
     for k, (dx, dy) in enumerate([(11, 11), (SOCKET_W-11, 11), (11, SOCKET_H-11), (SOCKET_W-11, SOCKET_H-11)]):
@@ -1516,8 +1647,7 @@ add('<defs>\n'
     '    <stop offset="78%"  stop-color="#00dcff" stop-opacity="0.55"/>\n'
     '    <stop offset="100%" stop-color="#00dcff" stop-opacity="0"/>\n'
     '  </linearGradient>\n'
-    + ''.join(f'  <clipPath id="die-clip-{n}"><rect x="{X_SOCK+40}" y="{y+34}" '
-              f'width="{SOCKET_W-80}" height="{SOCKET_H-68}" rx="2"/></clipPath>\n'
+    + ''.join(f'  <clipPath id="die-clip-{n}"><path d="{ihs_path(X_SOCK, y)}"/></clipPath>\n'
               for n, y in enumerate((Y_CPU0, Y_CPU1)))
     + '</defs>')
 
@@ -1828,6 +1958,14 @@ for i in range(150):
         if put(x, y, 16, 9):
             marks.append(f'<rect x="{x}" y="{y}" width="16" height="9" rx="1" fill="#16212a" stroke="rgba(147,161,161,0.18)"/>')
 add('<g class="decor silk">' + ''.join(marks) + '</g>')
+
+# ── рамки функциональных блоков ──────────────────────────────────────────
+add('<g class="decor">' + ''.join([
+    block_frame(X_SVC - 4, 92, 166, 262, "PLATFORM I/O", "U12 U18 C120-C138 R240-R262"),
+    block_frame(X_SVC - 4, 386, 166, 190, "BMC / MANAGEMENT", "U79 Y2 Y4 C300-C318 R400-R412"),
+    block_frame(X_CORE - 30, Y_CPU0 - 6, 30, SOCKET_H + 12, "VR CPU0", "L10-L21 Q40-Q62"),
+    block_frame(X_CORE - 30, Y_CPU1 - 6, 30, SOCKET_H + 12, "VR CPU1", "L30-L41 Q70-Q92"),
+]) + '</g>')
 
 # ── выноски: подписи узлов, видимые сразу ───────────────────────────────
 add('<g class="callouts">' + ''.join(callout(*c) for c in CALLOUTS) + '</g>')
