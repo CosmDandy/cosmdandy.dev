@@ -22,8 +22,9 @@ from board.spec import PORTS
 def render(cv):
     T, RI = 52, 18   # ширина стойки и радиус внутреннего угла
     # Подпись ведёт к торцу карты, а не к стенке: гнёзда принадлежат ей.
-    cv.callouts.append((X_IO - 30, 228, X_IO + 4, 228, "LinkedIn", "end",
-                        "https://linkedin.com/in/cosmdandy", "ocp"))
+    cv.callouts.append((X_IO - 30, 210, X_IO + 4, 228, "LinkedIn", "end",
+                        "https://linkedin.com/in/cosmdandy", "ocp",
+                        "профиль", "linkedin"))
 
     # Райзеры разного калибра, как на живой машине: верхний полноразмерный,
     # под карту с портами, нижний вдвое тоньше — в него ставят что попроще.
@@ -112,12 +113,17 @@ def render(cv):
 
         # Ответный слот на плате — под краевыми контактами карты. Он остаётся,
         # когда райзер вынимают: разъём распаян, а кронштейн съёмный.
+        # Слот длиннее карты и тянется вправо, к задней стенке: у PCIe ×16
+        # разъём заметно длиннее краевых контактов карты ×8, и на плате это
+        # первое, по чему слот узнают. Правый край держим у стойки
+        # кронштейна — дальше начинается сталь.
+        slot_w = (x1 - T - 6) - (x0 + 18)
         cv.add(f'''<g class="decor">
-      <rect x="{x0+14}" y="{edge_y-3}" width="{cw+8}" height="14" rx="2" fill="#101a22"
+      <rect x="{x0+14}" y="{edge_y-3}" width="{slot_w+8}" height="14" rx="2" fill="#101a22"
             stroke="rgba(147,161,161,0.34)"/>
-      <rect x="{x0+18}" y="{edge_y+1}" width="{cw}" height="6" rx="1" fill="#060d10"/>
-      {''.join(f'<line x1="{x0+22+j*9}" y1="{edge_y+1}" x2="{x0+22+j*9}" y2="{edge_y+7}" stroke="rgba(133,153,0,0.22)"/>' for j in range(int(cw // 9) - 1))}
-      {silk_boxed(x0 + 18 + cw / 2, edge_y + 22, f"RISER_{k+1} · PCIE_G5 ×16", 6)}
+      <rect x="{x0+18}" y="{edge_y+1}" width="{slot_w}" height="6" rx="1" fill="#060d10"/>
+      {''.join(f'<line x1="{x0+22+j*9}" y1="{edge_y+1}" x2="{x0+22+j*9}" y2="{edge_y+7}" stroke="rgba(133,153,0,0.22)"/>' for j in range(int(slot_w // 9) - 1))}
+      {silk_boxed(x0 + 18 + slot_w / 2, edge_y + 22, f"RISER_{k+1} · PCIE_G5 ×16", 6)}
     </g>''')
         cv.add(f'''<g class="pick riser" data-riser="{k+1}" style="--seat:{seat('riser', k)}">
       <g class="pick-body">

@@ -29,6 +29,17 @@ def render(cv):
         for gy in (y - 2, y + 143):
             bay.append(f'<line x1="{X_REAR-2}" y1="{gy}" x2="{X_REAR+296}" y2="{gy}" '
                        f'stroke="rgba(147,161,161,0.16)" stroke-width="2.4"/>')
+        # Направляющие и ответная колодка в глубине кармана: пустой отсек
+        # должен читаться посадочным местом, а не дырой в задней стенке.
+        for gy in (y + 18, y + PSU_H - 18):
+            bay.append(f'<line x1="{X_REAR+8}" y1="{gy}" x2="{X_REAR+PSU_W-40}" y2="{gy}" '
+                       f'stroke="rgba(147,161,161,0.12)" stroke-width="3"/>')
+        bay.append(f'<rect x="{X_REAR+6}" y="{y+PSU_H/2-26}" width="16" height="52" rx="2" '
+                   f'fill="#0a1215" stroke="rgba(147,161,161,0.22)"/>')
+        bay.extend(f'<line x1="{X_REAR+10}" y1="{y+PSU_H/2-18+j*9}" x2="{X_REAR+18}" '
+                   f'y2="{y+PSU_H/2-18+j*9}" stroke="rgba(206,168,58,0.30)" stroke-width="1.6"/>'
+                   for j in range(5))
+        bay.append(mono(X_REAR + PSU_W / 2, y + PSU_H / 2 + 3, name, 9, op=0.14))
         cv.add('<g class="decor psu-bay">' + ''.join(bay) + '</g>')
         psu = []
         psu.append(f'<rect x="{X_REAR}" y="{y}" width="{PSU_W}" height="{PSU_H}" rx="5" fill="#121a1e" stroke="rgba(147,161,161,0.26)"/>')

@@ -161,8 +161,14 @@ for (const [sel, re] of Object.entries(EXPECT)) {
   check(`имя узла ${sel}`, re.test(names[sel] ?? ''), names[sel]);
 }
 
-// 6. Панель диагностики открылась вместе с сервисным режимом
-check('light path открыт', (await rigCls()).includes('lp-open'), await rigCls());
+// 6. Панель диагностики сама не выезжает — места она занимает много, а
+// нужна не всегда. Но по команде обязана открываться.
+check('light path сам не открылся', !(await rigCls()).includes('lp-open'), await rigCls());
+await page.evaluate(() => window.__rig.exec('lightpath'));
+await page.waitForTimeout(200);
+check('light path открылся по команде', (await rigCls()).includes('lp-open'), await rigCls());
+await page.evaluate(() => window.__rig.exec('lightpath'));
+await page.waitForTimeout(200);
 
 // 7. Выход из сервисного режима собирает машину обратно
 await click('#svc-switch');

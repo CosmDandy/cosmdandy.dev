@@ -350,7 +350,32 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   .co-edge { fill: var(--cyan); }
   .co-text {
     fill: #06222a; font-family: ui-monospace, Menlo, monospace;
-    font-size: 25px; font-weight: 700; letter-spacing: 0.01em;
+    font-size: 22px; font-weight: 700; letter-spacing: 0.01em;
+  }
+  /* Вторая строка отвечает на «а что это»: без неё бирка называет сервис,
+     но не говорит, зачем по нему щёлкать. */
+  .co-sub {
+    fill: rgba(6, 34, 42, 0.6); font-family: ui-monospace, Menlo, monospace;
+    font-size: 12.5px; font-weight: 500; letter-spacing: 0.02em;
+  }
+  /* Значок сервиса — тот же, что в карточке ссылок: гость видит один и тот
+     же знак в обоих видах визитки и узнаёт его быстрее, чем читает. */
+  .co-icon { fill: none; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+  /* Стрелка «наружу» — веб-конвенция: ссылка откроется в новой вкладке. */
+  .co-ext path {
+    stroke: rgba(6, 34, 42, 0.45); stroke-width: 1.9;
+    stroke-linecap: round; stroke-linejoin: round;
+  }
+  /* Блик проходит по бирке ровно один раз, когда машина собрана: он говорит
+     «сюда можно нажать», а повторяясь, превратился бы в мигающий баннер. */
+  .co-shine { fill: rgba(255, 255, 255, 0.9); opacity: 0; }
+  .rig:not(.assembly) .co-shine {
+    animation: coShine 0.85s calc(1.15s + var(--tag-order, 0) * 0.14s) ease-out 1;
+  }
+  @keyframes coShine {
+    from     { opacity: 0;    transform: translateX(0); }
+    22%      { opacity: 0.5; }
+    to       { opacity: 0;    transform: translateX(380px); }
   }
 
   .tag rect { fill: rgba(238,232,213,0.94); }
@@ -474,11 +499,15 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
      объявлен на самих подписях, а не внутри .rig.assembly: правило с классом
      исчезает вместе с классом, и гасить-то оно гасило, а проявлять было уже
      нечему — подписи возникали рывком. */
-  .callouts {
+  /* Бирки проступают одна за другой: глаз проходит по ним списком, а не
+     встречает семь плашек разом. Порядок каждая знает сама — генератор
+     ставит ей --tag-order. */
+  .callout {
     opacity: 1;
-    transition: opacity 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.3s;
+    transition: opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1)
+                calc(0.35s + var(--tag-order, 0) * 0.14s);
   }
-  .rig.assembly .callouts { opacity: 0; transition: opacity 0.25s linear; }
+  .rig.assembly .callout { opacity: 0; transition: opacity 0.2s linear; }
   /* Пока идёт сборка, разбирать нечего: клики по полусобранной машине
      оставляли бы узлы в состоянии, из которого их никто не вернёт. */
   .rig.assembly .pick, .rig.assembly .unit { pointer-events: none; }
@@ -547,7 +576,7 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   /* Композиция целиком — машина и приборы — держится посередине экрана.
      Без потолка приборы прижимались к правому краю окна, а машина уезжала
      от центра тем дальше, чем шире монитор. */
-  max-width: calc(var(--rig-w) + 348px);
+  max-width: calc(var(--rig-w) + 700px);
   margin: 0 auto;
   /* Поля под перспективу: наклон уводит корпус за габарит сцены примерно на
      тридцать точек в каждую сторону, и без запаса машина упирается в кромку
@@ -561,7 +590,27 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
 /* Сервисный режим открывает вторую колонку. Машина при этом занимает всё,
    что осталось, и плавно уходит влево — ровно на половину появившейся
    колонки. */
-.rig.service .rig-body { grid-template-columns: minmax(0, 1fr) 320px; column-gap: 28px; row-gap: 14px; }
+/* Консоли нужно место, и она его получает за счёт машины. Схема при этом не
+   ужимается — ужатая, она перестаёт читаться, — а уезжает влево и краем
+   уходит за кромку окна. В стойке к работающей машине тоже подходят сбоку,
+   так что вид сходится с делом: смотришь в консоль, а не на шасси. */
+.rig.service .rig-body {
+  grid-template-columns: minmax(0, 1fr) clamp(380px, 32vw, 640px);
+  column-gap: 24px; row-gap: 14px;
+}
+/* Машина держит свою ширину и вылезает из колонки влево, а не сплющивается.
+   Сдвиг считается так, чтобы её правый край никогда не переходил границу
+   колонки: min(0, ширина колонки − ширина машины) — это ровно переполнение,
+   и уходит оно всё в левую сторону. Иначе на узком окне схема наезжала на
+   консоль, а поверх текста читать нечего.
+
+   Плюс небольшой постоянный увод влево: смотрят в сервисном режиме в
+   консоль, машина в нём — фон. */
+.rig.service .stage {
+  width: var(--rig-w);
+  margin-left: calc(min(0px, 100% - var(--rig-w)) - 4vw);
+  margin-right: 0;
+}
 
 /* Места в гриде заданы явно. Без этого лента, объявившая себе первую
    колонку, уводила приборы во вторую строку — и в сервисном режиме они

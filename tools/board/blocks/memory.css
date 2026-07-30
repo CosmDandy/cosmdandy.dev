@@ -25,10 +25,17 @@
      маленький, и размах должен быть таким же. Порядок задаёт --seat: банки
      набиваются по каналам, а не подряд, и половины среднего банка достаются
      разным процессорам. */
-  .rig.assembly .dimm .pick-body,
-  .rig.assembly .dimm .latch {
+  .rig.assembly .dimm .pick-body {
     animation: seatDimm var(--press-hard) var(--seat, 0s) backwards;
   }
+  /* Защёлки — часть платы, а не планки: они приклёпаны к разъёму и стоят на
+     месте всегда. Пока планки нет, они раскрыты: пустой слот на живой машине
+     так и выглядит, с разведёнными в стороны ушами. Закрываются они в тот
+     момент, когда модуль дожали, — отсюда та же задержка --seat. */
+  .rig.assembly .latch-l { animation: latchL var(--press-hard) var(--seat, 0s) backwards; }
+  .rig.assembly .latch-r { animation: latchR var(--press-hard) var(--seat, 0s) backwards; }
+  @keyframes latchL { from { transform: rotate(38deg); } }
+  @keyframes latchR { from { transform: rotate(-38deg); } }
   /* Планку не опускают, а вдавливают: она входит с сопротивлением и
      садится, когда защёлки по торцам щёлкнут. */
   @keyframes seatDimm {
