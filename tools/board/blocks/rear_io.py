@@ -18,7 +18,7 @@
 # Модуль интерфейсов стоит на плате и уходит вглубь от задней стенки.
 BOUNDS = (1060, 430, 240, 290)
 
-from board.geom import IO_AUX_H, IO_AUX_Y, IO_H, IO_Y, X_IO
+from board.geom import IO_AUX_Y, IO_H, IO_Y, X_IO
 from board.ink import mono
 from board.lamps import act_led
 from board.ports import rj45
@@ -94,14 +94,16 @@ def render(cv):
     # модулем и читалась его же частью.
     AY = IO_AUX_Y
     cv.add(f'''<g class="decor">
-  <rect x="{X_IO}" y="{AY}" width="86" height="{IO_AUX_H - 14}" rx="4" fill="#121a1e"
+  <rect x="{X_IO}" y="{AY}" width="86" height="30" rx="4" fill="#121a1e"
         stroke="rgba(147,161,161,0.22)"/>
   <rect x="{X_IO+12}" y="{AY+7}" width="18" height="11" rx="1.5" fill="#0a1417" stroke="rgba(147,161,161,0.2)"/>
   <rect x="{X_IO+34}" y="{AY+7}" width="18" height="11" rx="1.5" fill="#0a1417" stroke="rgba(147,161,161,0.2)"/>
   <rect x="{X_IO+56}" y="{AY+7}" width="12" height="11" rx="1.5" fill="#0a1417" stroke="rgba(147,161,161,0.2)"/>
   {mono(X_IO+43, AY + 26, "USB · mDP", 7, op=0.42)}
+  <circle cx="{X_IO+18}" cy="{AY + 44}" r="8.5" fill="#20282d" stroke="rgba(147,161,161,0.34)"/>
   <circle class="fault-sys" cx="{X_IO+18}" cy="{AY + 44}" r="6" fill="#b58900"/>
-  {mono(X_IO+18, AY + 57, "!", 8, op=0.4)}
+  {mono(X_IO+18, AY + 60, "!", 8, op=0.4)}
+  <circle cx="{X_IO+62}" cy="{AY + 44}" r="8.5" fill="#20282d" stroke="rgba(147,161,161,0.34)"/>
   <circle class="led-id" cx="{X_IO+62}" cy="{AY + 44}" r="6" fill="#268bd2"/>
-  {mono(X_IO+62, AY + 57, "ID", 8, op=0.4)}
+  {mono(X_IO+62, AY + 60, "ID", 8, op=0.4)}
 </g>''')
