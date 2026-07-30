@@ -4,7 +4,7 @@
 """
 
 # Свой прямоугольник: сборка проверит, что узел из него не вышел.
-BOUNDS = (386, 86, 34, 700)
+BOUNDS = (368, 86, 34, 700)
 
 from board.geom import X_PCB
 from board.ink import mono
