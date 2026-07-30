@@ -4,7 +4,7 @@ backplane
 """
 
 # Свой прямоугольник: сборка проверит, что узел из него не вышел.
-BOUNDS = (152, 0, 34, 720)
+BOUNDS = (212, 0, 34, 740)
 
 from board.geom import BAY_N, BAY_TOP, H, X_BP
 

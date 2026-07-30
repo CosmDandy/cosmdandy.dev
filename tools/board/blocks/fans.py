@@ -6,7 +6,7 @@
 """
 
 # Свой прямоугольник: сборка проверит, что узел из него не вышел.
-BOUNDS = (178, 6, 274, 832)
+BOUNDS = (238, 6, 214, 832)
 
 from board.geom import FAN_W, H, X_FAN, X_PCB
 from board.ink import mono, silk_inverse

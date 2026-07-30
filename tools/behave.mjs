@@ -93,6 +93,20 @@ await click('.cpu-slot');
 await page.waitForTimeout(150);
 check('процессор на месте', !(await cls('.cpu-slot')).includes('pulled'), await cls('.cpu-slot'));
 
+// 5b. Диск — три клика: защёлка, каддик наружу, обратно. Ручка каддика
+// отдельная деталь, и порядок обязан быть именно таким: пока защёлка не
+// откинута, диск из корзины не идёт.
+await click('.bay');
+await page.waitForTimeout(150);
+check('защёлка диска откинута', (await cls('.bay')).includes('unlatched'), await cls('.bay'));
+check('диск ещё в корзине', !(await cls('.bay')).includes('pulled'), await cls('.bay'));
+await click('.bay');
+await page.waitForTimeout(150);
+check('диск вынут', (await cls('.bay')).includes('pulled'), await cls('.bay'));
+await click('.bay');
+await page.waitForTimeout(150);
+check('диск на месте', !(await cls('.bay')).includes('unlatched'), await cls('.bay'));
+
 // 5a. Имена узлов в логе: их даёт реестр, куда каждый блок вписал себя сам.
 // Разъехавшееся имя — самая незаметная поломка разреза: всё работает, но
 // машина начинает называть свои части иначе.

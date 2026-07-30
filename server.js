@@ -247,7 +247,11 @@
     if (on && !rig.classList.contains('lp-open')) toggleLp();
     if (!on && rig.classList.contains('lp-open')) toggleLp();
     if (!on) {
-      chassis.querySelectorAll('.pulled').forEach(function (p) { p.classList.remove('pulled', 'opened'); });
+      // Собираем машину целиком: узел мог остаться и на промежуточной
+      // ступени — с откинутой ручкой диска или снятым радиатором.
+      chassis.querySelectorAll('.pulled, .unlatched').forEach(function (p) {
+        p.classList.remove('pulled', 'opened', 'unlatched');
+      });
       updateFault();
     }
   }
@@ -271,9 +275,24 @@
     test: function (el) { return el.dataset.dimm !== undefined; },
     name: function (el) { return 'dimm ' + el.dataset.dimm; },
   });
+  // Диск достают в два приёма, как руками: сначала отщёлкивается ручка,
+  // потом каддик выходит наружу. Третий клик ставит его обратно.
   PICKS.push({
     test: function (el) { return el.dataset.unit && el.dataset.unit.startsWith('hdd'); },
     name: function (el) { return el.dataset.unit; },
+    pull: function (el, line) {
+      const n = el.dataset.unit.replace('hdd', '');
+      if (!el.classList.contains('unlatched')) {
+        el.classList.add('unlatched');
+        line('unlatched: ' + el.dataset.unit + ' · защёлка каддика ' + n, 'muted');
+      } else if (!el.classList.contains('pulled')) {
+        el.classList.add('pulled');
+        line('removed: ' + el.dataset.unit, 'warn');
+      } else {
+        el.classList.remove('unlatched', 'pulled');
+        line('inserted: ' + el.dataset.unit, 'ok');
+      }
+    },
   });
   // Процессор разбирается в два приёма, как в жизни: сначала радиатор, потом
   // сам процессор из-под него. Третий клик собирает узел обратно.
