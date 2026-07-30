@@ -197,6 +197,26 @@
     tick();
   }
 
+  // ── Экономия на невидимом ──────────────────────────────────────────────
+  // Анимация в SVG перерисовывает сцену независимо от того, смотрит ли на неё
+  // кто-нибудь: браузер честно крутит крыльчатки и в свёрнутой вкладке, и
+  // когда схему увели за край экрана. Ставим на паузу — вернёшься, и лопасть
+  // продолжит с того же положения, а не прыгнет.
+  const chassisBox = document.querySelector('.chassis');
+  let onScreen = true;
+
+  function dormancy() {
+    rig.classList.toggle('dormant', document.hidden || !onScreen);
+  }
+
+  if (chassisBox && 'IntersectionObserver' in window) {
+    new IntersectionObserver(function (entries) {
+      onScreen = entries[entries.length - 1].isIntersecting;
+      dormancy();
+    }, { threshold: 0 }).observe(chassisBox);
+  }
+  document.addEventListener('visibilitychange', dormancy);
+
   // ── Время работы ───────────────────────────────────────────────────────
   let t0 = Date.now();
   const uptimeEl = document.getElementById('uptime');
@@ -212,6 +232,7 @@
 
   function toggleService() {
     const on = rig.classList.toggle('service');
+    if (on) drawGauges();
     line(on ? 'service mode engaged · терминал и диагностика' : 'service mode released',
          on ? 'warn' : 'muted');
     if (on) initTimeline();     // лента нужна только разобранной машине
@@ -643,7 +664,12 @@
   }
 
   drawGauges();
-  window.setInterval(drawGauges, 1000);
+  // Приборы живут только в сервисном режиме. Раньше они пересчитывались и
+  // перерисовывали свои графики каждую секунду всегда — даже свёрнутыми в
+  // нулевую колонку, где их никто не видит.
+  window.setInterval(function () {
+    if (rig.classList.contains('service') && !rig.classList.contains('dormant')) drawGauges();
+  }, 1000);
 
   // ── Запуск ─────────────────────────────────────────────────────────────
   const first = !state.visited;

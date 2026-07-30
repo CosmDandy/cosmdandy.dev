@@ -36,8 +36,11 @@ def render(cv):
                 f'M{cx-bl:.1f} {cy} L{cx} {cy-bw:.1f} L{cx+bl:.1f} {cy} L{cx} {cy+bw:.1f} Z'
                 for b in range(2))
             rotors.append(f'<circle cx="{cx}" cy="{cy}" r="{rr:.1f}" fill="#0d1417" stroke="rgba(147,161,161,0.18)"/>')
+            # Крыльчатки крутятся с одним периодом и разной фазой: так они
+            # идут вразнобой, но щёлкают в общий такт. Сдвиг кратен шагу
+            # такта, иначе кадры перерисовки расползаются.
             rotors.append(f'<path class="fan-blades" d="{blades}" fill="rgba(34,48,54,0.55)" '
-                          f'stroke="rgba(147,161,161,0.26)" style="animation-duration:{jitter(i, 0.42, 0.24, k)}s"/>')
+                          f'stroke="rgba(147,161,161,0.26)" style="animation-delay:-{jitter(i, 0.1, 2.2, k)}s"/>')
             rotors.append(f'<circle cx="{cx}" cy="{cy}" r="{rr*0.3:.1f}" fill="#0a1215" stroke="rgba(147,161,161,0.22)"/>')
 
         h = FAN_H
