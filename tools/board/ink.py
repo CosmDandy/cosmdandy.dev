@@ -148,19 +148,24 @@ def silk_boxed(cx, cy, text, size=7, op=0.5):
             f'font-family="ui-monospace, Menlo, monospace" font-size="{size}">{text}</text>')
 
 
-def silk_frame(x, y, text, size=7, op=0.6):
+def silk_frame(x, y, text, size=7, op=0.6, turn=False):
     """Обозначение разъёма: светлый текст в тонкой рамке.
 
     Так на плате помечают позиции — J-номера, колодки питания, банки. Рамку
     печатают той же краской, что и текст, и она отделяет обозначение от
     разводки под ним: без неё надпись теряется в дорожках.
+
+    turn=True ставит обозначение вдоль, поворотом на 90°. На живой плате так
+    подписана половина позиций, и причина не в красоте: длинная надпись
+    ложится вдоль узкой полосы, где поперёк она не поместилась бы вовсе.
     """
     w = len(text) * size * 0.62 + 8
     h = size + 6
-    return (f'<rect x="{x}" y="{y}" width="{w:.1f}" height="{h}" rx="1" fill="none" '
+    spin = f' transform="rotate(-90 {x} {y})"' if turn else ''
+    return (f'<g{spin}><rect x="{x}" y="{y}" width="{w:.1f}" height="{h}" rx="1" fill="none" '
             f'stroke="rgba(232,227,213,{op * 0.62:.2f})" stroke-width="0.7"/>'
             f'<text x="{x+4}" y="{y+h-4.5:.1f}" fill="rgba(232,227,213,{op})" '
-            f'font-family="ui-monospace, Menlo, monospace" font-size="{size}">{text}</text>')
+            f'font-family="ui-monospace, Menlo, monospace" font-size="{size}">{text}</text></g>')
 
 
 def block_frame(x, y, w, h, title, refs, title_dx=6):

@@ -45,11 +45,13 @@ DIMM = {
     ),
 }
 
-# Каддики: последний отсек занят заглушкой — так и на живой машине, полностью
-# набитая корзина выдаёт рендер.
+# Каддики: два отсека заняты заглушками — так и на живой машине, полностью
+# набитая корзина выдаёт рендер. Заглушки стоят вразбивку, а не подряд: диски
+# в парк доезжают по мере надобности, и дырки в корзине остаются где попало.
 OPTANE_BAY = 2
+FILLER_BAYS = (4, BAY_N - 1)
 BAYS = tuple(
-    {'bay': i, 'filler': True} if i == BAY_N - 1 else
+    {'bay': i, 'filler': True} if i in FILLER_BAYS else
     {'bay': i, 'model': 'INTEL OPTANE P5800X', 'kind': 'Optane', 'tb': 1.6, 'life': 100}
     if i == OPTANE_BAY else
     {'bay': i, 'model': 'U.2 NVMe Gen4', 'kind': 'NVMe U.2', 'tb': 3.84, 'life': 98}
@@ -113,7 +115,7 @@ def passport():
 EXPECT = {
     'dimm': dimm_slots(),
     'fan': FAN['n'],
-    'bay': BAY_N - 1,          # заглушка узлом не считается: её не вынуть
+    'bay': BAY_N - len(FILLER_BAYS),   # заглушка узлом не считается: её не вынуть
     'psu': PSU['n'],
     'riser': len(RISERS),
     'cpu': CPU['n'],

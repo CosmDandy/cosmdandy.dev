@@ -7,7 +7,7 @@
 
 from board.geom import SOCKET_H, SOCKET_W
 from board.ink import mono
-from board.palette import SILVER, SILVER_DIM, SILVER_LIT
+from board.palette import COLD, HOT, SILVER, SILVER_DIM, SILVER_LIT
 
 
 def pad(x, y, w, h, r=0.6):
@@ -117,11 +117,24 @@ def hexgrid(x, y, w, h, s=7, gap=5.5):
     return ''.join(out)
 
 
-def service_label(x, y, w, h, title, lines):
+def service_label(x, y, w, h, title, lines, head=HOT, arrow=None):
     """Сервисная табличка на крышке: кирпичная шапка и светлое поле.
 
     Поле держим на fill-opacity, а не сплошной белой заливкой: крышка тёмная,
     и непрозрачная бумага на ней выжигает глаза.
+
+    Цвет шапки — не оформление, а сам код замены: HOT (терракота) значит
+    «можно менять на ходу», COLD (голубой) значит «сначала обесточить». Это
+    единственные два тона, что тут уместны, и оба уже определены в palette,
+    рядом с обвязкой, которая красит этим же языком живые узлы.
+
+    Строки с префиксом NOTE:/Attention: — два разных предупреждения с живой
+    наклейки: первое просто к сведению, второе про риск испортить железо,
+    поэтому оно жирнее и темнее прочих строк.
+
+    `arrow` — направление, в котором деталь покидает шасси ('left'/'right'):
+    не у каждой наклейки есть смысл рисовать его, но там, где стрелка на
+    живой табличке есть, она часть языка, а не украшение.
     """
     head_h = h * 0.19
     body_y = y + head_h
@@ -130,7 +143,7 @@ def service_label(x, y, w, h, title, lines):
         f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="3" fill="#e8e3d5" fill-opacity="0.78" '
         f'stroke="rgba(147,161,161,0.35)" stroke-width="1.2"/>',
         f'<path d="M{x} {y+head_h:.1f} V{y+3} Q{x} {y} {x+3} {y} H{x+w-3} Q{x+w} {y} {x+w} {y+3} '
-        f'V{y+head_h:.1f} Z" fill="#cb4b16"/>',
+        f'V{y+head_h:.1f} Z" fill="{head}"/>',
     ]
     icon_r = head_h * 0.34
     icx, icy = x + head_h * 0.6, y + head_h / 2
@@ -143,8 +156,49 @@ def service_label(x, y, w, h, title, lines):
                  f'font-size="{max(8, head_h*0.46):.1f}" font-weight="700" letter-spacing="0.04em">{title}</text>')
     line_h = body_h / (len(lines) + 1)
     for i, ln in enumerate(lines):
-        parts.append(f'<text x="{x+10}" y="{body_y + line_h*(i+1):.1f}" text-anchor="start" fill="#161005" '
-                     f'fill-opacity="0.82" font-family="ui-monospace, Menlo, monospace" font-size="7.5">{ln}</text>')
+        if ln.startswith("Attention:"):
+            fill, fop, wt = "#7a1c0f", 0.92, 700
+        elif ln.startswith("NOTE:"):
+            fill, fop, wt = "#161005", 0.60, 400
+        else:
+            fill, fop, wt = "#161005", 0.82, 400
+        parts.append(f'<text x="{x+10}" y="{body_y + line_h*(i+1):.1f}" text-anchor="start" fill="{fill}" '
+                     f'fill-opacity="{fop}" font-family="ui-monospace, Menlo, monospace" font-size="7.5" '
+                     f'font-weight="{wt}">{ln}</text>')
+    if arrow:
+        ay = y + h - 9
+        ax0, ax1 = x + 12, x + w - 12
+        x1, x2 = (ax1, ax0) if arrow == "left" else (ax0, ax1)
+        tip = -1 if arrow == "left" else 1
+        parts.append(f'<path d="M{x1:.1f} {ay:.1f} H{x2:.1f}" stroke="#161005" stroke-opacity="0.55" '
+                     f'stroke-width="1.6" fill="none"/>'
+                     f'<path d="M{x2:.1f} {ay:.1f} l{-tip*7:.1f} -4.5 v9 Z" fill="#161005" fill-opacity="0.55"/>')
+    return ''.join(parts)
+
+
+def service_legend(x, y, w, h):
+    """Легенда цветового кода: без неё шапки наклеек — просто цветные полоски.
+
+    Стоит один раз на всей крышке: остальные таблички лишь используют код,
+    который здесь объяснён, и повторять его на каждой было бы тем же самым
+    текстом восемь раз подряд.
+    """
+    parts = [
+        f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="3" fill="#e8e3d5" fill-opacity="0.78" '
+        f'stroke="rgba(147,161,161,0.35)" stroke-width="1.2"/>',
+        f'<text x="{x+10}" y="{y+h*0.22:.1f}" text-anchor="start" fill="#161005" fill-opacity="0.85" '
+        f'font-family="ui-monospace, Menlo, monospace" font-size="8" font-weight="700" '
+        f'letter-spacing="0.04em">КОД ЗАМЕНЫ</text>',
+    ]
+    rows = ((HOT, "горячая замена"), (COLD, "обесточить машину"))
+    sw = h * 0.16
+    for i, (color, text) in enumerate(rows):
+        ry = y + h * 0.42 + i * h * 0.32
+        parts.append(f'<rect x="{x+10}" y="{ry-sw*0.72:.1f}" width="{sw*1.6:.1f}" height="{sw:.1f}" rx="1.5" '
+                     f'fill="{color}"/>'
+                     f'<text x="{x+10+sw*1.6+7:.1f}" y="{ry:.1f}" text-anchor="start" fill="#161005" '
+                     f'fill-opacity="0.82" font-family="ui-monospace, Menlo, monospace" '
+                     f'font-size="7.5">{text}</text>')
     return ''.join(parts)
 
 

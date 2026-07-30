@@ -70,9 +70,17 @@ const seated = await page.evaluate(() => {
   return { вент: vis('.fan'), бп: vis('.psu'), цп: vis('.cpu-slot .heatsink'),
            память: vis('.dimm .pick-body'), райзер: vis('.riser'), диски: vis('.bay') };
 });
+// Числа берём из паспорта, а не пишем в тесте: иначе он ловит не поломку
+// сборки, а то, что железо в машине поменяли — и падает по ложному поводу.
+const passport = await page.evaluate(() => {
+  try { return JSON.parse(document.getElementById('rig-spec').textContent); } catch (e) { return null; }
+});
 check('все узлы сели на места',
-      seated.вент === 8 && seated.бп === 2 && seated.цп === 2 && seated.память === 24
-      && seated.райзер === 2 && seated.диски === 7, JSON.stringify(seated));
+      !!passport && seated.вент === passport.fan.n && seated.бп === passport.psu.n
+      && seated.цп === passport.cpu.n && seated.память === passport.dimm.slots
+      && seated.райзер === passport.riser.length
+      && seated.диски === passport.bay.filter(b => !b.filler).length,
+      JSON.stringify(seated));
 
 // 0б. Кнопка пересборки: сборку можно посмотреть ещё раз, не чистя историю.
 await click('#assemble-btn');

@@ -10,6 +10,7 @@ from board.ink import hit, mono, silk_boxed, silk_inverse
 from board.lamps import fault
 from board.metal import ihs_path
 from board.revision import stamp
+from board.palette import COLD
 from board.spec import CPU
 
 
@@ -135,7 +136,8 @@ def render(cv):
         """Прижимная скоба сокета: она приклёпана к плате и радиатор не уносит.
 
     Одна штанга вдоль края, загнутый конец и полукруглая ручка — за неё
-    рычаг откидывают. Ручка помечена цветом, как всё, что трогают руками.
+    рычаг откидывают. Ручка голубая, а не терракотовая: по коду замены это
+    значит «сначала обесточь». Процессор на горячую не меняют нигде.
     """
         bx, by = x - 14, y + SOCKET_H - 22
         # Штанга вдоль края, поворот влево и загиб внутрь — рычаг заканчивается
@@ -146,7 +148,7 @@ def render(cv):
         return (f'<g class="ilm">'
                 f'<path d="{stem}" fill="none" stroke="rgba(147,161,161,0.5)" '
                 f'stroke-width="4" stroke-linecap="round"/>'
-                f'<path d="{hook}" fill="none" stroke="#cb4b16" stroke-width="4.2" stroke-linecap="butt"/>'
+                f'<path d="{hook}" fill="none" stroke="{COLD}" stroke-width="4.2" stroke-linecap="butt"/>'
                 f'<path d="{hook}" fill="none" stroke="rgba(238,232,213,0.32)" stroke-width="1.3"/>'
                 f'<circle cx="{bx}" cy="{y+8}" r="5" fill="#101a1e" stroke="rgba(147,161,161,0.45)" stroke-width="1.6"/>'
                 f'</g>')
