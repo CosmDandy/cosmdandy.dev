@@ -7,9 +7,13 @@
  * Сервисный (тумблер SERVICE на плате): узлы вынимаются, появляется консоль,
  * выезжает панель диагностики.
  *
- * Про заливки: ни одного url(#gradient) и ни одного opacity на SVG-узлах —
- * и то, и другое отваливается, когда браузер поднимает трансформированную
- * группу в отдельный слой, и остаются одни обводки.
+ * Про заливки. Схема однажды теряла фон целиком, и подозревали то градиенты,
+ * то opacity на SVG-узлах. Виновато было другое: правило вида
+ * `.fault { fill-opacity: 0 }` матчило сам .rig, а fill-opacity наследуется
+ * всеми потомками. Поэтому селекторы ламп сужены до circle.fault, а гасим мы
+ * их через fill-opacity, а не opacity — opacity поднимает узел в отдельный
+ * слой. Градиенты при этом работают: по кристаллу процессора бежит
+ * url(#die-shine) прямо внутри наклонённой сцены.
  */
 
 /* ── Два вида одной визитки ───────────────────────────────────────────────
@@ -399,7 +403,18 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   .rig.service .riser.pulled .pick-body { transform: translateX(46px); }
   .rig.service .psu.pulled .pick-body { transform: translateX(74px); }
 
-  /* Процессор остаётся в сокете — снимается радиатор, как руками. */
+  /* Процессор остаётся в сокете — снимается радиатор, как руками. Под ним
+     открывается кристалл: по нему бежит тот же градиент, что по кнопке
+     «скачать» в резюме. Пока радиатор на месте, перелив выключен — он бы
+     зря крутил анимацию под непрозрачной крышкой. */
+  .die { visibility: hidden; }
+  .rig.service .cpu-slot.pulled .die { visibility: visible; }
+  .die-shine { animation: dieShine 4.5s ease-in-out infinite; }
+  @keyframes dieShine {
+    0%, 100% { transform: translateX(0); }
+    50%      { transform: translateX(150px); }
+  }
+
   .heatsink { transition: transform var(--spring); }
   .rig.service .cpu-slot.pulled .pick-body { transform: none; }
   .rig.service .cpu-slot.pulled .heatsink { transform: translate(0, -104px) scale(0.92); }
