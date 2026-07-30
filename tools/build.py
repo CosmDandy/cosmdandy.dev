@@ -152,10 +152,40 @@ def build_css():
     return used
 
 
+JS_MARK = re.compile(r'^([ \t]*)// @block: ([a-z_]+)[ \t]*$', re.MULTILINE)
+
+
+def build_js():
+    """Собрать server.js: база плюс поведение узлов на своих местах.
+
+    Куски вставляются внутрь того же IIFE, что и база, поэтому общая область
+    видимости сохраняется: блок по-прежнему видит line(), rig и остальное,
+    а терминал видит его функции. Порядок важен так же, как в CSS — код
+    выполняется сверху вниз, и обработчик, поднятый выше своего элемента,
+    просто не найдёт его в DOM.
+    """
+    base = (HERE / 'board/scripts/base.js').read_text(encoding='utf-8')
+    used = []
+
+    def paste(m):
+        name = m.group(2)
+        part = (HERE / f'board/blocks/{name}.js').read_text(encoding='utf-8').rstrip('\n')
+        used.append(name)
+        return part
+
+    js = JS_MARK.sub(paste, base)
+    head = ('// СОБРАННЫЙ ФАЙЛ — правки затрёт следующая сборка.\n'
+            '// Источники: tools/board/scripts/base.js и tools/board/blocks/*.js,\n'
+            '// собирает tools/build.py. Поведение узла лежит рядом с его геометрией.\n')
+    (HERE.parent / 'server.js').write_text(head + js, encoding='utf-8')
+    return used
+
+
 def main():
     board, lid, report = build()
     svg, lidart = board.svg(), lid.svg()
     css_blocks = build_css()
+    js_blocks = build_js()
 
     (HERE / 'board-v17.svg.part').write_text(svg, encoding='utf-8')
     (HERE / 'board-v17-lid.svg.part').write_text(lidart, encoding='utf-8')
@@ -174,6 +204,7 @@ def main():
     print(f'плата: {len(board.parts)} фрагментов, {len(svg)} символов; '
           f'крышка: {len(lidart)} символов')
     print(f'стили: база + {len(css_blocks)} узлов ({", ".join(css_blocks)})')
+    print(f'логика: база + {len(js_blocks)} узлов ({", ".join(js_blocks)})')
     return report
 
 

@@ -93,6 +93,28 @@ await click('.cpu-slot');
 await page.waitForTimeout(150);
 check('процессор на месте', !(await cls('.cpu-slot')).includes('pulled'), await cls('.cpu-slot'));
 
+// 5a. Имена узлов в логе: их даёт реестр, куда каждый блок вписал себя сам.
+// Разъехавшееся имя — самая незаметная поломка разреза: всё работает, но
+// машина начинает называть свои части иначе.
+await page.evaluate(() => { document.getElementById('log').textContent = ''; });
+const names = await page.evaluate(() => {
+  const out = {};
+  for (const sel of ['.fan', '.dimm', '.bay', '.riser', '.psu']) {
+    const el = document.querySelector(sel);
+    if (!el) { out[sel] = 'нет узла'; continue; }
+    const was = document.getElementById('log').children.length;
+    el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    out[sel] = [...document.getElementById('log').children].slice(was)
+      .map(d => d.textContent).join(' ');
+  }
+  return out;
+});
+const EXPECT = { '.fan': /fan \d/, '.dimm': /dimm [LCR]\d/, '.bay': /hdd\d/,
+  '.riser': /riser \d/, '.psu': /psu-\d/ };
+for (const [sel, re] of Object.entries(EXPECT)) {
+  check(`имя узла ${sel}`, re.test(names[sel] ?? ''), names[sel]);
+}
+
 // 6. Панель диагностики открылась вместе с сервисным режимом
 check('light path открыт', (await rigCls()).includes('lp-open'), await rigCls());
 
