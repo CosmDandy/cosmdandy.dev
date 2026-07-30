@@ -347,7 +347,9 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
      радиаторов и наклейками блоков питания, которых на плате хватает. */
   .co-shadow { fill: rgba(3, 14, 18, 0.55); }
   .co-box { fill: rgba(245, 241, 228, 0.98); stroke: rgba(6, 26, 31, 0.9); stroke-width: 1.6; }
-  .co-edge { fill: var(--cyan); }
+  /* Цвет корешка приходит атрибутом от генератора — у каждого сервиса свой.
+     Правило с fill здесь перебивало бы его: презентационный атрибут слабее
+     любого стиля, и все семь бирок снова стали бы одинаковыми. */
   .co-text {
     fill: #06222a; font-family: ui-monospace, Menlo, monospace;
     font-size: 22px; font-weight: 700; letter-spacing: 0.01em;
@@ -665,6 +667,36 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   .rig.service .panel { min-height: 140px; }
 }
 
+/* ── Адрес под курсором ───────────────────────────────────────────────────
+ * Наводя на бирку или на узел, гость видит, куда попадёт. Браузер показывает
+ * это в углу окна мелким шрифтом — здесь адрес идёт за курсором и читается
+ * сразу. Держим его тихим: подсказка, а не баннер.
+ */
+.link-hint {
+    position: fixed;
+    left: 0; top: 0;
+    z-index: 6;
+    padding: 7px 11px;
+    border-radius: 9px;
+    border: 1px solid rgba(147, 161, 161, 0.22);
+    background: rgba(6, 22, 27, 0.9);
+    backdrop-filter: blur(6px);
+    color: rgba(238, 232, 213, 0.92);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 0.76rem;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transform: translate3d(0, 6px, 0) scale(0.97);
+    transition: opacity 0.22s ease, transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.link-hint.on { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+/* Схема протокола глуше самого адреса: она одинаковая у всех ссылок и
+   нужна лишь как признак «это адрес». */
+.link-hint .lh-scheme { color: rgba(147, 161, 161, 0.55); }
+.link-hint .lh-host { color: var(--cyan); }
+
 /* ── Партномера узлов ─────────────────────────────────────────────────────
  * У каждого узла на плате отпечатан хэш коммита, который его последним менял.
  * Клик копирует номер и открывает этот коммит — так же, как по партномеру на
@@ -817,4 +849,4 @@ a.callout.lit .co-dot { fill: var(--head); }
   .tl-meta { display: none; }
 }
 
-/* TODO-part: screen */
+/* @part: screen */

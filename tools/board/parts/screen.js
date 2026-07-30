@@ -31,6 +31,10 @@
   // войти в её условие (см. отчёт).
   let crtOpen = false;
 
+  // База спрашивает через функцию, а не читает переменную: base.js
+  // выполняется выше по файлу, и до объявления let обращение бросает.
+  function screenOpen() { return crtOpen; }
+
   function openCrt(mode) {
     crt.dataset.mode = mode;
     postPane.hidden = mode !== 'post';
@@ -64,6 +68,17 @@
     if (mode === 'post') handlePostKey(e);
     else if (mode === 'setup') handleSetupKey(e);
     else if (mode === 'top') handleTopKey(e);
+  }, true);
+
+  // F2 живёт и вне самотеста. На живой машине её ловят в первые секунды
+  // загрузки, но страница открыта часами, а POST идёт от силы пять секунд —
+  // ждать его, чтобы попасть в setup, было бы издевательством. Поэтому:
+  // экран закрыт — F2 открывает setup, экран открыт — клавишу разбирает
+  // диспетчер режима выше.
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'F2' || crt.open) return;
+    e.preventDefault();
+    openSetup();
   }, true);
 
   // ── NVRAM ────────────────────────────────────────────────────────────────
