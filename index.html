@@ -81,6 +81,21 @@
         </svg>
     </button>
 
+    <button class="view-switch" id="view-switch" type="button"
+            aria-label="Переключить вид" title="Карточка или схема сервера">
+        <svg class="icon-card" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="5" width="18" height="14" rx="2"/>
+            <path d="M7 10h6M7 14h4"/>
+        </svg>
+        <svg class="icon-rack" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="2.5" y="7" width="19" height="10" rx="1.6"/>
+            <path d="M6 7v10M9.5 7v10"/>
+            <circle cx="17.5" cy="12" r="1.1"/>
+        </svg>
+    </button>
+
     <div class="dots"></div>
     <div class="cursor-glow" id="cursor-glow"></div>
 
@@ -140,6 +155,12 @@
                        placeholder="help — список команд">
             </form>
         </div>
+
+        <header class="rig-id">
+            <h2>Timofey Kondrashin</h2>
+            <p class="bio">DevOps Engineer</p>
+            <p class="now"><span class="live-dot"></span>currently building infrastructure @ CodeKVT · remote</p>
+        </header>
 
         <div class="stage">
             <div class="chassis" id="chassis">

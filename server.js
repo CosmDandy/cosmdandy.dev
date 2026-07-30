@@ -74,6 +74,7 @@
     rig.classList.remove('net', 'bmc');
     setPower('standby');
     line('powering off', 'warn');
+    line('CD93-FS1 · 1U · 2× Xeon Scalable · 32× DDR5 · 6× U.2 NVMe · 2× 25G SFP+', 'ok');
     line('standby · bmc only', 'muted');
     tick();
   }
@@ -394,6 +395,24 @@
     promptInput.value = '';
   });
 
+
+  // ── Переключатель видов ────────────────────────────────────────────────
+  // Визитка и схема — два способа показать одно и то же. Выбор запоминается,
+  // чтобы вернувшийся гость попал туда же, где был.
+  const viewBtn = document.getElementById('view-switch');
+  function setView(v) {
+    document.body.classList.toggle('view-rig', v === 'rig');
+    document.body.classList.toggle('view-card', v !== 'rig');
+    viewBtn.setAttribute('aria-pressed', String(v === 'rig'));
+    try { localStorage.setItem('view', v); } catch (e) {}
+  }
+  let view = 'card';
+  try { view = localStorage.getItem('view') === 'rig' ? 'rig' : 'card'; } catch (e) {}
+  setView(view);
+  viewBtn.addEventListener('click', function () {
+    setView(document.body.classList.contains('view-rig') ? 'card' : 'rig');
+  });
+
   // ── Запуск ─────────────────────────────────────────────────────────────
   const first = !state.visited;
   state.visited = true; save();
@@ -430,6 +449,7 @@
     // дальше машину включает уже человек.
     state.powered = false; save();
     setPower('init');
+    line('CD93-FS1 · 1U · 2× Xeon Scalable · 32× DDR5 · 6× U.2 NVMe · 2× 25G SFP+', 'ok');
     line('standby power applied', 'muted');
     line('uefi/bmc init …', 'muted');
     tick();
@@ -441,11 +461,13 @@
   } else if (state.powered) {
     setPower('on');
     rig.classList.add('net', 'bmc');
+    line('CD93-FS1 · 1U · 2× Xeon Scalable · 32× DDR5 · 6× U.2 NVMe · 2× 25G SFP+', 'ok');
     line('session restored', 'muted');
     line('system ready', 'ok');
     tick();
   } else {
     setPower('standby');
+    line('CD93-FS1 · 1U · 2× Xeon Scalable · 32× DDR5 · 6× U.2 NVMe · 2× 25G SFP+', 'ok');
     line('standby · bmc only', 'muted');
     tick();
   }
