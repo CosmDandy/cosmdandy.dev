@@ -365,6 +365,45 @@ def silk_inverse(x, y, text, size=7):
             f'font-family="ui-monospace, Menlo, monospace" font-size="{size}">{text}</text>')
 
 
+# ── металл ────────────────────────────────────────────────────────────────
+# Выводы, площадки и контакты делаем серебром, а не той же серой краской,
+# что и шелкография: на живой плате олово — единственное, что бликует, и
+# именно по нему глаз отделяет деталь от рисунка под ней.
+SILVER = "#b8c4c8"          # луженый вывод
+SILVER_DIM = "#7e8f95"      # он же в тени
+SILVER_LIT = "#dfe8ea"      # блик по верхней кромке
+
+def pad(x, y, w, h, r=0.6):
+    """Контактная площадка: олово с бликом сверху и тенью снизу."""
+    return (f'<rect x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="{h:.1f}" rx="{r}" fill="{SILVER_DIM}"/>'
+            f'<rect x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="{h - 0.8:.1f}" rx="{r}" fill="{SILVER}"/>'
+            f'<rect x="{x + 0.4:.1f}" y="{y + 0.3:.1f}" width="{max(0.6, w - 0.8):.1f}" height="0.6" '
+            f'fill="{SILVER_LIT}" fill-opacity="0.55"/>')
+
+def relief(x, y, w, h, rx=1):
+    """Фаска корпуса: светлая кромка сверху, тень снизу. Дешевле тени и не
+    создаёт слоя композитинга, в отличие от filter."""
+    return (f'<path d="M{x + rx:.1f} {y:.1f} H{x + w - rx:.1f}" stroke="rgba(223,232,234,0.20)" '
+            f'stroke-width="0.9" fill="none"/>'
+            f'<path d="M{x + rx:.1f} {y + h:.1f} H{x + w - rx:.1f}" stroke="rgba(0,0,0,0.38)" '
+            f'stroke-width="1.1" fill="none"/>')
+
+def hexgrid(x, y, w, h, s=7, gap=5.5):
+    """Гексагональная перфорация: ею облегчают широкую часть кронштейна."""
+    out, dx, dy = [], s * 1.5 + gap, (s + gap / 2) * 1.732
+    row = 0
+    cy = y + s
+    while cy < y + h - s * 0.6:
+        cx = x + s + (dx / 2 if row % 2 else 0)
+        while cx < x + w - s * 0.9:
+            pts = ' '.join(f'{cx + s*0.86*dxx:.1f},{cy + s*dyy:.1f}' for dxx, dyy in
+                           ((0, -1), (1, -0.5), (1, 0.5), (0, 1), (-1, 0.5), (-1, -0.5)))
+            out.append(f'<polygon points="{pts}" fill="#0a1216" stroke="rgba(147,161,161,0.16)"/>')
+            cx += dx
+        cy += dy / 2
+        row += 1
+    return ''.join(out)
+
 def silk_frame(x, y, text, size=7, op=0.6):
     """Обозначение разъёма: светлый текст в тонкой рамке.
 
@@ -430,8 +469,8 @@ def service_label(x, y, w, h, title, lines):
     return ''.join(parts)
 
 
-def rating_label(x, y):
-    """Шильдик питания: два ввода, и по каждому свой блок с током.
+def rating_label(x, y, num):
+    """Шильдик питания своего ввода: номер блока на всех метках один.
 
     Жёлтые квадраты по краям — предупреждение, что вводов два и обесточить
     надо оба. Единственное цветное пятно на крышке настоящей машины.
@@ -477,7 +516,7 @@ def rating_label(x, y):
             + ''.join(f'<text x="{x_dark+6:.1f}" y="{y+line_h*(i+1):.1f}" text-anchor="start" '
                       f'fill="rgba(238,232,213,0.72)" font-family="ui-monospace, Menlo, monospace" '
                       f'font-size="4.4">{ln}</text>' for i, ln in enumerate(lines)))
-    return (yellow(x, 2) + orange(x_o2, 2) + dark + orange(x_o1, 1) + yellow(x_y1, 1)
+    return (yellow(x, num) + orange(x_o2, num) + dark + orange(x_o1, num) + yellow(x_y1, num)
             + f'<rect x="{x}" y="{y}" width="{w}" height="{h}" fill="none" '
               f'stroke="rgba(20,20,10,0.55)" stroke-width="1.2"/>')
 
@@ -683,12 +722,12 @@ def chip_qfp(x, y, w, h, mark, sub):
     pins = []
     for k in range(int(w // 2) - 2):
         px = x + 3 + k * 2
-        pins.append(f'<line x1="{px}" y1="{y}" x2="{px}" y2="{y-4}" stroke="rgba(147,161,161,0.30)" stroke-width="0.8"/>')
-        pins.append(f'<line x1="{px}" y1="{y+h}" x2="{px}" y2="{y+h+4}" stroke="rgba(147,161,161,0.30)" stroke-width="0.8"/>')
+        pins.append(f'<line x1="{px}" y1="{y}" x2="{px}" y2="{y-4}" stroke="rgba(184,196,200,0.72)" stroke-width="0.8"/>')
+        pins.append(f'<line x1="{px}" y1="{y+h}" x2="{px}" y2="{y+h+4}" stroke="rgba(184,196,200,0.72)" stroke-width="0.8"/>')
     for k in range(int(h // 2) - 2):
         py = y + 3 + k * 2
-        pins.append(f'<line x1="{x}" y1="{py}" x2="{x-4}" y2="{py}" stroke="rgba(147,161,161,0.30)" stroke-width="0.8"/>')
-        pins.append(f'<line x1="{x+w}" y1="{py}" x2="{x+w+4}" y2="{py}" stroke="rgba(147,161,161,0.30)" stroke-width="0.8"/>')
+        pins.append(f'<line x1="{x}" y1="{py}" x2="{x-4}" y2="{py}" stroke="rgba(184,196,200,0.72)" stroke-width="0.8"/>')
+        pins.append(f'<line x1="{x+w}" y1="{py}" x2="{x+w+4}" y2="{py}" stroke="rgba(184,196,200,0.72)" stroke-width="0.8"/>')
     # Шильдик занимает середину корпуса, а точка первого вывода — угол за его
     # пределами: на живой микросхеме надпись её обходит, а не наезжает.
     lx, ly, lw, lh = x + w * 0.14, y + h * 0.26, w * 0.72, h * 0.54
@@ -701,6 +740,7 @@ def chip_qfp(x, y, w, h, mark, sub):
               f'font-family="ui-monospace, Menlo, monospace" font-size="{fit(mark, lw-4, 7)}">{mark}</text>'
             + f'<text x="{x+w/2:.1f}" y="{ly+lh-2:.1f}" text-anchor="middle" fill="rgba(10,20,23,0.72)" '
               f'font-family="ui-monospace, Menlo, monospace" font-size="{fit(sub, lw-4, 6)}">{sub}</text>'
+            + relief(x, y, w, h, 2)
             + f'<circle cx="{x+4}" cy="{y+4}" r="1.7" fill="#268bd2" fill-opacity="0.7"/>')
 
 def chip_soic(x, y, w, h, mark, size=5.5):
@@ -712,7 +752,7 @@ def chip_soic(x, y, w, h, mark, size=5.5):
     """
     w = max(w, len(mark) * size * 0.6 + 15)
     pins = ''.join(
-        f'<line x1="{x+4+k*5}" y1="{y}" x2="{x+4+k*5}" y2="{y-2.5}" stroke="rgba(147,161,161,0.32)"/>'
+        f'<line x1="{x+4+k*5}" y1="{y}" x2="{x+4+k*5}" y2="{y-2.5}" stroke="rgba(184,196,200,0.72)"/>'
         f'<line x1="{x+4+k*5}" y1="{y+h}" x2="{x+4+k*5}" y2="{y+h+2.5}" stroke="rgba(147,161,161,0.32)"/>'
         for k in range(int(w // 5) - 1))
     return (pins
@@ -721,21 +761,23 @@ def chip_soic(x, y, w, h, mark, size=5.5):
             + f'<text x="{x+8+(w-11)/2:.1f}" y="{y+h/2+2.6:.1f}" text-anchor="middle" '
               f'fill="rgba(238,232,213,0.58)" font-family="ui-monospace, Menlo, monospace" '
               f'font-size="{size}">{mark}</text>'
+            + relief(x, y, w, h, 1.5)
             + f'<circle cx="{x+3.4}" cy="{y+h-3.2}" r="1.2" fill="rgba(238,232,213,0.45)"/>')
 
 def transistor(x, y, big=False):
     """SOT-23 и DPAK: три вывода, у мощного — площадка теплоотвода."""
     if big:
-        return (f'<rect x="{x}" y="{y}" width="14" height="11" rx="1" fill="#0c1114" '
-                f'stroke="rgba(147,161,161,0.26)"/>'
-                f'<rect x="{x+2}" y="{y+2}" width="10" height="4" fill="rgba(147,161,161,0.14)"/>'
-                + ''.join(f'<line x1="{x+3+k*4}" y1="{y+11}" x2="{x+3+k*4}" y2="{y+14}" '
-                          f'stroke="rgba(147,161,161,0.30)" stroke-width="1.4"/>' for k in range(3)))
-    return (f'<rect x="{x}" y="{y}" width="8" height="6" rx="0.8" fill="#0c1114" '
-            f'stroke="rgba(147,161,161,0.24)"/>'
-            f'<line x1="{x+2}" y1="{y+6}" x2="{x+2}" y2="{y+8}" stroke="rgba(147,161,161,0.28)"/>'
-            f'<line x1="{x+6}" y1="{y+6}" x2="{x+6}" y2="{y+8}" stroke="rgba(147,161,161,0.28)"/>'
-            f'<line x1="{x+4}" y1="{y}" x2="{x+4}" y2="{y-2}" stroke="rgba(147,161,161,0.28)"/>')
+        return (''.join(pad(x + 1.8 + k * 4, y + 11, 2.6, 3) for k in range(3))
+                + pad(x + 2, y - 1.6, 10, 2)          # площадка теплоотвода
+                + f'<rect x="{x}" y="{y}" width="14" height="11" rx="1" fill="#0c1114" '
+                  f'stroke="rgba(147,161,161,0.26)"/>'
+                + f'<rect x="{x+2}" y="{y+2}" width="10" height="4" fill="rgba(147,161,161,0.14)"/>'
+                + relief(x, y, 14, 11))
+    return (pad(x + 0.6, y + 6, 2.6, 2.4) + pad(x + 4.8, y + 6, 2.6, 2.4)
+            + pad(x + 2.7, y - 2.4, 2.6, 2.4)
+            + f'<rect x="{x}" y="{y}" width="8" height="6" rx="0.8" fill="#0c1114" '
+              f'stroke="rgba(147,161,161,0.24)"/>'
+            + relief(x, y, 8, 6, 0.8))
 
 def small_sink(x, y, w, h):
     """Радиатор на горячей мелочи: рёбра и винт в каждом углу."""
@@ -752,14 +794,18 @@ def choke(x, y, s=14):
     """Дроссель питания: залитый феррит, светлее всего остального."""
     return (f'<rect x="{x}" y="{y}" width="{s}" height="{s}" rx="2.5" fill="#2a3238" '
             f'stroke="rgba(147,161,161,0.30)"/>'
-            f'<rect x="{x+3}" y="{y+s-3}" width="{s-6}" height="3" fill="rgba(147,161,161,0.22)"/>')
+            f'<rect x="{x+3}" y="{y+s-3}" width="{s-6}" height="3" fill="rgba(147,161,161,0.22)"/>'
+            + pad(x - 2.6, y + 2, 3, s - 4) + pad(x + s - 0.4, y + 2, 3, s - 4)
+            + relief(x, y, s, s, 2.5))
 
 def xtal(x, y, mark="32.768kHz"):
     """Кварц в металлическом корпусе. Частоту на плате подписывают всегда —
     по ней и опознают, что это резонатор, а не конденсатор."""
-    return (f'<rect x="{x}" y="{y}" width="16" height="8" rx="4" fill="#3a444a" '
-            f'stroke="rgba(147,161,161,0.36)"/>'
-            f'<rect x="{x+3}" y="{y+2}" width="10" height="4" rx="2" fill="rgba(147,161,161,0.10)"/>'
+    return (pad(x - 1.6, y + 1, 4, 6) + pad(x + 13.6, y + 1, 4, 6)
+            + f'<rect x="{x}" y="{y}" width="16" height="8" rx="4" fill="#3a444a" '
+              f'stroke="rgba(147,161,161,0.36)"/>'
+            + f'<rect x="{x+3}" y="{y+2}" width="10" height="4" rx="2" fill="rgba(147,161,161,0.10)"/>'
+            + f'<path d="M{x+4} {y+1.4} h8" stroke="rgba(223,232,234,0.30)" stroke-width="1"/>'
             # подпись от левого края корпуса: центрированная уезжала влево за
             # отведённое место и садилась на соседа
             + mono(x, y + 16, mark, 5, anchor="start", op=0.34))
@@ -856,35 +902,52 @@ for i in range(18):
 # штриховка и вдобавок занимала площадь, которой потом не хватало крупному.
 def small_part(kind, x, y):
     """Один элемент обвязки. Возвращает фигуры или пусто, если места нет."""
+    # У каждого корпуса есть чем паяться: 0402 стоит на двух площадках, и
+    # именно они, а не корпус, блестят на живой плате.
     if kind == 'res':
-        w, h = (8, 4) if (x + y) % 2 else (4, 8)
+        horiz = (x + y) % 2
+        w, h = (10, 4) if horiz else (4, 10)
         if not put(x, y, w, h):
             return []
-        return [f'<rect x="{x}" y="{y}" width="{w}" height="{h}" fill="rgba(147,161,161,0.16)"/>']
+        if horiz:
+            body = f'<rect x="{x+2.6}" y="{y}" width="4.8" height="4" rx="0.6" fill="#1c262b"/>'
+            pads = pad(x, y + 0.4, 3, 3.2) + pad(x + 7, y + 0.4, 3, 3.2)
+        else:
+            body = f'<rect x="{x}" y="{y+2.6}" width="4" height="4.8" rx="0.6" fill="#1c262b"/>'
+            pads = pad(x + 0.4, y, 3.2, 3) + pad(x + 0.4, y + 7, 3.2, 3)
+        return [pads, body, relief(x, y, w, h, 0.6)]
     if kind == 'cap':
-        if not put(x, y, 9, 9):
+        if not put(x, y, 11, 8):
             return []
-        return [f'<circle cx="{x+4}" cy="{y+4}" r="4" fill="#141d22" stroke="rgba(147,161,161,0.22)" stroke-width="1"/>',
-                f'<line x1="{x+1}" y1="{y+4}" x2="{x+7}" y2="{y+4}" stroke="rgba(147,161,161,0.20)"/>']
+        return [pad(x, y + 1, 3, 6) + pad(x + 8, y + 1, 3, 6),
+                f'<rect x="{x+2.4}" y="{y}" width="6.2" height="8" rx="1" fill="#16202a" '
+                f'stroke="rgba(147,161,161,0.26)" stroke-width="0.7"/>',
+                f'<rect x="{x+3}" y="{y+0.8}" width="5" height="1.4" rx="0.7" '
+                f'fill="rgba(223,232,234,0.16)"/>']
     if kind == 'diode':
-        if not put(x, y, 8, 5):
+        if not put(x, y, 10, 5):
             return []
-        return [f'<rect x="{x}" y="{y}" width="8" height="5" fill="#0d1a1e" stroke="rgba(147,161,161,0.18)"/>',
-                f'<line x1="{x+6}" y1="{y}" x2="{x+6}" y2="{y+5}" stroke="rgba(147,161,161,0.30)"/>']
+        return [pad(x, y + 0.6, 2.6, 3.8) + pad(x + 7.4, y + 0.6, 2.6, 3.8),
+                f'<rect x="{x+2.2}" y="{y}" width="5.6" height="5" rx="0.6" fill="#0d1a1e" '
+                f'stroke="rgba(147,161,161,0.20)" stroke-width="0.7"/>',
+                f'<line x1="{x+6.6}" y1="{y}" x2="{x+6.6}" y2="{y+5}" stroke="{SILVER}" '
+                f'stroke-width="1" stroke-opacity="0.7"/>']
     if kind == 'array':
         # резисторная сборка: один корпус на четыре номинала, у шин их ряды
-        if not put(x, y, 18, 7):
+        if not put(x, y, 18, 9):
             return []
-        return [f'<rect x="{x}" y="{y}" width="18" height="7" rx="1" fill="#12191d" '
-                f'stroke="rgba(147,161,161,0.22)"/>'] + [
-                f'<line x1="{x+3+k*4}" y1="{y+7}" x2="{x+3+k*4}" y2="{y+9}" '
-                f'stroke="rgba(147,161,161,0.24)"/>' for k in range(4)]
-    if not put(x, y, 14, 11):
+        return [''.join(pad(x + 2 + k * 4, y - 1.4, 2.4, 2.2) + pad(x + 2 + k * 4, y + 7.2, 2.4, 2.2)
+                        for k in range(4)),
+                f'<rect x="{x}" y="{y}" width="18" height="7" rx="1" fill="#12191d" '
+                f'stroke="rgba(147,161,161,0.22)"/>',
+                relief(x, y, 18, 7)]
+    if not put(x, y, 18, 11):
         return []
-    out = [f'<rect x="{x}" y="{y}" width="14" height="11" rx="1" fill="#16212a" stroke="rgba(147,161,161,0.20)"/>']
-    for d in range(3):
-        out.append(f'<line x1="{x}" y1="{y+2+d*4}" x2="{x-2}" y2="{y+2+d*4}" stroke="rgba(147,161,161,0.18)"/>')
-        out.append(f'<line x1="{x+14}" y1="{y+2+d*4}" x2="{x+16}" y2="{y+2+d*4}" stroke="rgba(147,161,161,0.18)"/>')
+    out = [''.join(pad(x - 2.4, y + 1.4 + d * 4, 2.6, 1.8) + pad(x + 13.8, y + 1.4 + d * 4, 2.6, 1.8)
+                   for d in range(3)),
+           f'<rect x="{x}" y="{y}" width="14" height="11" rx="1" fill="#16212a" '
+           f'stroke="rgba(147,161,161,0.20)"/>',
+           relief(x, y, 14, 11)]
     return out
 
 KIND = ('res', 'cap', 'res', 'diode', 'cap', 'array', 'res', 'ic')
@@ -1018,6 +1081,36 @@ for y0 in (Y_CPU0, Y_CPU1):
         vrm.append(f'<rect x="{X_VRM}" y="{y}" width="18" height="10" rx="1.5" '
                    f'fill="#1a2429" stroke="rgba(147,161,161,0.20)"/>')
         vrm.append(f'<rect x="{X_VRM-22}" y="{y+1}" width="15" height="8" rx="1" fill="rgba(147,161,161,0.16)"/>')
+    # Планка-радиатор поверх дросселей: силовые ключи греются сильнее ядра
+    # в пересчёте на площадь, и в 1U их накрывают общим profile-радиатором
+    # на всю длину ряда. Рёбра вдоль потока, как у радиатора процессора.
+    sink_y = y0 + 2
+    sink_h = n * 14 + 4
+    vrm.append(f'<rect x="{X_VRM - 3}" y="{sink_y}" width="24" height="{sink_h}" rx="2" '
+               f'fill="#222d33" fill-opacity="0.92" stroke="rgba(147,161,161,0.34)"/>')
+    vrm.extend(f'<line x1="{X_VRM + 1}" y1="{sink_y + 5 + k * 4}" x2="{X_VRM + 17}" '
+               f'y2="{sink_y + 5 + k * 4}" stroke="rgba(147,161,161,0.20)" stroke-width="1.4"/>'
+               for k in range(int((sink_h - 10) // 4)))
+    for cy in (sink_y + 7, sink_y + sink_h - 7):
+        vrm.append(f'<circle cx="{X_VRM + 9}" cy="{cy}" r="3" fill="#0d1418" '
+                   f'stroke="rgba(147,161,161,0.36)"/>')
+    # Две банки электролита у ряда: единственные детали, торчащие вверх.
+    # Сверху видна крестовая насечка — линия контролируемого разрыва, чтобы
+    # при вскипании корпус лопнул по ней, а не выстрелил крышкой.
+    for cy in (y0 + 26, y0 + SOCKET_H - 26):
+        ccx = X_VRM - 32
+        vrm.append(f'<circle cx="{ccx}" cy="{cy}" r="11" fill="#0b1114" fill-opacity="0.55"/>')
+        vrm.append(f'<circle cx="{ccx}" cy="{cy}" r="10" fill="#1d272c" '
+                   f'stroke="rgba(147,161,161,0.34)" stroke-width="1.2"/>')
+        vrm.append(f'<circle cx="{ccx}" cy="{cy}" r="7.4" fill="none" '
+                   f'stroke="rgba(0,0,0,0.34)" stroke-width="1.6"/>')
+        vrm.append(f'<path d="M{ccx-6.4} {cy} h12.8 M{ccx} {cy-6.4} v12.8" '
+                   f'stroke="rgba(147,161,161,0.40)" stroke-width="1.3"/>')
+        vrm.append(f'<path d="M{ccx-7} {cy-7.4} a10 10 0 0 1 9 -2.4" fill="none" '
+                   f'stroke="rgba(223,232,234,0.26)" stroke-width="1.4"/>')
+        # минусовая полоса по краю банки
+        vrm.append(f'<path d="M{ccx-10} {cy+3.4} a10 10 0 0 0 5.6 5.8" fill="none" '
+                   f'stroke="rgba(238,232,213,0.34)" stroke-width="2.4"/>')
     vrm.append(silk_inverse(X_VRM - 2, y0 - 17, "VRM", 8))
 add('<g class="decor">' + ''.join(vrm) + '</g>')
 
@@ -1028,6 +1121,25 @@ add(f'''<g class="decor">
   <rect x="{X_FRONT}" y="6" width="{FRONT_W}" height="{Y_PANEL-14}" rx="4" fill="#151d21" stroke="rgba(147,161,161,0.28)"/>
   <line x1="{X_FRONT+10}" y1="94" x2="{X_FRONT+FRONT_W-10}" y2="94" stroke="rgba(147,161,161,0.14)" stroke-width="1"/>
 </g>''')
+
+# Гнездо VGA: на серверах оно доживает там, где давно нет ни одного другого
+# аналогового порта — им подключают тележку с монитором прямо в стойке.
+# Трапеция D-Sub с двумя винтовыми стойками по бокам.
+VGA_X, VGA_Y, VGA_W, VGA_H = X_FRONT + 14, 100, 54, 20
+add(f'''<g class="decor">
+  <path d="M{VGA_X+3} {VGA_Y} H{VGA_X+VGA_W-3} L{VGA_X+VGA_W} {VGA_Y+VGA_H} H{VGA_X} Z"
+        fill="#12303f" stroke="rgba(147,161,161,0.34)" stroke-width="1.2"/>
+  {''.join(f'<circle cx="{VGA_X+9+c*6.4:.1f}" cy="{VGA_Y+6+r*6}" r="1.2" fill="rgba(147,161,161,0.34)"/>'
+           for r in range(2) for c in range(6 if r == 0 else 5))}
+  {''.join(f'<circle cx="{sx}" cy="{VGA_Y+VGA_H/2}" r="3.4" fill="#1b2429" stroke="rgba(147,161,161,0.30)"/>'
+           for sx in (VGA_X - 6, VGA_X + VGA_W + 6))}
+  {mono(VGA_X + VGA_W / 2, VGA_Y + VGA_H + 11, "VGA", 7, op=0.4)}
+</g>''')
+
+# Воздухозаборник: между блоком управления и отсеками фронт перфорирован —
+# через эти соты вентиляторы и тянут воздух. Сетка мелкая, иначе панель
+# теряет жёсткость.
+add(f'<g class="decor" opacity="0.5">{hexgrid(X_FRONT + 80, 98, 68, 44, s=4, gap=3)}</g>')
 
 add(f'''<g class="power-btn" id="power" role="button" tabindex="0" aria-label="Питание">
   {hit(X_FRONT+4, 16, 68, 76)}
@@ -1097,6 +1209,9 @@ for i in range(BAY_N):
     sled.append(act_led(i, x + 6, y + 10, 3, "#2aa198"))
     sled.append(f'{glow("led", x + w - 6, y + 10, 3, "#859900")}'
                 f'<circle class="led" cx="{x+w-6}" cy="{y+10}" r="3" fill="#859900"/>')
+    # Номер отсека печатают на самой корзине, а не на каддике: каддик
+    # уезжает вместе с диском, а нумерация должна остаться на месте.
+    add(f'<g class="decor">{silk_frame(x + w - 21, y + h - 17, str(i), 7, 0.5)}</g>')
     if i == BAY_N - 1:
         add(bay_filler(x, y, w, h))
         continue
@@ -1164,9 +1279,14 @@ for i in range(FAN_N):
         f'stroke="rgba(238,232,213,0.55)" stroke-width="1.2"/>'
         f'<rect x="{tx+4}" y="{y+h/2-13}" width="6" height="26" rx="1" fill="rgba(238,232,213,0.22)"/>'
         for tx in (X_FAN - 8, X_FAN + FAN_W - 8))
-    # Виброопоры по углам: резиновая втулка в стальной обойме.
+    # Виброопоры сидят не по углам сами по себе: сквозь модуль проходит
+    # шпилька, и на её концах надеты резиновые втулки. Мотор развязан с
+    # рамой этой резиной — иначе гул восьми вентиляторов идёт в стойку.
     mounts = ''.join(
-        f'<rect x="{mx-5}" y="{my-4}" width="10" height="8" rx="1.5" fill="#1b2429" '
+        f'<line x1="{mx}" y1="{y+7}" x2="{mx}" y2="{y+h-7}" stroke="rgba(147,161,161,0.16)" '
+        f'stroke-width="2.6"/>' for mx in (X_FAN + 14, X_FAN + FAN_W - 14))
+    mounts += ''.join(
+        f'<rect x="{mx-5}" y="{my-4}" width="10" height="8" rx="4" fill="#1b2429" '
         f'stroke="rgba(147,161,161,0.30)"/>'
         f'<circle cx="{mx}" cy="{my}" r="2.4" fill="#070d10" stroke="rgba(147,161,161,0.22)"/>'
         for mx in (X_FAN + 14, X_FAN + FAN_W - 14) for my in (y + 7, y + h - 7))
@@ -1210,9 +1330,17 @@ for i in range(6):
     y = 96 + i * 122
     x = X_PCB + 26
     rot = -6 if i % 2 else 5      # разъёмы на плате стоят не идеально ровно
+    # Над колодкой приклёпан жестяной уголок: он и направляет разъём при
+    # вставке вслепую, и прикрывает контакты сверху. Полка уходит вбок,
+    # к ней же крепится хомут жгута.
     conn.append(f'<g transform="rotate({rot} {x+11} {y+26})">'
                 f'<rect x="{x}" y="{y}" width="22" height="52" rx="1" fill="#1e2a2f" stroke="rgba(147,161,161,0.32)"/>'
-                f'<rect x="{x+4}" y="{y+6}" width="14" height="40" rx="1" fill="#0a1417"/></g>')
+                f'<rect x="{x+4}" y="{y+6}" width="14" height="40" rx="1" fill="#0a1417"/>'
+                f'<path d="M{x-6} {y-4} H{x+28} V{y+10} H{x+24} V{y} H{x-6} Z" '
+                f'fill="#2b363c" stroke="rgba(147,161,161,0.34)" stroke-width="1.1"/>'
+                f'<circle cx="{x-1}" cy="{y+3}" r="1.8" fill="#0a1417" stroke="rgba(147,161,161,0.28)"/>'
+                f'<circle cx="{x+23}" cy="{y+3}" r="1.8" fill="#0a1417" stroke="rgba(147,161,161,0.28)"/>'
+                f'</g>')
     conn.append(mono(x + 11, y + 68, f"J{i+1}", 6, op=0.34))
     busy(x - 6, y - 6, 34, 82)
 add('<g class="decor">' + ''.join(conn) + '</g>')
@@ -1257,9 +1385,39 @@ add(silk_inverse(X_CORE + 96, Y_BANK_R - 18, "CPU1 · A1–H1", 8))
 
 # ── процессоры ────────────────────────────────────────────────────────────
 def socket(x, y):
+    # Крышка процессора: не просто прямоугольник, а лист с ключами. По бокам
+    # у неё полукруглые вырезы, а на подложке — выемки под выступы сокета:
+    # процессор физически не сядет боком, вставить его неправильно нельзя.
+    # В одном углу срезан угол и стоит треугольник — метка первого вывода.
+    ihs_x, ihs_y = x + 40, y + 34
+    ihs_w, ihs_h = SOCKET_W - 80, SOCKET_H - 68
+    notch = 9          # глубина ключа
+    cut = 12           # срез угла у первого вывода
+    ihs = (f'M{ihs_x + cut} {ihs_y} '
+           f'H{ihs_x + ihs_w / 2 - notch} '
+           f'a{notch} {notch} 0 0 0 {notch * 2} 0 '     # ключ по верхней кромке
+           f'H{ihs_x + ihs_w} '
+           f'V{ihs_y + ihs_h / 2 - notch} '
+           f'a{notch} {notch} 0 0 0 0 {notch * 2} '     # ключ по правой
+           f'V{ihs_y + ihs_h} '
+           f'H{ihs_x + ihs_w / 2 + notch} '
+           f'a{notch} {notch} 0 0 0 -{notch * 2} 0 '
+           f'H{ihs_x} '
+           f'V{ihs_y + cut} Z')
     s = [f'<rect x="{x}" y="{y}" width="{SOCKET_W}" height="{SOCKET_H}" rx="4" fill="#101a1e" stroke="rgba(147,161,161,0.42)"/>',
          f'<rect x="{x+14}" y="{y+14}" width="{SOCKET_W-28}" height="{SOCKET_H-28}" rx="2" fill="#0b1316" stroke="rgba(147,161,161,0.26)"/>',
-         f'<rect x="{x+40}" y="{y+34}" width="{SOCKET_W-80}" height="{SOCKET_H-68}" rx="2" fill="#16232a" stroke="rgba(42,161,152,0.30)"/>',
+         # подложка процессора видна из-под крышки узкой каймой
+         f'<rect x="{ihs_x-5}" y="{ihs_y-5}" width="{ihs_w+10}" height="{ihs_h+10}" rx="1" '
+         f'fill="#123028" stroke="rgba(133,153,0,0.30)"/>',
+         f'<path d="{ihs}" fill="#16232a" stroke="rgba(42,161,152,0.30)"/>',
+         # металл крышки: блик по верхней кромке, тень по нижней
+         f'<path d="M{ihs_x + cut} {ihs_y} H{ihs_x + ihs_w / 2 - notch} M{ihs_x + ihs_w / 2 + notch} '
+         f'{ihs_y} H{ihs_x + ihs_w}" fill="none" stroke="rgba(223,232,234,0.28)" stroke-width="1.2"/>',
+         f'<path d="M{ihs_x} {ihs_y + ihs_h} H{ihs_x + ihs_w / 2 - notch} M{ihs_x + ihs_w / 2 + notch} '
+         f'{ihs_y + ihs_h} H{ihs_x + ihs_w}" fill="none" stroke="rgba(0,0,0,0.40)" stroke-width="1.4"/>',
+         f'<path d="M{ihs_x} {ihs_y + cut} L{ihs_x + cut} {ihs_y}" fill="none" '
+         f'stroke="rgba(147,161,161,0.34)" stroke-width="1.2"/>',
+         f'<path d="M{ihs_x + 3} {ihs_y + 12} l7 0 l-3.5 -7 z" fill="rgba(238,232,213,0.5)"/>',
          mono(x + SOCKET_W/2, y + SOCKET_H/2 + 4, "LGA 4677", 10, op=0.55),
          f'<path d="M{x+SOCKET_W/2} {y+24} l-5 8 h10 z" fill="rgba(147,161,161,0.32)"/>',
          mono(x + SOCKET_W/2 + 26, y + 32, "INSTALL", 7, anchor="start", op=0.3)]
@@ -1285,7 +1443,21 @@ def heatsink(x, y):
     fins = ''.join(f'<line x1="{x+12}" y1="{y+12+i*3.4:.1f}" x2="{x+SOCKET_W-12}" y2="{y+12+i*3.4:.1f}" '
                    f'stroke="rgba(147,161,161,0.22)" stroke-width="1.2"/>' for i in range(rows))
     # Подпружиненные винты по углам — они на самом радиаторе и уезжают с ним.
+    # Винт подпружинен: витая пружина сидит между головкой и радиатором и
+    # задаёт усилие прижима — затягивать «до упора» тут нечего, момент
+    # держит она. Сверху видны её витки вокруг стержня.
+    def spring(sx, sy, r=10.5, turns=9):
+        pts = []
+        for t in range(turns * 6 + 1):
+            f = t / (turns * 6)
+            ang = f * turns * 2 * math.pi
+            rr = r - f * 3.4
+            pts.append(f'{sx + rr * math.cos(ang):.1f} {sy + rr * math.sin(ang) * 0.94:.1f}')
+        return (f'<path d="M{" L".join(pts)}" fill="none" stroke="rgba(147,161,161,0.30)" '
+                f'stroke-width="1.1"/>')
+
     screws = ''.join(
+        spring(sx, sy) +
         f'<circle cx="{sx}" cy="{sy}" r="7" fill="#162025" stroke="rgba(147,161,161,0.46)" stroke-width="1.4"/>'
         f'<circle cx="{sx}" cy="{sy}" r="3.4" fill="#0c1418" stroke="rgba(147,161,161,0.34)"/>'
         f'<line x1="{sx-3}" y1="{sy}" x2="{sx+3}" y2="{sy}" stroke="rgba(147,161,161,0.5)" stroke-width="1.4"/>'
@@ -1463,22 +1635,6 @@ for k, (y, flip) in enumerate([(22, False), (696, True)]):
 # Углы штампованной скобы: наружные грани режут прямо по контуру заготовки,
 # а внутренний угол всегда скруглён — на прямом угле сталь трескается.
 T, RI = 52, 18   # ширина стойки и радиус внутреннего угла
-
-def hexgrid(x, y, w, h, s=7, gap=5.5):
-    """Гексагональная перфорация: ею облегчают широкую часть кронштейна."""
-    out, dx, dy = [], s * 1.5 + gap, (s + gap / 2) * 1.732
-    row = 0
-    cy = y + s
-    while cy < y + h - s * 0.6:
-        cx = x + s + (dx / 2 if row % 2 else 0)
-        while cx < x + w - s * 0.9:
-            pts = ' '.join(f'{cx + s*0.86*dxx:.1f},{cy + s*dyy:.1f}' for dxx, dyy in
-                           ((0, -1), (1, -0.5), (1, 0.5), (0, 1), (-1, 0.5), (-1, -0.5)))
-            out.append(f'<polygon points="{pts}" fill="#0a1216" stroke="rgba(147,161,161,0.16)"/>')
-            cx += dx
-        cy += dy / 2
-        row += 1
-    return ''.join(out)
 
 for k, (y, up) in enumerate(((186, True), (474, False))):
     x0, x1, hh = X_REAR + 12, X_PCB_END - 6, 192
@@ -1750,6 +1906,18 @@ PW, PH = FRONT_W + 8, Y_PANEL - 8
 eng(f'<path fill-rule="evenodd" d="M4 4 H{W-4} V{H-4} H4 Z M4 4 H{PW} V{PH} H4 Z" '
     f'fill="#161f24" stroke="rgba(147,161,161,0.30)" stroke-width="1.4"/>')
 
+# Рёбра жёсткости: лист крышки в 1U тонкий, и без продольной формовки он
+# играет под рукой. Два ребра идут во всю длину, поперёк — короткие, у
+# кромок. Видны они как пара параллельных линий: это складка металла.
+for ry in (150, H - 150):
+    eng(f'<path d="M{X_FAN + 40} {ry} H{W - 60}" fill="none" '
+        f'stroke="rgba(147,161,161,0.20)" stroke-width="3.4"/>')
+    eng(f'<path d="M{X_FAN + 40} {ry} H{W - 60}" fill="none" '
+        f'stroke="rgba(147,161,161,0.13)" stroke-width="1"/>')
+for rx in (X_FAN + 60, (X_FAN + W) / 2, W - 150):
+    eng(f'<path d="M{rx} 40 V{H - 40}" fill="none" '
+        f'stroke="rgba(147,161,161,0.10)" stroke-width="2.6"/>')
+
 # корзина — одним блоком
 eng(frame(X_FRONT, BAY_TOP, FRONT_W, H - 12 - BAY_TOP, 1, 0.30))
 eng(f'<text x="{X_FRONT + FRONT_W/2}" y="{BAY_TOP + (H-12-BAY_TOP)/2}" '
@@ -1798,8 +1966,8 @@ eng(label(X_IO - 26, 389, "Telegram", 12, anchor_="end"))
 eng(frame(X_IO, 470, 86, 80, 4, 0.26))
 eng(label(X_IO - 26, 514, "Email", 12, anchor_="end"))
 
-eng(rating_label(X_REAR, 74))
-eng(rating_label(X_REAR, 748))
+eng(rating_label(X_REAR, 74, 1))
+eng(rating_label(X_REAR, 748, 2))
 eng(service_label(X_FAN + 30, 300, 300, 120, "HOT-SWAP FANS",
                   ["FAN 1-8 · вынимать по одному",
                    "не оставлять слот пустым дольше 30 с",
