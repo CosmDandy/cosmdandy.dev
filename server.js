@@ -2076,6 +2076,12 @@
   // каждом режиме свой смысл Esc (пропустить POST, выйти из setup без
   // сохранения, закрыть top) — решает его наш обработчик ниже, а не браузер.
   crt.addEventListener('cancel', function (e) { e.preventDefault(); });
+  // По экрану самотеста кликают, чтобы он ушёл, — и это разумно. Не даём
+  // закрыть только машину, которой не с чего грузиться: там экран и должен
+  // стоять, пока не зайдёшь в setup и не поменяешь порядок загрузки.
+  crt.addEventListener('click', function () {
+    if (crt.dataset.mode === 'post' && postCtl && postCtl.done) { postCtl = null; closeCrt(); }
+  });
   crt.addEventListener('close', function () {
     crtOpen = false;
     dormancy();
@@ -2245,7 +2251,11 @@
       else postCtl.f2Pending = true;
     } else if (e.key === 'Escape') {
       e.preventDefault();
+      // Первый Esc пропускает паузы между строками, второй — закрывает
+      // экран. Иначе самотест выглядел зависшим: строки кончились, а уйти
+      // с экрана нечем, кроме как ждать.
       if (!postCtl.done) postCtl.skip = true;
+      else { postCtl = null; closeCrt(); }
     }
   }
 
@@ -2279,8 +2289,11 @@
           return;                             // виснем на экране, как живая машина без диска
         }
         line('system ready', 'ok');
+        // Подсказку печатаем в консоль, а не только на экран: экран уйдёт
+        // через мгновение, а вопрос «как попасть в BIOS» останется.
+        line('F2 — BIOS Setup · bios — то же командой', 'muted');
         postCtl = null;
-        if (showScreen) wait(400, closeCrt);
+        if (showScreen) wait(700, closeCrt);
         return;
       }
       const row = built.lines[i++];

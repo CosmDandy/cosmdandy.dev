@@ -162,8 +162,10 @@ def render(cv):
       <g class="pick-body">{''.join(sled)}</g>
       <g class="bay-handle">{handle}</g>
     </g>''')
-    # выноска корзины — одна на все отсеки
-    cv.callouts.append((X_FRONT + FRONT_W + 30, BAY_TOP + 96, X_FRONT + FRONT_W - 10, BAY_TOP + 24,
+    # Выноска корзины — одна на все отсеки, и указывает она на диск, а не на
+    # решётку рядом с ним: якорь сидит в середине каддика третьей группы.
+    hdd_y = BAY_TOP + 2 * (GROUP_H + GROUP_GAP) + GROUP_H / 2
+    cv.callouts.append((X_FRONT + FRONT_W + 30, hdd_y, X_FRONT + BAY_W / 2, hdd_y,
                      "GitHub", "start", "https://github.com/cosmdandy", "hdd",
                      "код и проекты", "github"))
 

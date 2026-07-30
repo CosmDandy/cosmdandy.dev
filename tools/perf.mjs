@@ -57,9 +57,18 @@ await page.goto(url, { waitUntil: 'load' });
 await page.evaluate(() => document.body.classList.add('view-rig'));
 if (service) await page.evaluate(() => document.getElementById('svc-switch')
   ?.dispatchEvent(new MouseEvent('click', { bubbles: true })));
-// Сборка идёт около десяти секунд. В режиме покоя ждём, пока она кончится:
-// иначе меряем разовую хореографию вместо того, что грузит машину постоянно.
-await page.waitForTimeout(assembly ? 300 : 11000);
+// Сборка идёт около десяти секунд, следом машина включается и играет
+// самотест на полноэкранном слое. В режиме покоя ждём, пока кончится и то и
+// другое: иначе меряем разовую хореографию вместо того, что грузит машину
+// постоянно. Ждём не по таймеру, а по факту — пока слой не закроется.
+if (assembly) {
+  await page.waitForTimeout(300);
+} else {
+  await page.waitForTimeout(11000);
+  await page.waitForFunction(() => !document.getElementById('crt')?.open, null, { timeout: 20000 })
+    .catch(() => {});
+  await page.waitForTimeout(600);
+}
 
 const cdp = await page.context().newCDPSession(page);
 await cdp.send('Performance.enable');
