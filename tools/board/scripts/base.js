@@ -74,6 +74,42 @@
     wait(assemblyEnd(), finishAssembly);
   }
 
+  // ── Адрес под курсором ─────────────────────────────────────────────────
+  // Куда ведёт узел, видно до клика: подсказка идёт за курсором и разбирает
+  // адрес на части — схема глуше, хост в цвет схемы, путь обычным тоном.
+  const linkHint = document.getElementById('link-hint');
+
+  function showLinkHint(href, x, y) {
+    if (!linkHint) return;
+    const m = /^(https?:\/\/|mailto:)([^/]*)(.*)$/.exec(href) || [];
+    linkHint.innerHTML = m.length
+      ? '<span class="lh-scheme">' + m[1] + '</span>'
+        + '<span class="lh-host">' + m[2] + '</span>' + m[3]
+      : href;
+    linkHint.classList.add('on');
+    // Держим подсказку в окне: у правого края она уходила бы за экран.
+    const w = linkHint.offsetWidth, h = linkHint.offsetHeight;
+    const left = Math.min(x + 18, window.innerWidth - w - 12);
+    const top = Math.min(Math.max(y - h - 14, 10), window.innerHeight - h - 10);
+    linkHint.style.transform = 'translate3d(' + left + 'px,' + top + 'px,0)';
+  }
+
+  function hideLinkHint() {
+    if (linkHint) linkHint.classList.remove('on');
+  }
+
+  if (linkHint) {
+    rig.addEventListener('mousemove', function (e) {
+      // В сервисном режиме узлы разбирают, а не открывают: подсказка там
+      // обещала бы переход, которого не будет.
+      const target = rig.classList.contains('service')
+        ? null : e.target.closest('a.callout, .unit[data-href]');
+      const href = target && (target.getAttribute('href') || target.dataset.href);
+      if (href) showLinkHint(href, e.clientX, e.clientY); else hideLinkHint();
+    });
+    rig.addEventListener('mouseleave', hideLinkHint);
+  }
+
   // ── Консоль ────────────────────────────────────────────────────────────
   function line(text, cls) {
     const d = document.createElement('div');
@@ -175,22 +211,12 @@
     if (e.key === 'ArrowRight') { e.preventDefault(); showRev(revPos + 1); }
   });
 
-  const POST = [
-    ['DDR5 populated: 32 of 32', 'ok', 260],
-    ['cpu0 · LGA 4677 · 32c', 'ok', 180],
-    ['cpu1 · LGA 4677 · 32c', 'ok', 140],
-    ['backplane · slimsas x4 link', 'ok', 200],
-    ['nvme: 10 devices online', 'ok', 260],
-    ['handoff to host', 'muted', 240],
-  ];
-
+  // Самотест печатает экран: строки идут и на него, и в консоль — как на
+  // машине с подключённым монитором и открытым SOL. Сами строки собираются
+  // из паспорта, состояния схемы и настроек прошивки, поэтому вынутая планка
+  // видна и здесь. Всё это живёт в parts/screen.js.
   function runPost() {
-    let i = 0;
-    (function step() {
-      if (i >= POST.length) { line('system ready', 'ok'); return; }
-      const [t, c, d] = POST[i++];
-      wait(d, function () { line(t, c); step(); });
-    })();
+    screenPost();
   }
 
   // @block: front_panel
@@ -227,7 +253,10 @@
   let onScreen = true;
 
   function dormancy() {
-    rig.classList.toggle('dormant', document.hidden || !onScreen);
+    // Пока поверх машины стоит полноэкранный слой, схему тоже считать
+    // незачем: её не видно, а перерисовывать полупрозрачный слой поверх
+    // анимирующегося SVG — самое дорогое, что тут можно сделать.
+    rig.classList.toggle('dormant', document.hidden || !onScreen || screenOpen());
   }
 
   if (chassisBox && 'IntersectionObserver' in window) {
@@ -374,7 +403,7 @@
 
   // @part: fs
 
-  // TODO-part: screen
+  // @part: screen
 
   // ── Запуск ─────────────────────────────────────────────────────────────
   const first = !state.visited;
