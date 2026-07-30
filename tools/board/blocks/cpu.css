@@ -2,8 +2,18 @@
      открывается кристалл: по нему бежит тот же градиент, что по кнопке
      «скачать» в резюме. Пока радиатор на месте, перелив выключен — он бы
      зря крутил анимацию под непрозрачной крышкой. */
-  .die { visibility: hidden; }
-  .rig.service .cpu-slot.pulled .die { visibility: visible; }
+  /* Кристалл и поле контактов не выключаются рывком: сначала проступают,
+     а прячутся только после того, как погасли. Отсюда нулевая длительность
+     visibility с задержкой — она ждёт конца проявления. */
+  .die, .lga {
+    visibility: hidden; opacity: 0;
+    transition: opacity var(--fade), transform var(--glide), visibility 0s linear 0.45s;
+  }
+  .rig.service .cpu-slot.pulled .die,
+  .rig.service .cpu-slot.opened .lga {
+    visibility: visible; opacity: 1;
+    transition: opacity var(--fade), transform var(--glide), visibility 0s;
+  }
   /* Перелив идёт наискось, из левого нижнего угла в правый верхний — по
      прямой он читался полосой засветки, а не игрой на полированном кремнии. */
   .die-shine { animation: dieShine 4.5s ease-in-out infinite; }
@@ -16,16 +26,13 @@
      радиатор, и только потом из-под него — сам процессор. Радиатор уезжает
      дальше, чем прежде: он размером с сокет, и на прежних 104 пикселях
      закрывал место, куда должен лечь процессор. */
-  .heatsink, .cpu-lid { transition: transform var(--spring); }
+  .heatsink, .cpu-lid { transition: transform var(--glide); }
   .rig.service .cpu-slot.pulled .pick-body { transform: none; }
   .rig.service .cpu-slot.pulled .heatsink { transform: translate(0, -164px) scale(0.92); }
   .rig.service .cpu-slot.opened .cpu-lid { transform: translate(0, 116px) scale(0.96); }
 
   /* Поле контактов: пока процессор на месте, его не видно — и правильно,
-     под ним нечего показывать. */
-  .lga { visibility: hidden; }
-  .rig.service .cpu-slot.opened .lga { visibility: visible; }
+     под ним нечего показывать. Проявляется вместе с кристаллом, см. выше. */
   /* Кристалл живёт на процессоре и уезжает с ним: снятый процессор,
      светящийся на пустом сокете, — это уже не разбор, а фокус. */
   .rig.service .cpu-slot.opened .die { transform: translate(0, 116px) scale(0.96); }
-  .die { transition: transform var(--spring); }

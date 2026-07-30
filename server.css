@@ -90,7 +90,11 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   --red:   #dc322f;
   --edge: rgba(147, 161, 161, 0.22);
   --fade: 0.45s cubic-bezier(0.32, 0.72, 0, 1);
-  --spring: 0.55s cubic-bezier(0.34, 1.56, 0.64, 1);
+  /* Пружина осталась для мелочи — защёлок и язычков. Крупное едет по
+     --glide: длинный ease-out без отскока. Радиатор размером с сокет, и
+     пружинный доводчик на нём читался рывком, а не движением руки. */
+  --spring: 0.6s cubic-bezier(0.34, 1.3, 0.64, 1);
+  --glide: 0.72s cubic-bezier(0.22, 1, 0.36, 1);
 
   position: relative;
   z-index: 1;
@@ -101,7 +105,7 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
      и в экран она упирается высотой, а не шириной. 1.67 — соотношение
      viewBox после того, как справа убрали 164 единицы пустого поля: оно
      отодвигало машину от приборов и читалось как дыра посреди экрана. */
-  --rig-w: min(78vh * 1.67, 1400px);
+  --rig-w: min(68vh * 1.67, 1200px);
   color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
@@ -243,7 +247,7 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   .rig.service .unit { cursor: grab; }
   .pick-body {
     transform-box: fill-box; transform-origin: center;
-    transition: transform var(--spring);
+    transition: transform var(--glide);
   }
   .pick:hover .pick-body { transform: translateY(-8px); }
 
@@ -478,8 +482,18 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
      открывается кристалл: по нему бежит тот же градиент, что по кнопке
      «скачать» в резюме. Пока радиатор на месте, перелив выключен — он бы
      зря крутил анимацию под непрозрачной крышкой. */
-  .die { visibility: hidden; }
-  .rig.service .cpu-slot.pulled .die { visibility: visible; }
+  /* Кристалл и поле контактов не выключаются рывком: сначала проступают,
+     а прячутся только после того, как погасли. Отсюда нулевая длительность
+     visibility с задержкой — она ждёт конца проявления. */
+  .die, .lga {
+    visibility: hidden; opacity: 0;
+    transition: opacity var(--fade), transform var(--glide), visibility 0s linear 0.45s;
+  }
+  .rig.service .cpu-slot.pulled .die,
+  .rig.service .cpu-slot.opened .lga {
+    visibility: visible; opacity: 1;
+    transition: opacity var(--fade), transform var(--glide), visibility 0s;
+  }
   /* Перелив идёт наискось, из левого нижнего угла в правый верхний — по
      прямой он читался полосой засветки, а не игрой на полированном кремнии. */
   .die-shine { animation: dieShine 4.5s ease-in-out infinite; }
@@ -492,19 +506,16 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
      радиатор, и только потом из-под него — сам процессор. Радиатор уезжает
      дальше, чем прежде: он размером с сокет, и на прежних 104 пикселях
      закрывал место, куда должен лечь процессор. */
-  .heatsink, .cpu-lid { transition: transform var(--spring); }
+  .heatsink, .cpu-lid { transition: transform var(--glide); }
   .rig.service .cpu-slot.pulled .pick-body { transform: none; }
   .rig.service .cpu-slot.pulled .heatsink { transform: translate(0, -164px) scale(0.92); }
   .rig.service .cpu-slot.opened .cpu-lid { transform: translate(0, 116px) scale(0.96); }
 
   /* Поле контактов: пока процессор на месте, его не видно — и правильно,
-     под ним нечего показывать. */
-  .lga { visibility: hidden; }
-  .rig.service .cpu-slot.opened .lga { visibility: visible; }
+     под ним нечего показывать. Проявляется вместе с кристаллом, см. выше. */
   /* Кристалл живёт на процессоре и уезжает с ним: снятый процессор,
      светящийся на пустом сокете, — это уже не разбор, а фокус. */
   .rig.service .cpu-slot.opened .die { transform: translate(0, 116px) scale(0.96); }
-  .die { transition: transform var(--spring); }
 
   /* ── front_panel ──────────────────────────────── */
   /* Кнопка питания — кольцо, поэтому у неё stroke, а не fill. Быстро мигает,
@@ -563,29 +574,60 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
  */
 .rig-body {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  /* Вторая колонка есть всегда, просто в обычном виде она нулевой ширины:
+     так её появление можно анимировать, а не включать display. */
+  grid-template-columns: minmax(0, 1fr) 0px;
   align-items: start;
   /* Зазор шире обычного: перспектива расширяет схему за габарит сцены
      примерно на полсотни точек, и без запаса задняя панель подлезает
      под приборы. */
-  gap: 28px;
+  column-gap: 0;
+  row-gap: 0;
+  /* Композиция целиком — машина и приборы — держится посередине экрана.
+     Без потолка приборы прижимались к правому краю окна, а машина уезжала
+     от центра тем дальше, чем шире монитор. */
+  max-width: calc(var(--rig-w) + 348px);
+  margin: 0 auto;
+  /* Поля под перспективу: наклон уводит корпус за габарит сцены примерно на
+     тридцать точек в каждую сторону, и без запаса машина упирается в кромку
+     окна, хотя по разметке стоит ровно. */
+  padding: 0 26px;
+  transition:
+    grid-template-columns var(--glide),
+    column-gap var(--glide),
+    row-gap var(--glide);
 }
 /* Сервисный режим открывает вторую колонку. Машина при этом занимает всё,
-   что осталось, — пустоты между ней и приборами больше нет. */
-.rig.service .rig-body { grid-template-columns: minmax(0, 1fr) 320px; }
+   что осталось, и плавно уходит влево — ровно на половину появившейся
+   колонки. */
+.rig.service .rig-body { grid-template-columns: minmax(0, 1fr) 320px; column-gap: 28px; row-gap: 14px; }
+
+/* Места в гриде заданы явно. Без этого лента, объявившая себе первую
+   колонку, уводила приборы во вторую строку — и в сервисном режиме они
+   оказывались под машиной справа, а страница обзаводилась прокруткой. */
+.stage    { grid-area: 1 / 1 / 2 / 2; }
+.rig-side { grid-area: 1 / 2 / 3 / 3; }
+.timeline { grid-area: 2 / 1 / 3 / 2; }
+
 /* 96%, а не 100%: перспектива уводит нижний край схемы за габарит сцены,
    и последние проценты — это запас, чтобы задняя панель не подлезала
    под приборы. */
 .stage { width: min(96%, var(--rig-w)); margin: 0 auto; }
 
 .rig-side {
-  display: none;
+  display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr);
   gap: 14px;
   height: 100%;
+  /* Колонка нулевой ширины: приборы из неё не должны торчать, пока их не
+     позвали. Появляются они не морганием display, а выездом справа. */
+  overflow: hidden;
+  opacity: 0;
+  transform: translateX(28px);
+  transition: opacity var(--fade), transform var(--glide);
 }
-.rig.service .rig-side { display: grid; }
+.rig.service .rig-side { opacity: 1; transform: none; }
 
 .rig.service .panel {
   display: flex; flex-direction: column;
@@ -631,7 +673,19 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
 /* Узкое окно: приборам не хватает боковой колонки, уводим их под машину. */
 @media (max-width: 1100px) {
   .rig.service .rig-body { grid-template-columns: minmax(0, 1fr); }
-  .stage { width: 100%; }
+  /* Потолок оставляем: голое width: 100% било по нему и растягивало машину
+     на всю колонку, из-за чего приборы под ней уезжали за экран. */
+  .stage { width: min(100%, var(--rig-w)); }
+  /* Колонка одна, поэтому приборы становятся третьей строкой — иначе они
+     остались бы в несуществующей второй колонке. Машина при этом ужимается:
+     под ней теперь стоят и лента, и приборы, и на прежнем размере страница
+     обзаводилась прокруткой. */
+  .rig-side { grid-area: 3 / 1 / 4 / 2; }
+  .rig.service { --rig-w: min(46vh * 1.67, 1200px); }
+  /* Приборы под машиной ложатся в четыре колонки, а не в две: в ширину
+     места вдоволь, а в высоту — нет, её занимает сама машина. */
+  .rig.service .gauges { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .rig.service .panel { min-height: 140px; }
 }
 
 /* ── Партномера узлов ─────────────────────────────────────────────────────
@@ -661,13 +715,30 @@ a.callout.lit .co-dot { fill: var(--head); }
  * Показываем только в сервисном режиме: это инструмент для разобранной
  * машины, на визитке он был бы лишним хромом.
  */
+/* Ленты может не быть вовсе: её строит скрипт по истории коммитов, и до
+   этого момента на разметке стоит hidden. Класс сам по себе его перебивал. */
+.timeline[hidden] { display: none; }
+
 .timeline {
-  display: none;
+  display: flex;
   grid-column: 1;              /* своей строкой под сценой, не рядом с ней */
   align-items: center;
   gap: 10px;
-  margin: 14px auto 0;
+  margin: 0 auto;
+  /* Ровно по сцене: та же доля колонки, тот же потолок. */
   width: min(96%, var(--rig-w));
+  /* Вне сервисного режима лента схлопнута в ноль, а не спрятана display:
+     так её появление можно вести переходом, и места она при этом не занимает. */
+  overflow: hidden;
+  opacity: 0;
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-width: 0;
+  transform: translateY(-10px);
+  transition:
+    opacity var(--fade), transform var(--glide), max-height var(--glide),
+    padding var(--glide), border-width var(--glide), margin var(--glide);
   padding: 8px 12px;
   border: 1px solid var(--edge);
   border-radius: 6px;
@@ -679,7 +750,10 @@ a.callout.lit .co-dot { fill: var(--head); }
   font-size: 0.78rem;
 }
 
-.rig.service .timeline { display: flex; }
+.rig.service .timeline {
+  opacity: 1; transform: none; margin-top: 14px;
+  max-height: 60px; padding: 8px 12px; border-width: 1px;
+}
 
 .tl-btn {
   flex: 0 0 auto;
