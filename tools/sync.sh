@@ -21,3 +21,7 @@ for probe in ('data-for=', 'class="die"', 'data-group="tw"'):
 open(p, 'w', encoding='utf-8').write(new)
 print('на странице: плата', len(board), 'символов, крышка', len(lid))
 PY
+
+# Лента ревизий: локально её надо пересобрать вручную, в CI это делает
+# отдельный шаг. Без этого лента показывает вчерашнюю историю.
+python3 history.py | head -1

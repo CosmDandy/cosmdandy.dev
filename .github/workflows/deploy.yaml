@@ -34,20 +34,28 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # checkout по умолчанию оставляет токен в .git/config, откуда его
-          # прочитает любой следующий шаг. Git после клона тут не нужен.
+          # прочитает любой следующий шаг.
           persist-credentials: false
+          # Вся история: из неё собираются ревизии платы для ленты. Держать
+          # их в репозитории означало бы хранить каждую версию дважды —
+          # в коммите и рядом файлом.
+          fetch-depth: 0
 
       # Копируем явным списком, а не «всё, кроме служебного»: список короткий и
       # не преподносит сюрпризов, когда в корне появится новый файл.
       #
       # CNAME намеренно не копируется — он нужен был GitHub Pages, а на
       # Cloudflare домен привязан к воркеру в дашборде.
+      # Ревизии платы: по одному SVG на коммит, который её менял.
+      - name: Выгрузить историю платы
+        run: python3 tools/history.py
+
       - name: Собрать _site
         run: |
           mkdir -p _site
           cp index.html 404.html style.css server.css server.js _site/
           cp robots.txt sitemap.xml site.webmanifest _headers _site/
-          cp -r assets fonts _site/
+          cp -r assets fonts history _site/
           echo "Содержимое _site:"
           find _site -type f | sort
 

@@ -573,3 +573,108 @@ a.stamp:focus-visible text { fill-opacity: 1; }
 a.callout.lit .co-box { fill: #fff; stroke: var(--cyan); }
 a.callout.lit .co-line { stroke: var(--cyan); }
 a.callout.lit .co-dot { fill: var(--head); }
+
+/* ── Лента ревизий ────────────────────────────────────────────────────────
+ * Плату собирает код, значит у неё есть история — и по ней можно ходить.
+ * Показываем только в сервисном режиме: это инструмент для разобранной
+ * машины, на визитке он был бы лишним хромом.
+ */
+.timeline {
+  display: none;
+  grid-column: 1;              /* своей строкой под сценой, не рядом с ней */
+  align-items: center;
+  gap: 10px;
+  margin: 14px auto 0;
+  width: min(96%, var(--rig-w));
+  padding: 8px 12px;
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  /* Тот же тон, что у консоли: лента — часть той же приборной панели, а не
+     отдельная плашка, и полупрозрачный серый на светлом фоне читался грязью. */
+  background: linear-gradient(180deg, rgba(9, 34, 40, 0.92) 0%, rgba(7, 26, 31, 0.88) 100%);
+  color: var(--fg);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.78rem;
+}
+
+.rig.service .timeline { display: flex; }
+
+.tl-btn {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border: 1px solid rgba(147, 161, 161, 0.28);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color var(--fade), color var(--fade);
+}
+
+.tl-btn:hover:not(:disabled) { border-color: var(--cyan); color: var(--cyan); }
+.tl-btn:disabled { opacity: 0.35; cursor: default; }
+
+/* Ползунок делаем сами: у нативного нет ни одного тона от нашей палитры */
+.tl-range {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 4px;
+  appearance: none;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    var(--cyan) calc(var(--tl-pos, 0) * 100%),
+    rgba(147, 161, 161, 0.22) calc(var(--tl-pos, 0) * 100%)
+  );
+  cursor: pointer;
+}
+
+.tl-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--cyan);
+  border: 2px solid var(--bg);
+  cursor: pointer;
+}
+
+.tl-range::-moz-range-thumb {
+  width: 13px;
+  height: 13px;
+  border: 2px solid var(--bg);
+  border-radius: 50%;
+  background: var(--cyan);
+  cursor: pointer;
+}
+
+.tl-meta {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  max-width: 46%;
+  color: inherit;
+  text-decoration: none;
+}
+
+.tl-rev { color: var(--cyan); white-space: nowrap; }
+
+.tl-subject {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.6;
+}
+
+.tl-meta:hover .tl-subject { opacity: 0.9; }
+
+/* Пока версия грузится, плата гаснет — иначе непонятно, случилось ли что-то */
+.chassis.loading { opacity: 0.55; transition: opacity 0.18s ease; }
+
+@media (max-width: 860px) {
+  .tl-meta { display: none; }
+}
