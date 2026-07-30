@@ -4,6 +4,9 @@
 диагностики. USB убран — место нужнее отсекам.
 """
 
+# Свой прямоугольник: сборка проверит, что узел из него не вышел.
+BOUNDS = (0, 0, 165, 150)
+
 from board.geom import FRONT_W, X_FRONT, Y_PANEL
 from board.ink import hit, mono
 from board.lamps import glow
@@ -16,16 +19,10 @@ def render(cv):
   <line x1="{X_FRONT+10}" y1="94" x2="{X_FRONT+FRONT_W-10}" y2="94" stroke="rgba(147,161,161,0.14)" stroke-width="1"/>
 </g>''')
 
-
-
     # Гнездо VGA: на серверах оно доживает там, где давно нет ни одного другого
-
     # аналогового порта — им подключают тележку с монитором прямо в стойке.
-
     # Трапеция D-Sub с двумя винтовыми стойками по бокам.
-
     VGA_X, VGA_Y, VGA_W, VGA_H = X_FRONT + 14, 100, 54, 20
-
     cv.add(f'''<g class="decor">
   <path d="M{VGA_X+3} {VGA_Y} H{VGA_X+VGA_W-3} L{VGA_X+VGA_W} {VGA_Y+VGA_H} H{VGA_X} Z"
         fill="#12303f" stroke="rgba(147,161,161,0.34)" stroke-width="1.2"/>
@@ -38,17 +35,10 @@ def render(cv):
   {mono(VGA_X + VGA_W / 2, VGA_Y + VGA_H + 11, "VGA", 7, op=0.4)}
 </g>''')
 
-
-
     # Воздухозаборник: между блоком управления и отсеками фронт перфорирован —
-
     # через эти соты вентиляторы и тянут воздух. Сетка мелкая, иначе панель
-
     # теряет жёсткость.
-
     cv.add(f'<g class="decor" opacity="0.5">{hexgrid(X_FRONT + 80, 98, 68, 44, s=4, gap=3)}</g>')
-
-
 
     cv.add(f'''<g class="power-btn" id="power" role="button" tabindex="0" aria-label="Питание">
   {hit(X_FRONT+4, 16, 68, 76)}
@@ -59,16 +49,12 @@ def render(cv):
   {mono(X_FRONT+38, 86, "POWER", 7, op=0.42)}
 </g>''')
 
-
-
     cv.add(f'''<g class="decor">
   <circle cx="{X_FRONT+88}" cy="48" r="10" fill="#0f1619" stroke="rgba(147,161,161,0.26)"/>
   {glow('fault-sys', X_FRONT+88, 48, 6.5, '#b58900')}
   <circle class="fault-sys" cx="{X_FRONT+88}" cy="48" r="6.5" fill="#b58900"/>
   {mono(X_FRONT+88, 86, "FAULT", 7, op=0.42)}
 </g>''')
-
-
 
     cv.add(f'''<g class="id-btn" id="id-btn" role="button" tabindex="0" aria-label="Опознание в стойке">
   {hit(X_FRONT+112, 18, 48, 72)}
@@ -78,8 +64,6 @@ def render(cv):
   {mono(X_FRONT+134, 86, "ID", 7, op=0.42)}
 </g>''')
 
-
-
     cv.add(f'''<g class="lp-tab" id="lp-tab" role="button" tabindex="0" aria-label="Панель диагностики">
   {hit(X_FRONT+6, 100, FRONT_W-12, 40)}
   <rect x="{X_FRONT+12}" y="104" width="{FRONT_W-24}" height="22" rx="2" fill="#0f1619" stroke="rgba(147,161,161,0.3)"/>
@@ -88,5 +72,3 @@ def render(cv):
   <line x1="{X_FRONT+24}" y1="120" x2="{X_FRONT+FRONT_W-24}" y2="120" stroke="rgba(147,161,161,0.3)" stroke-width="2"/>
   {mono(X_FRONT+FRONT_W/2, 140, "LIGHT PATH", 7, op=0.34)}
 </g>''')
-
-

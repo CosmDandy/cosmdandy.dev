@@ -6,37 +6,25 @@
 всё, что не заняло место заранее, потом уже не помещается.
 """
 
+# Свой прямоугольник: сборка проверит, что узел из него не вышел.
+BOUNDS = (444, 48, 42, 692)
+
 from board.geom import X_CORE
 from board.metal import idc_header, power_header
 
 
 def render(cv):
     edge = []
-
     HEADERS = [(10, "FP_PANEL"), (8, "FP_USB"), (6, "INTRUSION"), (10, "SATA_PWR")]
-
     for k, (pins, label) in enumerate(HEADERS):
-
         hx, hy = X_CORE - 42, 60 + k * 170
-
         if cv.put(hx - 3, hy - 3, 26, (pins // 2) * 4.4 + 16):
-
             edge.append(idc_header(hx, hy, pins, label, vertical=True))
 
-
-
     # Силовой хедер: 12 вольт на backplane дисков. Стоит со стороны корзины —
-
     # тянуть силовой жгут через всю машину никто не станет.
-
     for hx, hy in ((X_CORE - 52, 700), (X_CORE - 52, 300), (X_CORE - 52, 480)):
-
         if cv.put(hx - 4, hy - 6, 34, 40):
-
             edge.append(power_header(hx, hy))
-
             break
-
     cv.add('<g class="decor">' + ''.join(edge) + '</g>')
-
-
