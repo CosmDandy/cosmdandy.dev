@@ -48,7 +48,7 @@ from board.geom import (
     H,
     W,
 )
-from board.metal import rating_label, service_label
+from board.metal import hexgrid, rating_label, service_label
 
 # Кромка крышки: всё, что левее, остаётся открытым.
 LID_X = X_BP - 2
@@ -69,17 +69,13 @@ def render(cv):
     cv.add(f'<rect x="{LID_X}" y="4" width="{W - 4 - LID_X}" height="{H-8}" rx="4" '
            f'fill="#161f24" stroke="rgba(147,161,161,0.30)" stroke-width="1.4"/>')
 
-    # Рёбра жёсткости: лист крышки в 1U тонкий, и без продольной формовки он
-    # играет под рукой. Два ребра идут во всю длину, поперёк — короткие, у
-    # кромок. Видны они как пара параллельных линий: это складка металла.
-    for ry in (150, H - 150):
-        cv.add(f'<path d="M{X_FAN + 40} {ry} H{W - 60}" fill="none" '
-               f'stroke="rgba(147,161,161,0.20)" stroke-width="3.4"/>')
-        cv.add(f'<path d="M{X_FAN + 40} {ry} H{W - 60}" fill="none" '
-               f'stroke="rgba(147,161,161,0.13)" stroke-width="1"/>')
-    for rx in (X_FAN + 60, (X_FAN + W) / 2, W - 150):
-        cv.add(f'<path d="M{rx} 40 V{H - 40}" fill="none" '
-               f'stroke="rgba(147,161,161,0.10)" stroke-width="2.6"/>')
+    # Вентиляционные поля: две продольные полосы перфорации той же сеткой,
+    # что у корзины и панели управления. Воздух в 1U идёт спереди назад, но
+    # над горячими зонами лист всё равно дырявят — и заодно это то, что
+    # отличает крышку от глухой пластины.
+    for vy in (128, H - 176):
+        cv.add(f'<g class="decor" opacity="0.45">'
+               f'{hexgrid(X_FAN + 60, vy, W - 130 - X_FAN, 48, s=6, gap=5)}</g>')
 
     # стенка вентиляторов
     cv.add(frame(X_FAN, 20, FAN_W, H - 40, 0, 0.26))
