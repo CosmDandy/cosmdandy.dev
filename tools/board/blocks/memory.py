@@ -84,7 +84,7 @@ def render(cv):
 
     # Подпись уходит в промежуток между корпусами: полоса у кромки занята ими
     # целиком, и на прежнем месте плашка легла прямо на сетевой контроллер.
-    cv.callouts.append((X_TAG - 44, Y_BANK_C + 52, X_CORE - 10, Y_BANK_C + 110,
+    cv.callouts.append((X_TAG - 44, Y_BANK_C + 32, X_CORE - 10, Y_BANK_C + 110,
                         "Blog", "end", "https://blog.cosmdandy.dev", "dimm",
                         "заметки", "blog"))
     half = BANK_N // 2

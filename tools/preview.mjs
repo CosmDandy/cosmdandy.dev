@@ -54,7 +54,10 @@ const service = args.includes('--service');
 const shot = args.find(a => a.endsWith('.png')) ?? join(ROOT, 'tools/preview.png');
 
 const browser = await chromium.launch({ executablePath: CHROME, args: ['--no-sandbox'] });
-const page = await browser.newPage({ viewport: { width: 1700, height: 1050 }, deviceScaleFactor: 2 });
+// Масштаб 1, а не 2: схема выросла до десятка тысяч узлов, и в двойном
+// разрешении композитор этой сборки chromium отдаёт пустой чёрный кадр —
+// на самой странице при этом всё в порядке, проверено кадром в масштабе 1.
+const page = await browser.newPage({ viewport: { width: 1700, height: 1050 }, deviceScaleFactor: 1 });
 
 const errors = [];
 page.on('pageerror', e => errors.push(String(e)));
@@ -80,6 +83,14 @@ if (view === 'rig') await page.evaluate(() => document.body.classList.add('view-
 if (service) await page.evaluate(() => document.getElementById('svc-switch')?.dispatchEvent(
   new MouseEvent('click', { bubbles: true })));
 await page.waitForTimeout(1000);
+// Монитор с самотестом открывается сам и закрывает собой всю страницу: кадр
+// в этот момент — чёрный экран POST, а не схема. Снимаем его перед съёмкой,
+// как это сделал бы человек клавишей Esc.
+await page.evaluate(() => {
+  const crt = document.querySelector('dialog[open]');
+  if (crt) crt.close();
+});
+await page.waitForTimeout(400);
 
 const stat = await page.evaluate(() => {
   const box = document.querySelector('.chassis')?.getBoundingClientRect();
