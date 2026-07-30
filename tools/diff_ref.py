@@ -15,9 +15,11 @@ FILES = ("board-v17.svg.part", "board-v17-lid.svg.part")
 
 # семь шестнадцатеричных подряд — это хэш; в верхнем регистре он в шелкографии
 SHA = re.compile(r"\b[0-9a-fA-F]{7}\b")
+# номер ревизии равен числу коммитов и растёт от самого факта работы
+REV = re.compile(r"REV \d+")
 
 def norm(text):
-    return SHA.sub("·······", text)
+    return REV.sub("REV ##", SHA.sub("·······", text))
 
 def main(ref_dir):
     ref = Path(ref_dir)

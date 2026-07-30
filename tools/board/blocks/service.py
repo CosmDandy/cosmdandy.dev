@@ -3,6 +3,9 @@
 служебная зона
 """
 
+# Свой прямоугольник: сборка проверит, что узел из него не вышел.
+BOUNDS = (838, 98, 170, 618)
+
 from board.geom import LID_BTN, X_SVC
 from board.ink import hit, mono, silk_inverse
 
@@ -76,57 +79,31 @@ def jumper_table(x, y, title, rows):
 
 def render(cv):
     svc = [
-
         f'<circle cx="{X_SVC+34}" cy="300" r="23" fill="#1a2429" stroke="rgba(147,161,161,0.34)"/>',
-
         f'<circle cx="{X_SVC+34}" cy="300" r="15" fill="#0e171b"/>',
-
         mono(X_SVC + 34, 340, "CMOS", 8, op=0.4),
-
         f'<rect x="{X_SVC+84}" y="288" width="66" height="22" rx="2" fill="#1a2429" stroke="rgba(147,161,161,0.28)"/>',
-
         mono(X_SVC + 117, 326, "microSD", 8, op=0.4),
-
         f'<rect x="{X_SVC+12}" y="120" width="52" height="26" rx="1" fill="#1e2a2f" stroke="rgba(147,161,161,0.30)"/>',
-
         f'<rect x="{X_SVC+90}" y="120" width="52" height="26" rx="1" fill="#1e2a2f" stroke="rgba(147,161,161,0.30)"/>',
-
         mono(X_SVC + 78, 112, "P1 / P2", 8, op=0.38),
-
         # Переключатели и легенда перемычки: то, ради чего вообще лезут под крышку
-
         dip_switch(X_SVC + 10, 390, 4, on=(1, 3)),
-
         mono(X_SVC + 46, 458, "SW3", 7, op=0.38),
-
         dip_switch(X_SVC + 92, 390, 4, on=(2,)),
-
         mono(X_SVC + 128, 458, "SW4", 7, op=0.38),
-
         jumper_table(X_SVC + 6, 466, "J29 BIOS BOOT FROM",
-
                      [("1-2", "PRIMARY BIOS"), ("2-3", "BACKUP BIOS")]),
-
     ]
-
     for i in range(3):
-
         x = X_SVC + 8 + i * 48
-
         svc.append(f'<rect x="{x}" y="188" width="42" height="26" rx="1" fill="#1e2a2f" stroke="rgba(147,161,161,0.30)"/>')
-
         svc.append(f'<rect x="{x+4}" y="193" width="34" height="16" rx="1" fill="#0a1417"/>')
-
     svc.append(silk_inverse(X_SVC + 26, 226, "SATA / SLIMSAS", 6))
-
     cv.add('<g class="decor">' + ''.join(svc) + '</g>')
 
-
-
     # Кнопка крышки стоит ровно над тумблером сервисного режима — и на плате, и
-
     # на самой крышке, в одних и тех же координатах: меняется только надпись.
-
     cv.add(f'''<g class="lid-on-btn" id="lid-on" role="button" tabindex="0" aria-label="Надеть крышку">
   {hit(LID_BTN[0]-6, LID_BTN[1]-6, LID_BTN[2]+12, LID_BTN[2]+12)}
   <rect x="{LID_BTN[0]}" y="{LID_BTN[1]}" width="{LID_BTN[2]}" height="{LID_BTN[2]}" rx="3"
@@ -136,8 +113,6 @@ def render(cv):
   {mono(LID_BTN[0]+43, LID_BTN[1]+66, "НАДЕТЬ", 9, op=0.6)}
   {mono(LID_BTN[0]+43, LID_BTN[1]+78, "КРЫШКУ", 9, op=0.6)}
 </g>''')
-
-
 
     cv.add(f'''<g class="svc-switch" id="svc-switch" role="button" tabindex="0" aria-label="Сервисный режим">
   {hit(X_SVC+6, 616, 130, 82)}

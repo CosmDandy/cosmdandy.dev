@@ -42,7 +42,4 @@ def rack_ears():
 
 def render(cv):
     cv.add(f'<rect x="4" y="4" width="{W-8}" height="{H-8}" rx="14" fill="#141c20" stroke="rgba(147,161,161,0.30)"/>')
-
     cv.add(rack_ears())
-
-
