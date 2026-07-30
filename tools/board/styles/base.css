@@ -321,16 +321,23 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
      подписи постоянные, а наведение лишь подсвечивает нужную. */
   .callouts { pointer-events: none; }
   a.callout { pointer-events: auto; cursor: pointer; }
-  a.callout:hover .co-box { fill: #fff; stroke: var(--cyan); }
+  a.callout:hover .co-box { fill: #fff; stroke: var(--cyan); stroke-width: 2.4; }
   a.callout:hover .co-line { stroke: var(--cyan); }
   a.callout:focus-visible { outline: none; }
   a.callout:focus-visible .co-box { stroke: var(--cyan); stroke-width: 2.2; }
   /* В сервисном режиме переходы не нужны: там разбирают машину. */
   .rig.service a.callout { pointer-events: none; }
-  .co-dot { fill: var(--cyan); stroke: rgba(9,32,38,0.8); stroke-width: 1.4; }
-  .co-line { stroke: rgba(42,161,152,0.65); stroke-width: 1.4; }
-  .co-box { fill: rgba(238,232,213,0.93); stroke: rgba(42,161,152,0.5); stroke-width: 1.2; }
-  .co-text { fill: #073642; font-family: ui-monospace, Menlo, monospace; font-size: 15px; font-weight: 600; }
+  .co-dot { fill: var(--cyan); stroke: rgba(9,32,38,0.85); stroke-width: 1.8; }
+  .co-line { stroke: rgba(42,161,152,0.8); stroke-width: 2.2; }
+  /* Подложка — не украшение: без неё светлая бирка сливается с шильдиками
+     радиаторов и наклейками блоков питания, которых на плате хватает. */
+  .co-shadow { fill: rgba(3, 14, 18, 0.55); }
+  .co-box { fill: rgba(245, 241, 228, 0.98); stroke: rgba(6, 26, 31, 0.9); stroke-width: 1.6; }
+  .co-edge { fill: var(--cyan); }
+  .co-text {
+    fill: #06222a; font-family: ui-monospace, Menlo, monospace;
+    font-size: 25px; font-weight: 700; letter-spacing: 0.01em;
+  }
 
   .tag rect { fill: rgba(238,232,213,0.94); }
   .tag text { fill: #073642; font-family: ui-monospace, Menlo, monospace; font-size: 15px; font-weight: 600; }
@@ -421,8 +428,15 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
    * до первого кадра. Скрипт его только снимает — и сразу, если машину уже
    * видели или гость просил не анимировать.
    */
-  .rig.assembly .callouts { opacity: 0; }
-  .rig.assembly .callouts { transition: opacity var(--fade); }
+  /* Бирки проступают после сборки, а не включаются вместе с ней. Переход
+     объявлен на самих подписях, а не внутри .rig.assembly: правило с классом
+     исчезает вместе с классом, и гасить-то оно гасило, а проявлять было уже
+     нечему — подписи возникали рывком. */
+  .callouts {
+    opacity: 1;
+    transition: opacity 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.3s;
+  }
+  .rig.assembly .callouts { opacity: 0; transition: opacity 0.25s linear; }
   /* Пока идёт сборка, разбирать нечего: клики по полусобранной машине
      оставляли бы узлы в состоянии, из которого их никто не вернёт. */
   .rig.assembly .pick, .rig.assembly .unit { pointer-events: none; }

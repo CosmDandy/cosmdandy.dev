@@ -19,18 +19,37 @@ def tag(x_center, y, text):
             f'<text x="{x_center}" y="{y+6}" text-anchor="middle">{text}</text></g>')
 
 
+CALLOUT_H = 42
+
+
+def callout_box(tx, ty, text, anchor="start"):
+    """Габарит бирки: сборка проверяет, что они не наезжают друг на друга."""
+    w = len(text) * 15 + 44
+    x0 = tx if anchor == "start" else tx - w
+    return (x0, ty - CALLOUT_H / 2, w, CALLOUT_H)
+
+
 def callout(tx, ty, ax, ay, text, anchor="start", href=None, unit=None):
     """Постоянная выноска-ссылка: якорь на узле, линия и подпись.
 
     На визитке подписи обязаны быть видны сразу и вести по адресу — гость не
     должен догадываться, что по железу надо водить курсором.
     """
-    w = len(text) * 9 + 26
-    x0 = tx if anchor == "start" else tx - w
-    inner = (f'<circle class="co-dot" cx="{ax}" cy="{ay}" r="3.4"/>'
-             f'<path class="co-line" d="M{ax} {ay} L{tx + (10 if anchor == "start" else -10)} {ty}" fill="none"/>'
-             f'<rect class="co-box" x="{x0}" y="{ty-14}" width="{w}" height="28" rx="3"/>'
-             f'<text class="co-text" x="{x0 + w/2}" y="{ty+6}" text-anchor="middle">{text}</text>')
+    # Бирка крупная нарочно. Сцена наклонена на 46°, и всё, что на ней
+    # нарисовано, теряет по высоте треть: подпись, читавшаяся на пустой плате,
+    # на собранной тонет среди деталей. Плюс тёмная подложка со сдвигом — она
+    # отрывает бирку от фона надёжнее любой обводки, а тень фильтром в Safari
+    # внутри preserve-3d заливает сцену белым.
+    x0, y0, w, h = callout_box(tx, ty, text, anchor)
+    inner = (f'<circle class="co-dot" cx="{ax}" cy="{ay}" r="5"/>'
+             f'<path class="co-line" d="M{ax} {ay} L{tx + (12 if anchor == "start" else -12)} {ty}" fill="none"/>'
+             f'<rect class="co-shadow" x="{x0+4}" y="{y0+5}" width="{w}" height="{h}" rx="5"/>'
+             f'<rect class="co-box" x="{x0}" y="{y0}" width="{w}" height="{h}" rx="5"/>'
+             # цветная полоска у корешка: она же указывает, с какой стороны
+             # приходит линия к своему узлу
+             f'<rect class="co-edge" x="{x0 if anchor == "start" else x0 + w - 6}" y="{y0}" '
+             f'width="6" height="{h}" rx="{2.5}"/>'
+             f'<text class="co-text" x="{x0 + w/2}" y="{ty + 8}" text-anchor="middle">{text}</text>')
     # data-for связывает подпись с узлом: наводишь на сетевую карту — горит её
     # подпись, наводишь на подпись — горит карта. Без него подсветка
     # односторонняя, и непонятно, к чему относится ярлык.

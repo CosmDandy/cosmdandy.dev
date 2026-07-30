@@ -41,6 +41,7 @@ import re
 from pathlib import Path
 
 from board.canvas import Canvas
+from board.ink import callout_box
 
 HERE = Path(__file__).parent
 
@@ -113,6 +114,15 @@ def build():
             assert lx <= x0 and ly <= y0 and x1 <= lx + lw and y1 <= ly + lh, (
                 f'блок {name} вышел за свои границы: нарисовал '
                 f'({x0:.0f},{y0:.0f})–({x1:.0f},{y1:.0f}), объявил {limits}')
+
+    # Бирки-ссылки крупные и лежат поверх всего: наехав друг на друга, они
+    # прячут не деталь, а адрес — то единственное, ради чего схема сделана.
+    boxes = [(callout_box(c[0], c[1], c[4], c[5]), c[4]) for c in board.callouts]
+    for i, ((x1, y1, w1, h1), n1) in enumerate(boxes):
+        for (x2, y2, w2, h2), n2 in boxes[i + 1:]:
+            assert not (x1 < x2 + w2 and x1 + w1 > x2 and y1 < y2 + h2 and y1 + h1 > y2), (
+                f'бирки «{n1}» ({x1:.0f},{y1:.0f} {w1:.0f}×{h1:.0f}) и «{n2}» '
+                f'({x2:.0f},{y2:.0f} {w2:.0f}×{h2:.0f}) наехали друг на друга')
 
     importlib.import_module('board.blocks.lid').render(lid)
 

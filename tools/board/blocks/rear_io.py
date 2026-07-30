@@ -24,9 +24,9 @@ def render(cv):
     # Полоса между нижним райзером и вторым блоком питания — всё, что
     # осталось от задней части. Модуль вписан ровно в неё.
     BX, BY, BW, BH = X_IO - 148, 548, 234, 126
-    cv.callouts.append((X_IO - 30, BY + 40, X_IO + 4, BY + 40, "Telegram", "end", "https://t.me/cosmdandy", "eth"))
+    cv.callouts.append((X_IO - 30, BY + 22, X_IO + 4, BY + 40, "Telegram", "end", "https://t.me/cosmdandy", "eth"))
     cv.callouts.append((X_IO - 30, BY + 74, X_IO + 4, BY + 74, "Twitter", "end", "https://x.com/cosmdandy", "tw"))
-    cv.callouts.append((X_IO - 30, BY + 112, X_IO + 4, BY + 112, "Email", "end", "mailto:i@cosmdandy.dev", "bmc"))
+    cv.callouts.append((X_IO - 30, BY + 126, X_IO + 4, BY + 112, "Email", "end", "mailto:i@cosmdandy.dev", "bmc"))
 
     cv.add(f'''<g class="decor">
   <rect x="{BX}" y="{BY}" width="{BW}" height="{BH}" rx="3" fill="#0f2226"
