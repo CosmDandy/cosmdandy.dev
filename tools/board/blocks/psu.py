@@ -35,22 +35,27 @@ def render(cv):
             lx = X_REAR + 26 + lv * 16
             psu.append(f'<path d="M{lx} {louver_y} h9 a2 2 0 0 1 0 8 h-9 a2 2 0 0 1 0 -8 Z" '
                        f'fill="#0a1013" stroke="rgba(147,161,161,0.18)" stroke-width="0.8"/>')
-        # Проволочная скоба: за неё блок и вытягивают. Откидывается на двух
-        # осях у торца, поэтому в покое лежит вдоль корпуса, а не торчит.
-        bail_x = X_REAR + 232
-        psu.append(f'<path d="M{bail_x} {grip_y+4} h58 a7 7 0 0 1 7 7 v20 a7 7 0 0 1 -7 7 h-58" '
-                   f'fill="none" stroke="rgba(190,201,205,0.72)" stroke-width="3.4" '
-                   f'stroke-linecap="round"/>')
-        for ay in (grip_y + 4, grip_y + 38):        # оси, на которых скоба откидывается
-            psu.append(f'<circle cx="{bail_x}" cy="{ay}" r="3.4" fill="#0d1418" '
-                       f'stroke="rgba(147,161,161,0.44)" stroke-width="1.4"/>')
-        # Оранжевый фиксатор — отдельная деталь у основания скобы, и он
-        # торчит за торец. Пока его не зажмёшь, блок заперт в кармане.
-        psu.append(f'<path d="M{X_REAR+296} {grip_y+12} h18 a4 4 0 0 1 4 4 v10 a4 4 0 0 1 -4 4 h-18 Z" '
-                   f'fill="#cb4b16" stroke="rgba(238,232,213,0.55)" stroke-width="1.2"/>')
-        for g in range(2):
-            psu.append(f'<line x1="{X_REAR+302}" y1="{grip_y+16+g*7}" x2="{X_REAR+313}" y2="{grip_y+16+g*7}" '
-                       f'stroke="rgba(20,20,10,0.34)" stroke-width="1.6"/>')
+        # Ручка сидит посередине торца, рядом с решёткой выхода воздуха, и
+        # петлёй уходит далеко за корпус — иначе за неё не взяться, когда блок
+        # сидит в кармане. На живом блоке она чёрная, у нас светлая: на тёмном
+        # шасси чёрная петля просто пропадала бы.
+        mid = y + 72
+        bail_x = X_REAR + 268
+        psu.append(f'<path d="M{bail_x} {mid-26} h26 a13 13 0 0 1 13 13 v26 a13 13 0 0 1 -13 13 h-26" '
+                   f'fill="none" stroke="rgba(198,209,213,0.78)" stroke-width="5" '
+                   f'stroke-linecap="round" stroke-linejoin="round"/>')
+        psu.append(f'<path d="M{bail_x+6} {mid-20} h20 a8 8 0 0 1 8 8 v14 a8 8 0 0 1 -8 8 h-20" '
+                   f'fill="none" stroke="rgba(13,20,24,0.5)" stroke-width="1.2"/>')
+        for ay in (mid - 26, mid + 26):        # оси, на которых петля откидывается
+            psu.append(f'<circle cx="{bail_x}" cy="{ay}" r="3.6" fill="#0d1418" '
+                       f'stroke="rgba(147,161,161,0.5)" stroke-width="1.6"/>')
+        # Стопор — стальной язычок, а не цветная накладка: он ничего не
+        # обозначает, он держит. Тоже выходит за торец, и пока его не отжать,
+        # блок из кармана не пойдёт.
+        psu.append(f'<path d="M{X_REAR+292} {mid-9} h26 l6 9 -6 9 h-26 Z" '
+                   f'fill="#aab8bd" stroke="rgba(13,20,24,0.45)" stroke-width="1.2"/>')
+        psu.append(f'<path d="M{X_REAR+296} {mid-4} h18 M{X_REAR+296} {mid+4} h18" '
+                   f'stroke="rgba(13,20,24,0.35)" stroke-width="1.4"/>')
         # вентилятор
         psu.append(f'<rect x="{X_REAR+238}" y="{fan_y-4}" width="58" height="58" rx="4" fill="#0b1215" stroke="rgba(147,161,161,0.22)"/>')
         psu.append(f'<circle cx="{X_REAR+267}" cy="{fan_y+25}" r="25" fill="#0d1417" stroke="rgba(147,161,161,0.18)"/>')

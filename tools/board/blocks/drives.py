@@ -11,7 +11,8 @@
 BOUNDS = (-120, 148, 350, 710)
 
 from board.geom import (
-    BAY_DEPTH, BAY_N, BAY_TOP, BAY_W, CAP, FRONT_W, GROUP_GAP, GROUP_H, H, X_FRONT,
+    BAY_DEPTH, BAY_FILL, BAY_N, BAY_TOP, BAY_W, CAP, FRONT_W, GROUP_GAP, GROUP_H, H,
+    X_FRONT,
 )
 from board.metal import hexgrid
 from board.ink import mono, silk_frame
@@ -55,32 +56,43 @@ def render(cv):
     for i in range(BAY_N):
         g, k = i // 2, i % 2
         x = X_FRONT + k * BAY_W
-        y = BAY_TOP + g * (GROUP_H + GROUP_GAP)
-        w, h = BAY_W - 3, GROUP_H
+        slot_y = y = BAY_TOP + g * (GROUP_H + GROUP_GAP)
+        h = GROUP_H
+        # Рамка каддика короче отсека по глубине: за ней в корзине сидит сам
+        # накопитель. Раньше рамка занимала всю глубину, и диск читался
+        # сплошной плитой без намёка на то, что внутри что-то есть.
+        w = (BAY_W - 3) * BAY_FILL
+        disk_x = x + w
+        disk_w = BAY_W - 3 - w
 
         # Направляющая и ответный разъём — то, что видно на месте вынутого
         # диска. Без них «вынуто» читается как дырка в корпусе.
         cv.add(f'''<g class="decor bay-slot">
-      <rect x="{x}" y="{y}" width="{w}" height="{h}" rx="1" fill="#0c1216"
+      <rect x="{x}" y="{slot_y}" width="{BAY_W - 3}" height="{GROUP_H}" rx="1" fill="#0c1216"
             stroke="rgba(147,161,161,0.16)"/>
-      <line x1="{x + 3}" y1="{y + 6}" x2="{x + w - 3}" y2="{y + 6}"
+      <line x1="{x + 3}" y1="{slot_y + 5}" x2="{x + BAY_W - 6}" y2="{slot_y + 5}"
             stroke="rgba(147,161,161,0.20)" stroke-width="2"/>
-      <line x1="{x + 3}" y1="{y + h - 6}" x2="{x + w - 3}" y2="{y + h - 6}"
+      <line x1="{x + 3}" y1="{slot_y + GROUP_H - 5}" x2="{x + BAY_W - 6}" y2="{slot_y + GROUP_H - 5}"
             stroke="rgba(147,161,161,0.20)" stroke-width="2"/>
-      <rect x="{x + w - 16}" y="{y + h / 2 - 20}" width="10" height="40" rx="1"
+      <rect x="{x + BAY_W - 19}" y="{slot_y + GROUP_H / 2 - 20}" width="10" height="40" rx="1"
             fill="#14202a" stroke="rgba(42,161,152,0.30)"/>
     </g>''')
 
         # Каддик: салазки с рёбрами, шильдик и лампы стопкой у одной кромки —
         # на живом диске они стоят рядом, а не разнесены по углам.
-        sled = [f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="1" fill="#28323a" '
+        # Сам накопитель: он глубже рамки и уезжает вместе с ней. Плата с
+        # разъёмом на дальнем торце — тем, которым диск и садится в корзину.
+        sled = [f'<rect x="{disk_x:.1f}" y="{y+8}" width="{disk_w:.1f}" height="{h-16}" rx="1" '
+                f'fill="#1a2228" stroke="rgba(147,161,161,0.22)"/>',
+                f'<rect x="{disk_x+disk_w-7:.1f}" y="{y+h/2-16}" width="6" height="32" rx="1" '
+                f'fill="#14202a" stroke="rgba(42,161,152,0.34)"/>',
+                f'<rect x="{x}" y="{y}" width="{w:.1f}" height="{h}" rx="1" fill="#28323a" '
                 f'stroke="rgba(147,161,161,0.26)"/>']
-        for c in range(3):
-            cy = y + CAP + 14 + c * 16
-            sled.append(f'<rect x="{x+4}" y="{cy}" width="{w-8}" height="9" rx="1" fill="#131b20" '
-                        f'stroke="rgba(147,161,161,0.12)"/>')
-        ly = y + CAP + 70
-        lh = h - CAP - 88
+        # Шильдик занимает то, что осталось от рамки под ручкой. Считаем от
+        # фактической высоты каддика: она задаётся долей от шага корзины, и
+        # прежние числа ушли в минус, как только рамку сузили.
+        ly = y + CAP + 6
+        lh = max(18, h - CAP - 22)
         sled.append(f'<rect x="{x+3}" y="{ly}" width="{w-6}" height="{lh}" rx="1" '
                     f'fill="#e8e3d5" fill-opacity="0.09" stroke="rgba(147,161,161,0.24)"/>')
         tx, ty = x + w / 2, ly + lh / 2
@@ -88,24 +100,31 @@ def render(cv):
         kind, size = ("Optane", "P5800X") if i == 2 else ("NVMe U.2", "3.84 TB")
         sled.append(mono(tx, ty - 2, kind, 8, op=0.55))
         sled.append(mono(tx, ty + 10, size, 8, op=0.4))
-        sled.append(act_led(i, x + 7, y + h - 12, 3, "#2aa198"))
-        sled.append(f'{glow("led", x + 17, y + h - 12, 3, "#859900")}'
-                    f'<circle class="led" cx="{x+17}" cy="{y + h - 12}" r="3" fill="#859900"/>')
+        sled.append(act_led(i, x + 7, y + h - 8, 3, "#2aa198"))
+        sled.append(f'{glow("led", x + 17, y + h - 8, 3, "#859900")}'
+                    f'<circle class="led" cx="{x+17}" cy="{y + h - 8}" r="3" fill="#859900"/>')
 
         # Ручка — отдельная деталь: сначала отщёлкивается она, и только потом
         # диск идёт наружу. Терракотовая планка по кромке — та самая защёлка,
         # которую нажимают большим пальцем.
-        handle = (f'<path d="M{x} {y} H{x+w} V{y+CAP} L{x+w-5} {y+CAP+7} H{x+5} L{x} {y+CAP} Z" '
-                  f'fill="#0d1317" stroke="rgba(147,161,161,0.28)"/>')
-        for r in range(4):
-            handle += (f'<line x1="{x+7}" y1="{y+10+r*8}" x2="{x+w-7}" y2="{y+10+r*8}" '
-                       f'stroke="rgba(147,161,161,0.22)" stroke-width="2.2"/>')
-        handle += (f'<rect x="{x+2}" y="{y+2}" width="7" height="{CAP-4}" rx="1.5" fill="#cb4b16" '
+        # Тело ручки — дуга: на живом каддике она выгнута, а не плоская.
+        # Внутри крупные вентиляционные окна, через них и идёт воздух к диску.
+        handle = (f'<path d="M{x} {y} H{x+w} V{y+CAP} Q{x+w/2} {y+CAP+9} {x} {y+CAP} Z" '
+                  f'fill="#0d1317" stroke="rgba(147,161,161,0.30)" stroke-width="1.2"/>')
+        for c in range(3):
+            wx = x + 10 + c * ((w - 24) / 3)
+            handle += (f'<rect x="{wx:.1f}" y="{y+8}" width="{(w-24)/3-5:.1f}" height="{CAP-18}" '
+                       f'rx="1.5" fill="#05090b" stroke="rgba(147,161,161,0.16)"/>')
+        # Терракотовая защёлка узкой полосой по кромке — её и жмут пальцем.
+        handle += (f'<rect x="{x+2}" y="{y+3}" width="6" height="{CAP-6}" rx="1.5" fill="#cb4b16" '
                    f'stroke="rgba(238,232,213,0.45)" stroke-width="1"/>')
+        # Наклейка с типом и объёмом — она на самой ручке, а не на салазках.
+        handle += (f'<rect x="{x+w-22}" y="{y+6}" width="16" height="{CAP-12}" rx="1" '
+                   f'fill="#e8e3d5" fill-opacity="0.16" stroke="rgba(147,161,161,0.22)"/>')
 
         # Номер отсека — на корзине, а не на каддике: каддик уезжает с диском,
         # нумерация должна остаться на месте.
-        cv.add(f'<g class="decor">{silk_frame(inner_x + 6, y + h / 2 - 7, str(i), 7, 0.5)}</g>')
+        cv.add(f'<g class="decor">{silk_frame(inner_x + 6, slot_y + GROUP_H / 2 - 7, str(i), 7, 0.5)}</g>')
         if i == BAY_N - 1:
             cv.add(bay_filler(x, y, w, h))
             continue
