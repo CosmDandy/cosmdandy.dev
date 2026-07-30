@@ -23,6 +23,7 @@ opacity на SVG-элементе создаёт composited layer, и в бра�
 Результат подставляется прямо в v17.html между маркерами BOARD:BEGIN/END.
 """
 
+import math
 import re
 
 W, H = 1314, 863
@@ -769,6 +770,9 @@ SOICS = [('D9LHR', 30, 13), ('PCA9557', 26, 11), ('MAX6642', 24, 11), ('W25Q256'
          ('ADM1278', 26, 11), ('LM75', 20, 10), ('SPI FLASH', 34, 12), ('TMP421', 22, 10)]
 parts = []
 lost = []
+# центры уже поставленных корпусов: обвязка кладётся вокруг них, а не
+# ровным полем по всей плате — у живой платы мелочь жмётся к своему чипу
+hubs = []
 spot = 0
 
 def place(w, h, draw, name='деталь'):
@@ -798,6 +802,7 @@ def place(w, h, draw, name='деталь'):
             for xx in list(range(x0, int(xb - w), step)) + list(range(xa, x0, step)):
                 if put(xx, yy, w, h):
                     parts.append(draw(xx, yy))
+                    hubs.append((xx + w / 2, yy + h / 2, max(w, h)))
                     return True
     lost.append(f'{name} {w:.0f}×{h:.0f}')
     return False
@@ -844,33 +849,68 @@ for i in range(18):
     silk.append(f'<path d="M{x} 40 V{104} l8 8 V196" fill="none" stroke="rgba(133,153,0,0.10)" stroke-width="1"/>')
 
 # посадочные места мелочи: резисторы, конденсаторы, диоды
-KIND = ('res', 'cap', 'diode', 'ic')
-for i in range(210):
-    x = X_PCB + 18 + (i * 137) % (pcb_w - 46)
-    y = 26 + (i * 211) % (pcb_h - 30)
-    kind = KIND[i % 4]
+#
+# Ставим их не полем по всей плате, а кольцами вокруг корпусов: на живой
+# плате обвязка жмётся к своей микросхеме — развязка по питанию физически
+# обязана стоять у выводов, иначе не работает. Ровная россыпь читалась как
+# штриховка и вдобавок занимала площадь, которой потом не хватало крупному.
+def small_part(kind, x, y):
+    """Один элемент обвязки. Возвращает фигуры или пусто, если места нет."""
     if kind == 'res':
-        w, h = (8, 4) if i % 2 else (4, 8)
-        if not free(x, y, w, h):
-            continue
-        silk.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" fill="rgba(147,161,161,0.16)"/>')
-    elif kind == 'cap':
-        if not free(x, y, 9, 9):
-            continue
-        silk.append(f'<circle cx="{x+4}" cy="{y+4}" r="4" fill="#141d22" stroke="rgba(147,161,161,0.22)" stroke-width="1"/>')
-        silk.append(f'<line x1="{x+1}" y1="{y+4}" x2="{x+7}" y2="{y+4}" stroke="rgba(147,161,161,0.20)"/>')
-    elif kind == 'diode':
-        if not free(x, y, 8, 5):
-            continue
-        silk.append(f'<rect x="{x}" y="{y}" width="8" height="5" fill="#0d1a1e" stroke="rgba(147,161,161,0.18)"/>')
-        silk.append(f'<line x1="{x+6}" y1="{y}" x2="{x+6}" y2="{y+5}" stroke="rgba(147,161,161,0.30)"/>')
-    else:
-        if not free(x, y, 14, 11):
-            continue
-        silk.append(f'<rect x="{x}" y="{y}" width="14" height="11" rx="1" fill="#16212a" stroke="rgba(147,161,161,0.20)"/>')
-        for d in range(3):
-            silk.append(f'<line x1="{x}" y1="{y+2+d*4}" x2="{x-2}" y2="{y+2+d*4}" stroke="rgba(147,161,161,0.18)"/>')
-            silk.append(f'<line x1="{x+14}" y1="{y+2+d*4}" x2="{x+16}" y2="{y+2+d*4}" stroke="rgba(147,161,161,0.18)"/>')
+        w, h = (8, 4) if (x + y) % 2 else (4, 8)
+        if not put(x, y, w, h):
+            return []
+        return [f'<rect x="{x}" y="{y}" width="{w}" height="{h}" fill="rgba(147,161,161,0.16)"/>']
+    if kind == 'cap':
+        if not put(x, y, 9, 9):
+            return []
+        return [f'<circle cx="{x+4}" cy="{y+4}" r="4" fill="#141d22" stroke="rgba(147,161,161,0.22)" stroke-width="1"/>',
+                f'<line x1="{x+1}" y1="{y+4}" x2="{x+7}" y2="{y+4}" stroke="rgba(147,161,161,0.20)"/>']
+    if kind == 'diode':
+        if not put(x, y, 8, 5):
+            return []
+        return [f'<rect x="{x}" y="{y}" width="8" height="5" fill="#0d1a1e" stroke="rgba(147,161,161,0.18)"/>',
+                f'<line x1="{x+6}" y1="{y}" x2="{x+6}" y2="{y+5}" stroke="rgba(147,161,161,0.30)"/>']
+    if kind == 'array':
+        # резисторная сборка: один корпус на четыре номинала, у шин их ряды
+        if not put(x, y, 18, 7):
+            return []
+        return [f'<rect x="{x}" y="{y}" width="18" height="7" rx="1" fill="#12191d" '
+                f'stroke="rgba(147,161,161,0.22)"/>'] + [
+                f'<line x1="{x+3+k*4}" y1="{y+7}" x2="{x+3+k*4}" y2="{y+9}" '
+                f'stroke="rgba(147,161,161,0.24)"/>' for k in range(4)]
+    if not put(x, y, 14, 11):
+        return []
+    out = [f'<rect x="{x}" y="{y}" width="14" height="11" rx="1" fill="#16212a" stroke="rgba(147,161,161,0.20)"/>']
+    for d in range(3):
+        out.append(f'<line x1="{x}" y1="{y+2+d*4}" x2="{x-2}" y2="{y+2+d*4}" stroke="rgba(147,161,161,0.18)"/>')
+        out.append(f'<line x1="{x+14}" y1="{y+2+d*4}" x2="{x+16}" y2="{y+2+d*4}" stroke="rgba(147,161,161,0.18)"/>')
+    return out
+
+KIND = ('res', 'cap', 'res', 'diode', 'cap', 'array', 'res', 'ic')
+clusters = []                       # центры гроздей: по ним же встанут refdes
+
+# вокруг каждого корпуса — плотное кольцо обвязки
+for n, (cx, cy, size) in enumerate(hubs):
+    ring = size / 2 + 9
+    for k in range(8):
+        ang = (k * 47 + n * 23) % 360
+        r = ring + (k % 2) * 10
+        px = int(cx + r * math.cos(math.radians(ang)))
+        py = int(cy + r * math.sin(math.radians(ang)))
+        silk.extend(small_part(KIND[(n + k) % len(KIND)], px, py))
+    clusters.append((cx, cy))
+
+# и гроздьями вдоль шин — там, где дорожки ломаются, стоит их обвязка
+for i in range(26):
+    kx, ky = knots[(i * 29) % len(knots)]
+    if not (X_PCB + 14 < kx < X_PCB_END - 20 and 24 < ky < H - 30):
+        continue
+    for k in range(5):
+        px = int(kx + ((k % 3) - 1) * 13)
+        py = int(ky + (k // 3) * 12 - 6)
+        silk.extend(small_part(KIND[(i + k) % len(KIND)], px, py))
+    clusters.append((kx, ky))
 
 # тестовые точки
 for i in range(26):
@@ -884,14 +924,26 @@ for i in range(26):
 # позиционные обозначения — то, что реально написано на плате рядом с деталями
 # Обозначения на живой плате четырёхзначные, стоят стопками по 3–5 у своей
 # цепи и половина повёрнута боком — набирать их горизонтально в строку негде.
+# Стопка встаёт у своей грозди — обозначение печатают рядом с деталью, к
+# которой оно относится, а не там, где на плате осталось место.
 PREFIX = ['R', 'C', 'R', 'C', 'U', 'Q', 'L', 'CR', 'TP', 'J']
-for i in range(46):
-    x = X_PCB + 34 + (i * 173) % (pcb_w - 90)
-    y = 46 + (i * 131) % (pcb_h - 90)
+for i in range(min(58, len(clusters))):
+    cx, cy = clusters[(i * 5) % len(clusters)]
     n = 3 + (i % 3)                      # в стопке три-пять обозначений
     turn = i % 2                         # половину ставим боком
     w, h = (30, 7 * n + 6) if not turn else (7 * n + 6, 30)
-    if not put(x - 4, y - 8, w, h):
+    # Обвязка кольцом уже заняла ближний радиус, поэтому стопке даём обойти
+    # гроздь по кругу: без перебора вставали три штуки из полусотни.
+    x = y = None
+    for step in range(12):
+        ang = math.radians((i * 61 + step * 30) % 360)
+        r = 34 + (step % 3) * 12
+        px = int(cx + r * math.cos(ang))
+        py = int(cy + r * math.sin(ang))
+        if X_PCB + 16 < px < X_PCB_END - 24 and 30 < py < H - 34 and put(px - 4, py - 8, w, h):
+            x, y = px, py
+            break
+    if x is None:
         continue
     base = 1000 + (i * 137) % 2600
     for k in range(n):
