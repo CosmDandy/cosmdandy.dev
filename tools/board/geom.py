@@ -40,7 +40,7 @@ PITCH = 17
 SLOT_H = 15
 Y_BANK_L, Y_CPU0, Y_BANK_C, Y_CPU1, Y_BANK_R = 34, 194, 368, 528, 702
 BANK_N = 8        # планок в банке; ширина банка = BANK_N * PITCH
-SOCKET_W, SOCKET_H = 230, 150   # LGA 4677 заметно прямоугольный
+SOCKET_W, SOCKET_H = 202, 150   # LGA 4677 заметно прямоугольный
 
 Y_PSU_TOP, Y_PSU_BOT = 172, 690
 X_PCB_END = 1206
