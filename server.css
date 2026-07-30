@@ -414,11 +414,14 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   display: none;
   grid-template-columns: minmax(0, 1fr) 260px;
   gap: 14px;
-  align-items: start;
+  align-items: stretch;
   margin-top: 22px;
 }
 .rig.service .rig-bottom { display: grid; }
-.rig.service .panel { display: block; width: auto; margin: 0; }
+/* Консоль тянется на высоту приборов, лишнее место забирает лог, а строка
+   ввода остаётся прижатой к низу. Иначе левая панель вдвое короче правой. */
+.rig.service .panel { display: flex; flex-direction: column; width: auto; margin: 0; }
+.rig.service .console-log { flex: 1 1 auto; height: auto; min-height: 118px; }
 
 .gauges {
   display: grid;
