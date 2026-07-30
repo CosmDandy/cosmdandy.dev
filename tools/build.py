@@ -1,39 +1,44 @@
-"""Сборка платы: порядок блоков, проверки, вставка в страницу.
+"""Board assembly: block order, checks, insertion into the page.
 
-Схема собирается из независимых узлов. Узел — это файл в board/blocks/:
-рисует себя и ничего не знает о соседях. Общее лежит в board/: geom —
-координаты, canvas — холст и регистр занятых мест, palette/ink/lamps/metal/
-ports — то, чем рисуют, revision — партномера.
+The schematic is assembled from independent units. A unit is a file in
+board/blocks/: it draws itself and knows nothing about its neighbours. What
+is shared lives in board/: geom — the coordinates, canvas — the canvas and
+the register of taken space, palette/ink/lamps/metal/ports — what we draw
+with, revision — the part numbers.
 
-Здесь только три вещи, которых не может знать отдельный блок:
+Only three things live here, the ones a single block cannot know:
 
-1. ПОРЯДОК. Он же порядок слоёв, он же очередь на место: кто первым занял
-   прямоугольник, того и место. Поэтому список ниже — не алфавит и не
-   «как удобно читать», а сборочный порядок, и менять его нужно осознанно.
+1. ORDER. It is also the layer order, and also the queue for space: whoever
+   claims a rectangle first owns it. So the list below is not alphabetical
+   and not "whatever reads nicely", it is the assembly order, and changing
+   it has to be a deliberate act.
 
-2. ГРАНИЦЫ. Блок может объявить BOUNDS = (x, y, w, h) — свой прямоугольник.
-   Тогда сборка проверит, что он в него уложился, и упадёт с именем блока,
-   если нет. Это и есть гарантия, что двое, правящих разные узлы, не
-   налезут друг на друга: ошибку находит скрипт, а не глаз.
+2. BOUNDS. A block may declare BOUNDS = (x, y, w, h) — its own rectangle.
+   The build then checks that the block fitted inside it, and fails with
+   the block's name if it did not. That is the guarantee that two people
+   editing different units will not overlap: the mistake is found by the
+   script, not by the eye.
 
-3. ОТЧЁТ. Что не поместилось на плату (место кончилось) и во что каждый
-   блок в итоге уложился. Молчаливая потеря деталей здесь случалась трижды.
+3. REPORT. What did not fit on the board (space ran out) and what each
+   block ended up occupying. Silently losing parts has happened three times.
 
-Геометрия снята с реальной схемы Gigabyte R183-S94 (вид сверху, крышка
-снята), индикация — с IBM x3550 M3. Композиция повёрнута на 90°: фронт
-слева, глубина вправо, потому что экран широкий, а сервер длинный.
+The geometry is taken from the real Gigabyte R183-S94 layout (top view,
+cover removed), the indicators from an IBM x3550 M3. The composition is
+rotated 90°: front on the left, depth to the right, because the screen is
+wide and the server is long.
 
-Две роли элементов, и они не совпадают:
-  .unit — то, что называет себя ярлыком при наведении (диск, банк памяти,
-          процессор, сетевая карта). Ярлык живёт рядом со своим узлом.
-  .pick — то, что физически вынимается: планка, диск, вентилятор, радиатор,
-          райзер, блок питания.
-Лампа неисправности всегда лежит внутри своего .pick — иначе селектор
-`.pick.pulled .fault` до неё не достаёт, и горят не те лампы.
+Elements have two roles, and they do not coincide:
+  .unit — the thing that names itself with a label on hover (a drive, a
+          memory bank, a processor, a network card). The label lives next
+          to its own unit.
+  .pick — the thing that physically comes out: a DIMM, a drive, a fan, a
+          heatsink, a riser, a power supply.
+The fault lamp always lies inside its own .pick — otherwise the selector
+`.pick.pulled .fault` cannot reach it, and the wrong lamps light up.
 
-Индикация: гасим лампы через fill-opacity, а не opacity. opacity на SVG
-создаёт composited layer, и слои перекрывают сцену целиком — именно так
-выглядел баг «весь фон стал чёрным».
+Indicators: we dim the lamps with fill-opacity, not opacity. opacity on SVG
+creates a composited layer, and those layers cover the whole scene — that
+is exactly what the "the entire background went black" bug looked like.
 """
 
 import importlib
@@ -47,44 +52,46 @@ from board.spec import EXPECT, passport
 
 HERE = Path(__file__).parent
 
-# Порядок сборки. Плата идёт снизу вверх: поле, зоны, разводка, отверстия,
-# рассыпуха — и только потом узлы, которые на ней стоят. Выноски-подписи
-# предпоследние: они ложатся поверх всего, кроме выдвижной панели.
+# Assembly order. The board goes bottom up: the field, the zones, the
+# traces, the holes, the passives — and only then the units standing on it.
+# The callout labels are second to last: they lie on top of everything
+# except the pull-out panel.
 ORDER = [
-    'chassis',       # корпус и уши стойки
-    'pcb_field',     # текстолит с вырезами под блоки питания
-    'pcb_zones',     # резервации под крупные узлы + шелкография
-    'pcb_edge',      # разъёмы у кромки
-    'pcb_traces',    # разводка: публикует узлы для отверстий
-    'pcb_vias',      # переходные отверстия — по узлам разводки
-    'pcb_scatter',   # рассыпуха: садится в то, что осталось, поэтому поздно
-    'vrm',           # питание ядра, вплотную к сокетам
-    'front_panel',   # блок управления на фронте
-    'drives',        # корзина 2.5″
+    'chassis',       # chassis and rack ears
+    'pcb_field',     # laminate with cutouts for the power supplies
+    'pcb_zones',     # reservations for the large units + silkscreen
+    'pcb_edge',      # connectors along the edge
+    'pcb_traces',    # traces: publishes the nodes for the vias
+    'pcb_vias',      # vias — placed on the trace nodes
+    'pcb_scatter',   # passives: sit in whatever is left, hence late
+    'vrm',           # core power, right up against the sockets
+    'front_panel',   # control panel on the front
+    'drives',        # 2.5″ cage
     'backplane',
     'fans',
     'memory',
     'cpu',
-    'service',       # батарея, microSD, тумблер, таблица перемычки
+    'service',       # battery, microSD, toggle switch, jumper table
     'psu',
     'risers',
-    'rear_io',       # SFP+, RJ45, порт управления
-    'marks',         # обозначения узлов на текстолите
-    'frames',        # контурные рамки функциональных блоков
-    'callouts',      # подписи-ссылки — поверх всего
-    'lightpath',     # выдвижная панель диагностики
+    'rear_io',       # SFP+, RJ45, management port
+    'marks',         # unit designations on the laminate
+    'frames',        # outline frames of the functional blocks
+    'callouts',      # link labels — on top of everything
+    'lightpath',     # pull-out diagnostics panel
 ]
 
 
 
 def bbox(fragments):
-    """Грубые габариты нарисованного: по числам в координатных атрибутах.
+    """Rough extents of what was drawn: from the numbers in coordinates.
 
-    Считаем по координатным атрибутам и намеренно не разбираем пути: в d=""
-    вперемешку лежат абсолютные точки, относительные смещения и радиусы дуг,
-    и попытка взять их за координаты даёт габарит вдвое больше настоящего.
-    Для контроля «не залез ли блок к соседу» хватает прямоугольников,
-    окружностей, линий и подписей — важен порядок величины.
+    We count the coordinate attributes and deliberately do not parse paths:
+    a d="" holds absolute points, relative offsets and arc radii all mixed
+    together, and taking those for coordinates gives an extent twice the
+    real one. For the "did the block creep into its neighbour" check,
+    rectangles, circles, lines and labels are enough — what matters is the
+    order of magnitude.
     """
     xs, ys = [], []
     for frag in fragments:
@@ -114,41 +121,43 @@ def build():
             lx, ly, lw, lh = limits
             x0, y0, x1, y1 = box
             assert lx <= x0 and ly <= y0 and x1 <= lx + lw and y1 <= ly + lh, (
-                f'блок {name} вышел за свои границы: нарисовал '
-                f'({x0:.0f},{y0:.0f})–({x1:.0f},{y1:.0f}), объявил {limits}')
+                f'block {name} went outside its bounds: drew '
+                f'({x0:.0f},{y0:.0f})–({x1:.0f},{y1:.0f}), declared {limits}')
 
-    # Бирки-ссылки крупные и лежат поверх всего: наехав друг на друга, они
-    # прячут не деталь, а адрес — то единственное, ради чего схема сделана.
+    # The link labels are large and lie on top of everything: overlapping
+    # each other, they hide not a part but an address — the one thing the
+    # whole schematic was made for.
     boxes = [(callout_box(c[0], c[1], c[4], c[5]), c[4]) for c in board.callouts]
     for i, ((x1, y1, w1, h1), n1) in enumerate(boxes):
         for (x2, y2, w2, h2), n2 in boxes[i + 1:]:
             assert not (x1 < x2 + w2 and x1 + w1 > x2 and y1 < y2 + h2 and y1 + h1 > y2), (
-                f'бирки «{n1}» ({x1:.0f},{y1:.0f} {w1:.0f}×{h1:.0f}) и «{n2}» '
-                f'({x2:.0f},{y2:.0f} {w2:.0f}×{h2:.0f}) наехали друг на друга')
+                f'labels "{n1}" ({x1:.0f},{y1:.0f} {w1:.0f}×{h1:.0f}) and "{n2}" '
+                f'({x2:.0f},{y2:.0f} {w2:.0f}×{h2:.0f}) overlap each other')
 
     importlib.import_module('board.blocks.lid').render(lid)
 
     if board.lost:
-        print('НЕ РАЗМЕСТИЛОСЬ:', ', '.join(board.lost))
+        print('DID NOT FIT:', ', '.join(board.lost))
     return board, lid, report
 
 
-# Два вида вставок. @block — узел платы: у него есть геометрия, и правило
-# «узел живёт в трёх файлах одного имени» держится буквально. @part — часть
-# страницы: терминал, экран. Такие ничего не рисуют, .py у них нет, и лежат
-# они отдельно, чтобы правило узлов не пришлось размывать исключениями.
+# Two kinds of inserts. @block — a board unit: it has geometry, and the rule
+# "a unit lives in three files of the same name" holds literally. @part — a
+# piece of the page: the terminal, the screen. Those draw nothing, they have
+# no .py, and they live apart so the unit rule need not be blurred with
+# exceptions.
 SRC_DIR = {'block': 'board/blocks', 'part': 'board/parts'}
 
 BLOCK_MARK = re.compile(r'^([ \t]*)/\* @(block|part): ([a-z_]+) \*/[ \t]*$', re.MULTILINE)
 
 
 def build_css():
-    """Собрать server.css: база плюс стили узлов и частей на своих местах.
+    """Assemble server.css: the base plus unit and part styles in place.
 
-    Маркер `/* @block: имя */` стоит ровно там, где правила узла лежали в
-    едином файле. Это не украшение: при равной специфичности спор решает
-    порядок, и переезд правила вниз или вверх меняет вид, ничего не сломав
-    в синтаксисе.
+    The marker `/* @block: name */` sits exactly where the unit's rules used
+    to be in the single file. That is not decoration: with equal specificity
+    the argument is settled by order, and moving a rule up or down changes
+    the look without breaking anything in the syntax.
     """
     base = (HERE / 'board/styles/base.css').read_text(encoding='utf-8')
     used = []
@@ -172,13 +181,13 @@ JS_MARK = re.compile(r'^([ \t]*)// @(block|part): ([a-z_]+)[ \t]*$', re.MULTILIN
 
 
 def build_js():
-    """Собрать server.js: база плюс поведение узлов на своих местах.
+    """Assemble server.js: the base plus unit behaviour in place.
 
-    Куски вставляются внутрь того же IIFE, что и база, поэтому общая область
-    видимости сохраняется: блок по-прежнему видит line(), rig и остальное,
-    а терминал видит его функции. Порядок важен так же, как в CSS — код
-    выполняется сверху вниз, и обработчик, поднятый выше своего элемента,
-    просто не найдёт его в DOM.
+    The pieces are inserted inside the same IIFE as the base, so the shared
+    scope is preserved: a block still sees line(), rig and the rest, and the
+    terminal sees its functions. Order matters just as much as in CSS — the
+    code runs top to bottom, and a handler lifted above its own element
+    simply will not find it in the DOM.
     """
     base = (HERE / 'board/scripts/base.js').read_text(encoding='utf-8')
     used = []
@@ -198,12 +207,12 @@ def build_js():
 
 
 def tally(used):
-    """Строка отчёта: сколько узлов и сколько частей вставила сборка."""
+    """Report line: how many units and how many parts the build inserted."""
     blocks = [n for k, n in used if k == 'block']
     parts = [n for k, n in used if k == 'part']
-    out = f'база + {len(blocks)} узлов ({", ".join(blocks)})'
+    out = f'base + {len(blocks)} units ({", ".join(blocks)})'
     if parts:
-        out += f' + {len(parts)} частей ({", ".join(parts)})'
+        out += f' + {len(parts)} parts ({", ".join(parts)})'
     return out
 
 
@@ -216,16 +225,17 @@ def main():
     (HERE / 'board-v17.svg.part').write_text(svg, encoding='utf-8')
     (HERE / 'board-v17-lid.svg.part').write_text(lidart, encoding='utf-8')
 
-    # Паспорт машины уходит в страницу тем же прогоном, что и схема, — иначе
-    # они разойдутся. Перед этим сверяем обещанное с нарисованным: если в
-    # паспорте двадцать четыре планки, а на плате их двадцать три, сборка
-    # обязана упасть здесь, а не соврать гостю в консоли.
+    # The machine's passport goes into the page in the same run as the
+    # schematic — otherwise the two drift apart. Before that we check the
+    # promise against the drawing: if the passport says twenty-four DIMMs
+    # and the board carries twenty-three, the build must fail here rather
+    # than lie to the visitor in the console.
     drawn = {'dimm': svg.count('data-dimm="'), 'fan': svg.count('data-fan="'),
              'bay': svg.count('data-unit="hdd'), 'psu': svg.count('data-psu="'),
              'riser': svg.count('data-riser="'), 'cpu': svg.count('data-cpu="')}
     for kind, want in EXPECT.items():
         assert drawn[kind] == want, (
-            f'паспорт обещает {want} ({kind}), а на плате нарисовано {drawn[kind]}')
+            f'passport promises {want} ({kind}), the board draws {drawn[kind]}')
 
     page = HERE.parent / 'index.html'
     if page.exists():
@@ -234,7 +244,7 @@ def main():
                       lambda m: m.group(1) + '\n' + svg + '\n' + m.group(2), html, flags=re.DOTALL)
         html = re.sub(r'(<!-- LIDART:BEGIN -->).*?(<!-- LIDART:END -->)',
                       lambda m: m.group(1) + '\n' + lidart + '\n' + m.group(2), html, flags=re.DOTALL)
-        # Экранируем только «</»: внутри <script> он закрыл бы тег досрочно.
+        # We escape only "</": inside <script> it would close the tag early.
         spec = json.dumps(passport(), ensure_ascii=False, separators=(',', ':')).replace('</', '<\\/')
         html = re.sub(r'(<!-- SPEC:BEGIN -->).*?(<!-- SPEC:END -->)',
                       lambda m: m.group(1) + '\n<script type="application/json" id="rig-spec">'
@@ -243,11 +253,11 @@ def main():
             assert probe in html, probe
         page.write_text(html, encoding='utf-8')
 
-    print(f'плата: {len(board.parts)} фрагментов, {len(svg)} символов; '
-          f'крышка: {len(lidart)} символов')
-    print(f'паспорт: {len(json.dumps(passport()))} символов, сходится со схемой')
-    print('стили: ' + tally(css_blocks))
-    print('логика: ' + tally(js_blocks))
+    print(f'board: {len(board.parts)} fragments, {len(svg)} chars; '
+          f'lid: {len(lidart)} chars')
+    print(f'passport: {len(json.dumps(passport()))} chars, matches the board')
+    print('styles: ' + tally(css_blocks))
+    print('logic: ' + tally(js_blocks))
     return report
 
 

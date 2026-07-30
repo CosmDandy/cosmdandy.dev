@@ -1,12 +1,21 @@
-/* Полноэкранный слой: POST → BIOS Setup → top.
+/* Screen of the machine: POST → BIOS Setup → top.
  *
- * #crt лежит в body рядом с .rig, а не внутри неё — поэтому переменные .rig
- * сюда не докатываются вовсе (custom property наследуется по DOM-дереву, а
- * не по слою отрисовки). Красим слой полностью своими токенами: иначе синий
- * экран BIOS Setup поехал бы вместе со сменой темы страницы, а он обязан
- * быть синим всегда, как на живой машине.
+ * This is the service cover turned into a display. The panel sits in the
+ * board's own box, leans into the same plane as the chassis and arrives from
+ * above with the motion of a cover being put back on. It used to be a
+ * full-page layer, and on a personal card that was wrong: it covered the
+ * name, the view switch and the machine itself, while all it has to show is
+ * what a monitor plugged into this server would show.
+ *
+ * Every token here is local on purpose. Inheriting .rig colours would drag
+ * the blue of BIOS Setup along with the page theme, and that blue has to stay
+ * blue the way it does on a live machine.
+ *
+ * Sizes inside are in container units (cqw/cqh), not viewport units: the
+ * panel is now the size of the machine rather than the size of the window,
+ * and vh/vw would set type three times larger than the box holding it.
  */
-#crt {
+.crt {
   --crt-ink:   #93a1a1;
   --crt-dim:   #586e75;
   --crt-head:  #eee8d5;
@@ -25,24 +34,60 @@
   --bios-sel-fg:  #000000;
   --bios-help-bg: #0000c0;
 
-  position: fixed;
+  position: absolute;
   inset: 0;
-  width: 100vw;
-  height: 100vh;
-  max-width: none;
-  max-height: none;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: var(--crt-bg);
+  z-index: 5;
+  /* The panes measure themselves against this box, not against the window. */
+  container-type: size;
+  box-sizing: border-box;
+  padding: 0.7cqw;
+  border-radius: 6px;
+  background: #161f24;
+  border: 1px solid rgba(147, 161, 161, 0.34);
+  box-shadow: 0 20px 46px rgba(0, 0, 0, 0.45);
   color: var(--crt-ink);
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* The plane of the machine: the same tilt .chassis settles into. Hidden by
+     visibility rather than display, so the slide keeps its transition — and
+     so container queries still have a box to measure. */
+  /* Origin stays at the default centre so the settled panel lands in exactly
+     the plane .chassis sits in; pivoting at the top edge projected it a few
+     dozen points lower and wider than the machine underneath. */
+  transform: rotateX(13deg) translate3d(0, -108%, 0);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    transform 1.05s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.5s ease,
+    visibility 0s linear 1.05s;
 }
 
-/* Просто затемнение фона — без backdrop-filter: блюр дорогой, владелец его
-   отверг ради этой же схемы (см. .rig-glow — там та же причина). */
-#crt::backdrop {
-  background: rgba(0, 0, 0, 0.72);
+.crt.on {
+  transform: rotateX(13deg);
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition:
+    transform 1.05s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.4s ease,
+    visibility 0s;
+}
+
+/* The glass itself: the cover carries a bezel, the picture lives inside it. */
+.crt-glass {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--crt-bg);
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crt, .crt.on { transition: opacity 0.2s ease, visibility 0s; }
+  .crt { transform: rotateX(13deg); }
 }
 
 /* ── POST ─────────────────────────────────────────────────────────────── */
@@ -50,18 +95,18 @@
    и правило браузера [hidden] { display: none } с нулевой специфичностью ему
    проигрывает. Без этой строки самотест, setup и top видны одновременно,
    тремя окнами поверх друг друга. */
-#crt [hidden] { display: none !important; }
+.crt [hidden] { display: none !important; }
 
 .crt-post {
   box-sizing: border-box;
   width: 100%;
   height: 100%;
-  padding: 6vh 8vw;
+  padding: 5cqh 6cqw;
   display: flex;
   flex-direction: column;
   justify-content: center;
   gap: 2px;
-  font-size: clamp(13px, 1.6vw, 20px);
+  font-size: clamp(9px, 1.9cqw, 17px);
   line-height: 1.7;
 }
 .crt-post-log > div { white-space: pre; }
@@ -70,7 +115,7 @@
 .crt-post-log .err   { color: var(--crt-red); }
 .crt-post-log .muted { color: var(--crt-dim); }
 .crt-post-hint {
-  margin-top: 24px;
+  margin-top: 3cqh;
   color: var(--crt-dim);
   font-size: 0.7em;
 }
@@ -84,7 +129,7 @@
   flex-direction: column;
   background: var(--bios-bg);
   color: var(--bios-text);
-  font-size: clamp(12px, 1.3vw, 16px);
+  font-size: clamp(8px, 1.5cqw, 15px);
 }
 .crt-setup-tabs {
   display: flex;
@@ -114,7 +159,7 @@
 .crt-setup-rows {
   flex: 3;
   min-width: 0;
-  padding: 14px 18px;
+  padding: 1.6cqh 2cqw;
   overflow-y: auto;
 }
 .crt-row {
@@ -132,7 +177,7 @@
 .crt-setup-help {
   flex: 2;
   min-width: 0;
-  padding: 14px 16px;
+  padding: 1.6cqh 1.8cqw;
   background: var(--bios-help-bg);
   border-left: 2px solid var(--bios-border);
   font-size: 0.9em;
@@ -156,27 +201,27 @@
   box-sizing: border-box;
   width: 100%;
   height: 100%;
-  padding: 3vh 4vw;
+  padding: 4cqh 4cqw;
   display: flex;
   flex-direction: column;
-  gap: 3vh;
+  gap: 3cqh;
 }
 .crt-top-head {
   color: var(--crt-head);
-  font-size: clamp(13px, 1.4vw, 18px);
+  font-size: clamp(9px, 1.6cqw, 16px);
   white-space: pre-wrap;
 }
 .crt-top-grid {
   flex: 1;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(16cqw, 1fr));
+  gap: 2cqw;
   align-content: start;
 }
 .crt-top-card {
   border: 1px solid var(--crt-dim);
   border-radius: 6px;
-  padding: 14px 16px;
+  padding: 1.6cqh 1.8cqw;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -189,12 +234,12 @@
 }
 .crt-top-value {
   color: var(--crt-cyan);
-  font-size: clamp(28px, 4vw, 44px);
+  font-size: clamp(16px, 3.6cqw, 38px);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 .crt-top-value.warn { color: var(--crt-amber); }
-.crt-top-spark { width: 100%; height: 48px; display: block; }
+.crt-top-spark { width: 100%; height: 6cqh; display: block; }
 .crt-top-hint {
   color: var(--crt-dim);
   font-size: 0.75em;

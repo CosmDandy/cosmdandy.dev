@@ -83,13 +83,15 @@ if (view === 'rig') await page.evaluate(() => document.body.classList.add('view-
 if (service) await page.evaluate(() => document.getElementById('svc-switch')?.dispatchEvent(
   new MouseEvent('click', { bubbles: true })));
 await page.waitForTimeout(1000);
-// Монитор с самотестом открывается сам и закрывает собой всю страницу: кадр
-// в этот момент — чёрный экран POST, а не схема. Снимаем его перед съёмкой,
-// как это сделал бы человек клавишей Esc.
+// Монитор с самотестом поднимается сам и накрывает собой машину: кадр в этот
+// момент — экран POST, а не схема. Убираем его перед съёмкой, как это сделал
+// бы человек клавишей Esc.
 await page.evaluate(() => {
-  const crt = document.querySelector('dialog[open]');
-  if (crt) crt.close();
+  document.querySelectorAll('dialog[open]').forEach(d => d.close());
+  const crt = document.getElementById('crt');
+  if (crt) crt.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 });
+await page.keyboard.press('Escape');
 await page.waitForTimeout(400);
 
 const stat = await page.evaluate(() => {

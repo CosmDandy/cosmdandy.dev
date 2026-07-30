@@ -1,8 +1,8 @@
-"""Краска: всё, что на плате нанесено, а не установлено.
+"""Ink: everything printed on the board rather than mounted on it.
 
-Шелкография, подписи, выноски и зоны захвата. Общая на всю схему — если
-каждый блок заведёт своё начертание подписи, плата перестанет читаться как
-одна вещь.
+Silkscreen, labels, callouts and hit areas. Shared across the whole
+schematic — if every block invents its own lettering for labels, the board
+stops reading as one thing.
 """
 
 

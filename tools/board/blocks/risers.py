@@ -18,7 +18,7 @@ BOUNDS = (992, 150, 316, 340)
 
 from board.geom import RISER, X_IO, X_PCB_END, X_REAR, seat
 from board.ink import mono, silk_boxed
-from board.lamps import act_led, fault_at
+from board.lamps import act_led, fault_at, lamp
 from board.metal import hexgrid
 from board.palette import COLD
 from board.ports import sfp
@@ -32,7 +32,7 @@ def render(cv):
     cw = x1 - x0 - T - 46
 
     # Подпись ведёт к торцу карты, а не к стенке: гнёзда принадлежат ей.
-    cv.callouts.append((X_IO - 30, 218, X_IO + 4, 226, "LinkedIn", "end",
+    cv.callouts.append((X_IO - 30, 218, X_IO - 8, 226, "LinkedIn", "end",
                         "https://linkedin.com/in/cosmdandy", "ocp",
                         "профиль", "linkedin"))
 
@@ -88,9 +88,9 @@ def render(cv):
                      f'fill="#13282c" stroke="rgba(42,161,152,0.50)"/>'
                      + sfp(X_IO + 14, card_y + 2)
                      + sfp(X_IO + 14, card_y + 32)
-                     + f'<circle class="led-link" cx="{X_IO+8}" cy="{card_y+8}" r="3" fill="#2aa198"/>'
+                     + lamp('led-link', X_IO + 8, card_y + 8, 3, '#2aa198')
                      + act_led(3, X_IO + 8, card_y + 20, 3, "#859900", salt=2)
-                     + f'<circle class="led-link" cx="{X_IO+8}" cy="{card_y+38}" r="3" fill="#b58900"/>'
+                     + lamp('led-link', X_IO + 8, card_y + 38, 3, '#b58900')
                      + mono(X_IO + 43, card_y + 74, PORTS['sfp'], 9, op=0.5)
                      + mono(X_IO + 43, card_y + 86, PORTS['sfp_degraded'], 7, op=0.34))
             card += (f'<g class="unit" data-unit="ocp" data-group="ocp" '

@@ -11,15 +11,14 @@ RAIL_X = (250, 452, 654, 856)   # где на боковине сидят шты
 
 
 def rack_ears():
-    """Уши стойки: на фронте, но вылетают вбок, а не вперёд.
+    """Rack ears: on the front, but sticking out sideways rather than forward.
 
-    Ухо крепится к боковине шасси и уходит за её габарит — иначе ему не
-    достать до стойки, которая стоит по бокам от машины. Прежде они торчали
-    вперёд, в ту же сторону, куда выезжают диски: так 1U не держится ни в
-    одной стойке.
+    An ear bolts to the chassis side wall and reaches past it — otherwise it
+    cannot meet the rack posts, which stand to either side of the machine.
+    They used to point forward, the same way the drives slide out, and a 1U
+    built like that mounts in no rack at all.
 
-    Вид сверху: открытая сторона П-профиля, овальное отверстие под винт в
-    вылете и откидная защёлка на шарнире с точкой нажима.
+    Top view: just the plate outline and the darker recess inside it.
     """
 
     def one(top):
@@ -27,25 +26,14 @@ def rack_ears():
         y_edge = 4 if top else H - 4         # боковая стенка шасси
         y_out = y_edge + s * EAR_OUT         # дальняя грань уха
         y_lo, y_hi = sorted((y_out, y_edge + s * -18))
-        # Винт и защёлка делят ухо по глубине: слот под винт ближе к фронту,
-        # рычаг — к шасси. Пока они стояли друг на друге, рычаг перечёркивал
-        # слот и читался царапиной по пластине.
-        hinge_x, hinge_y = X_FRONT + EAR_D - 12, y_edge + s * -8
-        tip_x, tip_y = X_FRONT + EAR_D - 24, y_out + s * -6
+        # Inset is equal on all four sides: with the latch and the screw slot
+        # gone there is nothing left to make room for, and an even border reads
+        # as a milled recess instead of an empty frame.
         return f'''<g class="decor rack-ear">
   <rect x="{X_FRONT - 2}" y="{y_lo}" width="{EAR_D}" height="{y_hi - y_lo}" rx="3"
         fill="#1b2429" stroke="rgba(147,161,161,0.30)"/>
-  <rect x="{X_FRONT + 5}" y="{y_lo + 5}" width="{EAR_D - 14}" height="{y_hi - y_lo - 10}" rx="2"
+  <rect x="{X_FRONT + 4}" y="{y_lo + 6}" width="{EAR_D - 12}" height="{y_hi - y_lo - 12}" rx="2"
         fill="#0f1619" stroke="rgba(147,161,161,0.20)"/>
-  <ellipse cx="{X_FRONT + 15}" cy="{y_out + s * -11}" rx="8" ry="5.5"
-           fill="#0a1417" stroke="rgba(147,161,161,0.36)" stroke-width="1.4"/>
-  <circle cx="{hinge_x}" cy="{hinge_y}" r="3.2" fill="#0a1417" stroke="rgba(147,161,161,0.34)"/>
-  <path d="M{hinge_x} {hinge_y} L{tip_x} {tip_y}" stroke="rgba(147,161,161,0.10)"
-        stroke-width="10" stroke-linecap="round"/>
-  <path d="M{hinge_x} {hinge_y} L{tip_x} {tip_y}" fill="none"
-        stroke="rgba(147,161,161,0.34)" stroke-width="1.2"/>
-  <circle cx="{tip_x}" cy="{tip_y}" r="5.5" fill="#222d33" stroke="rgba(147,161,161,0.40)"/>
-  <circle cx="{tip_x}" cy="{tip_y}" r="2.2" fill="rgba(147,161,161,0.28)"/>
 </g>'''
 
     return one(True) + one(False)

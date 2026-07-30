@@ -32,7 +32,7 @@ from board.geom import (
     seat,
 )
 from board.ink import silk_frame
-from board.lamps import act_led, glow
+from board.lamps import act_led, lamp
 from board.metal import hexgrid
 from board.revision import stamp
 from board.spec import BAYS
@@ -132,8 +132,7 @@ def render(cv):
         # у самой грани: на живой корзине их читают сверху вниз одним взглядом,
         # а не выискивают у каждого диска в своём углу.
         lamps = (act_led(i, x + 9, y + 11, 3.4, "#859900")
-                 + f'{glow("led", x + 22, y + 11, 3.4, "#b58900")}'
-                   f'<circle class="led" cx="{x+22}" cy="{y+11}" r="3.4" fill="#b58900"/>')
+                 + lamp("led", x + 22, y + 11, 3.4, "#b58900"))
         sled = [(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="1" fill="#28323a" '
                  f'stroke="rgba(147,161,161,0.26)"/>')]
         # Сам накопитель: в каддике он виден как металлическая коробка. Ручка

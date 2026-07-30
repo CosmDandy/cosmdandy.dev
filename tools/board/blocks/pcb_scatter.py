@@ -9,6 +9,7 @@ import math
 from board.geom import (CHIPS, FAN_N, H, PCB_H, PCB_W, X_PCB, X_PCB_END, X_REAR, X_SVC,
                         Y_PSU_BOT, Y_PSU_TOP, fan_foot_y)
 from board.ink import empty_pads, hit, mono, silk_boxed
+from board.lamps import lamp
 from board.metal import pad, relief
 from board.palette import SILVER
 from board.revision import BOARD_REV, BOARD_SHA
@@ -192,7 +193,7 @@ def render(cv):
         # место под кварц диктует подпись частоты, а не корпус: он вдвое короче
         place(max(20, len(mark) * 3) + 6, 22, lambda x, y, m=mark: xtal(x + 2, y + 2, m), mark)
     bx, by, bw, bh = next((x, y, w, h) for n, _s, x, y, w, h in CHIPS if n == 'AST2600')
-    parts.append(f'<circle class="led-hb" cx="{bx + bw + 10}" cy="{by + 8}" r="4" fill="#859900"/>')
+    parts.append(lamp('led-hb', bx + bw + 10, by + 8, 4, '#859900'))
     parts.append(silk_boxed(bx + bw + 10, by + 24, "HB", 5.5, op=0.4))
     cv.busy(bx + bw + 2, by, 24, 32)
 
