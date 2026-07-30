@@ -523,11 +523,6 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
      специфичность выше, и спорить тут не о чем. */
   .sq-led { fill-opacity: 0; transition: fill-opacity 0.15s steps(1, end); }
 
-  /* Лампа информации: событие есть, но это не отказ. Горит ровно, без
-     мигания — мигает только ошибка, иначе панель начинает рябить. */
-  .led-info { fill-opacity: 0; transition: fill-opacity var(--fade); }
-  .rig.has-fault .led-info { fill-opacity: 0.5; }
-
   .hint {
     margin-top: 14px; text-align: center;
     font-family: ui-monospace, Menlo, monospace; font-size: 0.68rem; color: var(--dim);

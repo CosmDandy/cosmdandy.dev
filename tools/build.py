@@ -59,9 +59,7 @@ ORDER = [
     'front_panel',   # блок управления на фронте
     'drives',        # корзина 2.5″
     'backplane',
-    'cables',        # жгуты SlimSAS
     'fans',
-    'cable_ends',    # ответные разъёмы жгутов на плате
     'memory',
     'cpu',
     'service',       # батарея, microSD, тумблер, таблица перемычки
