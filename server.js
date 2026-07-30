@@ -32,6 +32,97 @@
     log.scrollTop = log.scrollHeight;
   }
 
+
+  // ── Лента ревизий ──────────────────────────────────────────────────────
+  // Плату собирает код, и каждая её правка — коммит. Значит по плате можно
+  // ходить назад: версии лежат отдельными файлами и грузятся по требованию.
+  // Держать все четырнадцать в странице означало бы три мегабайта ради
+  // функции, которой пользуются раз.
+  const timeline = document.getElementById('timeline');
+  const board = document.getElementById('board');
+  const tlRange = document.getElementById('tl-range');
+  const tlPrev = document.getElementById('tl-prev');
+  const tlNext = document.getElementById('tl-next');
+  const tlRev = document.getElementById('tl-rev');
+  const tlSubject = document.getElementById('tl-subject');
+  const tlMeta = document.getElementById('tl-meta');
+  const REPO = 'https://github.com/CosmDandy/cosmdandy.dev';
+
+  let revs = [];
+  let revPos = -1;
+  let revLoading = false;
+  const revCache = new Map();      // sha → разметка, чтобы не качать дважды
+
+  function paintTimeline() {
+    const last = revs.length - 1;
+    tlRange.style.setProperty('--tl-pos', last > 0 ? revPos / last : 0);
+    tlPrev.disabled = revPos <= 0;
+    tlNext.disabled = revPos >= last;
+    const v = revs[revPos];
+    if (!v) return;
+    tlRev.textContent = 'REV ' + (revPos + 1) + ' · ' + v.sha.toUpperCase();
+    tlSubject.textContent = v.subject;
+    tlMeta.href = REPO + '/commit/' + v.sha;
+  }
+
+  async function showRev(i) {
+    if (revLoading || i < 0 || i >= revs.length || i === revPos) return;
+    const v = revs[i];
+    revLoading = true;
+    chassis.classList.add('loading');
+    try {
+      let markup = revCache.get(v.sha);
+      if (markup === undefined) {
+        const res = await fetch('history/' + v.file);
+        if (!res.ok) throw new Error(res.status);
+        markup = await res.text();
+        revCache.set(v.sha, markup);
+      }
+      board.innerHTML = markup;
+      board.setAttribute('viewBox', v.viewBox);
+      revPos = i;
+      tlRange.value = String(i);
+      paintTimeline();
+      line('checkout ' + v.sha + ' · ' + v.subject, i === revs.length - 1 ? 'ok' : 'muted');
+    } catch (err) {
+      line('ревизия ' + v.sha + ' не загрузилась', 'err');
+    } finally {
+      chassis.classList.remove('loading');
+      revLoading = false;
+    }
+  }
+
+  async function initTimeline() {
+    if (revs.length) return;
+    try {
+      const res = await fetch('history/index.json');
+      if (!res.ok) throw new Error(res.status);
+      revs = await res.json();
+    } catch (err) {
+      return;                       // истории нет — ленты тоже, молча
+    }
+    if (revs.length < 2) return;
+    // Текущая плата уже в странице: кладём её в кэш последней версией,
+    // иначе возврат «в сегодня» перекачивал бы то, что и так на экране.
+    revCache.set(revs[revs.length - 1].sha, board.innerHTML);
+    revPos = revs.length - 1;
+    tlRange.max = String(revs.length - 1);
+    tlRange.value = String(revPos);
+    timeline.hidden = false;
+    paintTimeline();
+  }
+
+  tlRange.addEventListener('input', function () { showRev(Number(tlRange.value)); });
+  tlPrev.addEventListener('click', function () { showRev(revPos - 1); });
+  tlNext.addEventListener('click', function () { showRev(revPos + 1); });
+  // Стрелками ходить удобнее, чем мышью, но только когда лента на экране
+  document.addEventListener('keydown', function (e) {
+    if (timeline.hidden || !rig.classList.contains('service')) return;
+    if (e.target.closest('input, textarea')) return;
+    if (e.key === 'ArrowLeft') { e.preventDefault(); showRev(revPos - 1); }
+    if (e.key === 'ArrowRight') { e.preventDefault(); showRev(revPos + 1); }
+  });
+
   const POST = [
     ['DDR5 populated: 32 of 32', 'ok', 260],
     ['cpu0 · LGA 4677 · 32c', 'ok', 180],
@@ -149,6 +240,7 @@
     const on = rig.classList.toggle('service');
     line(on ? 'service mode engaged · терминал и диагностика' : 'service mode released',
          on ? 'warn' : 'muted');
+    if (on) initTimeline();     // лента нужна только разобранной машине
     if (on && !rig.classList.contains('lp-open')) toggleLp();
     if (!on && rig.classList.contains('lp-open')) toggleLp();
     if (!on) {
