@@ -11,7 +11,7 @@
 # Свой прямоугольник: сборка проверит, что узел из него не вышел.
 BOUNDS = (184, 6, 244, 832)
 
-from board.geom import FAN_H, FAN_N, FAN_STEP, FAN_W, X_FAN, X_PCB, H, fan_foot_y
+from board.geom import FAN_H, FAN_N, FAN_STEP, FAN_W, X_FAN, X_PCB, H, fan_foot_y, seat
 from board.ink import mono, silk_inverse
 from board.lamps import fault_at, jitter
 from board.revision import stamp
@@ -101,7 +101,7 @@ def render(cv):
                       f'stroke="rgba(147,161,161,0.16)"/>' for t in range(int((FAN_W-20)//7)))
             for fy0 in (y + 2, y + h - 7))
 
-        cv.add(f'''<g class="pick fan" data-fan="{i}">
+        cv.add(f'''<g class="pick fan" data-fan="{i}" style="--seat:{seat('fan', i)}">
       <g class="pick-body">
         {tabs}
         <rect x="{X_FAN+4}" y="{y}" width="{FAN_W-8}" height="{h}" rx="0" fill="#0b1215" stroke="rgba(147,161,161,0.18)"/>

@@ -11,7 +11,7 @@
 BOUNDS = (-120, 194, 292, 664)
 
 from board.geom import (
-    BAY_DEPTH, BAY_N, BAY_TOP, BAY_W, CAP, FRONT_W, GROUP_GAP, GROUP_H, H, X_FRONT,
+    BAY_DEPTH, BAY_N, BAY_TOP, BAY_W, CAP, FRONT_W, GROUP_GAP, GROUP_H, H, X_FRONT, seat,
 )
 from board.metal import hexgrid
 from board.ink import mono, silk_frame
@@ -130,7 +130,8 @@ def render(cv):
         if i == BAY_N - 1:
             cv.add(bay_filler(x, y, w, h))
             continue
-        cv.add(f'''<g class="unit pick bay" data-unit="hdd{i}" data-group="hdd" data-href="https://github.com/cosmdandy">
+        cv.add(f'''<g class="unit pick bay" data-unit="hdd{i}" data-group="hdd"
+          style="--seat:{seat('bay', i)}" data-href="https://github.com/cosmdandy">
       <g class="pick-body">{''.join(sled)}</g>
       <g class="bay-handle">{handle}</g>
     </g>''')

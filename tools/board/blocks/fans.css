@@ -12,3 +12,14 @@
   @keyframes spin { to { transform: rotate(360deg); } }
 
   .rig.service .fan.pulled .pick-body { transform: translateY(-30px) scale(1.03); }
+
+  /* Сборка: вентилятор опускают в стенку сверху — в 1U он входит вертикально,
+     между стойкой корзины и платой места нет ни для какого другого движения.
+     Момент посадки задаёт --seat, его проставляет генератор: расписание всей
+     сборки живёт в geom, а здесь только «откуда и как». */
+  .rig.assembly .fan {
+    animation: seatFan 0.62s var(--seat, 0s) cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  @keyframes seatFan {
+    from { opacity: 0; transform: translateY(-42px); }
+  }

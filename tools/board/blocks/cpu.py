@@ -5,7 +5,7 @@
 
 import math
 
-from board.geom import SOCKET_H, SOCKET_W, X_CORE, X_SOCK, X_TAG, Y_CPU0, Y_CPU1
+from board.geom import SOCKET_H, SOCKET_W, X_CORE, X_SOCK, X_TAG, Y_CPU0, Y_CPU1, seat
 from board.ink import hit, mono, silk_boxed, silk_inverse, tag
 from board.lamps import fault
 from board.metal import ihs_path
@@ -171,7 +171,7 @@ def render(cv):
         cv.add(f'''<g class="unit" data-unit="cpu{n}" data-group="cpu" data-href="https://cv.cosmdandy.dev">
       {hit(X_SOCK-6, y-6, SOCKET_W+58, SOCKET_H+12)}
       {ilm(X_SOCK, y)}
-      <g class="pick cpu-slot" data-cpu="{n}">
+      <g class="pick cpu-slot" data-cpu="{n}" style="--seat:{seat('cpu', n)}">
         {socket(X_SOCK, y)}{die(X_SOCK, y, n)}{heatsink(X_SOCK, y)}
         {fault(X_SOCK+SOCKET_W+16, y+SOCKET_H-10, 5)}
         {silk_inverse(X_SOCK+SOCKET_W+26, y+SOCKET_H-18, f'CPU{n} ERROR', 6)}

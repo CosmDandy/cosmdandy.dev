@@ -14,3 +14,12 @@
      на его месте остаётся гнездо с направляющими. */
   .rig.service .bay.pulled .pick-body { transform: translateX(-104px); }
   .rig.service .bay.pulled .bay-handle { transform: translateX(-104px) rotate(-42deg); }
+
+  /* Сборка: диск задвигают спереди, тем же путём, которым он выезжает при
+     разборе, — только в обратную сторону. */
+  .rig.assembly .bay {
+    animation: seatBay 0.6s var(--seat, 0s) cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  @keyframes seatBay {
+    from { opacity: 0; transform: translateX(-104px); }
+  }

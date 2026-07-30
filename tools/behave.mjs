@@ -54,12 +54,35 @@ const cls = sel => page.evaluate(s => document.querySelector(s)?.className?.base
 const logText = () => page.evaluate(() => document.getElementById('log')?.textContent ?? '');
 const rigCls = () => page.evaluate(() => document.getElementById('rig').className);
 
-// 1. Питание. Пока поднимается BMC, машина в init и жать бесполезно; дальше
-// standby — и включает её кнопка, сама она не стартует.
+// 0. Сборка. Первый заход показывает пустое шасси и ставит узлы по одному:
+// вентиляторы и блоки питания, процессоры, память по каналам, райзеры,
+// диски. Проверяем, что она заканчивается сама и не оставляет ни одного
+// узла за бортом — молча потерянный узел выглядит как «так и было».
+check('дежурный режим', (await rigCls()).includes('standby') || (await rigCls()).includes('init'),
+      await rigCls());
 await page.waitForFunction(
-  () => document.getElementById('rig').classList.contains('standby'), null, { timeout: 15000 }
+  () => !document.getElementById('rig').classList.contains('assembly'), null, { timeout: 20000 }
 ).catch(() => {});
-check('дежурный режим', (await rigCls()).includes('standby'), await rigCls());
+check('сборка завершилась', !(await rigCls()).includes('assembly'), await rigCls());
+const seated = await page.evaluate(() => {
+  const vis = sel => [...document.querySelectorAll(sel)]
+    .filter(el => parseFloat(getComputedStyle(el).opacity) > 0.5).length;
+  return { вент: vis('.fan'), бп: vis('.psu'), цп: vis('.cpu-slot .heatsink'),
+           память: vis('.dimm .pick-body'), райзер: vis('.riser'), диски: vis('.bay') };
+});
+check('все узлы сели на места',
+      seated.вент === 8 && seated.бп === 2 && seated.цп === 2 && seated.память === 24
+      && seated.райзер === 2 && seated.диски === 7, JSON.stringify(seated));
+
+// 1. Питание. Собранная машина стартует сама — сборка кончилась, значит её
+// можно включать. Дальше кнопка работает как обычно: выключает и включает.
+await page.waitForFunction(
+  () => document.getElementById('rig').classList.contains('on'), null, { timeout: 15000 }
+).catch(() => {});
+check('машина стартовала после сборки', (await rigCls()).includes('on'), await rigCls());
+await click('#power');
+await page.waitForTimeout(300);
+check('кнопка выключает', (await rigCls()).includes('standby'), await rigCls());
 await click('#power');
 await page.waitForFunction(
   () => document.getElementById('rig').classList.contains('on'), null, { timeout: 15000 }

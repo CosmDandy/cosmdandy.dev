@@ -8,3 +8,12 @@
   .psu.pulled .led, .psu.pulled .led.aux,
   .psu.pulled .fault-sys, .psu.pulled .fault-sys.halo { fill-opacity: 0.1; animation: none; }
   .psu.pulled .fan-blades { animation-play-state: paused; }
+
+  /* Сборка: блок питания заходит сзади, из своего кармана. Едет он дальше
+     остальных — путь до разъёма у него длинный, и это видно по руке. */
+  .rig.assembly .psu {
+    animation: seatPsu 0.78s var(--seat, 0s) cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  @keyframes seatPsu {
+    from { opacity: 0; transform: translateX(96px); }
+  }

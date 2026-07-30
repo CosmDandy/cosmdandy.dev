@@ -10,7 +10,7 @@
 # Первая карта доходит до задней стенки: её торец — это гнёзда SFP+.
 BOUNDS = (992, 160, 316, 400)
 
-from board.geom import X_IO, X_PCB_END, X_REAR
+from board.geom import X_IO, X_PCB_END, X_REAR, seat
 from board.ink import mono, silk_boxed, silk_inverse
 from board.lamps import act_led, fault_at
 from board.metal import hexgrid
@@ -118,7 +118,7 @@ def render(cv):
       {''.join(f'<line x1="{x0+22+j*9}" y1="{edge_y+1}" x2="{x0+22+j*9}" y2="{edge_y+7}" stroke="rgba(133,153,0,0.22)"/>' for j in range(int(cw // 9) - 1))}
       {silk_boxed(x0 + 18 + cw / 2, edge_y + 22, f"RISER_{k+1} · PCIE_G5 ×16", 6)}
     </g>''')
-        cv.add(f'''<g class="pick riser" data-riser="{k+1}">
+        cv.add(f'''<g class="pick riser" data-riser="{k+1}" style="--seat:{seat('riser', k)}">
       <g class="pick-body">
         <path d="{d}" fill="#141d22" stroke="rgba(147,161,161,0.30)" stroke-width="1.4"/>
         {hexgrid(x1 - T + 8, hex_y, T - 16, hh - T - 12)}

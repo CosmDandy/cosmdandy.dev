@@ -1,2 +1,11 @@
   /* Райзер и блок питания выходят назад, из задней стенки. */
   .rig.service .riser.pulled .pick-body { transform: translateX(46px); }
+
+  /* Сборка: райзер опускают в свой разъём сверху, целиком — вместе с картой
+     и кронштейном. */
+  .rig.assembly .riser {
+    animation: seatRiser 0.72s var(--seat, 0s) cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  @keyframes seatRiser {
+    from { opacity: 0; transform: translateY(-56px); }
+  }
