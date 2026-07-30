@@ -399,7 +399,22 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   .rig.service .pick.pulled .pick-body { transform: translateY(-24px); }
   /* Диск выезжает вперёд, к фронту — то есть влево. */
   /* ── drives ──────────────────────────────── */
-  .rig.service .bay.pulled .pick-body { transform: translateX(-58px); }
+  /* Диск достают в два приёма: сначала отщёлкивают ручку, и только потом
+     каддик идёт наружу. Ручка сидит на оси у внутренней кромки, поэтому
+     поворачивается, а не съезжает. transform-box: fill-box нужен, чтобы
+     процент в transform-origin считался от самой группы, а не от холста. */
+  .bay-handle {
+    transform-box: fill-box;
+    transform-origin: 100% 50%;
+    transition: transform var(--spring);
+  }
+
+  .rig.service .bay.unlatched .bay-handle { transform: rotate(-26deg); }
+
+  /* Наружу — за габарит шасси: диск физически выходит из корзины вперёд, и
+     на его месте остаётся гнездо с направляющими. */
+  .rig.service .bay.pulled .pick-body { transform: translateX(-104px); }
+  .rig.service .bay.pulled .bay-handle { transform: translateX(-104px) rotate(-26deg); }
   /* ── fans ──────────────────────────────── */
   .fan-blades { transform-box: fill-box; transform-origin: center; animation: spin 2.1s linear infinite; animation-play-state: paused; }
   .rig.on .fan-blades { animation-play-state: running; }

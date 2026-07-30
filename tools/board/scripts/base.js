@@ -187,7 +187,11 @@
     if (on && !rig.classList.contains('lp-open')) toggleLp();
     if (!on && rig.classList.contains('lp-open')) toggleLp();
     if (!on) {
-      chassis.querySelectorAll('.pulled').forEach(function (p) { p.classList.remove('pulled', 'opened'); });
+      // Собираем машину целиком: узел мог остаться и на промежуточной
+      // ступени — с откинутой ручкой диска или снятым радиатором.
+      chassis.querySelectorAll('.pulled, .unlatched').forEach(function (p) {
+        p.classList.remove('pulled', 'opened', 'unlatched');
+      });
       updateFault();
     }
   }
