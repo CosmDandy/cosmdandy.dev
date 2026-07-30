@@ -1,0 +1,4 @@
+  .svc-switch { cursor: pointer; }
+  .svc-knob { transition: transform var(--spring), fill var(--fade), stroke var(--fade); transform-box: fill-box; }
+  .rig.service .svc-knob { transform: translateX(52px); fill: rgba(181,137,0,0.35); stroke: rgba(181,137,0,0.7); }
+  .svc-switch:hover .svc-knob { stroke: rgba(147,161,161,0.7); }

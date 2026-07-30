@@ -345,3 +345,10 @@ tools/*.svg.part
 # скриптом tools/history.py. В репозитории они были бы вторым экземпляром
 # того, что уже лежит в коммитах.
 history/
+
+# кадры визуальной сверки и просмотра — локальные артефакты
+tools/.visual/
+tools/preview.png
+tools/__pycache__/
+tools/board/__pycache__/
+tools/board/blocks/__pycache__/
