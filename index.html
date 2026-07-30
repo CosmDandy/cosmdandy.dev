@@ -153,7 +153,29 @@
             <p class="now"><span class="live-dot"></span>currently building infrastructure @ CodeKVT · remote</p>
         </header>
 
+        <div class="panel">
+            <!-- Модель машины живёт в заголовке, а не в логе: лог для событий. -->
+            <h2>
+                <span class="con-name">console</span>
+                <span class="con-spec">CD93-FS1 · 1U · 2× Xeon Scalable · 32× DDR5 · 6× U.2 NVMe · 2× 25G SFP+</span>
+                <span class="con-up">up <span id="uptime">--:--</span></span>
+            </h2>
+            <div class="console-log" id="log"></div>
+            <form class="prompt" id="prompt-form" autocomplete="off">
+                <span class="ps1">cosmdandy@cd93:~$</span>
+                <input id="prompt" type="text" spellcheck="false" aria-label="Команда"
+                       placeholder="help — список команд">
+            </form>
+        </div>
+
+        <!--
+            Машина и приборы. Приборы — как выдвижная панель диагностики,
+            только с другой стороны: light path выходит из корпуса слева,
+            метрики стоят справа. Сцена по центру и размера не меняет.
+        -->
+        <div class="rig-body">
         <div class="stage">
+            <div class="rig-glow" aria-hidden="true"></div>
             <div class="chassis" id="chassis">
 <svg viewBox="-160 -12 1634 887" role="img" aria-label="Схема сервера: компоненты — ссылки на разделы">
 <rect x="4" y="4" width="1306" height="855" rx="14" fill="#141c20" stroke="rgba(147,161,161,0.30)"/>
@@ -813,27 +835,6 @@
             </div>
         </div>
 
-        <div class="rig-bottom">
-        <div class="panel">
-            <!-- Модель машины живёт в заголовке, а не в логе: лог для событий. -->
-            <h2>
-                <span class="con-name">console</span>
-                <span class="con-spec">CD93-FS1 · 1U · 2× Xeon Scalable · 32× DDR5 · 6× U.2 NVMe · 2× 25G SFP+</span>
-                <span class="con-up">up <span id="uptime">--:--</span></span>
-            </h2>
-            <div class="console-log" id="log"></div>
-            <form class="prompt" id="prompt-form" autocomplete="off">
-                <span class="ps1">cosmdandy@cd93:~$</span>
-                <input id="prompt" type="text" spellcheck="false" aria-label="Команда"
-                       placeholder="help — список команд">
-            </form>
-        </div>
-
-        <!--
-            Приборы. Значения не выдуманы на ходу: они считаются из состояния
-            машины — выключенный хост, вынутый вентилятор или планка памяти
-            сразу видны в цифрах и на графике.
-        -->
         <aside class="gauges" aria-label="Метрики машины">
             <div class="gauge" data-metric="cpu">
                 <span class="g-name">cpu load</span>
@@ -877,6 +878,7 @@
             </div>
         </aside>
         </div>
+
     </section>
 
     <footer class="meta">
