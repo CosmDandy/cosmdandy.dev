@@ -178,6 +178,53 @@ const stamp = await page.evaluate(() => {
 check('партномер ссылается на свой коммит',
   stamp.href.includes('/commit/' + stamp.sha) && stamp.sha.length === 7, stamp.sha);
 
+// 9. Паспорт машины. Он печатается генератором в страницу и обязан сходиться
+// со схемой: если в нём двадцать четыре планки, а нарисовано двадцать три,
+// врать начнёт каждая команда разом.
+const spec = await page.evaluate(() => {
+  try { return JSON.parse(document.getElementById('rig-spec').textContent); } catch (e) { return null; }
+});
+check('паспорт разбирается', !!spec && !!spec.cpu, spec ? 'есть' : 'нет');
+const drawn = await page.evaluate(() => ({
+  dimm: document.querySelectorAll('[data-dimm]').length,
+  fan: document.querySelectorAll('[data-fan]').length,
+  bay: document.querySelectorAll('.unit.pick.bay').length,
+  psu: document.querySelectorAll('[data-psu]').length,
+  cpu: document.querySelectorAll('[data-cpu]').length,
+}));
+check('паспорт сходится со схемой',
+  spec && drawn.dimm === spec.dimm.slots && drawn.fan === spec.fan.n
+  && drawn.psu === spec.psu.n && drawn.cpu === spec.cpu.n
+  && drawn.bay === spec.bay.filter(b => !b.filler).length,
+  JSON.stringify(drawn));
+
+// 10. Команды считают по схеме, а не по памяти. Раньше dimm обещал тридцать
+// две планки при двадцати четырёх, а nvme list не смотрел на корзину вовсе.
+const run = s => page.evaluate(cmd => (window.__rig.exec(cmd) || []).map(r => r.t).join('\n'), s);
+check('терминал отвечает', (await run('help')).includes('ОБОЛОЧКА'), 'help');
+check('dimm печатает 24 из 24', (await run('dimm')).includes('24 of 24'), await run('dimm'));
+check('nvme перечисляет семь дисков',
+  (await run('nvme list')).split('\n').length === spec.bay.filter(b => !b.filler).length, 'nvme');
+const fansOut = await run('fans');
+check('в стенке нет выдуманного пустого места', !fansOut.includes('empty'), fansOut.split('\n')[5]);
+check('fru берёт ревизию из платы',
+  (await run('fru')).includes('Serial Number  : ' + spec.board.sha), 'fru');
+
+// 11. Вынутый узел меняет вывод: команда обязана смотреть на схему в момент
+// вызова, а не печатать состав из паспорта.
+await click('#svc-switch');
+await page.waitForTimeout(200);
+await click('.dimm');
+await page.waitForTimeout(400);
+check('вынутая планка видна в dimm', (await run('dimm')).includes('23 of 24'), await run('dimm'));
+await click('#svc-switch');
+await page.waitForTimeout(400);
+
+// 12. Дополнение по Tab: кандидаты берутся из реестра, а не из отдельного
+// списка — иначе справка и дополнение расходятся с набором команд.
+const comp = await page.evaluate(() => window.__rig.complete('sen'));
+check('Tab дополняет команду', comp.length === 1 && comp[0] === 'sensors', comp.join(','));
+
 const failed = results.filter(r => !r[1]);
 for (const [name, ok, got] of results) console.log(`  ${ok ? '·' : 'СЛОМАНО'} ${name}${ok ? '' : ` → ${got}`}`);
 if (errors.length) console.log(`  ОШИБКИ: ${errors.slice(0, 2).join(' | ')}`);
