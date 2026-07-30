@@ -83,7 +83,7 @@ if (scene.assembly) {
   // Считаем, сколько узлов уже на месте: узел сел, когда его анимация
   // закончилась и он перестал быть прозрачным.
   const t0 = Date.now();
-  for (let i = 0; i <= 20; i++) {
+  for (let i = 0; i <= 26; i++) {
     while (Date.now() - t0 < i * 420) await page.waitForTimeout(6);
     const st = await page.evaluate(() => {
       const seated = sel => [...document.querySelectorAll(sel)]

@@ -45,6 +45,17 @@
     rig.classList.remove('assembly');
   }
 
+  /** Пересобрать машину: снять узлы и посадить заново по расписанию. */
+  function reassemble() {
+    if (rig.classList.contains('assembly')) return;
+    // Класс приходится снять и вернуть следующим кадром — иначе браузер не
+    // считает анимацию новой и ничего не проигрывает.
+    rig.classList.remove('assembly');
+    void chassis.offsetWidth;
+    rig.classList.add('assembly');
+    wait(assemblyEnd(), finishAssembly);
+  }
+
   // ── Консоль ────────────────────────────────────────────────────────────
   function line(text, cls) {
     const d = document.createElement('div');
@@ -505,17 +516,9 @@
         wait(1200, function () { line('power on', 'muted'); powerOn(); });
         break;
       case 'assemble':
-        // Пересборка: узлы снимаются со своих мест и садятся заново по тому
-        // же расписанию. Класс приходится снять и вернуть следующим кадром —
-        // иначе браузер не считает анимацию новой и ничего не проигрывает.
-        rig.classList.remove('assembly');
-        void chassis.offsetWidth;
-        rig.classList.add('assembly');
         line('re-seating all units …', 'muted');
-        wait(assemblyEnd(), function () {
-          finishAssembly();
-          line('all units seated', 'ok');
-        });
+        reassemble();
+        wait(assemblyEnd(), function () { line('all units seated', 'ok'); });
         break;
       case 'fru': FRU.forEach(function (l) { line(l); }); break;
       case 'bios': BIOS.forEach(function (l) { line(l); }); break;
@@ -781,6 +784,15 @@
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setLid(off); line(msg, 'muted'); }
     });
   }
+  const assembleBtn = document.getElementById('assemble-btn');
+  if (assembleBtn) {
+    assembleBtn.addEventListener('click', function () {
+      line('re-seating all units …', 'muted');
+      reassemble();
+      wait(assemblyEnd(), function () { line('all units seated', 'ok'); });
+    });
+  }
+
   bindLid(lidRemove, true, 'cover removed');
   bindLid(lidOn, false, 'cover in place');
 

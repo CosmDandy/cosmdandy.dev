@@ -27,8 +27,12 @@
      разным процессорам. */
   .rig.assembly .dimm .pick-body,
   .rig.assembly .dimm .latch {
-    animation: seatDimm 0.42s var(--seat, 0s) cubic-bezier(0.22, 1, 0.36, 1) backwards;
+    animation: seatDimm var(--click) var(--seat, 0s) backwards;
   }
   @keyframes seatDimm {
     from { opacity: 0; transform: translateY(-22px); }
   }
+
+  /* Планку держат защёлки по торцам: пока они не откинулись, модуль
+     стоит намертво, а дальше выходит рывком. */
+  .dimm .pick-body { transition: transform var(--click); }

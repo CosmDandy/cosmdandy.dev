@@ -53,6 +53,42 @@ body.view-rig .rig { display: block; }
         transform    0.44s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
+/* Кнопка пересборки: та же плитка, что у вида и темы, третьей в ряду.
+   Показываем только на схеме — в виде карточки пересобирать нечего. */
+.assemble-btn {
+    position: fixed;
+    top: 24px;
+    right: 132px;
+    z-index: 4;
+    display: none;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    padding: 0;
+    border-radius: 14px;
+    border: 1px solid var(--inv-line);
+    background: var(--inv-surface);
+    box-shadow: var(--inv-shadow);
+    color: var(--inv-node);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition:
+        background   var(--theme-fade),
+        border-color var(--theme-fade),
+        box-shadow   var(--theme-fade),
+        transform    0.44s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+body.view-rig .assemble-btn { display: grid; }
+.assemble-btn svg { width: 21px; height: 21px; display: block; }
+.assemble-btn:hover { transform: translate3d(0, -1px, 0); }
+/* Пока сборка идёт, кнопка отжата и повторно не срабатывает: второй запуск
+   поверх первого сбивал бы расписание, и часть узлов оставалась бы вне. */
+.rig.assembly ~ .assemble-btn,
+body:has(.rig.assembly) .assemble-btn { opacity: 0.45; pointer-events: none; }
+.assemble-btn:active svg { transform: rotate(-40deg); }
+.assemble-btn svg { transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.assemble-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+
 .view-switch:hover { transform: translate3d(0, -1px, 0); }
 .view-switch:active { transform: translate3d(0, 0, 0) scale(0.96); }
 .view-switch:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
@@ -91,6 +127,15 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
      пружинный доводчик на нём читался рывком, а не движением руки. */
   --spring: 0.6s cubic-bezier(0.34, 1.3, 0.64, 1);
   --glide: 0.72s cubic-bezier(0.22, 1, 0.36, 1);
+  /* Щелчок: узел на защёлке сначала не поддаётся, потом срывается и дальше
+     идёт свободно, замедляясь. Так вынимают планку, вентилятор, райзер и
+     блок питания — всё, что фиксируется. Процессор так не ходит: его не
+     дёргают, а поднимают, поэтому у него остаётся --glide.
+     Первая четверть времени — сопротивление, за следующую седьмую узел
+     проходит больше половины пути, остальное — доводка. */
+  --click: 0.85s linear(
+      0, 0.008 12%, 0.026 24%, 0.12 30%, 0.34 35%, 0.62 41%,
+      0.79 48%, 0.89 57%, 0.95 68%, 0.984 80%, 1);
 
   position: relative;
   z-index: 1;
