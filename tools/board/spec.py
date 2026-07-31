@@ -1,23 +1,24 @@
-"""Паспорт машины: что это за железо.
+"""Machine passport: what kind of hardware this is.
 
-`geom` отвечает на вопрос «что где лежит», `spec` — «что это такое». Разные
-вопросы, разные файлы: координата сокета и модель процессора меняются по
-разным поводам.
+`geom` answers the question "what lies where", `spec` answers "what it is".
+Different questions, different files: the coordinate of a socket and the model
+of a processor change for different reasons.
 
-Зачем он вообще понадобился. Раньше числа жили в шелкографии блоков, а
-консоль повторяла их литералами по памяти — и разошлась: на плате двадцать
-четыре планки, в консоли тридцать две, и так в шести местах сразу. Теперь
-числа живут здесь, блоки берут отсюда свои надписи, а страница получает тот
-же паспорт целиком в машиночитаемом виде. Соврать по-прежнему можно, но уже
-только одновременно и в консоли, и на текстолите.
+Why it was needed at all. The numbers used to live in the silkscreen of the
+blocks, and the console repeated them as literals from memory — and drifted
+apart: twenty-four DIMMs on the board, thirty-two in the console, and like that
+in six places at once. Now the numbers live here, the blocks take their
+captions from here, and the page gets the same passport whole in a
+machine-readable form. Lying is still possible, but only in the console and on
+the laminate at the same time.
 
-Правило трёх слоёв, на котором держится честность вывода:
+The rule of three layers that keeps the output honest:
 
-    паспорт  — что за железо стоит          (этот файл)
-    DOM      — что из него сейчас на месте  (вынутые узлы считает скрипт)
-    NVRAM    — как оно настроено            (что человек поменял в setup)
+    passport — what hardware is fitted     (this file)
+    DOM      — what of it is in place now  (the script counts pulled units)
+    NVRAM    — how it is configured        (what a person changed in setup)
 
-Литералов в командах не остаётся: любое число приходит из одного из трёх.
+No literals are left in the commands: every number comes from one of the three.
 """
 
 from board.geom import BANK_N, BAY_N, CHIPS, FAN_N, PSU_Y
@@ -25,17 +26,17 @@ from board.revision import BOARD_REV, BOARD_SHA
 
 BOARD = {'model': 'CD93-FS1', 'form': '1U', 'vendor': 'CodeKVT'}
 
-# Два EPYC 9965: 192 ядра Zen 5c на сокет — предел плотности x86. Двенадцать
-# каналов памяти на процессор объясняют наши двадцать четыре слота ровно: по
-# одной планке на канал, без второго ранга и потери скорости.
+# Two EPYC 9965: 192 Zen 5c cores per socket — the density limit of x86. Twelve
+# memory channels per processor explain our twenty-four slots exactly: one DIMM
+# per channel, without a second rank and the loss of speed.
 CPU = {
     'n': 2, 'model': 'AMD EPYC 9965', 'short': 'EPYC 9965', 'socket': 'SP5',
     'family': 'Turin · Zen 5c', 'cores': 192, 'threads': 384, 'tdp': 500,
     'base': 2.25, 'boost': 3.7, 'channels': 12, 'l3': 384,
 }
 
-# Планки: по одной на канал. Банк L целиком принадлежит CPU0, банк R — CPU1,
-# средний делят пополам — отсюда по двенадцать планок на процессор.
+# DIMMs: one per channel. Bank L belongs to CPU0 entirely, bank R to CPU1, and
+# the middle one is split in half — hence twelve DIMMs per processor.
 DIMM = {
     'kind': 'DDR5 RDIMM', 'size_gb': 96, 'speed': 6400, 'ranks': '2Rx8',
     'banks': (
@@ -45,9 +46,10 @@ DIMM = {
     ),
 }
 
-# Каддики: два отсека заняты заглушками — так и на живой машине, полностью
-# набитая корзина выдаёт рендер. Заглушки стоят вразбивку, а не подряд: диски
-# в парк доезжают по мере надобности, и дырки в корзине остаются где попало.
+# Caddies: two bays are taken by fillers — same as on a live machine, a fully
+# packed cage gives away a render. The fillers sit apart rather than side by
+# side: drives reach the fleet as the need arises, and the gaps in the cage are
+# left wherever they happen to fall.
 OPTANE_BAY = 2
 FILLER_BAYS = (4, BAY_N - 1)
 BAYS = tuple(
@@ -82,16 +84,17 @@ def total_ram_gb():
 
 
 def ram_label():
-    """Строка для шелкографии: столько памяти держит эта плата."""
+    """Line for the silkscreen: this is how much memory the board holds."""
     return f"{dimm_slots()}× {DIMM['kind']} · {total_ram_gb() / 1024:.2f} TiB"
 
 
 def passport():
-    """Паспорт целиком — его же получает страница в виде JSON.
+    """The whole passport — the same one the page receives as JSON.
 
-    Ревизия и серийник берутся из git тем же способом, что и шелкография на
-    текстолите: номер сборки — число коммитов, серийник — хэш HEAD. Значит
-    консоль и плата не могут разойтись даже в них.
+    The revision and the serial are taken from git the same way as the
+    silkscreen on the laminate: the build number is the commit count, the
+    serial is the HEAD hash. Which means the console and the board cannot
+    drift apart even in those.
     """
     return {
         'board': {**BOARD, 'rev': int(BOARD_REV), 'sha': BOARD_SHA},
@@ -103,19 +106,19 @@ def passport():
         'psu': PSU,
         'riser': [dict(r) for r in RISERS],
         'ports': PORTS,
-        # Микросхемы с позиционными обозначениями — из них собирается честный
-        # lspci: что нарисовано, то и перечислено.
+        # Chips with their reference designators — an honest lspci is built out
+        # of them: what is drawn is what is listed.
         'chips': [{'mark': mark, 'ref': ref} for mark, ref, *_ in CHIPS],
     }
 
 
-# Сколько чего должно оказаться на плате. Сборка сверяет это с фактически
-# нарисованным и падает при расхождении: пусть ошибку ловит генератор, а не
-# гость, набравший dimm.
+# How much of what has to end up on the board. The build checks this against
+# what was actually drawn and fails on a mismatch: let the generator catch the
+# error, not a visitor who typed dimm.
 EXPECT = {
     'dimm': dimm_slots(),
     'fan': FAN['n'],
-    'bay': BAY_N - len(FILLER_BAYS),   # заглушка узлом не считается: её не вынуть
+    'bay': BAY_N - len(FILLER_BAYS),   # a filler is not a unit: it cannot be pulled
     'psu': PSU['n'],
     'riser': len(RISERS),
     'cpu': CPU['n'],

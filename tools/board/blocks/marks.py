@@ -1,7 +1,7 @@
-"""обозначения узлов: то, что реально нанесено рядом с разъёмами.
+"""block designations: what is really printed next to the connectors.
 
-Кладём в конце, поверх всего, и только туда, где действительно свободно —
-регистр занятости уже знает, где стоят детали.
+Laid down at the end, on top of everything, and only where there really is
+free space — the occupancy registry already knows where the parts stand.
 """
 
 from board.geom import X_IO, X_PCB, X_REAR, X_SVC, Y_BANK_C, Y_BANK_L, Y_BANK_R, H
@@ -11,10 +11,11 @@ from board.spec import PORTS
 
 def render(cv):
     marks = []
-    # Четвёртым полем — «стоит вдоль». Поворачиваем там, где надпись длиннее
-    # места: у задней стенки от кромки платы до края всего восемьдесят с
-    # небольшим единиц, а «OCP_3.0 · 2× 10G SFP+» занимает почти столько же —
-    # поперёк она упиралась в гнёзда. Вдоль стенки места сколько угодно.
+    # The fourth field means "stands lengthwise". We turn the label where it is
+    # longer than the space: at the rear wall there are only eighty-odd units
+    # from the board edge to the end, and "OCP_3.0 · 2× 10G SFP+" takes up
+    # almost as much — across, it ran into the sockets. Along the wall there is
+    # as much room as you like.
     CANDIDATES = [
         (X_PCB + 60, Y_BANK_L - 16, "DIMM_CPU0_A0"),
         (X_PCB + 60, Y_BANK_C - 16, "DIMM_CPU0_A1 / CPU1_A0"),
@@ -36,14 +37,15 @@ def render(cv):
         x, y, text = cand[0], cand[1], cand[2]
         turn = len(cand) > 3 and cand[3]
         w = len(text) * 4.4 + 10
-        # Повёрнутая надпись занимает столько же места, только по другой оси:
-        # регистру занятости об этом надо сказать, иначе она сядет на деталь.
+        # A turned label takes up the same amount of space, only along the
+        # other axis: the occupancy registry has to be told about that, or the
+        # label lands on a part.
         box = (x - 4, y - 11 - w, 15, w) if turn else (x, y - 12, w, 15)
         if not cv.put(*box):
             continue
         marks.append(silk_frame(x, y - 11, text, 7, turn=turn))
 
-    # мелочь в оставшихся свободных карманах платы
+    # small parts in whatever pockets of the board are still free
     for i in range(150):
         x = X_PCB + 20 + (i * 173) % (X_REAR - 30 - X_PCB)
         y = 24 + (i * 251) % (H - 50)

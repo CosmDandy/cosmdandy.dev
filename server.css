@@ -430,10 +430,11 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
 
 
   /* ── term ──────────────────────────────── */
-  /* Подсказка дополнения. В <input> двух цветов не бывает, поэтому под полем
-     лежит зеркало: набранная часть в нём прозрачная и нужна только чтобы
-     занять ширину, а видно продолжение приглушённым тоном. Метрики обязаны
-     совпадать с полем до пикселя, иначе подсказка разъедется с текстом. */
+  /* Completion hint. An <input> cannot hold two colours at once, so a mirror
+     lies under the field: the part already typed is transparent in it and is
+     there only to take up the width, while the continuation shows in a muted
+     tone. The metrics have to match the field to the pixel, otherwise the hint
+     drifts out of line with the text. */
   .prompt-field { position: relative; flex: 1; min-width: 0; display: block; }
   .prompt-field input { position: relative; z-index: 1; background: transparent; width: 100%; }
   .ghost {
@@ -554,7 +555,7 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
 
 
   /* ── lightpath ──────────────────────────────── */
-  /* Light Path Diagnostics: панель выдвигается вперёд, за габарит корпуса. */
+  /* Light Path Diagnostics: the panel slides forward, past the chassis outline. */
   .lightpath {
     transform: translateX(194px);
     visibility: hidden;
@@ -562,25 +563,25 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
     transition: transform var(--spring), fill-opacity var(--fade), stroke-opacity var(--fade);
     pointer-events: none;
   }
-  /* Выдвинутая панель упирается в свою лицевую часть, а не висит от неё в
-     стороне: 22 — ровно зазор между правым краем рисунка панели и левой
-     кромкой язычка. */
+  /* The pulled-out panel butts against its own front face instead of hanging
+     off to the side of it: 22 is exactly the gap between the right edge of the
+     panel drawing and the left edge of the tab. */
   .rig.lp-open .lightpath {
     transform: translateX(22px);
     visibility: visible;
     fill-opacity: 1; stroke-opacity: 1;
   }
   .lp { fill-opacity: 0.07; transition: fill-opacity 0.15s steps(1, end); }
-  /* Панель полного состава: шестнадцать ламп, как на живой машине. Узлы,
-     которые машина умеет диагностировать, зажигают свою; сетевая карта
-     светит LINK, райзер — PCI. Остальные лампы существуют, но в этой
-     сборке гореть им не от чего — так же и на настоящей панели. */
+  /* A full-set panel: sixteen lamps, as on a live machine. The units the
+     machine can diagnose light their own; the network card lights LINK, the
+     riser lights PCI. The remaining lamps exist, but in this build there is
+     nothing to light them — same as on a real panel. */
   .rig.fault-mem .lp-mem, .rig.fault-cpu .lp-cpu, .rig.fault-fan .lp-fan,
   .rig.fault-nic .lp-link, .rig.fault-rsr .lp-pci, .rig.fault-ps .lp-ps,
   .rig.has-fault .lp-log, .rig.has-fault .lp-brd { fill-opacity: 1; }
   .lp-tab { cursor: pointer; }
-  /* Подсвечиваем корпус язычка, а не всё, что на нём стоит:
-     лампы — тоже прямоугольники, и общий селектор обводил их. */
+  /* Highlight the body of the tab, not everything standing on it:
+     the lamps are rectangles too, and a general selector outlined them. */
   .lp-tab:hover > rect { stroke: rgba(147,161,161,0.6); }
 
   .silk { opacity: 0.85; }
@@ -592,8 +593,9 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   .svc-switch:hover .svc-knob { stroke: rgba(147,161,161,0.7); }
 
   /* ── lid ──────────────────────────────── */
-  /* Крышка. Лежит в тех же координатах, что и плата, поэтому накрывает
-     машину точно. Снимает её человек кнопкой cover; кликов не перехватывает. */
+  /* Cover. Lives in the same coordinates as the board, so it sits over the
+     machine exactly. A person takes it off with the cover button; it does not
+     intercept clicks. */
   .lid {
     position: absolute; inset: 0;
     pointer-events: none;
@@ -650,46 +652,50 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   .rig.service .pick.pulled .pick-body { transform: translateY(-24px); }
   /* Диск выезжает вперёд, к фронту — то есть влево. */
   /* ── drives ──────────────────────────────── */
-  /* Диск достают в два приёма: сначала отщёлкивают ручку, и только потом
-     каддик идёт наружу. Ручка — рычаг во всю длину каддика, посаженный на
-     ось у дальней кромки: он отгибается наружу, к фронту, а не съезжает.
-     transform-box: fill-box нужен, чтобы процент в transform-origin считался
-     от самой группы, а не от холста. */
+  /* A drive comes out in two moves: first the handle is unlatched, and only
+     then does the caddy travel out. The handle is a lever the full length of
+     the caddy, hinged on an axis at the far edge: it swings outward, towards
+     the front, rather than sliding. transform-box: fill-box is needed so that
+     the percentage in transform-origin counts from the group itself and not
+     from the canvas. */
   .bay-handle {
     transform-box: fill-box;
     transform-origin: 100% 100%;
-    /* Защёлка каддика щёлкает: держит, пока не пересилишь, а потом
-       откидывается сама. Сам каддик едет ровно — его уже ничто не держит. */
+    /* The caddy latch clicks: it holds until you overpower it, and then it
+       throws itself open. The caddy itself travels evenly — nothing holds it
+       any more. */
     transition: transform var(--click);
   }
 
-  /* Ход небольшой нарочно. Рычаг, откинутый на весь размах, ложится поперёк
-     соседнего отсека, и в кадре читается уже не «диск расщёлкнут», а «что-то
-     упало». Отход влево с лёгким наклоном говорит то же самое, никому не
-     мешая: ручка вышла из защёлки, под ней открылся сам накопитель. */
+  /* The travel is small on purpose. A lever thrown open to its full swing lies
+     across the neighbouring bay, and the frame then reads not as "the drive is
+     unlatched" but as "something fell off". Moving left with a slight tilt says
+     the same thing and gets in nobody's way: the handle has left the latch, and
+     the drive itself is exposed under it. */
   .rig.service .bay.unlatched .bay-handle { transform: translateX(-16px) rotate(-7deg); }
 
-  /* Наружу — за габарит шасси: диск физически выходит из корзины вперёд, и
-     на его месте остаётся гнездо с направляющими. */
+  /* Outward, past the chassis outline: the drive physically leaves the cage
+     forwards, and an empty bay with its guides stays in its place. */
   .rig.service .bay.pulled .pick-body { transform: translateX(-104px); }
   .rig.service .bay.pulled .bay-handle { transform: translateX(-120px) rotate(-7deg); }
 
-  /* Сборка: диск задвигают спереди, тем же путём, которым он выезжает при
-     разборе, — только в обратную сторону. */
+  /* Assembly: the drive is pushed in from the front, along the same path it
+     takes coming out during teardown — only the other way round. */
   .rig.assembly .bay {
     animation: seatBay var(--press-seat) var(--seat, 0s) backwards;
   }
-  /* Каддик идёт по салазкам свободно и упирается только в самом конце:
-     последний сантиметр — это дожим ручкой до щелчка. */
+  /* The caddy runs along its rails freely and meets resistance only right at
+     the end: the last centimetre is the handle pressing it home to the click. */
   @keyframes seatBay {
     from { opacity: 0; transform: translateX(-104px); }
   }
   /* ── fans ──────────────────────────────── */
-  /* Вращение ступенями, а не плавно: двадцать положений за оборот. На
-     секунде оборота глаз ступеней не различает, а браузер вместо ста сорока
-     четырёх перерисовок в секунду делает двадцать — плавное вращение по
-     замеру стоит на четверть дороже. Период общий, вразнобой крыльчатки
-     разводит сдвиг фазы: он приходит инлайн. */
+  /* Rotation in steps, not smooth: twenty positions per turn. At a one-second
+     revolution the eye cannot tell the steps apart, while the browser makes
+     twenty repaints a second instead of a hundred and forty-four — measured,
+     smooth rotation costs a quarter more. The period is shared; what puts the
+     impellers out of step with each other is a phase shift, and that arrives
+     inline. */
   .fan-blades {
     transform-box: fill-box; transform-origin: center;
     animation: spin var(--spin) steps(20, end) infinite;
@@ -697,11 +703,11 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   }
   .rig.on .fan-blades { animation-play-state: running; }
 
-  /* Вынули хотя бы один вентилятор — остальные уходят на максимум. Так ведёт
-     себя любая машина: контроллер теряет один поток и компенсирует оборотами.
-     Каждой лопасти генератор проставляет свой период инлайном, поэтому здесь
-     нужен !important. Вентилятор блока питания живёт своей жизнью — у него
-     отдельный контроллер, и в разгон он не идёт. */
+  /* Pull even one fan and the rest go to maximum. Any machine behaves this
+     way: the controller loses one airflow and makes up for it with rpm. The
+     generator writes every impeller its own period inline, which is why
+     !important is needed here. The power supply fan lives its own life — it
+     has a controller of its own and does not spin up. */
   .rig.on:has(.fan.pulled) .fan-blades:not(.aux) { animation-duration: 0.55s !important; }
   .rig.on .fan.pulled .fan-blades { animation-play-state: paused; }
   .fan.pulled .fan-blades { animation-play-state: paused; }
@@ -709,30 +715,31 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
 
   .rig.service .fan.pulled .pick-body { transform: translateY(-30px) scale(1.03); }
 
-  /* Сборка: вентилятор опускают в стенку сверху — в 1U он входит вертикально,
-     между стойкой корзины и платой места нет ни для какого другого движения.
-     Момент посадки задаёт --seat, его проставляет генератор: расписание всей
-     сборки живёт в geom, а здесь только «откуда и как». */
+  /* Assembly: the fan is lowered into the wall from above — in 1U it goes in
+     vertically, between the cage upright and the board there is no room for any
+     other movement. The moment of seating is set by --seat, which the generator
+     writes: the schedule for the whole assembly lives in geom, and only "from
+     where and how" lives here. */
   .rig.assembly .fan {
     animation: seatFan var(--press-hard) var(--seat, 0s) backwards;
   }
-  /* Садится туго: направляющие длинные, и модуль идёт по ним с усилием,
-     а в самом низу его дожимают до защёлки. */
+  /* It seats stiffly: the guides are long, the module travels along them under
+     effort, and right at the bottom it is pressed home to the latch. */
   @keyframes seatFan {
     from { opacity: 0; transform: translateY(-42px); }
   }
 
-  /* Вентилятор в стенке держит защёлка: тянешь — не идёт, потом срыв.
-     Ровно та же кривая ведёт его и при посадке. */
+  /* A latch holds the fan in the wall: you pull, it does not move, then it
+     breaks free. Exactly the same curve carries it when seating too. */
   .fan .pick-body { transition: transform var(--click); }
   /* ── memory ──────────────────────────────── */
-  /* Защёлки на живой плате — молочно-белый полупрозрачный пластик, и их две:
-     по одной с каждого торца. Лампа ошибки сидит прямо в защёлке — «DIMM
-     error LEDs are located in the handles», как написано на схеме живой
-     машины, — поэтому при сбое желтеет именно она. */
-  /* Кромка защёлки голубая: по коду замены это значит «сначала обесточь».
-     Планку на горячую не меняют, и цвет говорит об этом раньше, чем гость
-     доберётся до наклейки на крышке. */
+  /* On a live board the latches are milky-white translucent plastic, and there
+     are two of them: one at each end. The error lamp sits right inside the
+     latch — "DIMM error LEDs are located in the handles", as the diagram of the
+     live machine puts it — so on a fault it is the latch that turns amber. */
+  /* The edge of the latch is blue: in the replacement colour code that means
+     "power down first". A DIMM is not swapped hot, and the colour says so
+     before the visitor ever gets to the label on the cover. */
   .latch {
     fill: rgba(226, 235, 231, 0.42);
     stroke: rgba(58, 143, 196, 0.85);
@@ -747,9 +754,9 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   .latch-r { transform-origin: 100% 100%; }
   .dimm.pulled .latch { fill: var(--amber); }
 
-  /* Планку не вынуть, пока защёлки закрыты, — поэтому сначала откидываются
-     они, и только потом модуль идёт вверх. Разъём при этом остаётся на
-     плате: он нарисован отдельно и никуда не едет. */
+  /* The DIMM cannot come out while the latches are closed — so they throw open
+     first, and only then does the module travel up. The socket meanwhile stays
+     on the board: it is drawn separately and goes nowhere. */
   /* Open means outward: the board runs front-to-right, so the front ear swings
      toward -X and the rear one toward +X — both away from the socket, never
      across the module. A positive angle is clockwise in SVG. */
@@ -760,81 +767,83 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
     transition-delay: 0.12s;
   }
 
-  /* Сборка: планка входит в разъём коротким движением вниз — ход у неё
-     маленький, и размах должен быть таким же. Порядок задаёт --seat: банки
-     набиваются по каналам, а не подряд, и половины среднего банка достаются
-     разным процессорам. */
+  /* Assembly: the DIMM enters its socket with a short downward move — its
+     travel is small, and the swing has to be as small. The order is set by
+     --seat: banks are filled by channel rather than one after another, and the
+     halves of the middle bank go to different processors. */
   .rig.assembly .dimm .pick-body {
     animation: seatDimm var(--press-hard) var(--seat, 0s) backwards;
   }
-  /* Защёлки — часть платы, а не планки: они приклёпаны к разъёму и стоят на
-     месте всегда. Пока планки нет, они раскрыты: пустой слот на живой машине
-     так и выглядит, с разведёнными в стороны ушами. Закрываются они в тот
-     момент, когда модуль дожали, — отсюда та же задержка --seat. */
+  /* The latches are part of the board, not of the DIMM: they are riveted to
+     the socket and always stay put. While there is no module they are open:
+     that is exactly how an empty slot on a live machine looks, with its ears
+     splayed aside. They close at the moment the module is pressed home — hence
+     the same --seat delay. */
   .rig.assembly .latch-l { animation: latchL var(--press-hard) var(--seat, 0s) backwards; }
   .rig.assembly .latch-r { animation: latchR var(--press-hard) var(--seat, 0s) backwards; }
   @keyframes latchL { from { transform: rotate(-38deg); } }
   @keyframes latchR { from { transform: rotate(38deg); } }
-  /* Планку не опускают, а вдавливают: она входит с сопротивлением и
-     садится, когда защёлки по торцам щёлкнут. */
+  /* A DIMM is not lowered but pressed in: it goes against resistance and
+     seats when the latches at its ends click. */
   @keyframes seatDimm {
     from { opacity: 0; transform: translateY(-22px); }
   }
 
-  /* Планку держат защёлки по торцам: пока они не откинулись, модуль
-     стоит намертво, а дальше выходит рывком. */
+  /* The DIMM is held by the latches at its ends: until they throw open the
+     module stands dead solid, and after that it comes out with a jerk. */
   .dimm .pick-body { transition: transform var(--click); }
   /* ── risers ──────────────────────────────── */
-  /* Райзер и блок питания выходят назад, из задней стенки. */
+  /* The riser and the power supply come out backwards, through the rear wall. */
   .rig.service .riser.pulled .pick-body { transform: translateX(46px); }
 
-  /* Сборка: райзер опускают в свой разъём сверху, целиком — вместе с картой
-     и кронштейном. */
+  /* Assembly: the riser is lowered into its slot from above, whole — together
+     with the card and the bracket. */
   .rig.assembly .riser {
     animation: seatRiser var(--press-hard) var(--seat, 0s) backwards;
   }
-  /* Райзер садится всем разъёмом сразу, поэтому идёт туго и требует
-     дожима — за него для того и держат лепесток. */
+  /* The riser seats along its whole connector at once, so it goes in stiff and
+     needs a final push — that is exactly what the tab on it is held by. */
   @keyframes seatRiser {
     from { opacity: 0; transform: translateY(-56px); }
   }
 
-  /* Райзер сидит в разъёме туго: срывается целиком, вместе с картой. */
+  /* The riser sits tight in its slot: it breaks free whole, card and all. */
   .riser .pick-body { transition: transform var(--click); }
   /* ── psu ──────────────────────────────── */
   .rig.service .psu.pulled .pick-body { transform: translateX(74px); }
 
-  /* Вынутый блок обесточен: сеть к нему больше не подведена. Гаснут обе
-     лампы — и AC, которая горит даже на выключенной машине, — и
-     останавливается вентилятор. Лампа посадочного места при этом стоит на
-     плате и остаётся на месте: горит не блок, а гнездо, из которого его
-     вынули. */
+  /* A pulled supply is dead: mains no longer reaches it. Both lamps go out —
+     AC included, the one that burns even on a switched-off machine — and the
+     fan stops. The bay lamp, though, sits on the board and stays where it is:
+     what lights up is not the supply but the socket it was pulled out of. */
   .psu.pulled .led, .psu.pulled .led.aux,
   .psu.pulled .fault-sys, .psu.pulled .fault-sys.halo { fill-opacity: 0.1; animation: none; }
   .psu.pulled .fan-blades { animation-play-state: paused; }
 
-  /* Сборка: блок питания заходит сзади, из своего кармана. Едет он дальше
-     остальных — путь до разъёма у него длинный, и это видно по руке. */
+  /* Assembly: the power supply goes in from the back, out of its own bay. It
+     travels further than the rest — its path to the connector is long, and the
+     hand can tell. */
   .rig.assembly .psu {
     animation: seatPsu var(--press-snap) var(--seat, 0s) backwards;
   }
-  /* Блок влетает в карман одним движением — направляющие длинные и
-     ровные, тормозит его только разъём в конце. */
+  /* The supply flies into the bay in one movement — the guides are long and
+     straight, and only the connector at the end slows it down. */
   @keyframes seatPsu {
     from { opacity: 0; transform: translateX(96px); }
   }
 
-  /* Блок питания держит оранжевый фиксатор — тот самый щелчок. */
+  /* The power supply is held by the orange latch — that very click. */
   .psu .pick-body { transition: transform var(--click); }
 
   /* ── cpu ──────────────────────────────── */
-  /* Процессор остаётся в сокете — снимается радиатор, как руками. Под ним
-     открывается кристалл: по нему бежит тот же градиент, что по кнопке
-     «скачать» в резюме. Пока радиатор на месте, перелив выключен — он бы
-     зря крутил анимацию под непрозрачной крышкой. */
-  /* Кристалл и поле контактов не выключаются рывком: сначала проступают,
-     а прячутся только после того, как погасли. Отсюда нулевая длительность
-     visibility с задержкой — она ждёт конца проявления. */
+  /* The processor stays in the socket — what comes off is the heatsink, as if
+     by hand. The die is uncovered under it: the same gradient runs over it as
+     over the "download" button on the CV. While the heatsink is in place the
+     sheen is off — it would spin an animation under an opaque cover for
+     nothing. */
+  /* The die and the contact field do not switch off with a jerk: first they
+     show through, and they are hidden only after they have faded out. Hence
+     the zero-duration visibility with a delay — it waits out the fade. */
   .die, .lga {
     visibility: hidden; opacity: 0;
     transition: opacity var(--fade), transform var(--glide), visibility 0s linear 0.45s;
@@ -844,39 +853,45 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
     visibility: visible; opacity: 1;
     transition: opacity var(--fade), transform var(--glide), visibility 0s;
   }
-  /* Перелив идёт наискось, из левого нижнего угла в правый верхний — по
-     прямой он читался полосой засветки, а не игрой на полированном кремнии. */
-  /* Перелив по кремнию — самая дорогая анимация на схеме: большая полоса с
-     градиентом под clip-path, и раньше она перерисовывалась в каждом кадре
-     монитора. Восемьдесят ступеней за восемь секунд дают те же десять
-     перерисовок в секунду, что и у ламп, и попадают в общий такт. */
+  /* The sheen goes diagonally, from the bottom-left corner to the top-right —
+     straight across it read as a band of glare, not as play on polished
+     silicon. */
+  /* The sheen over the silicon is the most expensive animation on the
+     schematic: a big gradient band under a clip-path, and it used to repaint on
+     every frame of the monitor. Eighty steps over eight seconds give the same
+     ten repaints a second as the lamps, and fall into the common beat. */
   .die-shine { animation: dieShine 8s steps(80, end) infinite; }
   @keyframes dieShine {
     0%, 100% { transform: translate(0, 0); }
     50%      { transform: translate(150px, -82px); }
   }
 
-  /* Разбор процессора идёт в два приёма, как в жизни: сначала снимается
-     радиатор, и только потом из-под него — сам процессор. Радиатор уезжает
-     дальше, чем прежде: он размером с сокет, и на прежних 104 пикселях
-     закрывал место, куда должен лечь процессор. */
+  /* Taking the processor apart goes in two moves, as in life: first the
+     heatsink comes off, and only then, from under it, the processor itself.
+     The heatsink travels further than it used to: it is the size of the
+     socket, and at the old 104 pixels it covered the place where the processor
+     has to lie. */
   .heatsink, .cpu-lid { transition: transform var(--glide); }
   .rig.service .cpu-slot.pulled .pick-body { transform: none; }
   .rig.service .cpu-slot.pulled .heatsink { transform: translate(0, -164px) scale(0.92); }
   .rig.service .cpu-slot.opened .cpu-lid { transform: translate(0, 116px) scale(0.96); }
 
-  /* Поле контактов: пока процессор на месте, его не видно — и правильно,
-     под ним нечего показывать. Проявляется вместе с кристаллом, см. выше. */
-  /* Кристалл живёт на процессоре и уезжает с ним: снятый процессор,
-     светящийся на пустом сокете, — это уже не разбор, а фокус. */
+  /* The contact field: while the processor is in place it is not visible — and
+     rightly so, there is nothing to show under it. It shows through together
+     with the die, see above. */
+  /* The die lives on the processor and travels away with it: a removed
+     processor glowing on an empty socket is no longer a teardown but a
+     magic trick. */
   .rig.service .cpu-slot.opened .die { transform: translate(0, 116px) scale(0.96); }
 
-  /* Сборка: процессор с радиатором опускают в сокет сверху и слегка
-     доворачивают — так его и ставят, целясь по ключам. */
-  /* Сборка процессора идёт в два приёма, как в жизни: сперва в сокет ложится
-     сам процессор, и по открытому кристаллу успевает пробежать перелив, — и
-     только потом сверху опускают радиатор. Одновременная посадка прятала
-     кристалл: его накрывали ровно в тот момент, когда он появлялся. */
+  /* Assembly: the processor with its heatsink is lowered into the socket from
+     above and turned slightly into place — that is how it is fitted, aiming by
+     the keys. */
+  /* Assembling the processor goes in two moves, as in life: first the
+     processor itself settles into the socket and the sheen has time to run
+     across the exposed die — and only then is the heatsink lowered on top.
+     Seating them at once hid the die: it was covered at exactly the moment it
+     appeared. */
   .rig.assembly .cpu-slot .cpu-lid {
     animation: seatCpu 0.7s var(--seat, 0s) cubic-bezier(0.22, 1, 0.36, 1) backwards;
   }
@@ -886,11 +901,12 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   @keyframes seatCpu {
     from { opacity: 0; transform: translateY(-52px) scale(0.94); }
   }
-  /* Кристалл едет вместе со своим процессором, а не проявляется на месте:
-     он на нём и лежит. Первые сорок процентов времени — то же движение, что
-     у крышки, дальше он просто открыт, пока сверху не опустится радиатор.
-     Прячем в конце не ради вида — под радиатором его всё равно не видно, —
-     а чтобы перелив не крутился под непрозрачной крышкой. */
+  /* The die travels along with its own processor instead of showing through in
+     place: it lies on it. The first forty percent of the time is the same
+     movement as the processor lid's, after that it simply stays exposed until
+     the heatsink comes down on top. We hide it at the end not for looks — under
+     the heatsink it cannot be seen anyway — but so the sheen does not keep
+     spinning under an opaque cover. */
   .rig.assembly .cpu-slot .die {
     animation: dieSeat 1.75s var(--seat, 0s) cubic-bezier(0.22, 1, 0.36, 1) both;
   }
@@ -901,9 +917,9 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
     72%  { visibility: visible; opacity: 1; transform: none; }
     to   { visibility: hidden; opacity: 0; transform: none; }
   }
-  /* Пустой сокет — это поле контактов: пока процессора нет, оно открыто, и
-     гаснет ровно тогда, когда его накрывают. both держит оба конца: до
-     старта видно, после — нет. */
+  /* An empty socket is a contact field: while there is no processor it is
+     exposed, and it goes out exactly when it gets covered. both holds both
+     ends: visible before the start, not after. */
   .rig.assembly .cpu-slot .lga {
     animation: lgaCover 0.45s var(--seat, 0s) linear both;
   }
@@ -913,9 +929,9 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   }
 
   /* ── front_panel ──────────────────────────────── */
-  /* Кнопка питания — кольцо, поэтому у неё stroke, а не fill. Быстро мигает,
-     пока поднимается BMC и жать нельзя; медленно — дежурный режим, можно
-     включать; ровно — машина работает. */
+  /* The power button is a ring, so it has a stroke and not a fill. It blinks
+     fast while the BMC is coming up and must not be pressed; slowly — standby,
+     you may switch on; steady — the machine is running. */
   .pwr-led { stroke-opacity: 0; }
   .rig.init .pwr-led { stroke-opacity: 1; animation: pwrblink 0.4s steps(1, end) infinite; }
   .rig.standby .pwr-led { stroke-opacity: 1; animation: pwrblink 2s steps(1, end) infinite; }
@@ -923,7 +939,7 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   @keyframes pwrblink { 0%, 49% { stroke-opacity: 1 } 50%, 100% { stroke-opacity: 0.08 } }
   .rig.init .power-btn { cursor: not-allowed; }
 
-  /* Опознание в стойке: ровное резкое мигание, чтобы найти машину глазами. */
+  /* Identify in the rack: an even, hard blink so you can find the machine by eye. */
   .led-id { fill-opacity: 0; }
   .rig.identify .led-id { animation: idblink var(--beat) steps(1, end) infinite; }
   @keyframes idblink { 0%, 49% { fill-opacity: 1 } 50%, 100% { fill-opacity: 0 } }
@@ -932,10 +948,11 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   .power-btn circle { transition: stroke var(--fade); }
   .power-btn:hover .pwr-ring { stroke: var(--green); }
 
-  /* Квадратные лампы на лицевой части панели диагностики. Базовое правило
-     гасит только круглые — там селектор по элементу, — поэтому эти гасим
-     здесь. Включает их та же пара классов, что и круглые: у неё
-     специфичность выше, и спорить тут не о чем. */
+  /* Square lamps on the front face of the diagnostics panel. The base rule
+     puts out the round ones only — its selector goes by element — so these
+     are put out here. They are lit by the same pair of classes as the round
+     ones: that pair has higher specificity, so there is nothing to argue
+     about. */
   .sq-led { fill-opacity: 0; transition: fill-opacity 0.15s steps(1, end); }
 
   .hint {
@@ -1281,7 +1298,7 @@ a.callout.lit .co-dot { fill: var(--head); }
   --crt-red:   #dc322f;
   --crt-bg:    #041014;
 
-  /* AMI Aptio — своя палитра, никак не связанная с темой страницы. */
+  /* AMI Aptio — a palette of its own, in no way tied to the page theme. */
   --bios-bg:      #00027a;
   --bios-bg2:     #0000aa;
   --bios-border:  #a8a8a8;
@@ -1347,10 +1364,10 @@ a.callout.lit .co-dot { fill: var(--head); }
 }
 
 /* ── POST ─────────────────────────────────────────────────────────────── */
-/* Панели режимов переключаются атрибутом hidden, а у каждой свой display —
-   и правило браузера [hidden] { display: none } с нулевой специфичностью ему
-   проигрывает. Без этой строки самотест, setup и top видны одновременно,
-   тремя окнами поверх друг друга. */
+/* Mode panels are switched with the hidden attribute, and each has a display
+   of its own — and the browser rule [hidden] { display: none }, with zero
+   specificity, loses to it. Without this line the self-test, setup and top are
+   visible at once, three windows on top of each other. */
 .crt [hidden] { display: none !important; }
 
 .crt-post {
@@ -1502,14 +1519,14 @@ a.callout.lit .co-dot { fill: var(--head); }
   text-align: center;
 }
 
-/* ── Влияние прошивки на схему ───────────────────────────────────────── */
-/* Период обязан остаться кратен секунде — иначе двадцать положений
-   крыльчатки на шаге steps() съезжают с общего такта в 0.05 с. */
+/* ── Firmware's effect on the schematic ───────────────────────────────── */
+/* The period has to stay a multiple of a second — otherwise the impeller's
+   twenty steps() positions drift off the common beat of 0.05 s. */
 .rig.nv-eff { --spin: 2s; }
 
-/* has-fault уже занят чужой логикой (лампы отсутствующих узлов), поэтому
-   Secure Boot: Disabled получает свой признак — sb-off — и повторяет тот
-   же приём индикации на fault-sys, что и has-fault, но не трогает его. */
+/* has-fault is already taken by other logic (lamps of missing units), so
+   Secure Boot: Disabled gets a flag of its own — sb-off — and repeats the same
+   indication trick on fault-sys as has-fault, without touching it. */
 .rig.sb-off .fault-sys {
   fill-opacity: 1;
   animation: faultblink var(--beat) steps(1, end) infinite;

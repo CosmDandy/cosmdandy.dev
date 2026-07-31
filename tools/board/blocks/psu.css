@@ -1,24 +1,24 @@
   .rig.service .psu.pulled .pick-body { transform: translateX(74px); }
 
-  /* Вынутый блок обесточен: сеть к нему больше не подведена. Гаснут обе
-     лампы — и AC, которая горит даже на выключенной машине, — и
-     останавливается вентилятор. Лампа посадочного места при этом стоит на
-     плате и остаётся на месте: горит не блок, а гнездо, из которого его
-     вынули. */
+  /* A pulled supply is dead: mains no longer reaches it. Both lamps go out —
+     AC included, the one that burns even on a switched-off machine — and the
+     fan stops. The bay lamp, though, sits on the board and stays where it is:
+     what lights up is not the supply but the socket it was pulled out of. */
   .psu.pulled .led, .psu.pulled .led.aux,
   .psu.pulled .fault-sys, .psu.pulled .fault-sys.halo { fill-opacity: 0.1; animation: none; }
   .psu.pulled .fan-blades { animation-play-state: paused; }
 
-  /* Сборка: блок питания заходит сзади, из своего кармана. Едет он дальше
-     остальных — путь до разъёма у него длинный, и это видно по руке. */
+  /* Assembly: the power supply goes in from the back, out of its own bay. It
+     travels further than the rest — its path to the connector is long, and the
+     hand can tell. */
   .rig.assembly .psu {
     animation: seatPsu var(--press-snap) var(--seat, 0s) backwards;
   }
-  /* Блок влетает в карман одним движением — направляющие длинные и
-     ровные, тормозит его только разъём в конце. */
+  /* The supply flies into the bay in one movement — the guides are long and
+     straight, and only the connector at the end slows it down. */
   @keyframes seatPsu {
     from { opacity: 0; transform: translateX(96px); }
   }
 
-  /* Блок питания держит оранжевый фиксатор — тот самый щелчок. */
+  /* The power supply is held by the orange latch — that very click. */
   .psu .pick-body { transition: transform var(--click); }

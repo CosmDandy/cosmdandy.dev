@@ -3,7 +3,7 @@
 Light Path Diagnostics
 """
 
-# Свой прямоугольник: сборка проверит, что узел из него не вышел.
+# Own rectangle: the build checks that the block did not leave it.
 BOUNDS = (-320, 8, 306, 168)
 
 from board.ink import mono
@@ -11,15 +11,15 @@ from board.ink import mono
 
 def render(cv):
     def lightpath_panel():
-        """Панель Light Path Diagnostics полного состава.
+        """The Light Path Diagnostics panel, full set.
 
-    Выросла со 140×118 до 300×150: шестнадцать ламп в три ступенчатых ряда,
-    чекпойнт-индикатор и три кнопки в прежний габарит не влезали. Правый край
-    оставлен на месте — панель растёт только влево, туда же, куда её выдвигает
-    трансформация в CSS.
+    It grew from 140×118 to 300×150: sixteen lamps in three stepped rows, the
+    checkpoint indicator and three buttons did not fit into the old size. The
+    right edge is left where it was — the panel grows only to the left, the
+    same way the CSS transform slides it out.
     """
         def digit(x, y):
-            """Семисегментная восьмёрка: горят все сегменты, как при самотесте."""
+            """A seven-segment eight: every segment lit, as during self-test."""
             w, h, t = 14, 22, 2.6
             c = '#b58900'
             bars = [(x, y, w, t), (x, y + h / 2 - t / 2, w, t), (x, y + h - t, w, t),

@@ -1,11 +1,12 @@
-"""память: три банка, у каждого свой ярлык.
+"""memory: three banks, each with its own tag.
 
-Планка короче прежней: 292 единицы — это почти половина глубины платы, а
-живая DIMM занимает от силы треть ширины шасси. Заодно освободилось поле
-справа от банков, куда садится рассыпуха.
+The module is shorter than it used to be: 292 units is almost half the depth
+of the board, while a real DIMM takes up a third of the chassis width at
+most. It also freed the field to the right of the banks, where the discrete
+components sit.
 """
 
-# Свой прямоугольник: сборка проверит, что узел из него не вышел.
+# Own rectangle: the build checks that the block did not leave it.
 BOUNDS = (488, 4, 360, 850)
 
 from board.geom import (
@@ -22,8 +23,9 @@ from board.geom import (
     Y_BANK_R,
 )
 
-# Габариты планки по глубине платы. Всё остальное в разъёме считается от них:
-# контакты, ключ и чипы должны сойтись при любой ширине.
+# Module dimensions along the depth of the board. Everything else in the socket
+# is derived from them: the contacts, the key and the chips have to line up at
+# any width.
 SOCK_W = DIMM_SOCK_W
 DIMM_W = SOCK_W - 6
 from board.ink import hit, mono, silk_inverse
@@ -32,9 +34,10 @@ from board.spec import DIMM
 
 
 def render(cv):
-    # Планки ставят не подряд, а по каналам: сперва первый слот каждого
-    # канала у обоих процессоров, потом второй. Средний банк поэтому набивают
-    # с двух концов — его половины принадлежат разным процессорам.
+    # Modules are populated not one after another but by channel: first the
+    # first slot of every channel on both processors, then the second. That is
+    # why the middle bank is filled from both ends — its halves belong to
+    # different processors.
     start, step = SEAT['dimm']
 
     def wave(base):
@@ -44,9 +47,10 @@ def render(cv):
         slots = []
         for i in range(n):
             y = y0 + i * PITCH
-            # Разъём остаётся на плате, когда планку вынимают, поэтому он —
-            # отдельная фигура, а не часть модуля. Внутри золочёные контакты и
-            # ключ-перемычка не по центру: он и не даёт вставить планку задом.
+            # The socket stays on the board when the module is pulled out, so
+            # it is a separate shape and not part of the module. Inside are the
+            # gold-plated contacts and the off-centre key ridge: it is what
+            # stops the module from going in backwards.
             socket = (f'<rect x="{X_CORE-2}" y="{y-1}" width="{SOCK_W}" height="{SLOT_H+2}" rx="1" '
                       f'fill="#05090b" stroke="rgba(147,161,161,0.26)"/>'
                       + ''.join(f'<line x1="{X_CORE+8+c*6}" y1="{y+2}" x2="{X_CORE+8+c*6}" '
@@ -55,12 +59,14 @@ def render(cv):
                                 for c in range(46))
                       + f'<rect x="{X_CORE+112}" y="{y+1}" width="4" height="{SLOT_H-2}" '
                         f'fill="#0f1a20"/>')
-            # Планка: сверху видна её светлая кромка — торец текстолита, а под
-            # ним чипы. На фото живого банка это первое, что бросается в глаза:
-            # ряд светлых полос, а не чёрных.
+            # The module: from above you see its light edge — the end face of
+            # the laminate — and the chips below it. On a photo of a real bank
+            # that is the first thing that catches the eye: a row of light
+            # stripes, not black ones.
             edge = '#3f7d76' if i % 2 else '#397169'
-            # зона наведения шире самой планки и перекрывает щель до соседней:
-            # иначе курсор проваливается между слотами и клик уходит в никуда
+            # the hover zone is wider than the module itself and covers the gap
+            # to the next one: otherwise the cursor falls through between the
+            # slots and the click goes nowhere
             slots.append(f'''<g class="pick dimm" data-dimm="{code}{i}" style="--seat:{delay(i)}">
           <rect class="hit" x="{X_CORE-8}" y="{y-1}" width="{SOCK_W+28}" height="{PITCH}" fill="#000" fill-opacity="0.001"/>
           {socket}
@@ -79,20 +85,22 @@ def render(cv):
       {''.join(slots)}
     </g>'''
 
-    # Подпись уходит в промежуток между корпусами: полоса у кромки занята ими
-    # целиком, и на прежнем месте плашка легла прямо на сетевой контроллер.
+    # The label goes into the gap between packages: the strip at the edge is
+    # taken up by them entirely, and in its old place the plate lay right on
+    # the network controller.
     cv.callouts.append((X_TAG - 44, Y_BANK_C + 32, X_CORE - 10, Y_BANK_C + 110,
                         "Blog", "end", "https://blog.cosmdandy.dev", "dimm",
                         "заметки", "blog"))
     half = BANK_N // 2
     cv.add(bank(Y_BANK_L, BANK_N, "L", 104, first=1, delay=wave(start)))
-    # Верхняя половина среднего банка — вторые слоты CPU0, нижняя — первые
-    # слоты CPU1: одни идут во второй волне, другие в первой.
+    # The upper half of the middle bank is CPU0's second slots, the lower one
+    # is CPU1's first slots: the former go in the second wave, the latter in
+    # the first.
     cv.add(bank(Y_BANK_C, BANK_N, "C", 430, first=9,
                 delay=lambda i: (wave(SEAT_WAVE2)(i) if i < half else wave(start)(i - half))))
     cv.add(bank(Y_BANK_R, BANK_N, "R", 740, first=17, delay=wave(SEAT_WAVE2)))
-    # Средний банк делят оба процессора: половина каналов уходит к одному,
-    # половина к другому. По двенадцать планок на процессор — обычный расклад
-    # для 1U, где на все восемь каналов места на плате уже нет.
-    # Обозначение банка печатается на его рамке — см. blocks/frames.py.
+    # The middle bank is shared by both processors: half of its channels go to
+    # one, half to the other. Twelve modules per processor is the usual layout
+    # for 1U, where there is no board room left for all eight channels.
+    # The bank designation is printed on its frame — see blocks/frames.py.
     cv.add(stamp(X_CORE, Y_BANK_L - 20, "память"))

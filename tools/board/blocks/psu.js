@@ -1,8 +1,9 @@
   PICKS.push({
     test: function (el) { return el.dataset.psu !== undefined; },
     name: function (el) { return 'psu-' + el.dataset.psu; },
-    // Вынутый блок обесточен: об этом и говорим в логе. Вставили обратно —
-    // сеть снова на нём, и лампа AC загорается даже на выключенной машине.
+    // A pulled supply is dead: that is what the log says. Put it back and
+    // mains is on it again, and the AC lamp lights up even on a machine that
+    // is switched off.
     pull: function (el, line) {
       const out = el.classList.toggle('pulled');
       const name = 'psu-' + el.dataset.psu;

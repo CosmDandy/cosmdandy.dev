@@ -1,20 +1,22 @@
 #!/usr/bin/env bash
-# Пересобрать плату и вставить её в index.html между маркерами.
+# Rebuild the board and splice it into index.html between the markers.
 #
-# Сборка живёт здесь, а не в песочнице прототипа: по файлам блоков считаются
-# хэши коммитов на каждый узел, и ссылки партномеров должны вести в этот же
-# репозиторий. Вставку в страницу делает сам build.py — отдельный шаг с
-# перезаписью index.html был вторым местом, где правку могло затереть.
+# The build lives here rather than in the prototype sandbox: the commit hash of
+# every unit is worked out from its block file, and the part-number links have
+# to point into this same repository. build.py splices the page itself — a
+# separate step that rewrote index.html was the second place where an edit
+# could get overwritten.
 set -euo pipefail
 cd "$(dirname "$0")"
 
 python3 build.py
 python3 audit_text.py | tail -1
 
-# Пиксели и поведение проверяются отдельно и дольше — гоняются по требованию:
-#   node tools/visual_ref.mjs   (эталон снимается ключом --save)
+# Pixels and behaviour are checked separately and take longer — run on demand:
+#   node tools/visual_ref.mjs   (--save takes the reference)
 #   node tools/behave.mjs
 
-# Лента ревизий: локально её надо пересобрать вручную, в CI это делает
-# отдельный шаг. Без этого лента показывает вчерашнюю историю.
+# The revision strip: locally it has to be rebuilt by hand. Without this the
+# strip shows yesterday's history. It is deliberately not built in CI — the
+# strip is a development tool and does not go out with the site.
 python3 history.py | head -1

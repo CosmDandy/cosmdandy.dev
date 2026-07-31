@@ -1,14 +1,15 @@
-// Визуальная сверка: снимок страницы в нескольких состояниях и попиксельное
-// сравнение с эталоном.
+// Visual check: a screenshot of the page in several states and a pixel-by-pixel
+// comparison against the baseline.
 //
-//   node tools/visual_ref.mjs --save     снять эталон (перед рефакторингом)
-//   node tools/visual_ref.mjs            сверить текущее состояние с эталоном
+//   node tools/visual_ref.mjs --save     take the baseline (before refactoring)
+//   node tools/visual_ref.mjs            check the current state against it
 //
-// Зачем: разрез CSS и JS нельзя проверить сравнением текста — порядок правил
-// меняет каскад, а порядок кода меняет поведение. Проверять надо то, что
-// видит глаз, то есть пиксели.
+// Why: splitting CSS and JS cannot be verified by comparing text — the order of
+// rules changes the cascade, and the order of code changes behaviour. What has
+// to be checked is what the eye sees, that is, pixels.
 //
-// Анимации гасим: иначе кадр зависит от момента съёмки и сверка врёт.
+// We kill animations: otherwise the frame depends on the moment of capture and
+// the comparison lies.
 import { createRequire } from 'node:module';
 import { createServer } from 'node:http';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
@@ -36,12 +37,12 @@ const server = createServer(async (req, res) => {
     const body = await readFile(join(ROOT, rel === '/' ? 'index.html' : rel));
     res.writeHead(200, { 'content-type': MIME[extname(rel)] ?? 'application/octet-stream' });
     res.end(body);
-  } catch { res.writeHead(404).end('нет'); }
+  } catch { res.writeHead(404).end('no'); }
 });
 await new Promise(ok => server.listen(0, '127.0.0.1', ok));
 const url = `http://127.0.0.1:${server.address().port}/index.html`;
 
-// Состояния, которые обязаны выглядеть одинаково до и после правки.
+// States that must look the same before and after an edit.
 const STATES = {
   card:        async () => {},
   rig:         async p => p.evaluate(() => document.body.classList.add('view-rig')),
@@ -59,9 +60,10 @@ const STATES = {
     await p.evaluate(() => document.body.classList.add('view-rig'));
     await p.evaluate(() => document.getElementById('svc-switch')
       ?.dispatchEvent(new MouseEvent('click', { bubbles: true })));
-    // Класс ставим руками, а не кликом: обработчик вынимания заводит таймеры
-    // и пишет в лог, и кадр начинает зависеть от момента съёмки. Нам нужна
-    // раскладка вынутого узла, а не сценарий вынимания.
+    // We set the class by hand rather than by a click: the pull-out handler
+    // starts timers and writes to the log, and the frame starts to depend on
+    // the moment of capture. What we need is the layout of a pulled node, not
+    // the pull-out scenario.
     await p.evaluate(() => {
       document.querySelector('.fan')?.classList.add('pulled');
       document.querySelector('.dimm')?.classList.add('pulled');
@@ -83,19 +85,20 @@ for (const [name, setup] of Object.entries(STATES)) {
       const css = document.createElement('style');
       css.textContent = '*,*::before,*::after{animation:none!important;' +
         'transition:none!important;caret-color:transparent!important}' +
-        // полоса прокрутки консоли то появляется, то нет — по числу строк
-        // в логе, а строки дописываются по таймеру
+        // the console scrollbar appears and disappears — it follows the number
+        // of lines in the log, and lines are appended on a timer
         '::-webkit-scrollbar{display:none!important}' +
         '.console-log{overflow:hidden!important}' +
-        // кнопки темы и вида к схеме отношения не имеют, а их иконки
-        // перерисовываются по таймеру и дают ложные расхождения
+        // the theme and view buttons have nothing to do with the schematic,
+        // while their icons are redrawn on a timer and give false differences
         '.theme-switch,.view-switch{visibility:hidden!important}' +
-        // строка ввода: поле удаляется до отрисовки, но от него остаётся
-        // мигающая каретка у левого края панели — 65 пикселей, которые
-        // гуляли от прогона к прогону
-        // Консоль пишет строки по таймеру и после нашей очистки: раскладку
-        // она держит, а содержимое каждый раз своё. Прячем и её, и строку
-        // ввода — проверяем вёрстку панели, а не бегущий текст.
+        // the input line: the field is removed before painting, but what stays
+        // behind it is a blinking caret at the left edge of the panel — 65
+        // pixels that wandered from run to run
+        // The console writes lines on a timer and keeps doing so after we clear
+        // it: it holds the layout, but its contents differ every time. We hide
+        // both it and the input line — we check the panel layout, not running
+        // text.
         '.prompt,.console-log{visibility:hidden!important}';
       document.head.append(css);
     });
@@ -104,9 +107,9 @@ for (const [name, setup] of Object.entries(STATES)) {
   await page.waitForTimeout(300);
   await setup(page);
   await page.waitForTimeout(700);
-  // Консоль показывает время и бегущий журнал — он меняется от прогона к
-  // прогону, и сверка ловила бы его, а не правки в стилях. Подсказку
-  // дополнения гасим по той же причине: она зависит от истории команд.
+  // The console shows the clock and a running log — it changes from run to run,
+  // and the comparison would catch that instead of edits in the styles. We kill
+  // the completion hint for the same reason: it depends on the command history.
   await page.evaluate(() => {
     const log = document.getElementById('log');
     if (log) log.textContent = '';
@@ -121,7 +124,7 @@ for (const [name, setup] of Object.entries(STATES)) {
 
   if (save || !existsSync(file)) {
     await writeFile(file, shot);
-    console.log(`  ${name}: эталон снят`);
+    console.log(`  ${name}: baseline taken`);
   } else {
     const a = PNG.sync.read(await readFile(file));
     const b = PNG.sync.read(shot);
@@ -135,22 +138,22 @@ for (const [name, setup] of Object.entries(STATES)) {
       }
     }
     const total = a.width * a.height;
-    // Порог шума. В сервисном режиме остаётся полоска 3×22 у края панели,
-    // дрожащая на пиксель от прогона к прогону, — она воспроизводится и на
-    // неизменённом коде. Всё, что крупнее, уже правка: сдвиг подписи даёт
-    // сотни пикселей, пропавший узел — тысячи.
+    // Noise threshold. In service mode a 3×22 strip stays at the edge of the
+    // panel, jittering by a pixel from run to run — it reproduces on unchanged
+    // code as well. Anything bigger is already an edit: a shifted label gives
+    // hundreds of pixels, a missing node — thousands.
     const NOISE = 120;
     if (diff === 0) {
-      console.log(`  ${name}: совпадает пиксель в пиксель`);
+      console.log(`  ${name}: pixel-for-pixel match`);
     } else if (diff > 0 && diff <= NOISE) {
-      console.log(`  ${name}: ${diff} пикс — в пределах шума`);
+      console.log(`  ${name}: ${diff} px — within the noise`);
     } else if (diff < 0) {
-      console.log(`  ${name}: РАЗМЕР ИЗМЕНИЛСЯ ${a.width}×${a.height} → ${b.width}×${b.height}`);
+      console.log(`  ${name}: SIZE CHANGED ${a.width}×${a.height} → ${b.width}×${b.height}`);
       bad++;
     } else {
       await writeFile(join(REF, `${name}.now.png`), shot);
-      console.log(`  ${name}: РАЗОШЛОСЬ на ${diff} пикселях (${(diff / total * 100).toFixed(3)}%)`
-        + ` — стало в ${name}.now.png`);
+      console.log(`  ${name}: DIVERGED on ${diff} pixels (${(diff / total * 100).toFixed(3)}%)`
+        + ` — current is in ${name}.now.png`);
       bad++;
     }
   }
@@ -159,5 +162,5 @@ for (const [name, setup] of Object.entries(STATES)) {
 
 await browser.close();
 server.close();
-console.log(bad ? `визуал изменился в ${bad} состояниях` : 'визуал не изменился');
+console.log(bad ? `visuals changed in ${bad} states` : 'visuals unchanged');
 process.exit(bad ? 1 : 0);

@@ -1,13 +1,13 @@
-"""шасси.
+"""chassis.
 
-шасси
+chassis
 """
 
 from board.geom import X_FRONT, H, W
 from board.lamps import glow_defs
 
-EAR_D, EAR_OUT = 58, 26   # глубина ушка и его вылет за боковую стенку
-RAIL_X = (250, 452, 654, 856)   # где на боковине сидят штыри салазок
+EAR_D, EAR_OUT = 58, 26   # ear depth and its reach past the side wall
+RAIL_X = (250, 452, 654, 856)   # where the rail studs sit on the side wall
 
 
 def rack_ears():
@@ -22,9 +22,9 @@ def rack_ears():
     """
 
     def one(top):
-        s = -1 if top else 1                 # куда растёт ухо от кромки
-        y_edge = 4 if top else H - 4         # боковая стенка шасси
-        y_out = y_edge + s * EAR_OUT         # дальняя грань уха
+        s = -1 if top else 1                 # which way the ear grows
+        y_edge = 4 if top else H - 4         # chassis side wall
+        y_out = y_edge + s * EAR_OUT         # far face of the ear
         y_lo, y_hi = sorted((y_out, y_edge + s * -18))
         # Inset is equal on all four sides: with the latch and the screw slot
         # gone there is nothing left to make room for, and an even border reads
@@ -40,11 +40,12 @@ def rack_ears():
 
 
 def rails():
-    """Штыри салазок на боковинах: ими шасси и висит на выдвижных рельсах.
+    """Rail studs on the side walls: this is what the chassis hangs by.
 
-    На салазках под них прорезаны замочные скважины: шасси кладут, сдвигают
-    назад, и штыри садятся в узкую часть выреза. Без них машина в стойке
-    держится только ушами на фронте, а это половина крепежа.
+    The slides have keyhole cutouts for them: the chassis is laid down, pushed
+    back, and the studs settle into the narrow part of the cutout. Without
+    them the machine hangs in the rack on the front ears alone, and that is
+    half of the fastening.
     """
     studs = []
     for x in RAIL_X:
@@ -60,8 +61,9 @@ def rails():
 
 
 def render(cv):
-    # Градиенты свечения ламп — общие на всю схему, поэтому объявляем их в
-    # самом первом блоке: дальше на них ссылаются все, кто ставит лампу.
+    # The lamp glow gradients are shared by the whole drawing, so they are
+    # declared in the very first block: everyone who places a lamp refers to
+    # them afterwards.
     cv.add(glow_defs())
     cv.add(f'<rect x="4" y="4" width="{W-8}" height="{H-8}" rx="14" fill="#141c20" stroke="rgba(147,161,161,0.30)"/>')
     cv.add(rails())

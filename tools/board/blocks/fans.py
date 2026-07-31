@@ -1,14 +1,15 @@
-"""вентиляторы: восемь спаренных модулей в общей стенке.
+"""fans: eight twin modules in a common wall.
 
-Модуль — пара крыльчаток под одной пластиковой крышкой, поэтому сверху
-видна оболочка со швом посередине, а не голые лопасти. Стенка неглубокая:
-раньше её глубина вдвое превышала ширину модуля, чего в 1U не бывает, — и
-лишнее ушло корзине дисков, которой негде было выдвигаться.
+A module is a pair of impellers under one plastic cover, so from above you
+see the shell with a seam down the middle, not bare blades. The wall is
+shallow: its depth used to be twice the width of a module, which does not
+happen in 1U — and the excess went to the drive cage, which had nowhere to
+slide out to.
 
-Рисуем после жгутов, поэтому стенка их перекрывает.
+Drawn after the harnesses, so the wall covers them.
 """
 
-# Свой прямоугольник: сборка проверит, что узел из него не вышел.
+# Own rectangle: the build checks that the block did not leave it.
 BOUNDS = (184, 6, 244, 832)
 
 from board.geom import FAN_H, FAN_N, FAN_STEP, FAN_W, X_FAN, X_PCB, H, fan_foot_y, seat
@@ -22,10 +23,11 @@ def render(cv):
     cv.add(stamp(X_FAN + 6, 14, "вентиляторы"))
     for i in range(FAN_N):
         y = 26 + i * FAN_STEP
-        # Крыльчатки нарочно шире своей половины и заходят одна на другую:
-        # так и стоят спаренные вентиляторы в 1U, и пара читается одним
-        # модулем, а не двумя кружками рядом. Радиус считаем от глубины
-        # стенки — числом он разъезжается при каждой правке геометрии.
+        # The impellers are deliberately wider than their own half and overlap
+        # each other: that is how twin fans stand in 1U, and the pair reads as
+        # one module rather than two circles side by side. The radius is
+        # derived from the depth of the wall — as a plain number it drifted
+        # apart on every edit of the geometry.
         rr = FAN_W / 3.6
         rotors = []
         for k in range(2):
@@ -36,17 +38,18 @@ def render(cv):
                 f'M{cx-bl:.1f} {cy} L{cx} {cy-bw:.1f} L{cx+bl:.1f} {cy} L{cx} {cy+bw:.1f} Z'
                 for b in range(2))
             rotors.append(f'<circle cx="{cx}" cy="{cy}" r="{rr:.1f}" fill="#0d1417" stroke="rgba(147,161,161,0.18)"/>')
-            # Крыльчатки крутятся с одним периодом и разной фазой: так они
-            # идут вразнобой, но щёлкают в общий такт. Сдвиг кратен шагу
-            # такта, иначе кадры перерисовки расползаются.
+            # The impellers spin with one period and different phases: that way
+            # they run out of step but click to a common beat. The shift is a
+            # multiple of the beat step, otherwise the repaint frames drift
+            # apart.
             rotors.append(f'<path class="fan-blades" d="{blades}" fill="rgba(34,48,54,0.55)" '
                           f'stroke="rgba(147,161,161,0.26)" style="animation-delay:-{jitter(i, 0.1, 2.2, k)}s"/>')
             rotors.append(f'<circle cx="{cx}" cy="{cy}" r="{rr*0.3:.1f}" fill="#0a1215" stroke="rgba(147,161,161,0.22)"/>')
 
         h = FAN_H
-        # Гнездо модуля: направляющие и ответная колодка остаются в стенке,
-        # когда вентилятор вынут. Без них стенка при сборке выглядела глухой
-        # коробкой, в которую узлы влетают неизвестно куда.
+        # The module seat: the guides and the mating header stay in the wall
+        # when the fan is pulled out. Without them the wall looked, during the
+        # build, like a blind box the blocks fly into who knows where.
         cv.add(f'''<g class="decor fan-seat">
       <rect x="{X_FAN+4}" y="{y}" width="{FAN_W-8}" height="{h}" rx="0" fill="#070d10"
             stroke="rgba(147,161,161,0.16)" stroke-dasharray="7 5"/>
@@ -58,17 +61,19 @@ def render(cv):
             stroke="rgba(147,161,161,0.20)"/>
       {mono(X_FAN + FAN_W / 2, y + h / 2 + 3, f"FAN{i+1}", 8, op=0.16)}
     </g>''')
-        # Оранжевые язычки по бокам — за них вентилятор и вынимают на горячую.
-        # На живой машине они единственное цветное пятно в корзине. Рисуем их
-        # до корпуса: язычок утоплен в раму, и наружу торчит только половина.
+        # The orange tabs on the sides — the fan is pulled out live by them.
+        # On a real machine they are the only spot of colour in the cage. They
+        # are drawn before the body: a tab is recessed into the frame, and only
+        # half of it sticks out.
         tabs = ''.join(
             f'<rect x="{tx}" y="{y+h/2-19}" width="16" height="38" rx="2" fill="#cb4b16" '
             f'stroke="rgba(238,232,213,0.55)" stroke-width="1.2"/>'
             f'<rect x="{tx+4}" y="{y+h/2-13}" width="6" height="26" rx="1" fill="rgba(238,232,213,0.22)"/>'
             for tx in (X_FAN - 8, X_FAN + FAN_W - 8))
-        # Виброопоры сидят не по углам сами по себе: сквозь модуль проходит
-        # шпилька, и на её концах надеты резиновые втулки. Мотор развязан с
-        # рамой этой резиной — иначе гул восьми вентиляторов идёт в стойку.
+        # The vibration mounts do not sit in the corners on their own: a stud
+        # runs through the module, and rubber bushings are fitted on its ends.
+        # The motor is decoupled from the frame by that rubber — otherwise the
+        # hum of eight fans goes into the rack.
         mounts = ''.join(
             f'<line x1="{mx}" y1="{y+7}" x2="{mx}" y2="{y+h-7}" stroke="rgba(147,161,161,0.16)" '
             f'stroke-width="2.6"/>' for mx in (X_FAN + 14, X_FAN + FAN_W - 14))
@@ -77,14 +82,16 @@ def render(cv):
             f'stroke="rgba(147,161,161,0.30)"/>'
             f'<circle cx="{mx}" cy="{my}" r="2.4" fill="#070d10" stroke="rgba(147,161,161,0.22)"/>'
             for mx in (X_FAN + 14, X_FAN + FAN_W - 14) for my in (y + 7, y + h - 7))
-        # Питание: колодка на корпусе, от неё нога с жгутом до ответной части на
-        # плате. Нога и провода — часть вентилятора: тянешь его, и они уходят
-        # вместе с ним, отцепляясь от платы. Лампа при этом остаётся на плате:
-        # горит не вентилятор, а его посадочное место.
-        # Разъём — в верхнем углу модуля, там он и стоит на живом вентиляторе.
-        # А вот ответная колодка на плате приходит против середины модуля:
-        # лампа посадочного места должна быть напротив своего вентилятора.
-        # Ординату колодки считает geom — по ней же разводка тянет к ней шину.
+        # Power: a header on the body, and from it a leg with a harness down to
+        # the mating part on the board. The leg and the wires are part of the
+        # fan: pull it and they go with it, detaching from the board. The lamp
+        # stays on the board though: what lights up is not the fan but its seat.
+        # The connector is in the top corner of the module, which is where it
+        # stands on a real fan. The mating header on the board, however, comes
+        # opposite the middle of the module: the seat lamp has to be across
+        # from its own fan.
+        # The ordinate of the header is computed by geom — the traces route the
+        # bus to it by the same value.
         px, py = X_FAN + FAN_W - 26, y + 10
         fy, sx = fan_foot_y(i), X_PCB + 6
         wires = ''.join(
@@ -95,22 +102,24 @@ def render(cv):
                 f'stroke="rgba(147,161,161,0.34)"/>'
                 + ''.join(f'<line x1="{px+4+k*4}" y1="{py+3}" x2="{px+4+k*4}" y2="{py+13}" '
                           f'stroke="rgba(147,161,161,0.26)"/>' for k in range(4)))
-        # ответная колодка на конце ноги — она и садится в разъём платы
+        # the mating header at the end of the leg — it seats into the board
         foot = (f'<rect x="{sx-4}" y="{fy}" width="14" height="16" rx="2" fill="#101a1e" '
                 f'stroke="rgba(147,161,161,0.38)"/>'
                 f'<rect x="{sx-1}" y="{fy+3}" width="8" height="10" rx="1" fill="#060d10"/>')
 
-        # Оболочка: сверху у живого модуля видна закрытая пластиковая крышка со
-        # швом между двумя секциями, а не голые крыльчатки. Рисуем её поверх
-        # роторов тонким контуром — так и корпус читается, и вращение видно.
+        # The shell: from above a real module shows a closed plastic cover with
+        # a seam between the two sections, not bare impellers. It is drawn over
+        # the rotors as a thin outline — that way the body reads and the
+        # rotation stays visible.
         shell = (f'<rect x="{X_FAN+4}" y="{y}" width="{FAN_W-8}" height="{h}" rx="3" fill="none" '
                  f'stroke="rgba(147,161,161,0.34)" stroke-width="1.6"/>'
                  f'<line x1="{X_FAN+FAN_W/2}" y1="{y+3}" x2="{X_FAN+FAN_W/2}" y2="{y+h-3}" '
                  f'stroke="rgba(147,161,161,0.30)" stroke-width="1.6"/>'
                  f'<line x1="{X_FAN+FAN_W/2}" y1="{y+3}" x2="{X_FAN+FAN_W/2}" y2="{y+h-3}" '
                  f'stroke="rgba(10,18,21,0.6)" stroke-width="0.7"/>')
-        # Поролон по кромкам: им модуль прижат к крышке, чтобы воздух не пошёл
-        # в обход. Ворсистый, поэтому рисуем штрихом, а не заливкой.
+        # Foam along the edges: it presses the module against the cover so the
+        # air does not take a detour. It is fluffy, so it is drawn with
+        # hatching rather than a fill.
         foam = ''.join(
             f'<rect x="{X_FAN+8}" y="{fy0}" width="{FAN_W-16}" height="5" rx="2" '
             f'fill="rgba(88,96,92,0.42)"/>'

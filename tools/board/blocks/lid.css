@@ -1,5 +1,6 @@
-  /* Крышка. Лежит в тех же координатах, что и плата, поэтому накрывает
-     машину точно. Снимает её человек кнопкой cover; кликов не перехватывает. */
+  /* Cover. Lives in the same coordinates as the board, so it sits over the
+     machine exactly. A person takes it off with the cover button; it does not
+     intercept clicks. */
   .lid {
     position: absolute; inset: 0;
     pointer-events: none;

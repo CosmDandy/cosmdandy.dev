@@ -1,8 +1,8 @@
-"""Металл: выводы, площадки, контакты, штампованные детали.
+"""Metal: leads, pads, contacts, stamped parts.
 
-Делаем их серебром, а не той же серой краской, что и шелкография: на живой
-плате олово — единственное, что бликует, и именно по нему глаз отделяет
-деталь от рисунка под ней.
+We do them in silver rather than the same grey paint as the silkscreen: on a
+live board solder is the only thing that catches a highlight, and it is by
+that highlight that the eye separates a part from the drawing under it.
 """
 
 from board.geom import SOCKET_H, SOCKET_W
@@ -11,26 +11,26 @@ from board.palette import COLD, HOT, SILVER, SILVER_DIM, SILVER_LIT
 
 
 def pad(x, y, w, h, r=0.6):
-    """Контактная площадка: олово с бликом сверху и тенью снизу."""
+    """Contact pad: solder with a highlight on top and a shadow below."""
     return (f'<rect x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="{h:.1f}" rx="{r}" fill="{SILVER_DIM}"/>'
             f'<rect x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="{h - 0.8:.1f}" rx="{r}" fill="{SILVER}"/>'
             f'<rect x="{x + 0.4:.1f}" y="{y + 0.3:.1f}" width="{max(0.6, w - 0.8):.1f}" height="0.6" '
             f'fill="{SILVER_LIT}" fill-opacity="0.55"/>')
 
 def relief(x, y, w, h, rx=1):
-    """Фаска корпуса: светлая кромка сверху, тень снизу. Дешевле тени и не
-    создаёт слоя композитинга, в отличие от filter."""
+    """Package chamfer: a light edge on top, a shadow below. Cheaper than a
+    shadow and creates no compositing layer, unlike filter."""
     return (f'<path d="M{x + rx:.1f} {y:.1f} H{x + w - rx:.1f}" stroke="rgba(223,232,234,0.20)" '
             f'stroke-width="0.9" fill="none"/>'
             f'<path d="M{x + rx:.1f} {y + h:.1f} H{x + w - rx:.1f}" stroke="rgba(0,0,0,0.38)" '
             f'stroke-width="1.1" fill="none"/>')
 
 def ihs_path(x, y):
-    """Контур крышки процессора: ключи по бокам и срез у первого вывода.
+    """Outline of the processor lid: keys on the sides, a cut at pin one.
 
-    Живёт отдельной функцией, потому что по этому же контуру режется
-    перелив кристалла: прямоугольный клип превращал крышку обратно в
-    плашку и съедал ключи, ради которых всё и делалось.
+    It lives in a function of its own because the die sheen is clipped by
+    this same outline: a rectangular clip turned the lid back into a plain
+    slab and ate the keys the whole thing was done for.
     """
     ix, iy = x + 40, y + 34
     iw, ih = SOCKET_W - 80, SOCKET_H - 68
@@ -48,11 +48,12 @@ def ihs_path(x, y):
             f'V{iy + cut} Z')
 
 def idc_header(x, y, pins, label, vertical=False):
-    """Шлейфовая гребёнка: два ряда контактов в пластиковом бортике.
+    """Ribbon header: two rows of contacts inside a plastic shroud.
 
-    К таким идут плоские шлейфы на переднюю панель, к кнопке питания, к
-    USB и к датчику вскрытия. Прорезь-ключ с одной стороны — чтобы шлейф
-    не воткнули наоборот; на живой плате её видно сразу.
+    Flat ribbon cables run to these — to the front panel, to the power
+    button, to USB and to the intrusion sensor. The keying slot on one side
+    is there so the cable cannot be plugged in the wrong way round; on a live
+    board it is visible at once.
     """
     n = pins // 2
     w, h = n * 4.4 + 8, 13
@@ -68,7 +69,7 @@ def idc_header(x, y, pins, label, vertical=False):
             else:
                 px, py = x + 5 + k * 4.4, y + 3.4 + r * 5.2
             pins_svg.append(pad(px, py, 2.2, 2.2, 0.3))
-    # ключ: вырез в бортике посередине длинной стороны
+    # key: a cut-out in the shroud, midway along the long side
     if vertical:
         key = (f'<rect x="{x + w - 2.6:.1f}" y="{y + h / 2 - 3:.1f}" width="2.6" height="6" '
                f'fill="#0a1013"/>')
@@ -81,10 +82,11 @@ def idc_header(x, y, pins, label, vertical=False):
 
 
 def power_header(x, y, label="P12V_BP"):
-    """Питающий хедер 2×4: восемь толстых контактов в рамке с защёлкой.
+    """2×4 power header: eight thick contacts in a frame with a latch.
 
-    От разъёмов данных отличается сразу — шаг крупнее, контакты втрое
-    толще: через них идёт ток в десятки ампер, а не сигнал.
+    It is told apart from data connectors at once — the pitch is bigger, the
+    contacts three times thicker: what goes through them is tens of amps,
+    not a signal.
     """
     w, h = 30, 20
     out = [f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="2" fill="#161f24" '
@@ -92,7 +94,7 @@ def power_header(x, y, label="P12V_BP"):
     for r in range(2):
         for c in range(4):
             out.append(pad(x + 3.6 + c * 6.2, y + 4 + r * 7, 4, 4.6, 0.8))
-    # защёлка на верхней стенке
+    # latch on the top wall
     out.append(f'<path d="M{x + w / 2 - 5} {y} v-3.4 h10 v3.4" fill="none" '
                f'stroke="rgba(147,161,161,0.40)" stroke-width="1.3"/>')
     out.append(relief(x, y, w, h, 2))
@@ -101,7 +103,7 @@ def power_header(x, y, label="P12V_BP"):
 
 
 def hexgrid(x, y, w, h, s=7, gap=5.5):
-    """Гексагональная перфорация: ею облегчают широкую часть кронштейна."""
+    """Hexagonal perforation: it lightens the wide part of the bracket."""
     out, dx, dy = [], s * 1.5 + gap, (s + gap / 2) * 1.732
     row = 0
     cy = y + s
@@ -118,23 +120,26 @@ def hexgrid(x, y, w, h, s=7, gap=5.5):
 
 
 def service_label(x, y, w, h, title, lines, head=HOT, arrow=None):
-    """Сервисная табличка на крышке: кирпичная шапка и светлое поле.
+    """Service label on the cover: a brick-coloured header and a light field.
 
-    Поле держим на fill-opacity, а не сплошной белой заливкой: крышка тёмная,
-    и непрозрачная бумага на ней выжигает глаза.
+    The field is kept on fill-opacity rather than a solid white fill: the
+    cover is dark, and opaque paper on it burns the eyes.
 
-    Цвет шапки — не оформление, а сам код замены: HOT (терракота) значит
-    «можно менять на ходу», COLD (голубой) значит «сначала обесточить». Это
-    единственные два тона, что тут уместны, и оба уже определены в palette,
-    рядом с обвязкой, которая красит этим же языком живые узлы.
+    The colour of the header is not decoration but the replacement code
+    itself: HOT (terracotta) means "may be changed on the fly", COLD (blue)
+    means "power down first". These are the only two tones that belong here,
+    and both are already defined in palette, next to the wiring that paints
+    live units in the same language.
 
-    Строки с префиксом NOTE:/Attention: — два разных предупреждения с живой
-    наклейки: первое просто к сведению, второе про риск испортить железо,
-    поэтому оно жирнее и темнее прочих строк.
+    Lines prefixed with NOTE:/Attention: are two different warnings off a
+    live sticker: the first is simply for information, the second is about
+    the risk of ruining hardware, which is why it is bolder and darker than
+    the rest of the lines.
 
-    `arrow` — направление, в котором деталь покидает шасси ('left'/'right'):
-    не у каждой наклейки есть смысл рисовать его, но там, где стрелка на
-    живой табличке есть, она часть языка, а не украшение.
+    `arrow` is the direction in which the part leaves the chassis
+    ('left'/'right'): drawing it makes no sense on every label, but where a
+    live plate does have the arrow, it is part of the language and not an
+    ornament.
     """
     head_h = h * 0.19
     body_y = y + head_h
@@ -177,11 +182,11 @@ def service_label(x, y, w, h, title, lines, head=HOT, arrow=None):
 
 
 def service_legend(x, y, w, h):
-    """Легенда цветового кода: без неё шапки наклеек — просто цветные полоски.
+    """Colour code legend: without it label headers are just coloured strips.
 
-    Стоит один раз на всей крышке: остальные таблички лишь используют код,
-    который здесь объяснён, и повторять его на каждой было бы тем же самым
-    текстом восемь раз подряд.
+    It stands once on the whole cover: the other plates merely use the code
+    explained here, and repeating it on each of them would be the same text
+    eight times in a row.
     """
     parts = [
         f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="3" fill="#e8e3d5" fill-opacity="0.78" '
@@ -203,12 +208,13 @@ def service_legend(x, y, w, h):
 
 
 def rating_label(x, y, num, w=136, h=42):
-    """Шильдик питания своего ввода: номер блока на всех метках один.
+    """Power label for its own feed: the same block number on all the marks.
 
-    Жёлтый квадрат с молнией — предупреждение, что вводов два и обесточить
-    надо оба; оранжевый рядом — рука, то есть «под напряжением не лезть».
-    Раньше эта пара стояла дважды, зеркально по краям, и наклейка читалась
-    как две разные: на живой машине каждый знак нанесён по одному разу.
+    The yellow square with the bolt warns that there are two feeds and both
+    have to be de-energised; the orange one next to it is a hand, that is,
+    "do not reach in under voltage". This pair used to stand twice, mirrored
+    at the edges, and the label read as two different ones: on a live machine
+    each sign is applied exactly once.
     """
     yw, ow = h * 0.86, h * 0.62
     dw = w - yw - ow
@@ -237,8 +243,8 @@ def rating_label(x, y, num, w=136, h=42):
                 f'font-family="ui-monospace, Menlo, monospace" font-size="{h*0.36:.1f}" '
                 f'font-weight="700">{num}</text>')
 
-    # Токи с таблички живой машины, разбитые по строкам: наклейка стоит вдоль
-    # блока, а не поперёк, и полная строка в её длину не влезает.
+    # Currents off a live machine's plate, broken into lines: the label sits
+    # along the supply, not across it, and a full line does not fit its length.
     dx = x + yw + ow
     rows = ["100-127V 5,3A", "200-240V 2,6A", "-48…-60V 18,3A"]
     line_h = h / (len(rows) + 1)

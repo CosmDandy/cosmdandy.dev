@@ -1,10 +1,11 @@
-// Статика на Cloudflare Workers. Скрипта воркера нет — только раздача файлов.
+// Static files on Cloudflare Workers. There is no worker script — file
+// serving only.
 //
-// Почему Workers, а не Pages: Cloudflare с 2025 года ведёт новые проекты сюда,
-// в Pages идут только исправления.
+// Why Workers and not Pages: since 2025 Cloudflare takes new projects here,
+// and Pages gets fixes only.
 //
-// Раздаём _site/, а не корень репозитория: иначе в выдачу уехали бы README,
-// .github и сам этот конфиг.
+// We serve _site/ rather than the repository root: otherwise README, .github
+// and this very config would go out with the site.
 {
   "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
   "name": "cosmdandy-dev",

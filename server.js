@@ -236,9 +236,10 @@
     screenPost();
   }
 
-  // ── Питание ────────────────────────────────────────────────────────────
-  // Три состояния кнопки, как на настоящей машине: init — BMC поднимается и
-  // жать бесполезно; standby — можно включать; on — работает.
+  // ── Power ──────────────────────────────────────────────────────────────
+  // Three button states, as on a real machine: init — the BMC is coming up
+  // and pressing it does nothing; standby — ready to be switched on; on —
+  // running.
   function setPower(mode) {
     rig.classList.remove('init', 'standby', 'on');
     rig.classList.add(mode);
@@ -246,13 +247,15 @@
 
   function powerOn() {
     state.powered = true;
-    // Аптайм — время работы хоста, а не вкладки: без этой отметки uptime
-    // считал от загрузки страницы и переживал power off, не заметив его.
+    // Uptime is how long the host has been running, not the tab: without this
+    // mark uptime counted from the page load and survived a power off without
+    // noticing it.
     state.bootAt = Date.now();
     save();
     setPower('on');
-    // Порядок ровно такой, как видно вживую: сперва поднимается линк сетевой
-    // карты, следом BMC начинает биться, и только потом стартует хост.
+    // The order is exactly what you see in the flesh: first the network card
+    // brings its link up, then the BMC starts beating, and only after that
+    // does the host start.
     wait(120, function () { rig.classList.add('net'); line('nic · link up 25G', 'ok'); });
     wait(700, function () { rig.classList.add('bmc'); line('BMC 2.14 · heartbeat', 'ok'); });
     wait(1100, runPost);
@@ -279,7 +282,7 @@
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.click(); }
   });
 
-  // ── Опознание в стойке ─────────────────────────────────────────────────
+  // ── Identify in the rack ───────────────────────────────────────────────
   const idBtn = document.getElementById('id-btn');
   function toggleIdentify() {
     const on = rig.classList.toggle('identify');
@@ -391,8 +394,8 @@
   // shared file.
   const PICKS = [];
 
-  // Вентилятор: в логе нумеруются с единицы, как на корпусе, а в разметке —
-  // с нуля.
+  // Fan: in the log they are numbered from one, as on the chassis, but in the
+  // markup from zero.
   PICKS.push({
     test: function (el) { return el.dataset.fan !== undefined; },
     name: function (el) { return 'fan ' + (Number(el.dataset.fan) + 1); },
@@ -401,8 +404,8 @@
     test: function (el) { return el.dataset.dimm !== undefined; },
     name: function (el) { return 'dimm ' + el.dataset.dimm; },
   });
-  // Диск достают в два приёма, как руками: сначала отщёлкивается ручка,
-  // потом каддик выходит наружу. Третий клик ставит его обратно.
+  // A drive comes out in two moves, the way hands do it: first the handle
+  // unlatches, then the caddy slides out. A third click puts it back.
   PICKS.push({
     test: function (el) { return el.dataset.unit && el.dataset.unit.startsWith('hdd'); },
     name: function (el) { return el.dataset.unit; },
@@ -420,8 +423,9 @@
       }
     },
   });
-  // Процессор разбирается в два приёма, как в жизни: сначала радиатор, потом
-  // сам процессор из-под него. Третий клик собирает узел обратно.
+  // The processor comes apart in two moves, as in real life: first the
+  // heatsink, then the processor from under it. A third click puts the
+  // assembly back together.
   PICKS.push({
     test: function (el) { return el.classList.contains('cpu-slot'); },
     name: function (el) { return 'cpu' + el.dataset.cpu + ' heatsink'; },
@@ -446,8 +450,9 @@
   PICKS.push({
     test: function (el) { return el.dataset.psu !== undefined; },
     name: function (el) { return 'psu-' + el.dataset.psu; },
-    // Вынутый блок обесточен: об этом и говорим в логе. Вставили обратно —
-    // сеть снова на нём, и лампа AC загорается даже на выключенной машине.
+    // A pulled supply is dead: that is what the log says. Put it back and
+    // mains is on it again, and the AC lamp lights up even on a machine that
+    // is switched off.
     pull: function (el, line) {
       const out = el.classList.toggle('pulled');
       const name = 'psu-' + el.dataset.psu;
@@ -499,22 +504,24 @@
     if (rig.classList.contains('service') && e.target.closest('a.callout')) e.preventDefault();
   }, true);
 
-  // ── Терминал: ядро оболочки ────────────────────────────────────────────
-  // Раньше здесь была лестница из case по именам команд. Она работала, но
-  // имена команд существовали только как метки switch и текст в справке —
-  // поэтому ни дополнить по Tab, ни собрать help из самого списка было
-  // нечем, а справка расходилась с реальностью молча.
+  // ── Terminal: the shell core ───────────────────────────────────────────
+  // There used to be a staircase of cases on command names here. It worked,
+  // but the command names existed only as switch labels and as text in the
+  // help — so there was nothing to complete by Tab with and nothing to
+  // assemble help out of, and the help drifted from reality silently.
   //
-  // Теперь команда объявляет себя сама: имя, группа, краткая строка помощи,
-  // кандидаты для дополнения и функция. Функция ВОЗВРАЩАЕТ строки, а не
-  // печатает их, — иначе не собрать конвейер: grep должен получить то, что
-  // вернула предыдущая ступень, а не читать чужой вывод из лога.
+  // Now a command declares itself: name, group, a short help line,
+  // candidates for completion and a function. The function RETURNS lines
+  // instead of printing them — otherwise there is no pipeline: grep has to
+  // get what the previous stage returned, not read someone else's output
+  // out of the log.
 
   const CMDS = new Map();
 
   function cmd(spec) {
-    // Порядок вставки частей задаёт порядок регистрации, и перепутанные
-    // маркеры молча перетирали бы команды. Пусть лучше падает громко.
+    // The order the parts are spliced in sets the order of registration,
+    // and mixed-up markers would silently overwrite commands. Better it
+    // falls over loudly.
     if (CMDS.has(spec.name)) throw new Error('команда уже объявлена: ' + spec.name);
     CMDS.set(spec.name, spec);
     (spec.alias || []).forEach(function (a) {
@@ -522,21 +529,22 @@
     });
   }
 
-  // Настройки прошивки объявляет экран (parts/screen.js), а он выполняется
-  // ниже по файлу. До первого нажатия клавиши его уже нет смысла ждать, но
-  // если экран не собран вовсе — команды должны работать, просто без
-  // настроек. Отсюда try: обращение к необъявленной переменной бросает.
+  // The firmware settings are declared by the screen (parts/screen.js), and
+  // that runs further down the file. By the first keypress there is no point
+  // waiting for it any more, but if the screen was not spliced in at all the
+  // commands still have to work, just without settings. Hence the try:
+  // touching an undeclared variable throws.
   function nvBag() {
     try { return nv; } catch (e) { return {}; }
   }
 
   let cwd = '/home/cosmdandy';
 
-  // ── Разбор строки ──────────────────────────────────────────────────────
-  // Было: split по пробелам и всё в нижний регистр — то есть ровно два
-  // слова, и путь /Proc превращался в /proc. Теперь регистр сохраняется:
-  // пути и шаблоны grep к нему чувствительны. К нижнему приводится только
-  // имя команды при поиске в реестре.
+  // ── Parsing the line ───────────────────────────────────────────────────
+  // It used to be: split on spaces and everything down to lower case — that
+  // is, exactly two words, and the path /Proc turned into /proc. Now case is
+  // kept: paths and grep patterns are sensitive to it. Only the command name
+  // is lowercased, when it is looked up in the registry.
 
   function lex(raw) {
     const stages = [];
@@ -570,14 +578,15 @@
     return stages.filter(function (s) { return s.length; });
   }
 
-  // ── История ────────────────────────────────────────────────────────────
+  // ── History ────────────────────────────────────────────────────────────
   const history = [];
   let pos = 0;
   let draft = '';
 
-  // `!!` — предыдущая строка, `!7` — седьмая, `!se` — последняя на «se».
-  // Развёрнутое печатается эхом и кладётся в историю уже развёрнутым: так
-  // ведёт себя bash, и так понятно, что именно выполнилось.
+  // `!!` — the previous line, `!7` — the seventh, `!se` — the last one on
+  // "se". What it expands to is echoed and goes into the history already
+  // expanded: that is how bash behaves, and that way it is clear what
+  // exactly ran.
   function expand(raw) {
     const s = raw.trim();
     if (s[0] !== '!' || !s.length) return raw;
@@ -590,7 +599,7 @@
     return '';
   }
 
-  // ── Выполнение ─────────────────────────────────────────────────────────
+  // ── Execution ──────────────────────────────────────────────────────────
 
   function found(name) {
     return CMDS.get(String(name).toLowerCase());
@@ -623,8 +632,8 @@
     return out || [];
   }
 
-  // Похожая команда для подсказки при опечатке: считаем общий префикс, этого
-  // хватает — список короткий, а расстояние Левенштейна тут излишество.
+  // A similar command to suggest on a typo: we count the common prefix, that
+  // is enough — the list is short, and Levenshtein distance is overkill here.
   function suggest(word) {
     const w = String(word).toLowerCase();
     let best = '';
@@ -656,9 +665,10 @@
     return out || [];
   }
 
-  // ── Справка собирается из реестра ──────────────────────────────────────
-  // Пока список команд лежал отдельным массивом, он расходился с самим
-  // switch: команда была, а строки про неё не было, и наоборот.
+  // ── Help is assembled from the registry ────────────────────────────────
+  // As long as the command list lay in a separate array, it drifted from the
+  // switch itself: a command was there and the line about it was not, and
+  // the other way round.
   cmd({
     name: 'help',
     group: 'ОБОЛОЧКА',
@@ -709,9 +719,9 @@
     return out.sort();
   }
 
-  // ── Дополнение ─────────────────────────────────────────────────────────
-  // Кандидаты берём у самой команды: она одна знает, что стоит на месте
-  // своего аргумента — пути, ключи или имена ссылок.
+  // ── Completion ─────────────────────────────────────────────────────────
+  // We take the candidates from the command itself: it alone knows what
+  // stands in place of its argument — paths, flags or link names.
   function complete(text) {
     const stages = lex(text);
     const argv = stages.length ? stages[stages.length - 1] : [];
@@ -727,9 +737,9 @@
     return list.filter(function (c) { return c.indexOf(tail) === 0 && c !== tail; });
   }
 
-  // Что дорисовать серым: сначала кандидат дополнения, если он один или у
-  // всех общий префикс; если кандидатов нет — последняя команда из истории
-  // с таким началом, как в fish.
+  // What to draw on in grey: first the completion candidate, if there is
+  // only one or they all share a prefix; if there are no candidates — the
+  // last command from the history that starts this way, as in fish.
   function ghostFor(text) {
     if (!text) return '';
     const cand = complete(text);
@@ -751,7 +761,7 @@
     return '';
   }
 
-  // ── Поле ввода ─────────────────────────────────────────────────────────
+  // ── The input field ────────────────────────────────────────────────────
   const promptInput = document.getElementById('prompt');
   const ghostTyped = document.querySelector('.ghost-typed');
   const ghostRest = document.querySelector('.ghost-rest');
@@ -762,9 +772,10 @@
   }
   refreshPs1();
 
-  // Подсказку рисуем зеркалом под полем: в <input> двух цветов не бывает.
-  // Набранное в зеркале прозрачное — оно нужно только чтобы занять ширину,
-  // а видно продолжение приглушённым тоном.
+  // The hint is drawn by a mirror under the field: an <input> never has two
+  // colours. What was typed is transparent in the mirror — it is there only
+  // to take up the width, and what shows is the continuation in a muted
+  // tone.
   function paintGhost() {
     if (!ghostRest) return;
     const text = promptInput.value;
@@ -797,7 +808,8 @@
   promptInput.addEventListener('scroll', paintGhost);
 
   promptInput.addEventListener('keydown', function (e) {
-    // Ctrl+W не вешаем: в браузере он закрывает вкладку и не отменяется.
+    // We do not hang Ctrl+W: in a browser it closes the tab and cannot be
+    // cancelled.
     if (e.ctrlKey && !e.altKey && !e.metaKey) {
       const k = e.key.toLowerCase();
       if (k === 'c') {
@@ -824,7 +836,7 @@
     }
 
     if (e.key === 'Tab') {
-      e.preventDefault();               // иначе фокус уедет на ссылку под полем
+      e.preventDefault();               // otherwise focus leaves for the link below
       if (takeGhost()) return;
       const cand = complete(promptInput.value);
       if (cand.length > 1) {
@@ -845,7 +857,7 @@
 
     if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
     if (!history.length) return;
-    e.preventDefault();                       // иначе курсор прыгает в начало строки
+    e.preventDefault();                       // otherwise the caret jumps to line start
     if (e.key === 'ArrowUp') {
       if (pos === history.length) draft = promptInput.value;
       pos = Math.max(0, pos - 1);
@@ -854,14 +866,14 @@
     }
     promptInput.value = pos === history.length ? draft : history[pos];
     paintGhost();
-    // курсор в конец: иначе он остаётся там, где был, и правка идёт с середины
+    // caret to the end: otherwise it stays put and editing runs from the middle
     const end = promptInput.value.length;
     window.requestAnimationFrame(function () { promptInput.setSelectionRange(end, end); });
   });
 
-  // Ручка для проверок. Через поле ввода терминал не потестировать: сборка
-  // chromium в контейнере роняет рендерер на любом <input>, и инструменты
-  // удаляют поля до отрисовки страницы.
+  // A handle for tests. The terminal cannot be tested through the input
+  // field: the chromium build in the container drops the renderer on any
+  // <input>, and the tooling strips the fields before the page is drawn.
   window.__rig = {
     exec: function (s) { return exec(s); },
     complete: complete,
@@ -921,10 +933,10 @@
     n.addEventListener('mouseleave', function () { lit(g, false); });
   });
 
-  // ── Железо: что машина о себе рассказывает ─────────────────────────────
-  // Единственное место, где считаются показатели датчиков. Раньше их считали
-  // дважды — приборы в боковой колонке по одной формуле, команда sensors по
-  // другой, — и температуры в них расходились.
+  // ── Hardware: what the machine tells about itself ──────────────────────
+  // The only place where the sensor readings are computed. They used to be
+  // computed twice — the gauges in the side column by one formula, the
+  // sensors command by another — and the temperatures in them disagreed.
 
   function metric(key) {
     const on = rig.classList.contains('on');
@@ -932,7 +944,7 @@
     const dimmsOut = chassis.querySelectorAll('.dimm.pulled').length;
     const drivesOut = chassis.querySelectorAll('.bay.pulled').length;
     if (!on) {
-      // на дежурке живёт только BMC: сеть управления и её потребление
+      // on standby only the BMC is alive: the management network and its draw
       if (key === 'power') return { v: 12 + Math.random() * 2, text: '12 W', warn: false, off: true };
       if (key === 'net') return { v: 0.02, text: '0.02 Gb/s', warn: false, off: true };
       return { v: 0, text: '—', warn: false, off: true };
@@ -963,10 +975,11 @@
     return { v: 0, text: '—', warn: false };
   }
 
-  // ── Что машина о себе рассказывает ─────────────────────────────────────
-  // Ни одного числа в командах: состав приходит из паспорта, наличие — из
-  // DOM, настройки — из NVRAM. Раньше здесь стояли литералы, и консоль
-  // обещала тридцать две планки при двадцати четырёх нарисованных.
+  // ── What the machine tells about itself ────────────────────────────────
+  // Not a single number in the commands: the make-up comes from the spec,
+  // what is in place from the DOM, the settings from NVRAM. There used to be
+  // literals here, and the console promised thirty-two DIMMs while twenty
+  // four were drawn.
 
   function counts(sel) {
     return chassis.querySelectorAll(sel).length;
@@ -978,7 +991,7 @@
     return out;
   }
 
-  // Планки: сколько стоит и сколько вынуто — по банкам, как они нарисованы.
+  // DIMMs: how many are in and how many are pulled — by bank, as drawn.
   function dimmState() {
     const total = HW.dimm ? HW.dimm.slots : counts('.dimm');
     const out = counts('.dimm.pulled');
@@ -986,9 +999,9 @@
              gb: (total - out) * (HW.dimm ? HW.dimm.size_gb : 0) };
   }
 
-  // Логических процессоров столько, сколько их видит система: ядра на сокет
-  // из паспорта, урезанные настройкой Active Cores, удвоенные при SMT, и
-  // всё это только по тем сокетам, что сейчас на месте.
+  // There are as many logical processors as the system sees: cores per
+  // socket from the spec, cut down by the Active Cores setting, doubled
+  // under SMT, and all of that only over the sockets that are in place now.
   function cpuState(nv) {
     const spec = HW.cpu || {};
     const sockets = Math.max(0, (spec.n || 0) - counts('.cpu-slot.pulled'));
@@ -1002,9 +1015,9 @@
     return Math.floor((Date.now() - (state.bootAt || t0)) / 1000);
   }
 
-  // ── Журнал событий ─────────────────────────────────────────────────────
-  // Раньше sel печатал пять неизменных строк, две из которых были неправдой.
-  // Теперь это настоящий журнал: сюда пишет всё, что с машиной случилось.
+  // ── Event log ──────────────────────────────────────────────────────────
+  // sel used to print five unchanging lines, two of which were untrue. Now
+  // this is a real log: everything that happens to the machine writes here.
   const SEL_LOG = [];
 
   function selAdd(text, cls) {
@@ -1072,8 +1085,8 @@
   cmd({
     name: 'fans', group: 'ЖЕЛЕЗО', brief: 'обороты по модулям', usage: 'fans',
     run: function () {
-      // Пустых мест в стенке нет: восемь модулей, все живые. Прежний вывод
-      // сообщал о пустом отсеке FAN6, которого никогда не существовало.
+      // There are no empty spots in the wall: eight modules, all alive. The
+      // old output reported an empty FAN6 bay that never existed.
       const pulled = pulledNums('.fan.pulled', 'fan');
       const rows = [];
       for (let n = 0; n < HW.fan.n; n++) {
@@ -1156,8 +1169,8 @@
   cmd({
     name: 'lspci', group: 'ЖЕЛЕЗО', brief: 'устройства на шине', usage: 'lspci',
     run: function () {
-      // Перечисляем то, что нарисовано: микросхемы из паспорта, диски из
-      // корзины, райзеры с их картами. Пустой райзер так и помечен.
+      // We list what is drawn: chips from the spec, drives from the cage,
+      // risers with their cards. An empty riser is marked as exactly that.
       const rows = [];
       HW.chips.forEach(function (chip, i) {
         rows.push({ t: (i + 1).toString(16).padStart(2, '0') + ':00.0  ' + chip.ref.padEnd(5)
@@ -1213,7 +1226,7 @@
     run: function () { return [{ t: 'root', c: 'ok' }]; },
   });
 
-  // ── Управление ─────────────────────────────────────────────────────────
+  // ── Control ────────────────────────────────────────────────────────────
 
   function svcOn(on) {
     if (rig.classList.contains('service') !== on) toggleService();
@@ -1282,9 +1295,9 @@
     run: function () { toggleLp(); return []; },
   });
 
-  // Ссылки: отдельной команды со списком больше нет — open без аргумента
-  // печатает адреса, с аргументом открывает. Тот же список лежит в
-  // /home/cosmdandy/links.txt и потому пайпится.
+  // Links: there is no separate command with a list any more — open without
+  // an argument prints the addresses, with an argument it opens one. The
+  // same list lies in /home/cosmdandy/links.txt and so it pipes.
   const LINKS = {
     blog: 'https://blog.cosmdandy.dev',
     cv: 'https://cv.cosmdandy.dev',
@@ -1311,31 +1324,31 @@
     },
   });
 
-  // ── Файловая система: то, что видно, зайдя на хост по консоли ──────────
-  // Тот же принцип, что у паспорта машины: паспорт — что за железо стоит,
-  // DOM — что из него сейчас на месте, NVRAM — как оно настроено. Дерево
-  // ниже не хранит чисел само — оно на каждый листовой файл читает все три
-  // источника заново. Не «/proc/cpuinfo посчитан один раз при сборке», а
-  // «/proc/cpuinfo — функция, которая при каждом cat смотрит на HW, DOM
-  // и nv.». Вынь планку и попроси dimm — meminfo увидит вынутую сразу,
-  // без отдельного шага синхронизации.
+  // ── File system: what you see once on the host over the console ────────
+  // The same principle as the machine's spec: the spec is what hardware is
+  // fitted, the DOM is what of it is in place right now, NVRAM is how it is
+  // configured. The tree below keeps no numbers of its own — for every leaf
+  // file it reads all three sources afresh. Not "/proc/cpuinfo was counted
+  // once when the tree was built", but "/proc/cpuinfo is a function that on
+  // every cat looks at HW, DOM and nv". Pull a DIMM and ask for dimm —
+  // meminfo sees the pulled one at once, with no separate sync step.
   //
-  // Каталог — обычный объект { имя: узел }: fsBuildRoot строит дерево
-  // заново на каждый вызов команды, поэтому состав каталога (какие nvme
-  // остались в /dev, какие psu в /sys) тоже свежий. Листовой файл — это
-  // функция: она уже не пересчитывается при построении дерева, а вызывается
-  // самими командами (cat/head/tail/…) в момент, когда её содержимое
-  // действительно нужно.
+  // A directory is a plain object { name: node }: fsBuildRoot builds the
+  // tree anew on every command call, so the contents of a directory (which
+  // nvme are left in /dev, which psu in /sys) are fresh too. A leaf file is
+  // a function: it is no longer recomputed while the tree is built, it is
+  // called by the commands themselves (cat/head/tail/…) at the moment its
+  // contents are really needed.
   //
-  // Имена всех помощников здесь намеренно с префиксом fs — этот файл вставляется
-  // в общий IIFE вместе с остальными частями (screen.*, term.js), которые
-  // правятся параллельно и своего пространства имён не имеют. Общих коротких
-  // имён вроде resolve/splitArgs эта часть не заводит, чтобы не столкнуться
-  // с тем, что определят соседи.
+  // The names of all the helpers here are deliberately prefixed with fs — this
+  // file is spliced into the common IIFE together with the other parts
+  // (screen.*, term.js), which are edited in parallel and have no namespace of
+  // their own. This part starts no short shared names like resolve/splitArgs,
+  // so as not to collide with whatever the neighbours define.
 
-  let fsCurCwd = '/home/cosmdandy';   // снимок cwd — нужен complete(), у которого нет ctx
+  let fsCurCwd = '/home/cosmdandy';   // cwd snapshot — needed by complete(), which has no ctx
   let fsCurNv = {};
-  const fsBoot = Date.now();          // «включился» хост — с этого момента считаем uptime
+  const fsBoot = Date.now();          // the host "came up" — uptime is counted from here
 
   function fsFile(reader, opts) {
     opts = opts || {};
@@ -1348,7 +1361,7 @@
              owner: opts.owner || 'root', group: opts.group || 'root', kids: kids };
   }
 
-  // ── Состояние по DOM: что физически на месте ────────────────────────────
+  // ── State from the DOM: what is physically in place ─────────────────────
   function fsFansOut() { return chassis.querySelectorAll('.fan.pulled').length; }
   function fsDimmsOut() { return chassis.querySelectorAll('.dimm.pulled').length; }
   function fsBayPulled(i) { return !!chassis.querySelector('.bay.pulled[data-unit="hdd' + i + '"]'); }
@@ -1357,8 +1370,9 @@
   function fsPsuPulled(k) { return !!chassis.querySelector('.psu.pulled[data-psu="' + k + '"]'); }
   function fsEfiPresent(ctx) { return (ctx.nv || {}).mode !== 'Legacy'; }
 
-  // Сколько логических CPU сейчас видно ОС — общее место для cpuinfo,
-  // cmdline (nr_cpus) и nodeN/cpulist, чтобы три файла не разошлись в числах.
+  // How many logical CPUs the OS sees right now — a common place for cpuinfo,
+  // cmdline (nr_cpus) and nodeN/cpulist, so the three files do not diverge in
+  // their numbers.
   function fsLogicalPerSocket(ctx) {
     const nv = ctx.nv || {};
     const cpu = ctx.HW.cpu || {};
@@ -1392,7 +1406,7 @@
       const lines = [];
       let idx = 0;
       for (let s = 0; s < socketsTotal; s++) {
-        if (fsCpuPulled(s)) continue;               // радиатор снят — сокет не отвечает
+        if (fsCpuPulled(s)) continue;               // heatsink off — the socket is silent
         for (let t = 0; t < perSocket; t++) {
           lines.push({ t: 'processor\t: ' + idx });
           lines.push({ t: 'vendor_id\t: AuthenticAMD' });
@@ -1484,9 +1498,10 @@
 
   // ── /sys ─────────────────────────────────────────────────────────────
   function fsHwmonEntries() {
-    // Три датчика по паспорту машины: пакет CPU, накопители, вдув корпуса.
-    // Растут от числа вынутых вентиляторов — тем же правилом, что и раньше
-    // считался столбец температуры в приборах (42 + пропавшие*6 °C).
+    // Three sensors from the machine's spec: the CPU package, the drives,
+    // the chassis intake. They rise with the number of pulled fans — by the
+    // same rule the temperature column in the gauges used to be computed by
+    // (42 + missing*6 °C).
     const fo = fsFansOut();
     const defs = [
       { dir: 'hwmon0', name: 'k10temp', base: 42000, per: 6000 },
@@ -1507,8 +1522,8 @@
   }
 
   function fsNetEntries(ctx) {
-    // SFP+ живёт на карте в верхнем райзере (data-riser="1") — вынули его,
-    // порты пропадают из /sys/class/net вместе с картой.
+    // SFP+ lives on the card in the top riser (data-riser="1") — pull that
+    // out and the ports disappear from /sys/class/net along with the card.
     const kids = {};
     ['eth0', 'eth1'].forEach(function (name, idx) {
       kids[name] = fsDir({
@@ -1530,7 +1545,7 @@
   function fsPowerSupplyEntries() {
     const kids = {};
     ['1', '2'].forEach(function (k) {
-      if (fsPsuPulled(k)) return;                 // вынутый блок обесточен и исчезает
+      if (fsPsuPulled(k)) return;                 // a pulled supply is dead and gone
       kids['PSU' + k] = fsDir({
         online: fsFile(function () { return [{ t: state.powered ? '1' : '0' }]; }),
         type: fsFile(function () { return [{ t: 'Mains' }]; }),
@@ -1558,7 +1573,7 @@
       'console': fsFile(function () { return []; }, { mode: 'crw--w----' }),
     };
     (ctx.HW.bay || []).filter(function (b) { return !b.filler; }).forEach(function (b, idx) {
-      if (fsBayPulled(b.bay)) return;              // вынутый каддик — нет и /dev/nvmeN
+      if (fsBayPulled(b.bay)) return;              // caddy pulled — no /dev/nvmeN either
       kids['nvme' + idx + 'n1'] = fsFile(function () {
         return [{ t: (b.model || '') + ' · ' + b.tb + ' TB · life ' + b.life + '%' }];
       }, { mode: 'brw-rw----' });
@@ -1663,8 +1678,9 @@
   function fsVarDmesg(ctx) {
     return function () {
       const kids = log ? Array.from(log.children) : [];
-      // POST печатает сам, без запроса: значит его вывод — это хвост лога
-      // после последней набранной команды («$ …»), а не вся история сразу.
+      // POST prints on its own, unasked: so its output is the tail of the
+      // log after the last typed command ("$ …"), not the whole history at
+      // once.
       let cut = 0;
       for (let i = kids.length - 1; i >= 0; i--) {
         if ((kids[i].textContent || '').indexOf('$ ') === 0) { cut = i + 1; break; }
@@ -1675,8 +1691,8 @@
           return { t: '[' + (i * 0.31).toFixed(6).padStart(11, ' ') + '] ' + el.textContent, c: el.className || '' };
         });
       }
-      // Заглушка на пустой лог: те же числа, что и у sensors/dimm/nvme —
-      // паспорт и DOM, а не выдуманные литералы.
+      // A stand-in for an empty log: the same numbers sensors/dimm/nvme use
+      // — the spec and the DOM, not made-up literals.
       const cpu = ctx.HW.cpu || {};
       const dimm = ctx.HW.dimm || {};
       const bays = (ctx.HW.bay || []).filter(function (b) { return !b.filler; });
@@ -1725,7 +1741,7 @@
     };
   }
 
-  // ── Дерево целиком ───────────────────────────────────────────────────
+  // ── The whole tree ───────────────────────────────────────────────────
   function fsBuildRoot(ctx) {
     return fsDir({
       proc: fsDir({
@@ -1755,7 +1771,7 @@
     });
   }
 
-  // ── Пути: абсолютные, относительные, ., .., ~ ───────────────────────────
+  // ── Paths: absolute, relative, ., .., ~ ─────────────────────────────────
   function fsResolve(p, cwd) {
     if (!p) p = '.';
     if (p === '~') p = '/home/cosmdandy';
@@ -1786,7 +1802,7 @@
     return segs.length ? segs[segs.length - 1] : '/';
   }
 
-  // ── Аргументы: -x, -x значение, -xЗНАЧЕНИЕ, комбинированные -la ────────
+  // ── Arguments: -x, -x value, -xVALUE, combined -la ─────────────────────
   function fsSplitArgs(args, valueFlags) {
     valueFlags = valueFlags || {};
     const flags = {};
@@ -1820,8 +1836,8 @@
              c: isDir ? 'ok' : '' };
   }
 
-  // Каждая команда снимает свежий снимок cwd/nv для complete(), у которого
-  // по контракту нет ctx, — и только потом строит дерево и работает.
+  // Every command takes a fresh snapshot of cwd/nv for complete(), which by
+  // contract has no ctx — and only then builds the tree and does its work.
   function fsWithState(fn) {
     return function (ctx) {
       fsCurCwd = ctx.cwd;
@@ -1843,7 +1859,7 @@
       .map(function (n) { return dirPart + n + (node.kids[n].type === 'dir' ? '/' : ''); });
   }
 
-  // ── Команды ──────────────────────────────────────────────────────────
+  // ── Commands ─────────────────────────────────────────────────────────
   cmd({
     name: 'ls', group: 'ФАЙЛЫ', brief: 'содержимое каталога', usage: 'ls [-l] [-a] [путь]',
     needs: 'power',
@@ -1857,8 +1873,9 @@
       if (!node) return [{ t: 'ls: ' + target + ': No such file or directory', c: 'err' }];
       if (node.type === 'file') return [parsed.flags.l ? fsLsLine(fsLastSeg(path), node) : { t: fsLastSeg(path) }];
       let names = Object.keys(node.kids).sort();
-      // Точка и две точки — такие же записи каталога, как остальные, и с -a
-      // их показывают. Без них ls -a выглядел как ls, только длиннее.
+      // A dot and two dots are directory entries like all the others, and
+      // with -a they are shown. Without them ls -a looked like ls, only
+      // longer.
       const dots = {};
       if (parsed.flags.a) {
         const up = path === '/' ? path : path.replace(/\/[^/]+$/, '') || '/';
@@ -1917,9 +1934,9 @@
     }),
   });
 
-  // head и tail — один и тот же фильтр, отличается только конец, который
-  // берём: как фильтр конвейера они режут ctx.stdin, как файловые команды —
-  // строки, прочитанные из дерева.
+  // head and tail are one and the same filter, only the end they take
+  // differs: as pipeline filters they cut ctx.stdin, as file commands the
+  // lines read out of the tree.
   function fsHeadTail(fromEnd) {
     return fsWithState(function (ctx) {
       const label = fromEnd ? 'tail' : 'head';
@@ -1967,10 +1984,10 @@
         if (node.type === 'dir') return [{ t: 'grep: ' + parsed.rest[1] + ': Is a directory', c: 'err' }];
         lines = node.read();
       }
-      // Шаблон сначала пробуем как регулярное выражение: на живой машине grep
-      // именно такой, и `grep "^CPU[01]"` там работает. Если выражение не
-      // компилируется, ищем подстроку — это лучше, чем упасть с ошибкой на
-      // скобке, которую человек имел в виду буквально.
+      // The pattern is first tried as a regular expression: on a live machine
+      // grep is exactly that, and `grep "^CPU[01]"` works there. If the
+      // expression does not compile, we look for a substring — that is better
+      // than falling over with an error on a bracket meant literally.
       let re = null;
       try { re = new RegExp(pattern, parsed.flags.i ? 'i' : ''); } catch (e) { re = null; }
       const needle = parsed.flags.i ? pattern.toLowerCase() : pattern;
@@ -2012,9 +2029,9 @@
       if (!node) return [{ t: 'find: ' + start + ': No such file or directory', c: 'err' }];
       const re = fsGlobToRe(parsed.flags.name);
       const out = [];
-      // Путь печатаем в том же виде, в каком его задали: `find . -name x`
-      // отвечает ./foo/x, а не /home/cosmdandy/foo/x. Так ведёт себя find, и
-      // так результат можно скопировать в следующую команду.
+      // The path is printed in the same shape it was given in: `find . -name
+      // x` answers ./foo/x, not /home/cosmdandy/foo/x. That is how find
+      // behaves, and that way the result can be copied into the next command.
       const relative = start.charAt(0) !== '/' && start !== '~';
       const show = function (p) {
         if (!relative) return p;
@@ -2116,16 +2133,17 @@
   const topHeadEl = document.getElementById('crt-top-head');
   const topGridEl = document.getElementById('crt-top-grid');
 
-  // dormancy() в base.js ставит схему на паузу, когда вкладку свернули или
-  // увели за край экрана — тот же повод останавливать её и здесь: пока слой
-  // открыт, зрителю схему всё равно не видно из-под ::backdrop, а крутить
-  // лопасти в фоне — чистый расход батареи. dormancy() уже написана в
-  // base.js, менять её тело неоткуда — это тот самый флаг, который должен
-  // войти в её условие (см. отчёт).
+  // dormancy() in base.js puts the schematic on pause when the tab has been
+  // minimised or taken off the edge of the screen — the same reason to stop it
+  // here: while the layer is open the viewer cannot see the schematic from
+  // under the ::backdrop anyway, and spinning the blades in the background is
+  // pure battery drain. dormancy() is already written in base.js and there is
+  // nowhere to change its body from — this is that very flag, the one that has
+  // to go into its condition (see the report).
   let crtOpen = false;
 
-  // База спрашивает через функцию, а не читает переменную: base.js
-  // выполняется выше по файлу, и до объявления let обращение бросает.
+  // The base asks through a function instead of reading the variable: base.js
+  // runs higher up the file, and a reference before the let declaration throws.
   function screenOpen() { return crtOpen; }
 
   function shadow(on) {
@@ -2171,10 +2189,10 @@
     if (crt.dataset.mode === 'post' && postCtl && postCtl.done) { postCtl = null; closeCrt(); }
   });
 
-  // Один обработчик на все три режима: диспетчер смотрит на dataset.mode,
-  // а не плодит по слушателю на каждый openXxx() — тогда при переключении
-  // post → setup внутри одного открытого диалога не пришлось бы гадать,
-  // сколько старых обработчиков уже навешано.
+  // One handler for all three modes: the dispatcher looks at dataset.mode
+  // instead of breeding a listener per openXxx() — that way, on a switch from
+  // post to setup inside one already open dialog, there is no guessing how
+  // many old handlers have been hung on it by now.
   document.addEventListener('keydown', function (e) {
     if (!crtOpen) return;
     const mode = crt.dataset.mode;
@@ -2183,16 +2201,17 @@
     else if (mode === 'top') handleTopKey(e);
   }, true);
 
-  // F2 живёт и вне самотеста. На живой машине её ловят в первые секунды
-  // загрузки, но страница открыта часами, а POST идёт от силы пять секунд —
-  // ждать его, чтобы попасть в setup, было бы издевательством. Поэтому:
-  // экран закрыт — F2 открывает setup, экран открыт — клавишу разбирает
-  // диспетчер режима выше.
+  // F2 lives outside the self-test as well. On a real machine it is caught in
+  // the first seconds of the boot, but the page stays open for hours while
+  // POST runs five seconds at most — waiting for it to get into setup would be
+  // a mockery. Hence: screen closed — F2 opens setup, screen open — the key is
+  // taken apart by the mode dispatcher above.
   document.addEventListener('keydown', function (e) {
     if (crtOpen) return;
-    // F2 — как на живой машине. Enter — для тех, у кого верхний ряд отдан
-    // системе, но только когда фокус ни на чём: в поле консоли он отправляет
-    // команду, на кнопке схемы — нажимает её, и отбирать его там нельзя.
+    // F2 — as on a real machine. Enter — for those whose top row is given
+    // over to the system, but only when the focus is on nothing: in the
+    // console field it sends the command, on a button of the schematic it
+    // presses that button, and it must not be taken away there.
     const idle = document.activeElement === document.body || document.activeElement === null;
     if (e.key !== 'F2' && !(e.key === 'Enter' && idle)) return;
     e.preventDefault();
@@ -2200,16 +2219,17 @@
   }, true);
 
   // ── NVRAM ────────────────────────────────────────────────────────────────
-  // Отдельное хранилище от rig-state: у них разный жизненный цикл. rig-state
-  // пишется при каждом клике питанием, а прошивку сохраняют только по F10 —
-  // и F9 обязан снести её содержимое, не задевая питание машины вовсе.
+  // A store separate from rig-state: they have different life cycles. rig-state
+  // is written on every click of the power button, while the firmware is saved
+  // only on F10 — and F9 has to wipe its contents without touching the power of
+  // the machine at all.
   //
-  // Поля и их значения — плоские и в тех же строках ('Enabled'/'Disabled'/
-  // 'UEFI'/'Legacy'/'All'), которыми их уже читают hw.js (cpuState, команда
-  // dimm) и fs.js (/proc/cpuinfo, /sys/firmware/efi): там nv.cores, nv.ht,
-  // nv.numa, nv.memfreq, nv.mode проверяются как строки без промежуточного
-  // разбора, и заводить тут свой формат — значит разойтись с уже написанным
-  // кодом соседей.
+  // The fields and their values are flat and in the same strings ('Enabled'/
+  // 'Disabled'/'UEFI'/'Legacy'/'All') by which hw.js (cpuState, the dimm
+  // command) and fs.js (/proc/cpuinfo, /sys/firmware/efi) already read them:
+  // there nv.cores, nv.ht, nv.numa, nv.memfreq, nv.mode are checked as strings
+  // with no parsing in between, and starting a format of our own here would
+  // mean diverging from the neighbours' already written code.
   const NV_DEFAULT = {
     ht: 'Enabled', cores: 'All', numa: 'Enabled', memfreq: 'Auto',
     power: 'Maximum Performance', cstates: 'Enabled',
@@ -2238,20 +2258,23 @@
     try { localStorage.setItem('rig-nv', JSON.stringify(nv)); } catch (e) {}
   }
 
-  // Два эффекта прошивки на схему — и только два, специально прописанные
-  // как разрешённые: период вращения обязан остаться кратен секунде, иначе
-  // двадцать положений крыльчатки уедут с общего такта в 0.05 с.
+  // Two effects of the firmware on the schematic — and only two, deliberately
+  // written down as the permitted ones: the rotation period has to stay a
+  // multiple of a second, otherwise the twenty positions of the fan blade
+  // drift off the common 0.05 s beat.
   function applyNvEffects() {
     rig.classList.toggle('nv-eff', nv.power === 'Efficiency');
-    // has-fault уже занят чужой логикой (лампы отсутствующих узлов) — здесь
-    // свой признак, чтобы не перебить её условие.
+    // has-fault is already taken by someone else's logic (the lamps of the
+    // missing units) — here we have a flag of our own, so as not to override
+    // that condition.
     rig.classList.toggle('sb-off', nv.mode === 'UEFI' && nv.secureBoot === 'Disabled');
   }
-  applyNvEffects();   // применяем то, что уже лежало в rig-nv, ещё до первого открытия setup
+  applyNvEffects();   // apply what already lay in rig-nv, before setup is ever opened
 
-  // Скорость линка на пассивке — из паспорта портов, а не буквой в тексте:
-  // сменится плата на другую сетевую карту, надписи boot order обязаны
-  // съехать вместе с ней, а не разойтись с тем, что показывает rear_io.
+  // The link speed on the rear panel comes from the ports spec, not from a
+  // letter in the text: swap the board for one with another network card and
+  // the boot order labels have to move along with it, not diverge from what
+  // rear_io shows.
   function pxeSpeed() {
     const m = /([\d.]+)\s*G/.exec(HW.ports.sfp || '');
     return m ? m[1] + 'G' : '10G';
@@ -2260,10 +2283,11 @@
   const BOOT_SETUP_LABEL = { nvme: 'NVMe 0', pxe: 'PXE ' + pxeSpeed(), bmc: 'BMC Virtual Media' };
 
   // ── POST ───────────────────────────────────────────────────────────────
-  // Строки собираются один раз из трёх слоёв правды — паспорта, DOM и nv —
-  // и печатаются одной и той же функцией что на экран, что в консоль:
-  // приборы и sensors уже расходились именно потому, что их считали дважды
-  // по разным формулам, и это то же самое место, где могло повториться.
+  // The lines are assembled once out of the three layers of truth — the spec,
+  // the DOM and nv — and printed by one and the same function both onto the
+  // screen and into the console: the gauges and sensors already diverged for
+  // exactly that reason, they were computed twice by different formulas, and
+  // this is the same place where it could have happened again.
   function buildPostLines() {
     const fansOut = counts('.fan.pulled');
     const drivesOut = counts('.bay.pulled');
@@ -2302,8 +2326,9 @@
 
     let bootFailed = false;
     if (nv.mode === 'Legacy' && nv.bootOrder[0] === 'nvme') {
-      // Легаси не видит GPT — ровно тот случай, когда живая машина отваливается
-      // в «no boot device» и остаётся стоять на экране, а не тихо чинит себя.
+      // Legacy does not see GPT — exactly the case where a real machine drops
+      // into "no boot device" and stays standing on the screen instead of
+      // quietly repairing itself.
       push('No boot device found', 'err', 260);
       bootFailed = true;
     } else {
@@ -2317,7 +2342,7 @@
   }
 
   function crtPostLine(t, c) {
-    line(t, c);                 // в консоль — всегда, независимо от того, открыт ли экран
+    line(t, c);                 // into the console — always, whether the screen is open or not
     if (!crtOpen) return;
     const d = document.createElement('div');
     if (c) d.className = c;
@@ -2325,27 +2350,29 @@
     postLog.appendChild(d);
   }
 
-  // Пока идёт POST, F2/Esc ловит общий диспетчер document-keydown выше;
-  // сюда он передаёт управление, только если проверил, что мы правда в
-  // режиме post. postCtl живёт, пока строки играют — а если машина
-  // застряла на «no boot device», ещё и после: F2 обязан сработать и там.
+  // While POST runs, F2/Esc are caught by the common document-keydown
+  // dispatcher above; it hands control down here only once it has checked
+  // that we really are in post mode. postCtl lives while the lines play — and
+  // if the machine is stuck on "no boot device", after that too: F2 has to
+  // work there as well.
   let postCtl = null;
 
   function handlePostKey(e) {
     if (!postCtl) return;
-    // Enter наравне с F2: на маке верхний ряд по умолчанию отдан яркости и
-    // громкости, и F2 туда просто не доходит — не заставлять же гостя
-    // держать Fn, чтобы попасть в setup. Пока открыт модальный экран, Enter
-    // ничем другим не занят: поле консоли под слоем фокуса не получает.
+    // Enter on a par with F2: on a mac the top row is given over to brightness
+    // and volume by default, and F2 simply never reaches us — we are not going
+    // to make a guest hold Fn to get into setup. While the modal screen is
+    // open Enter is busy with nothing else: the console field under the layer
+    // does not get the focus.
     if (e.key === 'F2' || e.key === 'Enter') {
       e.preventDefault();
       if (postCtl.done) enterSetupFromPost();
       else postCtl.f2Pending = true;
     } else if (e.key === 'Escape') {
       e.preventDefault();
-      // Первый Esc пропускает паузы между строками, второй — закрывает
-      // экран. Иначе самотест выглядел зависшим: строки кончились, а уйти
-      // с экрана нечем, кроме как ждать.
+      // The first Esc skips the pauses between the lines, the second closes
+      // the screen. Otherwise the self-test looked hung: the lines had run
+      // out and there was nothing to leave the screen with but waiting.
       if (!postCtl.done) postCtl.skip = true;
       else { postCtl = null; closeCrt(); }
     }
@@ -2357,13 +2384,14 @@
   }
 
   /**
-   * screenPost() — самотест машины. Вызывается из runPost() в base.js вместо
-   * старого прямого вывода в лог: строит строки по HW/DOM/nv, печатает их
-   * дважды (экран + консоль) одной функцией, слушает F2 (отложенный переход
-   * в setup после конца ленты) и Esc (доиграть остаток без пауз). При
-   * reduced экран не открывается вовсе — задержки схлопнуты в ноль тем же
-   * wait(), которым играет и обычный проход, так что строки просто уходят
-   * в консоль одна за другой без паузы между ними.
+   * screenPost() — the machine's self-test. Called from runPost() in base.js
+   * in place of the old direct printing into the log: it builds the lines out
+   * of HW/DOM/nv, prints them twice (screen + console) with one function,
+   * listens for F2 (a deferred move into setup after the end of the tape) and
+   * Esc (play out the rest without pauses). Under reduced the screen does not
+   * open at all — the delays are collapsed to zero by the same wait() that the
+   * ordinary run plays through, so the lines simply go into the console one
+   * after another with no pause between them.
    */
   function screenPost() {
     const built = buildPostLines();
@@ -2382,12 +2410,13 @@
         postCtl.done = true;
         if (postCtl.f2Pending) { enterSetupFromPost(); return; }
         if (built.bootFailed) {
-          if (!showScreen) postCtl = null;   // экрана нет — ловить F2 всё равно некому
-          return;                             // виснем на экране, как живая машина без диска
+          if (!showScreen) postCtl = null;   // no screen — nobody to catch F2 anyway
+          return;                             // we hang on the screen, like a real machine with no disk
         }
         line('system ready', 'ok');
-        // Подсказку печатаем в консоль, а не только на экран: экран уйдёт
-        // через мгновение, а вопрос «как попасть в BIOS» останется.
+        // The hint is printed into the console, not only onto the screen: the
+        // screen goes away in a moment, and the question "how do I get into
+        // the BIOS" stays.
         line('F2 — BIOS Setup · bios — то же командой', 'muted');
         postCtl = null;
         if (showScreen) wait(700, closeCrt);
@@ -2402,11 +2431,11 @@
   }
 
   // ── BIOS Setup ───────────────────────────────────────────────────────────
-  // AMI Aptio — синее поле, жёлтая строка, помощь справа. Разделы описаны
-  // схемой данных (setupRows), а не вёрсткой: Boot и IMM меняют состав строк
-  // на лету (Secure Boot прячется под Legacy, IP-поля — под Static), и если
-  // бы это была разметка, пришлось бы прятать/показывать куски руками в
-  // трёх местах вместо одного.
+  // AMI Aptio — a blue field, a yellow line, help on the right. The sections
+  // are described by a data scheme (setupRows) rather than by markup: Boot and
+  // IMM change the set of rows on the fly (Secure Boot hides under Legacy, the
+  // IP fields under Static), and if this were markup we would have to
+  // hide/show pieces by hand in three places instead of one.
   const SETUP_TABS = ['Main', 'Advanced', 'Boot', 'IMM'];
   const CORE_OPTIONS = ['All', HW.cpu.cores, Math.floor(HW.cpu.cores / 2),
                          Math.floor(HW.cpu.cores / 4), Math.floor(HW.cpu.cores / 8)];
@@ -2414,8 +2443,8 @@
 
   let setupTab = 0;
   let setupRow = -1;
-  let nvDraft = null;      // черновик: правки видны сразу, но в nv попадают только по F10
-  let editField = null;    // { row, buf } — редактирование IP/маски/шлюза посимвольно
+  let nvDraft = null;      // draft: edits show at once, but reach nv only on F10
+  let editField = null;    // { row, buf } — editing IP/mask/gateway character by character
 
   function cycleEnum(list, cur, dir) {
     const i = list.indexOf(cur);
@@ -2432,7 +2461,7 @@
     rows.push({ label: 'Board', ro: true,
       get: function () { return HW.board.model + '  REV ' + HW.board.rev + '  S/N ' + HW.board.sha; } });
     for (let n = 0; n < HW.cpu.n; n++) {
-      if (chassis.querySelector('.cpu-slot[data-cpu="' + n + '"].opened')) continue;   // вынутый исчезает
+      if (chassis.querySelector('.cpu-slot[data-cpu="' + n + '"].opened')) continue;   // a pulled one disappears
       rows.push({ label: 'CPU' + n, ro: true,
         get: function () { return HW.cpu.model + '  ' + HW.cpu.cores + 'c/' + HW.cpu.threads + 't'; } });
     }
@@ -2579,7 +2608,7 @@
       renderSetupTab();
     } else if (e.key === 'Escape') {
       e.preventDefault();
-      editField = null;              // отменяет только эту правку, не весь setup
+      editField = null;              // cancels only this edit, not the whole setup
       renderSetupTab();
     } else if (e.key === 'Backspace') {
       e.preventDefault();
@@ -2587,7 +2616,7 @@
       renderSetupTab();
     } else if (e.key.length === 1 && /[0-9.]/.test(e.key)) {
       e.preventDefault();
-      ef.buf += e.key;               // накопление символов в span — без единого <input>
+      ef.buf += e.key;               // characters pile up in a span — without a single <input>
       renderSetupTab();
     }
   }
@@ -2625,21 +2654,21 @@
       case 'F1':
         e.preventDefault();
         if (rows[setupRow]) line('help: ' + rows[setupRow].label + ' — ' + (rows[setupRow].help || ''), 'muted');
-        return;                       // подсказка уходит в консоль, экран не перерисовываем
+        return;                       // the hint goes to the console, the screen is not repainted
       case 'F9':
         e.preventDefault();
-        nvDraft = cloneNv(NV_DEFAULT);   // сносит только черновик — питания F9 не касается
+        nvDraft = cloneNv(NV_DEFAULT);   // wipes only the draft — F9 does not touch the power
         setupRow = -1;
         line('bios: optimized defaults loaded', 'warn');
         break;
       case 'F10':
         e.preventDefault();
         commitSetup();
-        return;                        // commitSetup сам закрывает диалог
+        return;                        // commitSetup closes the dialog itself
       case 'Escape':
         e.preventDefault();
         discardSetup();
-        return;                        // discardSetup сам закрывает диалог
+        return;                        // discardSetup closes the dialog itself
       default:
         return;
     }
@@ -2712,9 +2741,9 @@
     closeSetup();
   }
 
-  // Текущие (сохранённые) настройки построчно — то, что должно пайпиться:
-  // `bios dump | grep Boot`. Черновик сюда не попадает намеренно: пока F10
-  // не нажат, снаружи прошивка не поменялась.
+  // The current (saved) settings line by line — the thing that has to pipe:
+  // `bios dump | grep Boot`. The draft deliberately does not get here: until
+  // F10 has been pressed, from the outside the firmware has not changed.
   function nvDumpLines() {
     const rows = [];
     rows.push({ t: 'Boot Mode              : ' + nv.mode });
@@ -2735,11 +2764,12 @@
   }
 
   // ── top ──────────────────────────────────────────────────────────────────
-  // Пять метрик — те же, что раньше жили в приборах сбоку, metric(key)
-  // теперь считается один раз в parts/hw.js, оттуда же — cpuState/dimmState/
-  // upSeconds для шапки, чтобы не заводить второй способ посчитать то же
-  // самое. История держится в canvas, а не в сотнях <div>-баров: одна
-  // перерисовка в секунду вместо перекладки полутысячи узлов DOM за тот же тик.
+  // Five metrics — the same ones that used to live in the gauges on the side;
+  // metric(key) is now computed once in parts/hw.js, and cpuState/dimmState/
+  // upSeconds for the header come from there too, so as not to start a second
+  // way of computing the same thing. The history is kept in a canvas rather
+  // than in hundreds of <div> bars: one repaint a second instead of shifting
+  // half a thousand DOM nodes in that same tick.
   const TOP_KEYS = ['cpu', 'temp', 'net', 'iops', 'power'];
   const TOP_LABELS = { cpu: 'CPU', temp: 'TEMP', net: 'NET', iops: 'IOPS', power: 'POWER' };
   const topHistory = { cpu: [], temp: [], net: [], iops: [], power: [] };
@@ -2782,7 +2812,7 @@
       const y = h - Math.min(1, v / max) * (h - 2) - 1;
       if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
     });
-    ctx.strokeStyle = '#2aa198';   // тот же solarized-cyan, что и --cyan на .rig
+    ctx.strokeStyle = '#2aa198';   // the same solarized cyan as --cyan on .rig
     ctx.lineWidth = 1.5;
     ctx.stroke();
   }
@@ -2828,7 +2858,7 @@
     openCrt('top');
     renderTop();
     if (topTimer) window.clearInterval(topTimer);
-    topTimer = window.setInterval(renderTop, 1000);   // ровно раз в секунду, не rAF
+    topTimer = window.setInterval(renderTop, 1000);   // exactly once a second, not rAF
   }
 
   function closeTop() {
@@ -2842,7 +2872,7 @@
     }
   }
 
-  // ── Команды терминала ─────────────────────────────────────────────────
+  // ── Terminal commands ─────────────────────────────────────────────────
   cmd({
     name: 'bios', group: 'ПРОШИВКА', brief: 'открыть BIOS Setup', usage: 'bios [dump]',
     sink: true,
@@ -2916,9 +2946,10 @@
   }
 
   if (first && !reduced) {
-    // Полный вход, как в стойке: подали дежурку, BMC инициализируется и
-    // кнопка мигает часто — жать бесполезно. Закончил — мигает редко, и
-    // дальше машину включает уже человек.
+    // The full entrance, as in the rack: standby power is applied, the BMC
+    // initialises and the button blinks fast — pressing it does nothing. Once
+    // it is done the blinking slows down, and from there a human is the one
+    // who switches the machine on.
     state.powered = false; save();
     setPower('init');
     line('standby power applied', 'muted');

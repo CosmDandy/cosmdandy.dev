@@ -146,14 +146,15 @@
     </main>
 
     <!--
-        Схема сервера. Каждый узел — ссылка: корзина ведёт на GitHub, память в
-        блог, процессор в резюме, порты в соцсети. Подписи-выноски видны сразу,
-        водить курсором наугад не нужно.
+        The server schematic. Every unit is a link: the drive cage leads to
+        GitHub, the memory to the blog, the processor to the CV, the ports to
+        the social networks. The callout labels are visible straight away —
+        nobody has to sweep the cursor around hoping to find something.
 
-        Тумблер SERVICE на плате открывает второй уровень: узлы начинают
-        вынимааться, снизу появляется консоль с fru/sel/sensors, выезжает
-        панель диагностики. Список ссылок выше остаётся на месте — он же
-        единственное, что видно на узких экранах.
+        The SERVICE switch on the board opens the second level: units start
+        coming out, a console with fru/sel/sensors appears below, the
+        diagnostics panel slides out. The list of links above stays where it
+        is — it is also the only thing visible on narrow screens.
     -->
     <section class="rig assembly" id="rig" aria-label="Схема сервера: компоненты — ссылки на разделы">
 
@@ -165,9 +166,10 @@
 
 
         <!--
-            Машина и приборы. Приборы — как выдвижная панель диагностики,
-            только с другой стороны: light path выходит из корпуса слева,
-            метрики стоят справа. Сцена по центру и размера не меняет.
+            The machine and the instruments. The instruments work like the
+            pull-out diagnostics panel, only from the other side: light path
+            comes out of the chassis on the left, the metrics stand on the
+            right. The stage stays centred and does not change size.
         -->
         <div class="rig-body">
         <div class="stage">
@@ -207,11 +209,11 @@
         font-size="7" letter-spacing="0.14em">DUAL SP5 · 24× DDR5 RDIMM · 2.25 TiB</text>
 </g>
 <g class="unit" data-unit="plate" data-group="plate"
-      data-href="https://github.com/CosmDandy/cosmdandy.dev/commit/17e4ac3">
+      data-href="https://github.com/CosmDandy/cosmdandy.dev/commit/11625c6">
   <rect class="hit" x="992" y="300" width="40" height="380" fill="#000" fill-opacity="0.001"/>
   <text x="1014" y="480" transform="rotate(-90 1014 480)" text-anchor="middle"
         fill="rgba(147,161,161,0.30)" font-family="ui-monospace, Menlo, monospace"
-        font-size="11" letter-spacing="0.12em">REV 106  ·  S/N 17E4AC3</text>
+        font-size="11" letter-spacing="0.12em">REV 107  ·  S/N 11625C6</text>
   <text x="1028" y="480" transform="rotate(-90 1028 480)" text-anchor="middle"
         fill="rgba(147,161,161,0.20)" font-family="ui-monospace, Menlo, monospace"
         font-size="8" letter-spacing="0.10em">ASSEMBLED IN A CONTAINER · MADE BY HAND</text>
@@ -1029,7 +1031,7 @@
   </g>
   <text x="1118" y="674" text-anchor="middle" fill="rgba(147,161,161,0.55)" font-family="ui-monospace, Menlo, monospace" font-size="8">SYSTEM MGMT</text>
 </g>
-<a class="stamp" href="https://github.com/CosmDandy/cosmdandy.dev/commit/17e4ac3" target="_blank" rel="noopener" data-sha="17e4ac3"><text x="1257" y="502" text-anchor="middle" fill="rgba(147,161,161,0.3)" font-family="ui-monospace, Menlo, monospace" font-size="6">P/N 17E4AC3</text></a>
+<a class="stamp" href="https://github.com/CosmDandy/cosmdandy.dev/commit/11625c6" target="_blank" rel="noopener" data-sha="11625c6"><text x="1257" y="502" text-anchor="middle" fill="rgba(147,161,161,0.3)" font-family="ui-monospace, Menlo, monospace" font-size="6">P/N 11625C6</text></a>
 <g class="decor">
   <rect x="1214" y="452" width="86" height="30" rx="4" fill="#121a1e"
         stroke="rgba(147,161,161,0.22)"/>
@@ -1139,19 +1141,19 @@
                 </div>
             </div>
 
-            <!-- Экран машины: POST → BIOS Setup → top.
-                 Это крышка, ставшая дисплеем. Панель лежит в тех же
-                 координатах, что и плата, наклонена в ту же плоскость и
-                 приезжает сверху тем же движением, каким крышку кладут на
-                 место. Полноэкранным слоем экран быть перестал: на визитке он
-                 закрывал собой всё — имя, переключатель вида, саму машину, —
-                 а показать он должен ровно то, что показывает монитор,
-                 воткнутый в этот сервер.
+            <!-- The machine's screen: POST → BIOS Setup → top.
+                 This is the service cover turned into a display. The panel
+                 sits in the same coordinates as the board, leans into the
+                 same plane and arrives from above with the motion of a cover
+                 being put back on. It stopped being a full-page layer: on a
+                 personal card it covered everything — the name, the view
+                 switch, the machine itself — while what it has to show is
+                 exactly what a monitor plugged into this server shows.
 
-                 Лежит рядом с .chassis, а не внутри: пока экран открыт, схема
-                 под ним получает inert, и вложенный экран стал бы inert
-                 вместе с ней.
-                 Логика — tools/board/parts/screen.js, вид — screen.css. -->
+                 It sits next to .chassis rather than inside it: while the
+                 screen is up the schematic below gets inert, and a nested
+                 screen would go inert along with it.
+                 Logic — tools/board/parts/screen.js, looks — screen.css. -->
             <div class="crt" id="crt" role="dialog" aria-modal="true"
                  aria-label="Экран сервера: POST, BIOS Setup, top" aria-hidden="true">
                 <div class="crt-glass">
@@ -1181,9 +1183,9 @@
                 </div>
             </div>
         </div>
-<!-- Лента ревизий: плата собрана кодом, значит у неё есть история, и
-     по ней можно ходить. Версии лежат отдельными файлами и подгружаются
-     по требованию — держать все в странице означало бы три мегабайта. -->
+<!-- The revision strip: the board is built by code, so it has a history and
+     one can walk back through it. The versions live in separate files and load
+     on demand — keeping them all in the page would mean three megabytes. -->
 <div class="timeline" id="timeline" hidden>
   <button type="button" class="tl-btn" id="tl-prev" aria-label="Предыдущая ревизия">&lsaquo;</button>
   <input type="range" class="tl-range" id="tl-range" min="0" max="0" value="0"
@@ -1196,13 +1198,13 @@
 </div>
 
         <!--
-            Правая колонка: консоль сервисного режима. Экраны
-            широкие, а высоты мало — поэтому всё уходит вбок, а не под
-            машину, и сцене остаётся вся высота окна.
+            The right column: the service-mode console. Screens are wide and
+            short on height, so everything goes to the side rather than under
+            the machine, and the stage keeps the full height of the window.
         -->
         <div class="rig-side">
         <div class="panel">
-            <!-- Модель машины живёт в заголовке, а не в логе: лог для событий. -->
+            <!-- The machine's model lives in the heading, not in the log: the log is for events. -->
             <h2>
                 <span class="con-name">console</span>
                 <span class="con-spec">CD93-FS1 · 1U</span>
@@ -1405,10 +1407,11 @@
 
         labelTheme(document.documentElement.getAttribute('data-theme') || 'dark');
     </script>
-    <!-- Паспорт машины: пишет сборка из tools/board/spec.py тем же прогоном,
-         что и схему. Консоль читает его вместо того, чтобы помнить числа. -->
+    <!-- The machine's passport: the build writes it out of tools/board/spec.py in
+         the same run as the schematic. The console reads it instead of
+         remembering numbers of its own. -->
     <!-- SPEC:BEGIN -->
-<script type="application/json" id="rig-spec">{"board":{"model":"CD93-FS1","form":"1U","vendor":"CodeKVT","rev":106,"sha":"17E4AC3"},"fw":{"bios_vendor":"AMI Aptio V","bios":"2.6.1","bios_date":"2026-05-14","bmc":"2.14.3","bmc_chip":"AST2600","mac":"b4:2e:99:0c:d9:3f","ip":"192.168.10.42"},"cpu":{"n":2,"model":"AMD EPYC 9965","short":"EPYC 9965","socket":"SP5","family":"Turin · Zen 5c","cores":192,"threads":384,"tdp":500,"base":2.25,"boost":3.7,"channels":12,"l3":384},"dimm":{"kind":"DDR5 RDIMM","size_gb":96,"speed":6400,"ranks":"2Rx8","banks":[{"code":"L","n":8,"ch":"A–H","cpu":0,"first":1},{"code":"C","n":8,"ch":"I–L / A–D","cpu":"split","first":9},{"code":"R","n":8,"ch":"E–L","cpu":1,"first":17}],"slots":24,"total_gb":2304},"bay":[{"bay":0,"model":"U.2 NVMe Gen4","kind":"NVMe U.2","tb":3.84,"life":98},{"bay":1,"model":"U.2 NVMe Gen4","kind":"NVMe U.2","tb":3.84,"life":98},{"bay":2,"model":"INTEL OPTANE P5800X","kind":"Optane","tb":1.6,"life":100},{"bay":3,"model":"U.2 NVMe Gen4","kind":"NVMe U.2","tb":3.84,"life":98},{"bay":4,"filler":true},{"bay":5,"model":"U.2 NVMe Gen4","kind":"NVMe U.2","tb":3.84,"life":98},{"bay":6,"model":"U.2 NVMe Gen4","kind":"NVMe U.2","tb":3.84,"life":98},{"bay":7,"filler":true}],"fan":{"n":8,"model":"40×56 dual-rotor","rpm_nom":12100,"rpm_max":18000},"psu":{"n":2,"watt":1300,"model":"CRPS 80 PLUS Titanium"},"riser":[{"slot":1,"link":"PCIe Gen5 ×16","card":"2× 10G SFP+","empty":false},{"slot":2,"link":"PCIe Gen5 ×16","card":null,"empty":true}],"ports":{"sfp":"2× 10G SFP+","sfp_degraded":"1× 1G · degraded","eth":"2× 1GbE","mgmt":"SYSTEM MGMT"},"chips":[{"mark":"AST2600","ref":"U79"},{"mark":"PCH C741","ref":"U31"},{"mark":"PCIe SW","ref":"U44"},{"mark":"CPLD","ref":"U12"},{"mark":"X710","ref":"U21"},{"mark":"TPM 2.0","ref":"U9"}]}</script>
+<script type="application/json" id="rig-spec">{"board":{"model":"CD93-FS1","form":"1U","vendor":"CodeKVT","rev":107,"sha":"11625C6"},"fw":{"bios_vendor":"AMI Aptio V","bios":"2.6.1","bios_date":"2026-05-14","bmc":"2.14.3","bmc_chip":"AST2600","mac":"b4:2e:99:0c:d9:3f","ip":"192.168.10.42"},"cpu":{"n":2,"model":"AMD EPYC 9965","short":"EPYC 9965","socket":"SP5","family":"Turin · Zen 5c","cores":192,"threads":384,"tdp":500,"base":2.25,"boost":3.7,"channels":12,"l3":384},"dimm":{"kind":"DDR5 RDIMM","size_gb":96,"speed":6400,"ranks":"2Rx8","banks":[{"code":"L","n":8,"ch":"A–H","cpu":0,"first":1},{"code":"C","n":8,"ch":"I–L / A–D","cpu":"split","first":9},{"code":"R","n":8,"ch":"E–L","cpu":1,"first":17}],"slots":24,"total_gb":2304},"bay":[{"bay":0,"model":"U.2 NVMe Gen4","kind":"NVMe U.2","tb":3.84,"life":98},{"bay":1,"model":"U.2 NVMe Gen4","kind":"NVMe U.2","tb":3.84,"life":98},{"bay":2,"model":"INTEL OPTANE P5800X","kind":"Optane","tb":1.6,"life":100},{"bay":3,"model":"U.2 NVMe Gen4","kind":"NVMe U.2","tb":3.84,"life":98},{"bay":4,"filler":true},{"bay":5,"model":"U.2 NVMe Gen4","kind":"NVMe U.2","tb":3.84,"life":98},{"bay":6,"model":"U.2 NVMe Gen4","kind":"NVMe U.2","tb":3.84,"life":98},{"bay":7,"filler":true}],"fan":{"n":8,"model":"40×56 dual-rotor","rpm_nom":12100,"rpm_max":18000},"psu":{"n":2,"watt":1300,"model":"CRPS 80 PLUS Titanium"},"riser":[{"slot":1,"link":"PCIe Gen5 ×16","card":"2× 10G SFP+","empty":false},{"slot":2,"link":"PCIe Gen5 ×16","card":null,"empty":true}],"ports":{"sfp":"2× 10G SFP+","sfp_degraded":"1× 1G · degraded","eth":"2× 1GbE","mgmt":"SYSTEM MGMT"},"chips":[{"mark":"AST2600","ref":"U79"},{"mark":"PCH C741","ref":"U31"},{"mark":"PCIe SW","ref":"U44"},{"mark":"CPLD","ref":"U12"},{"mark":"X710","ref":"U21"},{"mark":"TPM 2.0","ref":"U9"}]}</script>
 <!-- SPEC:END -->
 
     <script src="server.js" defer></script>

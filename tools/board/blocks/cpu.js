@@ -1,5 +1,6 @@
-  // Процессор разбирается в два приёма, как в жизни: сначала радиатор, потом
-  // сам процессор из-под него. Третий клик собирает узел обратно.
+  // The processor comes apart in two moves, as in real life: first the
+  // heatsink, then the processor from under it. A third click puts the
+  // assembly back together.
   PICKS.push({
     test: function (el) { return el.classList.contains('cpu-slot'); },
     name: function (el) { return 'cpu' + el.dataset.cpu + ' heatsink'; },

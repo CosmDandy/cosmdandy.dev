@@ -1,5 +1,5 @@
-  // Диск достают в два приёма, как руками: сначала отщёлкивается ручка,
-  // потом каддик выходит наружу. Третий клик ставит его обратно.
+  // A drive comes out in two moves, the way hands do it: first the handle
+  // unlatches, then the caddy slides out. A third click puts it back.
   PICKS.push({
     test: function (el) { return el.dataset.unit && el.dataset.unit.startsWith('hdd'); },
     name: function (el) { return el.dataset.unit; },

@@ -1,28 +1,29 @@
-"""Холст сборки: куда блоки складывают нарисованное и как делят место.
+"""Assembly canvas: where blocks put what they draw and how they share space.
 
-Один Canvas на одну сборку. Блок получает его в render(c) и больше ни к чему
-не обращается — ни к соседям, ни к глобальному состоянию. Поэтому два блока
-можно править одновременно: пересечься они могут только через место на
-плате, а место выдаёт холст и он же умеет об этом доложить.
+One Canvas per assembly. A block gets it in render(c) and reaches for nothing
+else — neither for its neighbours nor for global state. That is why two blocks
+can be edited at the same time: the only way they can collide is over space on
+the board, and space is handed out by the canvas, which also knows how to
+report about it.
 
-Регистр занятых мест нужен потому, что плата плотная: мелочь и шелкография
-раз за разом садились на монтажные отверстия и на чужие подписи. Крупный
-элемент отмечает свой прямоугольник, мелочь перед вставкой спрашивает.
+The register of taken places is needed because the board is dense: passives and
+silkscreen kept landing on mounting holes and on other people's captions. A
+large element marks out its rectangle; a small part asks before it goes in.
 
-share — единственный законный способ блокам знать друг о друге. Переходные
-отверстия ставятся в узлах разводки, а не где попало: разводка кладёт свои
-узлы в share, отверстия их берут. Так связь видна в коде обоих, а не спрятана
-в общей переменной, которую правит кто угодно.
+share is the only legitimate way for blocks to know about each other. Vias are
+placed at the nodes of the routing, not just anywhere: the routing puts its
+nodes into share, the vias take them from there. That way the link is visible
+in the code of both, not hidden in a shared variable anyone can edit.
 """
 
 
 class Canvas:
     def __init__(self):
-        self.parts = []      # фрагменты SVG в порядке отрисовки
-        self.taken = []      # занятые прямоугольники (x1, y1, x2, y2)
-        self.callouts = []   # подписи-ссылки: рисуются последними, поверх всего
-        self.lost = []       # что не поместилось — сборщик доложит об этом
-        self.share = {}      # то, что блок объявил соседям (см. ниже)
+        self.parts = []      # SVG fragments in drawing order
+        self.taken = []      # occupied rectangles (x1, y1, x2, y2)
+        self.callouts = []   # callout links: drawn last, on top of everything
+        self.lost = []       # what did not fit — the builder reports it
+        self.share = {}      # what a block announced to neighbours (see below)
 
     def add(self, s):
         self.parts.append(s)
@@ -37,7 +38,7 @@ class Canvas:
         return True
 
     def put(self, x, y, w, h):
-        """Занять место, если свободно. Возвращает True, если получилось."""
+        """Take a place if it is free. Returns True if it worked out."""
         if not self.free(x, y, w, h):
             return False
         self.busy(x, y, w, h)

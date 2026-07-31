@@ -1,9 +1,9 @@
-"""служебная зона.
+"""service zone.
 
-служебная зона
+service zone
 """
 
-# Свой прямоугольник: сборка проверит, что узел из него не вышел.
+# Own rectangle: the build checks that the block did not leave it.
 BOUNDS = (838, 98, 170, 618)
 
 from board.geom import LID_BTN, X_SVC
@@ -11,9 +11,9 @@ from board.ink import hit, mono, silk_boxed, silk_inverse
 
 
 def dip_switch(x, y, n=4, on=(1, 3)):
-    """Блок DIP-переключателей: янтарный корпус, белые движки в пазах.
+    """A block of DIP switches: amber body, white sliders in their slots.
 
-    on — номера переключателей в положении ON, считая с единицы.
+    on — numbers of the switches in the ON position, counting from one.
     """
     pitch, sw_w, sw_h = 8, 5, 14
     pad_x, pad_y, label_h = 5, 4, 7
@@ -43,10 +43,10 @@ from board.metal import pad
 
 
 def jumper_table(x, y, title, rows):
-    """Таблица-легенда перемычки: рамка, сетка, положения контактов.
+    """Jumper legend table: frame, grid, contact positions.
 
-    Такую печатают прямо на текстолите рядом с самой перемычкой — по ней и
-    понимают, чем primary отличается от backup, не открывая мануал.
+    One like this is printed right on the laminate next to the jumper itself —
+    it is how you tell primary from backup without opening the manual.
     """
     col1_w, row_h, pad, title_h = 34, 13, 6, 15
     label_w = max(60, max((len(r[1]) for r in rows), default=0) * 6 + 10)
@@ -87,7 +87,7 @@ def render(cv):
         f'<rect x="{X_SVC+12}" y="120" width="52" height="26" rx="1" fill="#1e2a2f" stroke="rgba(147,161,161,0.30)"/>',
         f'<rect x="{X_SVC+90}" y="120" width="52" height="26" rx="1" fill="#1e2a2f" stroke="rgba(147,161,161,0.30)"/>',
         silk_boxed(X_SVC + 78, 110, "P1 / P2", 7),
-        # Переключатели и легенда перемычки: то, ради чего вообще лезут под крышку
+        # Switches and the jumper legend: what one goes under the cover for
         dip_switch(X_SVC + 10, 396, 4, on=(1, 3)),
         silk_boxed(X_SVC + 29, 436, "SW3", 6),
         dip_switch(X_SVC + 66, 396, 4, on=(2,)),
@@ -102,8 +102,9 @@ def render(cv):
     svc.append(silk_inverse(X_SVC + 26, 226, "SATA / SLIMSAS", 6))
     cv.add('<g class="decor">' + ''.join(svc) + '</g>')
 
-    # Кнопка крышки стоит ровно над тумблером сервисного режима — и на плате, и
-    # на самой крышке, в одних и тех же координатах: меняется только надпись.
+    # The cover button stands exactly above the service-mode toggle — both on
+    # the board and on the cover itself, at the very same coordinates: only the
+    # label changes.
     cv.add(f'''<g class="lid-on-btn" id="lid-on" role="button" tabindex="0" aria-label="Надеть крышку">
   {hit(LID_BTN[0]-6, LID_BTN[1]-6, LID_BTN[2]+12, LID_BTN[2]+12)}
   <rect x="{LID_BTN[0]}" y="{LID_BTN[1]}" width="{LID_BTN[2]}" height="{LID_BTN[2]}" rx="3"
