@@ -1,8 +1,9 @@
-  /* Вращение ступенями, а не плавно: двадцать положений за оборот. На
-     секунде оборота глаз ступеней не различает, а браузер вместо ста сорока
-     четырёх перерисовок в секунду делает двадцать — плавное вращение по
-     замеру стоит на четверть дороже. Период общий, вразнобой крыльчатки
-     разводит сдвиг фазы: он приходит инлайн. */
+  /* Rotation in steps, not smooth: twenty positions per turn. At a one-second
+     revolution the eye cannot tell the steps apart, while the browser makes
+     twenty repaints a second instead of a hundred and forty-four — measured,
+     smooth rotation costs a quarter more. The period is shared; what puts the
+     impellers out of step with each other is a phase shift, and that arrives
+     inline. */
   .fan-blades {
     transform-box: fill-box; transform-origin: center;
     animation: spin var(--spin) steps(20, end) infinite;
@@ -10,11 +11,11 @@
   }
   .rig.on .fan-blades { animation-play-state: running; }
 
-  /* Вынули хотя бы один вентилятор — остальные уходят на максимум. Так ведёт
-     себя любая машина: контроллер теряет один поток и компенсирует оборотами.
-     Каждой лопасти генератор проставляет свой период инлайном, поэтому здесь
-     нужен !important. Вентилятор блока питания живёт своей жизнью — у него
-     отдельный контроллер, и в разгон он не идёт. */
+  /* Pull even one fan and the rest go to maximum. Any machine behaves this
+     way: the controller loses one airflow and makes up for it with rpm. The
+     generator writes every impeller its own period inline, which is why
+     !important is needed here. The power supply fan lives its own life — it
+     has a controller of its own and does not spin up. */
   .rig.on:has(.fan.pulled) .fan-blades:not(.aux) { animation-duration: 0.55s !important; }
   .rig.on .fan.pulled .fan-blades { animation-play-state: paused; }
   .fan.pulled .fan-blades { animation-play-state: paused; }
@@ -22,19 +23,20 @@
 
   .rig.service .fan.pulled .pick-body { transform: translateY(-30px) scale(1.03); }
 
-  /* Сборка: вентилятор опускают в стенку сверху — в 1U он входит вертикально,
-     между стойкой корзины и платой места нет ни для какого другого движения.
-     Момент посадки задаёт --seat, его проставляет генератор: расписание всей
-     сборки живёт в geom, а здесь только «откуда и как». */
+  /* Assembly: the fan is lowered into the wall from above — in 1U it goes in
+     vertically, between the cage upright and the board there is no room for any
+     other movement. The moment of seating is set by --seat, which the generator
+     writes: the schedule for the whole assembly lives in geom, and only "from
+     where and how" lives here. */
   .rig.assembly .fan {
     animation: seatFan var(--press-hard) var(--seat, 0s) backwards;
   }
-  /* Садится туго: направляющие длинные, и модуль идёт по ним с усилием,
-     а в самом низу его дожимают до защёлки. */
+  /* It seats stiffly: the guides are long, the module travels along them under
+     effort, and right at the bottom it is pressed home to the latch. */
   @keyframes seatFan {
     from { opacity: 0; transform: translateY(-42px); }
   }
 
-  /* Вентилятор в стенке держит защёлка: тянешь — не идёт, потом срыв.
-     Ровно та же кривая ведёт его и при посадке. */
+  /* A latch holds the fan in the wall: you pull, it does not move, then it
+     breaks free. Exactly the same curve carries it when seating too. */
   .fan .pick-body { transition: transform var(--click); }

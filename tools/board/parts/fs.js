@@ -1,28 +1,28 @@
-  // ── Файловая система: то, что видно, зайдя на хост по консоли ──────────
-  // Тот же принцип, что у паспорта машины: паспорт — что за железо стоит,
-  // DOM — что из него сейчас на месте, NVRAM — как оно настроено. Дерево
-  // ниже не хранит чисел само — оно на каждый листовой файл читает все три
-  // источника заново. Не «/proc/cpuinfo посчитан один раз при сборке», а
-  // «/proc/cpuinfo — функция, которая при каждом cat смотрит на HW, DOM
-  // и nv.». Вынь планку и попроси dimm — meminfo увидит вынутую сразу,
-  // без отдельного шага синхронизации.
+  // ── File system: what you see once on the host over the console ────────
+  // The same principle as the machine's spec: the spec is what hardware is
+  // fitted, the DOM is what of it is in place right now, NVRAM is how it is
+  // configured. The tree below keeps no numbers of its own — for every leaf
+  // file it reads all three sources afresh. Not "/proc/cpuinfo was counted
+  // once when the tree was built", but "/proc/cpuinfo is a function that on
+  // every cat looks at HW, DOM and nv". Pull a DIMM and ask for dimm —
+  // meminfo sees the pulled one at once, with no separate sync step.
   //
-  // Каталог — обычный объект { имя: узел }: fsBuildRoot строит дерево
-  // заново на каждый вызов команды, поэтому состав каталога (какие nvme
-  // остались в /dev, какие psu в /sys) тоже свежий. Листовой файл — это
-  // функция: она уже не пересчитывается при построении дерева, а вызывается
-  // самими командами (cat/head/tail/…) в момент, когда её содержимое
-  // действительно нужно.
+  // A directory is a plain object { name: node }: fsBuildRoot builds the
+  // tree anew on every command call, so the contents of a directory (which
+  // nvme are left in /dev, which psu in /sys) are fresh too. A leaf file is
+  // a function: it is no longer recomputed while the tree is built, it is
+  // called by the commands themselves (cat/head/tail/…) at the moment its
+  // contents are really needed.
   //
-  // Имена всех помощников здесь намеренно с префиксом fs — этот файл вставляется
-  // в общий IIFE вместе с остальными частями (screen.*, term.js), которые
-  // правятся параллельно и своего пространства имён не имеют. Общих коротких
-  // имён вроде resolve/splitArgs эта часть не заводит, чтобы не столкнуться
-  // с тем, что определят соседи.
+  // The names of all the helpers here are deliberately prefixed with fs — this
+  // file is spliced into the common IIFE together with the other parts
+  // (screen.*, term.js), which are edited in parallel and have no namespace of
+  // their own. This part starts no short shared names like resolve/splitArgs,
+  // so as not to collide with whatever the neighbours define.
 
-  let fsCurCwd = '/home/cosmdandy';   // снимок cwd — нужен complete(), у которого нет ctx
+  let fsCurCwd = '/home/cosmdandy';   // cwd snapshot — needed by complete(), which has no ctx
   let fsCurNv = {};
-  const fsBoot = Date.now();          // «включился» хост — с этого момента считаем uptime
+  const fsBoot = Date.now();          // the host "came up" — uptime is counted from here
 
   function fsFile(reader, opts) {
     opts = opts || {};
@@ -35,7 +35,7 @@
              owner: opts.owner || 'root', group: opts.group || 'root', kids: kids };
   }
 
-  // ── Состояние по DOM: что физически на месте ────────────────────────────
+  // ── State from the DOM: what is physically in place ─────────────────────
   function fsFansOut() { return chassis.querySelectorAll('.fan.pulled').length; }
   function fsDimmsOut() { return chassis.querySelectorAll('.dimm.pulled').length; }
   function fsBayPulled(i) { return !!chassis.querySelector('.bay.pulled[data-unit="hdd' + i + '"]'); }
@@ -44,8 +44,9 @@
   function fsPsuPulled(k) { return !!chassis.querySelector('.psu.pulled[data-psu="' + k + '"]'); }
   function fsEfiPresent(ctx) { return (ctx.nv || {}).mode !== 'Legacy'; }
 
-  // Сколько логических CPU сейчас видно ОС — общее место для cpuinfo,
-  // cmdline (nr_cpus) и nodeN/cpulist, чтобы три файла не разошлись в числах.
+  // How many logical CPUs the OS sees right now — a common place for cpuinfo,
+  // cmdline (nr_cpus) and nodeN/cpulist, so the three files do not diverge in
+  // their numbers.
   function fsLogicalPerSocket(ctx) {
     const nv = ctx.nv || {};
     const cpu = ctx.HW.cpu || {};
@@ -79,7 +80,7 @@
       const lines = [];
       let idx = 0;
       for (let s = 0; s < socketsTotal; s++) {
-        if (fsCpuPulled(s)) continue;               // радиатор снят — сокет не отвечает
+        if (fsCpuPulled(s)) continue;               // heatsink off — the socket is silent
         for (let t = 0; t < perSocket; t++) {
           lines.push({ t: 'processor\t: ' + idx });
           lines.push({ t: 'vendor_id\t: AuthenticAMD' });
@@ -171,9 +172,10 @@
 
   // ── /sys ─────────────────────────────────────────────────────────────
   function fsHwmonEntries() {
-    // Три датчика по паспорту машины: пакет CPU, накопители, вдув корпуса.
-    // Растут от числа вынутых вентиляторов — тем же правилом, что и раньше
-    // считался столбец температуры в приборах (42 + пропавшие*6 °C).
+    // Three sensors from the machine's spec: the CPU package, the drives,
+    // the chassis intake. They rise with the number of pulled fans — by the
+    // same rule the temperature column in the gauges used to be computed by
+    // (42 + missing*6 °C).
     const fo = fsFansOut();
     const defs = [
       { dir: 'hwmon0', name: 'k10temp', base: 42000, per: 6000 },
@@ -194,8 +196,8 @@
   }
 
   function fsNetEntries(ctx) {
-    // SFP+ живёт на карте в верхнем райзере (data-riser="1") — вынули его,
-    // порты пропадают из /sys/class/net вместе с картой.
+    // SFP+ lives on the card in the top riser (data-riser="1") — pull that
+    // out and the ports disappear from /sys/class/net along with the card.
     const kids = {};
     ['eth0', 'eth1'].forEach(function (name, idx) {
       kids[name] = fsDir({
@@ -217,7 +219,7 @@
   function fsPowerSupplyEntries() {
     const kids = {};
     ['1', '2'].forEach(function (k) {
-      if (fsPsuPulled(k)) return;                 // вынутый блок обесточен и исчезает
+      if (fsPsuPulled(k)) return;                 // a pulled supply is dead and gone
       kids['PSU' + k] = fsDir({
         online: fsFile(function () { return [{ t: state.powered ? '1' : '0' }]; }),
         type: fsFile(function () { return [{ t: 'Mains' }]; }),
@@ -245,7 +247,7 @@
       'console': fsFile(function () { return []; }, { mode: 'crw--w----' }),
     };
     (ctx.HW.bay || []).filter(function (b) { return !b.filler; }).forEach(function (b, idx) {
-      if (fsBayPulled(b.bay)) return;              // вынутый каддик — нет и /dev/nvmeN
+      if (fsBayPulled(b.bay)) return;              // caddy pulled — no /dev/nvmeN either
       kids['nvme' + idx + 'n1'] = fsFile(function () {
         return [{ t: (b.model || '') + ' · ' + b.tb + ' TB · life ' + b.life + '%' }];
       }, { mode: 'brw-rw----' });
@@ -350,8 +352,9 @@
   function fsVarDmesg(ctx) {
     return function () {
       const kids = log ? Array.from(log.children) : [];
-      // POST печатает сам, без запроса: значит его вывод — это хвост лога
-      // после последней набранной команды («$ …»), а не вся история сразу.
+      // POST prints on its own, unasked: so its output is the tail of the
+      // log after the last typed command ("$ …"), not the whole history at
+      // once.
       let cut = 0;
       for (let i = kids.length - 1; i >= 0; i--) {
         if ((kids[i].textContent || '').indexOf('$ ') === 0) { cut = i + 1; break; }
@@ -362,8 +365,8 @@
           return { t: '[' + (i * 0.31).toFixed(6).padStart(11, ' ') + '] ' + el.textContent, c: el.className || '' };
         });
       }
-      // Заглушка на пустой лог: те же числа, что и у sensors/dimm/nvme —
-      // паспорт и DOM, а не выдуманные литералы.
+      // A stand-in for an empty log: the same numbers sensors/dimm/nvme use
+      // — the spec and the DOM, not made-up literals.
       const cpu = ctx.HW.cpu || {};
       const dimm = ctx.HW.dimm || {};
       const bays = (ctx.HW.bay || []).filter(function (b) { return !b.filler; });
@@ -412,7 +415,7 @@
     };
   }
 
-  // ── Дерево целиком ───────────────────────────────────────────────────
+  // ── The whole tree ───────────────────────────────────────────────────
   function fsBuildRoot(ctx) {
     return fsDir({
       proc: fsDir({
@@ -442,7 +445,7 @@
     });
   }
 
-  // ── Пути: абсолютные, относительные, ., .., ~ ───────────────────────────
+  // ── Paths: absolute, relative, ., .., ~ ─────────────────────────────────
   function fsResolve(p, cwd) {
     if (!p) p = '.';
     if (p === '~') p = '/home/cosmdandy';
@@ -473,7 +476,7 @@
     return segs.length ? segs[segs.length - 1] : '/';
   }
 
-  // ── Аргументы: -x, -x значение, -xЗНАЧЕНИЕ, комбинированные -la ────────
+  // ── Arguments: -x, -x value, -xVALUE, combined -la ─────────────────────
   function fsSplitArgs(args, valueFlags) {
     valueFlags = valueFlags || {};
     const flags = {};
@@ -507,8 +510,8 @@
              c: isDir ? 'ok' : '' };
   }
 
-  // Каждая команда снимает свежий снимок cwd/nv для complete(), у которого
-  // по контракту нет ctx, — и только потом строит дерево и работает.
+  // Every command takes a fresh snapshot of cwd/nv for complete(), which by
+  // contract has no ctx — and only then builds the tree and does its work.
   function fsWithState(fn) {
     return function (ctx) {
       fsCurCwd = ctx.cwd;
@@ -530,7 +533,7 @@
       .map(function (n) { return dirPart + n + (node.kids[n].type === 'dir' ? '/' : ''); });
   }
 
-  // ── Команды ──────────────────────────────────────────────────────────
+  // ── Commands ─────────────────────────────────────────────────────────
   cmd({
     name: 'ls', group: 'ФАЙЛЫ', brief: 'содержимое каталога', usage: 'ls [-l] [-a] [путь]',
     needs: 'power',
@@ -544,8 +547,9 @@
       if (!node) return [{ t: 'ls: ' + target + ': No such file or directory', c: 'err' }];
       if (node.type === 'file') return [parsed.flags.l ? fsLsLine(fsLastSeg(path), node) : { t: fsLastSeg(path) }];
       let names = Object.keys(node.kids).sort();
-      // Точка и две точки — такие же записи каталога, как остальные, и с -a
-      // их показывают. Без них ls -a выглядел как ls, только длиннее.
+      // A dot and two dots are directory entries like all the others, and
+      // with -a they are shown. Without them ls -a looked like ls, only
+      // longer.
       const dots = {};
       if (parsed.flags.a) {
         const up = path === '/' ? path : path.replace(/\/[^/]+$/, '') || '/';
@@ -604,9 +608,9 @@
     }),
   });
 
-  // head и tail — один и тот же фильтр, отличается только конец, который
-  // берём: как фильтр конвейера они режут ctx.stdin, как файловые команды —
-  // строки, прочитанные из дерева.
+  // head and tail are one and the same filter, only the end they take
+  // differs: as pipeline filters they cut ctx.stdin, as file commands the
+  // lines read out of the tree.
   function fsHeadTail(fromEnd) {
     return fsWithState(function (ctx) {
       const label = fromEnd ? 'tail' : 'head';
@@ -654,10 +658,10 @@
         if (node.type === 'dir') return [{ t: 'grep: ' + parsed.rest[1] + ': Is a directory', c: 'err' }];
         lines = node.read();
       }
-      // Шаблон сначала пробуем как регулярное выражение: на живой машине grep
-      // именно такой, и `grep "^CPU[01]"` там работает. Если выражение не
-      // компилируется, ищем подстроку — это лучше, чем упасть с ошибкой на
-      // скобке, которую человек имел в виду буквально.
+      // The pattern is first tried as a regular expression: on a live machine
+      // grep is exactly that, and `grep "^CPU[01]"` works there. If the
+      // expression does not compile, we look for a substring — that is better
+      // than falling over with an error on a bracket meant literally.
       let re = null;
       try { re = new RegExp(pattern, parsed.flags.i ? 'i' : ''); } catch (e) { re = null; }
       const needle = parsed.flags.i ? pattern.toLowerCase() : pattern;
@@ -699,9 +703,9 @@
       if (!node) return [{ t: 'find: ' + start + ': No such file or directory', c: 'err' }];
       const re = fsGlobToRe(parsed.flags.name);
       const out = [];
-      // Путь печатаем в том же виде, в каком его задали: `find . -name x`
-      // отвечает ./foo/x, а не /home/cosmdandy/foo/x. Так ведёт себя find, и
-      // так результат можно скопировать в следующую команду.
+      // The path is printed in the same shape it was given in: `find . -name
+      // x` answers ./foo/x, not /home/cosmdandy/foo/x. That is how find
+      // behaves, and that way the result can be copied into the next command.
       const relative = start.charAt(0) !== '/' && start !== '~';
       const show = function (p) {
         if (!relative) return p;

@@ -1,54 +1,57 @@
-"""Индикация. Общая на всю схему и потому — часть фундамента.
+"""Indication. Shared by the whole schematic, and so part of the foundation.
 
-Важно про гашение: используем fill-opacity, а не opacity. opacity на
-SVG-элементе создаёт composited layer, и в браузере эти слои перекрывают
-сцену целиком — именно так выглядел баг «весь фон стал чёрным».
+An important point about putting lamps out: we use fill-opacity, not opacity.
+opacity on an SVG element creates a composited layer, and in the browser these
+layers cover the scene whole — that is exactly what the bug "the entire
+background went black" looked like.
 
-Лампа неисправности всегда лежит внутри своего .pick — иначе селектор
-`.pick.pulled .fault` до неё не достаёт, и горят не те лампы.
+The fault lamp always lies inside its own .pick — otherwise the selector
+`.pick.pulled .fault` does not reach it, and the wrong lamps light up.
 """
 
 from board.palette import GLOW_STOPS, GLOW_TINT
 
-# Общий такт индикации. Всё, что мигает и вращается, меняется только в
-# моменты, кратные этому шагу, — и в кадре, где щёлкнула одна лампа, щёлкают
-# сразу все, кому пришло время. Двадцать тиков в секунду: мельче глаз уже не
-# различает, а дороже платить не за что.
+# The common beat of the indication. Everything that blinks and spins changes
+# only at moments that are multiples of this step — and in the frame where one
+# lamp has clicked, every lamp whose time has come clicks at once. Twenty ticks
+# a second: finer than that the eye no longer tells apart, and there is nothing
+# to pay more for.
 #
-# Зачем: анимация в большом SVG не композитится, каждое изменение — это
-# заново растеризовать участок и собрать сцену. Плавная анимация делает это
-# на частоте монитора: на 144 Гц — сто сорок четыре раза в секунду. Сорок
-# ламп со своими периодами гарантируют, что в любом кадре что-нибудь да
-# меняется, и цена одна и та же. На общем такте перерисовок ровно двадцать в
-# секунду — сколько бы ламп ни было и какой бы монитор ни стоял.
+# Why: animation in a big SVG is not composited, every change means
+# re-rasterising a region and reassembling the scene. Smooth animation does
+# this at the monitor's frequency: at 144 Hz, a hundred and forty-four times a
+# second. Forty lamps with periods of their own guarantee that something
+# changes in any frame, and the price is the same throughout. On the common
+# beat there are exactly twenty repaints a second — however many lamps there
+# are and whatever monitor is standing there.
 TICK = 0.05
 
 
 def quant(v):
-    """Ближайшее время на сетке такта, но не меньше одного шага."""
+    """Nearest time on the beat grid, but no less than one step."""
     return round(max(TICK, round(v / TICK) * TICK), 2)
 
 
 def jitter(i, base, spread, salt=0):
-    """Детерминированный разброс: индикаторы не должны мигать в такт.
+    """Deterministic spread: indicators must not blink in unison.
 
-    Разброс остаётся, но ложится на сетку такта: вспышки идут вразнобой, а
-    перерисовки при этом сходятся в одни и те же кадры.
+    The spread stays, but it lands on the beat grid: the flashes go out of
+    step with one another, while the repaints still meet in the same frames.
     """
     return quant(base + ((i * 37 + salt * 13 + 11) % 100) / 100 * spread)
 
 
 def glow_id(color):
-    """Имя градиента свечения по цвету лампы."""
+    """Name of the glow gradient, taken from the lamp colour."""
     return 'glow-' + color.lstrip('#')
 
 
 def glow_defs():
-    """Градиенты свечения — по одному на цвет лампы, на всю схему.
+    """Glow gradients — one per lamp colour, for the whole schematic.
 
-    Объявляем через objectBoundingBox: градиент тянется по габариту своего
-    круга, поэтому один и тот же годится и для лампы диска радиусом три, и
-    для системной радиусом пять.
+    Declared through objectBoundingBox: the gradient stretches to the bounding
+    box of its own circle, so one and the same gradient does for a drive lamp
+    of radius three and for a system one of radius five.
     """
     grads = []
     for color, tint in GLOW_TINT.items():

@@ -1,34 +1,37 @@
-  /* Диск достают в два приёма: сначала отщёлкивают ручку, и только потом
-     каддик идёт наружу. Ручка — рычаг во всю длину каддика, посаженный на
-     ось у дальней кромки: он отгибается наружу, к фронту, а не съезжает.
-     transform-box: fill-box нужен, чтобы процент в transform-origin считался
-     от самой группы, а не от холста. */
+  /* A drive comes out in two moves: first the handle is unlatched, and only
+     then does the caddy travel out. The handle is a lever the full length of
+     the caddy, hinged on an axis at the far edge: it swings outward, towards
+     the front, rather than sliding. transform-box: fill-box is needed so that
+     the percentage in transform-origin counts from the group itself and not
+     from the canvas. */
   .bay-handle {
     transform-box: fill-box;
     transform-origin: 100% 100%;
-    /* Защёлка каддика щёлкает: держит, пока не пересилишь, а потом
-       откидывается сама. Сам каддик едет ровно — его уже ничто не держит. */
+    /* The caddy latch clicks: it holds until you overpower it, and then it
+       throws itself open. The caddy itself travels evenly — nothing holds it
+       any more. */
     transition: transform var(--click);
   }
 
-  /* Ход небольшой нарочно. Рычаг, откинутый на весь размах, ложится поперёк
-     соседнего отсека, и в кадре читается уже не «диск расщёлкнут», а «что-то
-     упало». Отход влево с лёгким наклоном говорит то же самое, никому не
-     мешая: ручка вышла из защёлки, под ней открылся сам накопитель. */
+  /* The travel is small on purpose. A lever thrown open to its full swing lies
+     across the neighbouring bay, and the frame then reads not as "the drive is
+     unlatched" but as "something fell off". Moving left with a slight tilt says
+     the same thing and gets in nobody's way: the handle has left the latch, and
+     the drive itself is exposed under it. */
   .rig.service .bay.unlatched .bay-handle { transform: translateX(-16px) rotate(-7deg); }
 
-  /* Наружу — за габарит шасси: диск физически выходит из корзины вперёд, и
-     на его месте остаётся гнездо с направляющими. */
+  /* Outward, past the chassis outline: the drive physically leaves the cage
+     forwards, and an empty bay with its guides stays in its place. */
   .rig.service .bay.pulled .pick-body { transform: translateX(-104px); }
   .rig.service .bay.pulled .bay-handle { transform: translateX(-120px) rotate(-7deg); }
 
-  /* Сборка: диск задвигают спереди, тем же путём, которым он выезжает при
-     разборе, — только в обратную сторону. */
+  /* Assembly: the drive is pushed in from the front, along the same path it
+     takes coming out during teardown — only the other way round. */
   .rig.assembly .bay {
     animation: seatBay var(--press-seat) var(--seat, 0s) backwards;
   }
-  /* Каддик идёт по салазкам свободно и упирается только в самом конце:
-     последний сантиметр — это дожим ручкой до щелчка. */
+  /* The caddy runs along its rails freely and meets resistance only right at
+     the end: the last centimetre is the handle pressing it home to the click. */
   @keyframes seatBay {
     from { opacity: 0; transform: translateX(-104px); }
   }

@@ -1,14 +1,16 @@
-"""блоки питания: вынимаются назад, за лепестки-ручки.
+"""power supplies: they pull out backwards, by the bail handles.
 
-Ручка и вентилятор сидят на заднем торце — с той стороны, куда модуль
-выходит из шасси. Всё остальное занимает корпус с шильдиком и штрих-кодом.
+The handle and the fan sit on the rear end face — the side the module leaves
+the chassis by. Everything else is taken up by the body with its rating label
+and barcode.
 """
 
-# Свой прямоугольник: сборка проверит, что узел из него не вышел.
-# Заметно шире корпуса: и петля-ручка, и оранжевый фиксатор выходят за
-# задний торец — иначе за них не взяться рукой в стойке. Слева выходит на
-# плату: лампа посадочного места стоит на текстолите, а не на самом блоке —
-# горит не блок, а место, из которого его вынули.
+# Own rectangle: the build checks that the block did not leave it.
+# Noticeably wider than the body: both the bail handle and the orange latch
+# reach past the rear end face — otherwise you cannot get a hand on them in
+# the rack. On the left it runs onto the board: the bay lamp stands on the
+# laminate and not on the module itself — what lights up is not the module but
+# the place it was pulled out of.
 BOUNDS = (982, 0, 356, 862)
 
 from board.geom import PSU_H, PSU_W, PSU_Y, X_REAR, seat
@@ -20,17 +22,18 @@ from board.revision import stamp
 def render(cv):
     for k, (y, flip) in enumerate(zip(PSU_Y, (False, True))):
         name = f"PSU-{k+1}"
-        fan_y = y + (8 if flip else 83)      # вентилятор в дальнем от центра углу
-        grip_y = y + (88 if flip else 14)     # ручка — в противоположном
-        # Карман отсека: блок вставляется в него, а не приклеен к стенке.
-        # Без кармана два модуля читаются одной панелью на задней кромке.
+        fan_y = y + (8 if flip else 83)      # fan in the corner away from centre
+        grip_y = y + (88 if flip else 14)     # handle — in the opposite one
+        # The bay pocket: the module is inserted into it, not glued to the
+        # wall. Without the pocket the two modules read as a single panel on
+        # the rear edge.
         bay = [(f'<rect x="{X_REAR-6}" y="{y-6}" width="312" height="157" rx="6" fill="#0c1316" '
                 f'stroke="rgba(147,161,161,0.20)"/>')]
         for gy in (y - 2, y + 143):
             bay.append(f'<line x1="{X_REAR-2}" y1="{gy}" x2="{X_REAR+296}" y2="{gy}" '
                        f'stroke="rgba(147,161,161,0.16)" stroke-width="2.4"/>')
-        # Направляющие и ответная колодка в глубине кармана: пустой отсек
-        # должен читаться посадочным местом, а не дырой в задней стенке.
+        # Guides and the mating header deep inside the pocket: an empty bay
+        # has to read as a seat and not as a hole in the rear wall.
         for gy in (y + 18, y + PSU_H - 18):
             bay.append(f'<line x1="{X_REAR+8}" y1="{gy}" x2="{X_REAR+PSU_W-40}" y2="{gy}" '
                        f'stroke="rgba(147,161,161,0.12)" stroke-width="3"/>')
@@ -43,64 +46,68 @@ def render(cv):
         cv.add('<g class="decor psu-bay">' + ''.join(bay) + '</g>')
         psu = []
         psu.append(f'<rect x="{X_REAR}" y="{y}" width="{PSU_W}" height="{PSU_H}" rx="5" fill="#121a1e" stroke="rgba(147,161,161,0.26)"/>')
-        # Жалюзи по верху корпуса: штампованные прорези, через них уходит
-        # горячий воздух. Ряд идёт вдоль всего модуля, кроме торцов.
+        # Louvres along the top of the body: stamped slots, the hot air leaves
+        # through them. The row runs along the whole module except the ends.
         louver_y = y + (128 if flip else 8)
         for lv in range(14):
             lx = X_REAR + 26 + lv * 16
             psu.append(f'<path d="M{lx} {louver_y} h9 a2 2 0 0 1 0 8 h-9 a2 2 0 0 1 0 -8 Z" '
                        f'fill="#0a1013" stroke="rgba(147,161,161,0.18)" stroke-width="0.8"/>')
-        # Ручка сидит посередине торца, рядом с решёткой выхода воздуха, и
-        # петлёй уходит далеко за корпус — иначе за неё не взяться, когда блок
-        # сидит в кармане. На живом блоке она чёрная, у нас светлая: на тёмном
-        # шасси чёрная петля просто пропадала бы.
+        # The handle sits in the middle of the end face, next to the air outlet
+        # grille, and its bail reaches far past the body — otherwise you cannot
+        # take hold of it while the module sits in the pocket. On a real unit
+        # it is black, here it is light: on a dark chassis a black bail would
+        # simply disappear.
         mid = y + 72
-        # Петля уходит далеко за торец: за неё берутся рукой, а рука не
-        # помещается в зазор между блоком и стенкой стойки. Прежний вылет в
-        # десяток единиц читался как утолщение корпуса, а не как ручка.
+        # The bail reaches far past the end face: it is taken by hand, and a
+        # hand does not fit into the gap between the module and the rack wall.
+        # The former reach of a dozen units read as a thickening of the body
+        # rather than as a handle.
         bail_x = X_REAR + 292
         psu.append(f'<path d="M{bail_x} {mid-30} h30 a15 15 0 0 1 15 15 v30 a15 15 0 0 1 -15 15 h-30" '
                    f'fill="none" stroke="rgba(198,209,213,0.82)" stroke-width="6" '
                    f'stroke-linecap="round" stroke-linejoin="round"/>')
         psu.append(f'<path d="M{bail_x+7} {mid-23} h23 a9 9 0 0 1 9 9 v16 a9 9 0 0 1 -9 9 h-23" '
                    f'fill="none" stroke="rgba(13,20,24,0.5)" stroke-width="1.4"/>')
-        for ay in (mid - 30, mid + 30):        # оси, на которых петля откидывается
+        for ay in (mid - 30, mid + 30):        # the axles the bail swings on
             psu.append(f'<circle cx="{bail_x}" cy="{ay}" r="4" fill="#0d1418" '
                        f'stroke="rgba(147,161,161,0.5)" stroke-width="1.6"/>')
-        # Фиксатор оранжевый — он из того же ряда, что язычки вентиляторов и
-        # защёлки дисков: цвет означает «это трогают руками на горячую».
-        # Выходит за торец дальше ручки, иначе до него не дотянуться.
+        # The latch is orange — it is from the same family as the fan tabs and
+        # the drive latches: the colour means "this one is touched by hand
+        # while live". It reaches past the end face further than the handle,
+        # otherwise you cannot get to it.
         psu.append(f'<path d="M{X_REAR+286} {mid-32} h34 l8 11 -8 11 h-34 Z" '
                    f'fill="#cb4b16" stroke="rgba(238,232,213,0.55)" stroke-width="1.3"/>')
         for g in range(2):
             psu.append(f'<line x1="{X_REAR+294}" y1="{mid-26+g*8}" x2="{X_REAR+316}" y2="{mid-26+g*8}" '
                        f'stroke="rgba(20,20,10,0.34)" stroke-width="1.6"/>')
-        # вентилятор
+        # fan
         psu.append(f'<rect x="{X_REAR+238}" y="{fan_y-4}" width="58" height="58" rx="4" fill="#0b1215" stroke="rgba(147,161,161,0.22)"/>')
         psu.append(f'<circle cx="{X_REAR+267}" cy="{fan_y+25}" r="25" fill="#0d1417" stroke="rgba(147,161,161,0.18)"/>')
         psu.append(f'<path class="fan-blades aux" d="M{X_REAR+267} {fan_y+3} L{X_REAR+275} {fan_y+25} L{X_REAR+267} {fan_y+47} L{X_REAR+259} {fan_y+25} Z '
                    f'M{X_REAR+245} {fan_y+25} L{X_REAR+267} {fan_y+17} L{X_REAR+289} {fan_y+25} L{X_REAR+267} {fan_y+33} Z" '
                    f'fill="rgba(34,48,54,0.5)" stroke="rgba(147,161,161,0.22)" style="animation-delay:-{jitter(k, 0.3, 1.4)}s"/>')
-        # шильдик с характеристиками
+        # rating label
         psu.append(f'<rect x="{X_REAR+96}" y="{y+30}" width="126" height="86" rx="3" '
                    f'fill="#e8e3d5" fill-opacity="0.10" stroke="rgba(147,161,161,0.22)"/>')
         for r in range(6):
             yy = y + 44 + r * 12
             psu.append(f'<line x1="{X_REAR+106}" y1="{yy}" x2="{X_REAR+212}" y2="{yy}" stroke="rgba(147,161,161,0.16)" stroke-width="2"/>')
-        # штрих-код вдоль внутреннего торца
+        # barcode along the inner end face
         for b in range(20):
             w = 1.4 if b % 3 else 2.8
             psu.append(f'<rect x="{X_REAR+16}" y="{y+34+b*4}" width="24" height="{w}" fill="rgba(147,161,161,0.22)"/>')
-        # Имя блока идёт вдоль модуля, а не поперёк: на живой машине шильдик
-        # наклеен по длинной стороне, и читают его, повернув голову. Так же
-        # развёрнут и шильдик на крышке.
+        # The module name runs along the module, not across it: on a real
+        # machine the label is stuck to the long side, and you read it by
+        # turning your head. The label on the cover is turned the same way.
         nx, ny = X_REAR + 30, y + PSU_H / 2
         psu.append(f'<text x="{nx}" y="{ny}" transform="rotate(-90 {nx} {ny})" '
                    f'text-anchor="middle" fill="rgba(147,161,161,0.5)" '
                    f'font-family="ui-monospace, Menlo, monospace" font-size="11">{name}</text>')
         psu.append(stamp(X_REAR + 16, y + 138, "блоки питания"))
-        # AC, DC и ошибка — ровно тот набор, что подписан на наклейке живого БП.
-        # Вход под напряжением всегда: AC горит и на выключенной машине.
+        # AC, DC and fault — exactly the set printed on the sticker of a real
+        # PSU. The input is live at all times: AC is lit on a powered-off
+        # machine too.
         for dy, cls, color, nm in ((0, "led aux", "#859900", "AC"),
                                    (17, "led", "#859900", "DC"),
                                    (34, "fault-sys", "#b58900", "!")):

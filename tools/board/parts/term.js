@@ -1,19 +1,21 @@
-  // ── Терминал: ядро оболочки ────────────────────────────────────────────
-  // Раньше здесь была лестница из case по именам команд. Она работала, но
-  // имена команд существовали только как метки switch и текст в справке —
-  // поэтому ни дополнить по Tab, ни собрать help из самого списка было
-  // нечем, а справка расходилась с реальностью молча.
+  // ── Terminal: the shell core ───────────────────────────────────────────
+  // There used to be a staircase of cases on command names here. It worked,
+  // but the command names existed only as switch labels and as text in the
+  // help — so there was nothing to complete by Tab with and nothing to
+  // assemble help out of, and the help drifted from reality silently.
   //
-  // Теперь команда объявляет себя сама: имя, группа, краткая строка помощи,
-  // кандидаты для дополнения и функция. Функция ВОЗВРАЩАЕТ строки, а не
-  // печатает их, — иначе не собрать конвейер: grep должен получить то, что
-  // вернула предыдущая ступень, а не читать чужой вывод из лога.
+  // Now a command declares itself: name, group, a short help line,
+  // candidates for completion and a function. The function RETURNS lines
+  // instead of printing them — otherwise there is no pipeline: grep has to
+  // get what the previous stage returned, not read someone else's output
+  // out of the log.
 
   const CMDS = new Map();
 
   function cmd(spec) {
-    // Порядок вставки частей задаёт порядок регистрации, и перепутанные
-    // маркеры молча перетирали бы команды. Пусть лучше падает громко.
+    // The order the parts are spliced in sets the order of registration,
+    // and mixed-up markers would silently overwrite commands. Better it
+    // falls over loudly.
     if (CMDS.has(spec.name)) throw new Error('команда уже объявлена: ' + spec.name);
     CMDS.set(spec.name, spec);
     (spec.alias || []).forEach(function (a) {
@@ -21,21 +23,22 @@
     });
   }
 
-  // Настройки прошивки объявляет экран (parts/screen.js), а он выполняется
-  // ниже по файлу. До первого нажатия клавиши его уже нет смысла ждать, но
-  // если экран не собран вовсе — команды должны работать, просто без
-  // настроек. Отсюда try: обращение к необъявленной переменной бросает.
+  // The firmware settings are declared by the screen (parts/screen.js), and
+  // that runs further down the file. By the first keypress there is no point
+  // waiting for it any more, but if the screen was not spliced in at all the
+  // commands still have to work, just without settings. Hence the try:
+  // touching an undeclared variable throws.
   function nvBag() {
     try { return nv; } catch (e) { return {}; }
   }
 
   let cwd = '/home/cosmdandy';
 
-  // ── Разбор строки ──────────────────────────────────────────────────────
-  // Было: split по пробелам и всё в нижний регистр — то есть ровно два
-  // слова, и путь /Proc превращался в /proc. Теперь регистр сохраняется:
-  // пути и шаблоны grep к нему чувствительны. К нижнему приводится только
-  // имя команды при поиске в реестре.
+  // ── Parsing the line ───────────────────────────────────────────────────
+  // It used to be: split on spaces and everything down to lower case — that
+  // is, exactly two words, and the path /Proc turned into /proc. Now case is
+  // kept: paths and grep patterns are sensitive to it. Only the command name
+  // is lowercased, when it is looked up in the registry.
 
   function lex(raw) {
     const stages = [];
@@ -69,14 +72,15 @@
     return stages.filter(function (s) { return s.length; });
   }
 
-  // ── История ────────────────────────────────────────────────────────────
+  // ── History ────────────────────────────────────────────────────────────
   const history = [];
   let pos = 0;
   let draft = '';
 
-  // `!!` — предыдущая строка, `!7` — седьмая, `!se` — последняя на «se».
-  // Развёрнутое печатается эхом и кладётся в историю уже развёрнутым: так
-  // ведёт себя bash, и так понятно, что именно выполнилось.
+  // `!!` — the previous line, `!7` — the seventh, `!se` — the last one on
+  // "se". What it expands to is echoed and goes into the history already
+  // expanded: that is how bash behaves, and that way it is clear what
+  // exactly ran.
   function expand(raw) {
     const s = raw.trim();
     if (s[0] !== '!' || !s.length) return raw;
@@ -89,7 +93,7 @@
     return '';
   }
 
-  // ── Выполнение ─────────────────────────────────────────────────────────
+  // ── Execution ──────────────────────────────────────────────────────────
 
   function found(name) {
     return CMDS.get(String(name).toLowerCase());
@@ -122,8 +126,8 @@
     return out || [];
   }
 
-  // Похожая команда для подсказки при опечатке: считаем общий префикс, этого
-  // хватает — список короткий, а расстояние Левенштейна тут излишество.
+  // A similar command to suggest on a typo: we count the common prefix, that
+  // is enough — the list is short, and Levenshtein distance is overkill here.
   function suggest(word) {
     const w = String(word).toLowerCase();
     let best = '';
@@ -155,9 +159,10 @@
     return out || [];
   }
 
-  // ── Справка собирается из реестра ──────────────────────────────────────
-  // Пока список команд лежал отдельным массивом, он расходился с самим
-  // switch: команда была, а строки про неё не было, и наоборот.
+  // ── Help is assembled from the registry ────────────────────────────────
+  // As long as the command list lay in a separate array, it drifted from the
+  // switch itself: a command was there and the line about it was not, and
+  // the other way round.
   cmd({
     name: 'help',
     group: 'ОБОЛОЧКА',
@@ -208,9 +213,9 @@
     return out.sort();
   }
 
-  // ── Дополнение ─────────────────────────────────────────────────────────
-  // Кандидаты берём у самой команды: она одна знает, что стоит на месте
-  // своего аргумента — пути, ключи или имена ссылок.
+  // ── Completion ─────────────────────────────────────────────────────────
+  // We take the candidates from the command itself: it alone knows what
+  // stands in place of its argument — paths, flags or link names.
   function complete(text) {
     const stages = lex(text);
     const argv = stages.length ? stages[stages.length - 1] : [];
@@ -226,9 +231,9 @@
     return list.filter(function (c) { return c.indexOf(tail) === 0 && c !== tail; });
   }
 
-  // Что дорисовать серым: сначала кандидат дополнения, если он один или у
-  // всех общий префикс; если кандидатов нет — последняя команда из истории
-  // с таким началом, как в fish.
+  // What to draw on in grey: first the completion candidate, if there is
+  // only one or they all share a prefix; if there are no candidates — the
+  // last command from the history that starts this way, as in fish.
   function ghostFor(text) {
     if (!text) return '';
     const cand = complete(text);
@@ -250,7 +255,7 @@
     return '';
   }
 
-  // ── Поле ввода ─────────────────────────────────────────────────────────
+  // ── The input field ────────────────────────────────────────────────────
   const promptInput = document.getElementById('prompt');
   const ghostTyped = document.querySelector('.ghost-typed');
   const ghostRest = document.querySelector('.ghost-rest');
@@ -261,9 +266,10 @@
   }
   refreshPs1();
 
-  // Подсказку рисуем зеркалом под полем: в <input> двух цветов не бывает.
-  // Набранное в зеркале прозрачное — оно нужно только чтобы занять ширину,
-  // а видно продолжение приглушённым тоном.
+  // The hint is drawn by a mirror under the field: an <input> never has two
+  // colours. What was typed is transparent in the mirror — it is there only
+  // to take up the width, and what shows is the continuation in a muted
+  // tone.
   function paintGhost() {
     if (!ghostRest) return;
     const text = promptInput.value;
@@ -296,7 +302,8 @@
   promptInput.addEventListener('scroll', paintGhost);
 
   promptInput.addEventListener('keydown', function (e) {
-    // Ctrl+W не вешаем: в браузере он закрывает вкладку и не отменяется.
+    // We do not hang Ctrl+W: in a browser it closes the tab and cannot be
+    // cancelled.
     if (e.ctrlKey && !e.altKey && !e.metaKey) {
       const k = e.key.toLowerCase();
       if (k === 'c') {
@@ -323,7 +330,7 @@
     }
 
     if (e.key === 'Tab') {
-      e.preventDefault();               // иначе фокус уедет на ссылку под полем
+      e.preventDefault();               // otherwise focus leaves for the link below
       if (takeGhost()) return;
       const cand = complete(promptInput.value);
       if (cand.length > 1) {
@@ -344,7 +351,7 @@
 
     if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
     if (!history.length) return;
-    e.preventDefault();                       // иначе курсор прыгает в начало строки
+    e.preventDefault();                       // otherwise the caret jumps to line start
     if (e.key === 'ArrowUp') {
       if (pos === history.length) draft = promptInput.value;
       pos = Math.max(0, pos - 1);
@@ -353,14 +360,14 @@
     }
     promptInput.value = pos === history.length ? draft : history[pos];
     paintGhost();
-    // курсор в конец: иначе он остаётся там, где был, и правка идёт с середины
+    // caret to the end: otherwise it stays put and editing runs from the middle
     const end = promptInput.value.length;
     window.requestAnimationFrame(function () { promptInput.setSelectionRange(end, end); });
   });
 
-  // Ручка для проверок. Через поле ввода терминал не потестировать: сборка
-  // chromium в контейнере роняет рендерер на любом <input>, и инструменты
-  // удаляют поля до отрисовки страницы.
+  // A handle for tests. The terminal cannot be tested through the input
+  // field: the chromium build in the container drops the renderer on any
+  // <input>, and the tooling strips the fields before the page is drawn.
   window.__rig = {
     exec: function (s) { return exec(s); },
     complete: complete,

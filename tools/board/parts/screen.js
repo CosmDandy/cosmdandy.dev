@@ -31,16 +31,17 @@
   const topHeadEl = document.getElementById('crt-top-head');
   const topGridEl = document.getElementById('crt-top-grid');
 
-  // dormancy() в base.js ставит схему на паузу, когда вкладку свернули или
-  // увели за край экрана — тот же повод останавливать её и здесь: пока слой
-  // открыт, зрителю схему всё равно не видно из-под ::backdrop, а крутить
-  // лопасти в фоне — чистый расход батареи. dormancy() уже написана в
-  // base.js, менять её тело неоткуда — это тот самый флаг, который должен
-  // войти в её условие (см. отчёт).
+  // dormancy() in base.js puts the schematic on pause when the tab has been
+  // minimised or taken off the edge of the screen — the same reason to stop it
+  // here: while the layer is open the viewer cannot see the schematic from
+  // under the ::backdrop anyway, and spinning the blades in the background is
+  // pure battery drain. dormancy() is already written in base.js and there is
+  // nowhere to change its body from — this is that very flag, the one that has
+  // to go into its condition (see the report).
   let crtOpen = false;
 
-  // База спрашивает через функцию, а не читает переменную: base.js
-  // выполняется выше по файлу, и до объявления let обращение бросает.
+  // The base asks through a function instead of reading the variable: base.js
+  // runs higher up the file, and a reference before the let declaration throws.
   function screenOpen() { return crtOpen; }
 
   function shadow(on) {
@@ -86,10 +87,10 @@
     if (crt.dataset.mode === 'post' && postCtl && postCtl.done) { postCtl = null; closeCrt(); }
   });
 
-  // Один обработчик на все три режима: диспетчер смотрит на dataset.mode,
-  // а не плодит по слушателю на каждый openXxx() — тогда при переключении
-  // post → setup внутри одного открытого диалога не пришлось бы гадать,
-  // сколько старых обработчиков уже навешано.
+  // One handler for all three modes: the dispatcher looks at dataset.mode
+  // instead of breeding a listener per openXxx() — that way, on a switch from
+  // post to setup inside one already open dialog, there is no guessing how
+  // many old handlers have been hung on it by now.
   document.addEventListener('keydown', function (e) {
     if (!crtOpen) return;
     const mode = crt.dataset.mode;
@@ -98,16 +99,17 @@
     else if (mode === 'top') handleTopKey(e);
   }, true);
 
-  // F2 живёт и вне самотеста. На живой машине её ловят в первые секунды
-  // загрузки, но страница открыта часами, а POST идёт от силы пять секунд —
-  // ждать его, чтобы попасть в setup, было бы издевательством. Поэтому:
-  // экран закрыт — F2 открывает setup, экран открыт — клавишу разбирает
-  // диспетчер режима выше.
+  // F2 lives outside the self-test as well. On a real machine it is caught in
+  // the first seconds of the boot, but the page stays open for hours while
+  // POST runs five seconds at most — waiting for it to get into setup would be
+  // a mockery. Hence: screen closed — F2 opens setup, screen open — the key is
+  // taken apart by the mode dispatcher above.
   document.addEventListener('keydown', function (e) {
     if (crtOpen) return;
-    // F2 — как на живой машине. Enter — для тех, у кого верхний ряд отдан
-    // системе, но только когда фокус ни на чём: в поле консоли он отправляет
-    // команду, на кнопке схемы — нажимает её, и отбирать его там нельзя.
+    // F2 — as on a real machine. Enter — for those whose top row is given
+    // over to the system, but only when the focus is on nothing: in the
+    // console field it sends the command, on a button of the schematic it
+    // presses that button, and it must not be taken away there.
     const idle = document.activeElement === document.body || document.activeElement === null;
     if (e.key !== 'F2' && !(e.key === 'Enter' && idle)) return;
     e.preventDefault();
@@ -115,16 +117,17 @@
   }, true);
 
   // ── NVRAM ────────────────────────────────────────────────────────────────
-  // Отдельное хранилище от rig-state: у них разный жизненный цикл. rig-state
-  // пишется при каждом клике питанием, а прошивку сохраняют только по F10 —
-  // и F9 обязан снести её содержимое, не задевая питание машины вовсе.
+  // A store separate from rig-state: they have different life cycles. rig-state
+  // is written on every click of the power button, while the firmware is saved
+  // only on F10 — and F9 has to wipe its contents without touching the power of
+  // the machine at all.
   //
-  // Поля и их значения — плоские и в тех же строках ('Enabled'/'Disabled'/
-  // 'UEFI'/'Legacy'/'All'), которыми их уже читают hw.js (cpuState, команда
-  // dimm) и fs.js (/proc/cpuinfo, /sys/firmware/efi): там nv.cores, nv.ht,
-  // nv.numa, nv.memfreq, nv.mode проверяются как строки без промежуточного
-  // разбора, и заводить тут свой формат — значит разойтись с уже написанным
-  // кодом соседей.
+  // The fields and their values are flat and in the same strings ('Enabled'/
+  // 'Disabled'/'UEFI'/'Legacy'/'All') by which hw.js (cpuState, the dimm
+  // command) and fs.js (/proc/cpuinfo, /sys/firmware/efi) already read them:
+  // there nv.cores, nv.ht, nv.numa, nv.memfreq, nv.mode are checked as strings
+  // with no parsing in between, and starting a format of our own here would
+  // mean diverging from the neighbours' already written code.
   const NV_DEFAULT = {
     ht: 'Enabled', cores: 'All', numa: 'Enabled', memfreq: 'Auto',
     power: 'Maximum Performance', cstates: 'Enabled',
@@ -153,20 +156,23 @@
     try { localStorage.setItem('rig-nv', JSON.stringify(nv)); } catch (e) {}
   }
 
-  // Два эффекта прошивки на схему — и только два, специально прописанные
-  // как разрешённые: период вращения обязан остаться кратен секунде, иначе
-  // двадцать положений крыльчатки уедут с общего такта в 0.05 с.
+  // Two effects of the firmware on the schematic — and only two, deliberately
+  // written down as the permitted ones: the rotation period has to stay a
+  // multiple of a second, otherwise the twenty positions of the fan blade
+  // drift off the common 0.05 s beat.
   function applyNvEffects() {
     rig.classList.toggle('nv-eff', nv.power === 'Efficiency');
-    // has-fault уже занят чужой логикой (лампы отсутствующих узлов) — здесь
-    // свой признак, чтобы не перебить её условие.
+    // has-fault is already taken by someone else's logic (the lamps of the
+    // missing units) — here we have a flag of our own, so as not to override
+    // that condition.
     rig.classList.toggle('sb-off', nv.mode === 'UEFI' && nv.secureBoot === 'Disabled');
   }
-  applyNvEffects();   // применяем то, что уже лежало в rig-nv, ещё до первого открытия setup
+  applyNvEffects();   // apply what already lay in rig-nv, before setup is ever opened
 
-  // Скорость линка на пассивке — из паспорта портов, а не буквой в тексте:
-  // сменится плата на другую сетевую карту, надписи boot order обязаны
-  // съехать вместе с ней, а не разойтись с тем, что показывает rear_io.
+  // The link speed on the rear panel comes from the ports spec, not from a
+  // letter in the text: swap the board for one with another network card and
+  // the boot order labels have to move along with it, not diverge from what
+  // rear_io shows.
   function pxeSpeed() {
     const m = /([\d.]+)\s*G/.exec(HW.ports.sfp || '');
     return m ? m[1] + 'G' : '10G';
@@ -175,10 +181,11 @@
   const BOOT_SETUP_LABEL = { nvme: 'NVMe 0', pxe: 'PXE ' + pxeSpeed(), bmc: 'BMC Virtual Media' };
 
   // ── POST ───────────────────────────────────────────────────────────────
-  // Строки собираются один раз из трёх слоёв правды — паспорта, DOM и nv —
-  // и печатаются одной и той же функцией что на экран, что в консоль:
-  // приборы и sensors уже расходились именно потому, что их считали дважды
-  // по разным формулам, и это то же самое место, где могло повториться.
+  // The lines are assembled once out of the three layers of truth — the spec,
+  // the DOM and nv — and printed by one and the same function both onto the
+  // screen and into the console: the gauges and sensors already diverged for
+  // exactly that reason, they were computed twice by different formulas, and
+  // this is the same place where it could have happened again.
   function buildPostLines() {
     const fansOut = counts('.fan.pulled');
     const drivesOut = counts('.bay.pulled');
@@ -217,8 +224,9 @@
 
     let bootFailed = false;
     if (nv.mode === 'Legacy' && nv.bootOrder[0] === 'nvme') {
-      // Легаси не видит GPT — ровно тот случай, когда живая машина отваливается
-      // в «no boot device» и остаётся стоять на экране, а не тихо чинит себя.
+      // Legacy does not see GPT — exactly the case where a real machine drops
+      // into "no boot device" and stays standing on the screen instead of
+      // quietly repairing itself.
       push('No boot device found', 'err', 260);
       bootFailed = true;
     } else {
@@ -232,7 +240,7 @@
   }
 
   function crtPostLine(t, c) {
-    line(t, c);                 // в консоль — всегда, независимо от того, открыт ли экран
+    line(t, c);                 // into the console — always, whether the screen is open or not
     if (!crtOpen) return;
     const d = document.createElement('div');
     if (c) d.className = c;
@@ -240,27 +248,29 @@
     postLog.appendChild(d);
   }
 
-  // Пока идёт POST, F2/Esc ловит общий диспетчер document-keydown выше;
-  // сюда он передаёт управление, только если проверил, что мы правда в
-  // режиме post. postCtl живёт, пока строки играют — а если машина
-  // застряла на «no boot device», ещё и после: F2 обязан сработать и там.
+  // While POST runs, F2/Esc are caught by the common document-keydown
+  // dispatcher above; it hands control down here only once it has checked
+  // that we really are in post mode. postCtl lives while the lines play — and
+  // if the machine is stuck on "no boot device", after that too: F2 has to
+  // work there as well.
   let postCtl = null;
 
   function handlePostKey(e) {
     if (!postCtl) return;
-    // Enter наравне с F2: на маке верхний ряд по умолчанию отдан яркости и
-    // громкости, и F2 туда просто не доходит — не заставлять же гостя
-    // держать Fn, чтобы попасть в setup. Пока открыт модальный экран, Enter
-    // ничем другим не занят: поле консоли под слоем фокуса не получает.
+    // Enter on a par with F2: on a mac the top row is given over to brightness
+    // and volume by default, and F2 simply never reaches us — we are not going
+    // to make a guest hold Fn to get into setup. While the modal screen is
+    // open Enter is busy with nothing else: the console field under the layer
+    // does not get the focus.
     if (e.key === 'F2' || e.key === 'Enter') {
       e.preventDefault();
       if (postCtl.done) enterSetupFromPost();
       else postCtl.f2Pending = true;
     } else if (e.key === 'Escape') {
       e.preventDefault();
-      // Первый Esc пропускает паузы между строками, второй — закрывает
-      // экран. Иначе самотест выглядел зависшим: строки кончились, а уйти
-      // с экрана нечем, кроме как ждать.
+      // The first Esc skips the pauses between the lines, the second closes
+      // the screen. Otherwise the self-test looked hung: the lines had run
+      // out and there was nothing to leave the screen with but waiting.
       if (!postCtl.done) postCtl.skip = true;
       else { postCtl = null; closeCrt(); }
     }
@@ -272,13 +282,14 @@
   }
 
   /**
-   * screenPost() — самотест машины. Вызывается из runPost() в base.js вместо
-   * старого прямого вывода в лог: строит строки по HW/DOM/nv, печатает их
-   * дважды (экран + консоль) одной функцией, слушает F2 (отложенный переход
-   * в setup после конца ленты) и Esc (доиграть остаток без пауз). При
-   * reduced экран не открывается вовсе — задержки схлопнуты в ноль тем же
-   * wait(), которым играет и обычный проход, так что строки просто уходят
-   * в консоль одна за другой без паузы между ними.
+   * screenPost() — the machine's self-test. Called from runPost() in base.js
+   * in place of the old direct printing into the log: it builds the lines out
+   * of HW/DOM/nv, prints them twice (screen + console) with one function,
+   * listens for F2 (a deferred move into setup after the end of the tape) and
+   * Esc (play out the rest without pauses). Under reduced the screen does not
+   * open at all — the delays are collapsed to zero by the same wait() that the
+   * ordinary run plays through, so the lines simply go into the console one
+   * after another with no pause between them.
    */
   function screenPost() {
     const built = buildPostLines();
@@ -297,12 +308,13 @@
         postCtl.done = true;
         if (postCtl.f2Pending) { enterSetupFromPost(); return; }
         if (built.bootFailed) {
-          if (!showScreen) postCtl = null;   // экрана нет — ловить F2 всё равно некому
-          return;                             // виснем на экране, как живая машина без диска
+          if (!showScreen) postCtl = null;   // no screen — nobody to catch F2 anyway
+          return;                             // we hang on the screen, like a real machine with no disk
         }
         line('system ready', 'ok');
-        // Подсказку печатаем в консоль, а не только на экран: экран уйдёт
-        // через мгновение, а вопрос «как попасть в BIOS» останется.
+        // The hint is printed into the console, not only onto the screen: the
+        // screen goes away in a moment, and the question "how do I get into
+        // the BIOS" stays.
         line('F2 — BIOS Setup · bios — то же командой', 'muted');
         postCtl = null;
         if (showScreen) wait(700, closeCrt);
@@ -317,11 +329,11 @@
   }
 
   // ── BIOS Setup ───────────────────────────────────────────────────────────
-  // AMI Aptio — синее поле, жёлтая строка, помощь справа. Разделы описаны
-  // схемой данных (setupRows), а не вёрсткой: Boot и IMM меняют состав строк
-  // на лету (Secure Boot прячется под Legacy, IP-поля — под Static), и если
-  // бы это была разметка, пришлось бы прятать/показывать куски руками в
-  // трёх местах вместо одного.
+  // AMI Aptio — a blue field, a yellow line, help on the right. The sections
+  // are described by a data scheme (setupRows) rather than by markup: Boot and
+  // IMM change the set of rows on the fly (Secure Boot hides under Legacy, the
+  // IP fields under Static), and if this were markup we would have to
+  // hide/show pieces by hand in three places instead of one.
   const SETUP_TABS = ['Main', 'Advanced', 'Boot', 'IMM'];
   const CORE_OPTIONS = ['All', HW.cpu.cores, Math.floor(HW.cpu.cores / 2),
                          Math.floor(HW.cpu.cores / 4), Math.floor(HW.cpu.cores / 8)];
@@ -329,8 +341,8 @@
 
   let setupTab = 0;
   let setupRow = -1;
-  let nvDraft = null;      // черновик: правки видны сразу, но в nv попадают только по F10
-  let editField = null;    // { row, buf } — редактирование IP/маски/шлюза посимвольно
+  let nvDraft = null;      // draft: edits show at once, but reach nv only on F10
+  let editField = null;    // { row, buf } — editing IP/mask/gateway character by character
 
   function cycleEnum(list, cur, dir) {
     const i = list.indexOf(cur);
@@ -347,7 +359,7 @@
     rows.push({ label: 'Board', ro: true,
       get: function () { return HW.board.model + '  REV ' + HW.board.rev + '  S/N ' + HW.board.sha; } });
     for (let n = 0; n < HW.cpu.n; n++) {
-      if (chassis.querySelector('.cpu-slot[data-cpu="' + n + '"].opened')) continue;   // вынутый исчезает
+      if (chassis.querySelector('.cpu-slot[data-cpu="' + n + '"].opened')) continue;   // a pulled one disappears
       rows.push({ label: 'CPU' + n, ro: true,
         get: function () { return HW.cpu.model + '  ' + HW.cpu.cores + 'c/' + HW.cpu.threads + 't'; } });
     }
@@ -494,7 +506,7 @@
       renderSetupTab();
     } else if (e.key === 'Escape') {
       e.preventDefault();
-      editField = null;              // отменяет только эту правку, не весь setup
+      editField = null;              // cancels only this edit, not the whole setup
       renderSetupTab();
     } else if (e.key === 'Backspace') {
       e.preventDefault();
@@ -502,7 +514,7 @@
       renderSetupTab();
     } else if (e.key.length === 1 && /[0-9.]/.test(e.key)) {
       e.preventDefault();
-      ef.buf += e.key;               // накопление символов в span — без единого <input>
+      ef.buf += e.key;               // characters pile up in a span — without a single <input>
       renderSetupTab();
     }
   }
@@ -540,21 +552,21 @@
       case 'F1':
         e.preventDefault();
         if (rows[setupRow]) line('help: ' + rows[setupRow].label + ' — ' + (rows[setupRow].help || ''), 'muted');
-        return;                       // подсказка уходит в консоль, экран не перерисовываем
+        return;                       // the hint goes to the console, the screen is not repainted
       case 'F9':
         e.preventDefault();
-        nvDraft = cloneNv(NV_DEFAULT);   // сносит только черновик — питания F9 не касается
+        nvDraft = cloneNv(NV_DEFAULT);   // wipes only the draft — F9 does not touch the power
         setupRow = -1;
         line('bios: optimized defaults loaded', 'warn');
         break;
       case 'F10':
         e.preventDefault();
         commitSetup();
-        return;                        // commitSetup сам закрывает диалог
+        return;                        // commitSetup closes the dialog itself
       case 'Escape':
         e.preventDefault();
         discardSetup();
-        return;                        // discardSetup сам закрывает диалог
+        return;                        // discardSetup closes the dialog itself
       default:
         return;
     }
@@ -627,9 +639,9 @@
     closeSetup();
   }
 
-  // Текущие (сохранённые) настройки построчно — то, что должно пайпиться:
-  // `bios dump | grep Boot`. Черновик сюда не попадает намеренно: пока F10
-  // не нажат, снаружи прошивка не поменялась.
+  // The current (saved) settings line by line — the thing that has to pipe:
+  // `bios dump | grep Boot`. The draft deliberately does not get here: until
+  // F10 has been pressed, from the outside the firmware has not changed.
   function nvDumpLines() {
     const rows = [];
     rows.push({ t: 'Boot Mode              : ' + nv.mode });
@@ -650,11 +662,12 @@
   }
 
   // ── top ──────────────────────────────────────────────────────────────────
-  // Пять метрик — те же, что раньше жили в приборах сбоку, metric(key)
-  // теперь считается один раз в parts/hw.js, оттуда же — cpuState/dimmState/
-  // upSeconds для шапки, чтобы не заводить второй способ посчитать то же
-  // самое. История держится в canvas, а не в сотнях <div>-баров: одна
-  // перерисовка в секунду вместо перекладки полутысячи узлов DOM за тот же тик.
+  // Five metrics — the same ones that used to live in the gauges on the side;
+  // metric(key) is now computed once in parts/hw.js, and cpuState/dimmState/
+  // upSeconds for the header come from there too, so as not to start a second
+  // way of computing the same thing. The history is kept in a canvas rather
+  // than in hundreds of <div> bars: one repaint a second instead of shifting
+  // half a thousand DOM nodes in that same tick.
   const TOP_KEYS = ['cpu', 'temp', 'net', 'iops', 'power'];
   const TOP_LABELS = { cpu: 'CPU', temp: 'TEMP', net: 'NET', iops: 'IOPS', power: 'POWER' };
   const topHistory = { cpu: [], temp: [], net: [], iops: [], power: [] };
@@ -697,7 +710,7 @@
       const y = h - Math.min(1, v / max) * (h - 2) - 1;
       if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
     });
-    ctx.strokeStyle = '#2aa198';   // тот же solarized-cyan, что и --cyan на .rig
+    ctx.strokeStyle = '#2aa198';   // the same solarized cyan as --cyan on .rig
     ctx.lineWidth = 1.5;
     ctx.stroke();
   }
@@ -743,7 +756,7 @@
     openCrt('top');
     renderTop();
     if (topTimer) window.clearInterval(topTimer);
-    topTimer = window.setInterval(renderTop, 1000);   // ровно раз в секунду, не rAF
+    topTimer = window.setInterval(renderTop, 1000);   // exactly once a second, not rAF
   }
 
   function closeTop() {
@@ -757,7 +770,7 @@
     }
   }
 
-  // ── Команды терминала ─────────────────────────────────────────────────
+  // ── Terminal commands ─────────────────────────────────────────────────
   cmd({
     name: 'bios', group: 'ПРОШИВКА', brief: 'открыть BIOS Setup', usage: 'bios [dump]',
     sink: true,

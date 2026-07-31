@@ -1,18 +1,22 @@
-# Кэширование статики. Cloudflare Workers по умолчанию отдаёт всё с
-# max-age=0, must-revalidate: повторный визит переспрашивает каждый файл и
-# получает 304. Тело при этом не передаётся, так что дорого это только для
-# крупных файлов, которые заведомо не меняются, — то есть для шрифтов.
+# Caching of static files. By default Cloudflare Workers serves everything
+# with max-age=0, must-revalidate: a repeat visit asks about every file again
+# and gets a 304. The body is not sent then, so this is only expensive for
+# large files that are known not to change — that is, for the fonts.
 #
-# Всё остальное здесь намеренно отсутствует: style.css, иконки и og.png лежат
-# под постоянными именами, и immutable означал бы, что изменение не доедет до
-# того, кто уже открывал сайт. Ревалидация по ETag для них и дешевле, и честнее.
+# Everything else is deliberately missing here: style.css, the icons and og.png
+# live under permanent names, and immutable would mean a change never reaching
+# anyone who has opened the site before. ETag revalidation is both cheaper and
+# more honest for them.
 #
-# Файл копируется в _site/ шагом сборки в .github/workflows/deploy.yaml.
+# The file is copied into _site/ by the build step in
+# .github/workflows/deploy.yaml.
 
 /fonts/*
   Cache-Control: public, max-age=31536000, immutable
 
-# Ревизии платы: в имени файла хэш коммита, поэтому содержимое не меняется
-# никогда — новая ревизия приходит новым именем.
+# Board revisions: the file name carries the commit hash, so the contents never
+# change — a new revision arrives under a new name. These files are not
+# deployed at present (the revision strip is a development tool), but the rule
+# stays: if they ever go out, this is how they should be cached.
 /history/*.svg
   Cache-Control: public, max-age=31536000, immutable

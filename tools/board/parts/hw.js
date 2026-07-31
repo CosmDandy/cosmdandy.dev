@@ -1,7 +1,7 @@
-  // ── Железо: что машина о себе рассказывает ─────────────────────────────
-  // Единственное место, где считаются показатели датчиков. Раньше их считали
-  // дважды — приборы в боковой колонке по одной формуле, команда sensors по
-  // другой, — и температуры в них расходились.
+  // ── Hardware: what the machine tells about itself ──────────────────────
+  // The only place where the sensor readings are computed. They used to be
+  // computed twice — the gauges in the side column by one formula, the
+  // sensors command by another — and the temperatures in them disagreed.
 
   function metric(key) {
     const on = rig.classList.contains('on');
@@ -9,7 +9,7 @@
     const dimmsOut = chassis.querySelectorAll('.dimm.pulled').length;
     const drivesOut = chassis.querySelectorAll('.bay.pulled').length;
     if (!on) {
-      // на дежурке живёт только BMC: сеть управления и её потребление
+      // on standby only the BMC is alive: the management network and its draw
       if (key === 'power') return { v: 12 + Math.random() * 2, text: '12 W', warn: false, off: true };
       if (key === 'net') return { v: 0.02, text: '0.02 Gb/s', warn: false, off: true };
       return { v: 0, text: '—', warn: false, off: true };
@@ -40,10 +40,11 @@
     return { v: 0, text: '—', warn: false };
   }
 
-  // ── Что машина о себе рассказывает ─────────────────────────────────────
-  // Ни одного числа в командах: состав приходит из паспорта, наличие — из
-  // DOM, настройки — из NVRAM. Раньше здесь стояли литералы, и консоль
-  // обещала тридцать две планки при двадцати четырёх нарисованных.
+  // ── What the machine tells about itself ────────────────────────────────
+  // Not a single number in the commands: the make-up comes from the spec,
+  // what is in place from the DOM, the settings from NVRAM. There used to be
+  // literals here, and the console promised thirty-two DIMMs while twenty
+  // four were drawn.
 
   function counts(sel) {
     return chassis.querySelectorAll(sel).length;
@@ -55,7 +56,7 @@
     return out;
   }
 
-  // Планки: сколько стоит и сколько вынуто — по банкам, как они нарисованы.
+  // DIMMs: how many are in and how many are pulled — by bank, as drawn.
   function dimmState() {
     const total = HW.dimm ? HW.dimm.slots : counts('.dimm');
     const out = counts('.dimm.pulled');
@@ -63,9 +64,9 @@
              gb: (total - out) * (HW.dimm ? HW.dimm.size_gb : 0) };
   }
 
-  // Логических процессоров столько, сколько их видит система: ядра на сокет
-  // из паспорта, урезанные настройкой Active Cores, удвоенные при SMT, и
-  // всё это только по тем сокетам, что сейчас на месте.
+  // There are as many logical processors as the system sees: cores per
+  // socket from the spec, cut down by the Active Cores setting, doubled
+  // under SMT, and all of that only over the sockets that are in place now.
   function cpuState(nv) {
     const spec = HW.cpu || {};
     const sockets = Math.max(0, (spec.n || 0) - counts('.cpu-slot.pulled'));
@@ -79,9 +80,9 @@
     return Math.floor((Date.now() - (state.bootAt || t0)) / 1000);
   }
 
-  // ── Журнал событий ─────────────────────────────────────────────────────
-  // Раньше sel печатал пять неизменных строк, две из которых были неправдой.
-  // Теперь это настоящий журнал: сюда пишет всё, что с машиной случилось.
+  // ── Event log ──────────────────────────────────────────────────────────
+  // sel used to print five unchanging lines, two of which were untrue. Now
+  // this is a real log: everything that happens to the machine writes here.
   const SEL_LOG = [];
 
   function selAdd(text, cls) {
@@ -149,8 +150,8 @@
   cmd({
     name: 'fans', group: 'ЖЕЛЕЗО', brief: 'обороты по модулям', usage: 'fans',
     run: function () {
-      // Пустых мест в стенке нет: восемь модулей, все живые. Прежний вывод
-      // сообщал о пустом отсеке FAN6, которого никогда не существовало.
+      // There are no empty spots in the wall: eight modules, all alive. The
+      // old output reported an empty FAN6 bay that never existed.
       const pulled = pulledNums('.fan.pulled', 'fan');
       const rows = [];
       for (let n = 0; n < HW.fan.n; n++) {
@@ -233,8 +234,8 @@
   cmd({
     name: 'lspci', group: 'ЖЕЛЕЗО', brief: 'устройства на шине', usage: 'lspci',
     run: function () {
-      // Перечисляем то, что нарисовано: микросхемы из паспорта, диски из
-      // корзины, райзеры с их картами. Пустой райзер так и помечен.
+      // We list what is drawn: chips from the spec, drives from the cage,
+      // risers with their cards. An empty riser is marked as exactly that.
       const rows = [];
       HW.chips.forEach(function (chip, i) {
         rows.push({ t: (i + 1).toString(16).padStart(2, '0') + ':00.0  ' + chip.ref.padEnd(5)
@@ -290,7 +291,7 @@
     run: function () { return [{ t: 'root', c: 'ok' }]; },
   });
 
-  // ── Управление ─────────────────────────────────────────────────────────
+  // ── Control ────────────────────────────────────────────────────────────
 
   function svcOn(on) {
     if (rig.classList.contains('service') !== on) toggleService();
@@ -359,9 +360,9 @@
     run: function () { toggleLp(); return []; },
   });
 
-  // Ссылки: отдельной команды со списком больше нет — open без аргумента
-  // печатает адреса, с аргументом открывает. Тот же список лежит в
-  // /home/cosmdandy/links.txt и потому пайпится.
+  // Links: there is no separate command with a list any more — open without
+  // an argument prints the addresses, with an argument it opens one. The
+  // same list lies in /home/cosmdandy/links.txt and so it pipes.
   const LINKS = {
     blog: 'https://blog.cosmdandy.dev',
     cv: 'https://cv.cosmdandy.dev',

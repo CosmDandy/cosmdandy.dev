@@ -1,7 +1,8 @@
-  /* Подсказка дополнения. В <input> двух цветов не бывает, поэтому под полем
-     лежит зеркало: набранная часть в нём прозрачная и нужна только чтобы
-     занять ширину, а видно продолжение приглушённым тоном. Метрики обязаны
-     совпадать с полем до пикселя, иначе подсказка разъедется с текстом. */
+  /* Completion hint. An <input> cannot hold two colours at once, so a mirror
+     lies under the field: the part already typed is transparent in it and is
+     there only to take up the width, while the continuation shows in a muted
+     tone. The metrics have to match the field to the pixel, otherwise the hint
+     drifts out of line with the text. */
   .prompt-field { position: relative; flex: 1; min-width: 0; display: block; }
   .prompt-field input { position: relative; z-index: 1; background: transparent; width: 100%; }
   .ghost {

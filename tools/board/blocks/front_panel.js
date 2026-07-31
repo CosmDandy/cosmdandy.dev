@@ -1,6 +1,7 @@
-  // ── Питание ────────────────────────────────────────────────────────────
-  // Три состояния кнопки, как на настоящей машине: init — BMC поднимается и
-  // жать бесполезно; standby — можно включать; on — работает.
+  // ── Power ──────────────────────────────────────────────────────────────
+  // Three button states, as on a real machine: init — the BMC is coming up
+  // and pressing it does nothing; standby — ready to be switched on; on —
+  // running.
   function setPower(mode) {
     rig.classList.remove('init', 'standby', 'on');
     rig.classList.add(mode);
@@ -8,13 +9,15 @@
 
   function powerOn() {
     state.powered = true;
-    // Аптайм — время работы хоста, а не вкладки: без этой отметки uptime
-    // считал от загрузки страницы и переживал power off, не заметив его.
+    // Uptime is how long the host has been running, not the tab: without this
+    // mark uptime counted from the page load and survived a power off without
+    // noticing it.
     state.bootAt = Date.now();
     save();
     setPower('on');
-    // Порядок ровно такой, как видно вживую: сперва поднимается линк сетевой
-    // карты, следом BMC начинает биться, и только потом стартует хост.
+    // The order is exactly what you see in the flesh: first the network card
+    // brings its link up, then the BMC starts beating, and only after that
+    // does the host start.
     wait(120, function () { rig.classList.add('net'); line('nic · link up 25G', 'ok'); });
     wait(700, function () { rig.classList.add('bmc'); line('BMC 2.14 · heartbeat', 'ok'); });
     wait(1100, runPost);
@@ -41,7 +44,7 @@
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.click(); }
   });
 
-  // ── Опознание в стойке ─────────────────────────────────────────────────
+  // ── Identify in the rack ───────────────────────────────────────────────
   const idBtn = document.getElementById('id-btn');
   function toggleIdentify() {
     const on = rig.classList.toggle('identify');

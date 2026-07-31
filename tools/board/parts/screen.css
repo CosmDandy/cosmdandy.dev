@@ -25,7 +25,7 @@
   --crt-red:   #dc322f;
   --crt-bg:    #041014;
 
-  /* AMI Aptio — своя палитра, никак не связанная с темой страницы. */
+  /* AMI Aptio — a palette of its own, in no way tied to the page theme. */
   --bios-bg:      #00027a;
   --bios-bg2:     #0000aa;
   --bios-border:  #a8a8a8;
@@ -91,10 +91,10 @@
 }
 
 /* ── POST ─────────────────────────────────────────────────────────────── */
-/* Панели режимов переключаются атрибутом hidden, а у каждой свой display —
-   и правило браузера [hidden] { display: none } с нулевой специфичностью ему
-   проигрывает. Без этой строки самотест, setup и top видны одновременно,
-   тремя окнами поверх друг друга. */
+/* Mode panels are switched with the hidden attribute, and each has a display
+   of its own — and the browser rule [hidden] { display: none }, with zero
+   specificity, loses to it. Without this line the self-test, setup and top are
+   visible at once, three windows on top of each other. */
 .crt [hidden] { display: none !important; }
 
 .crt-post {
@@ -246,14 +246,14 @@
   text-align: center;
 }
 
-/* ── Влияние прошивки на схему ───────────────────────────────────────── */
-/* Период обязан остаться кратен секунде — иначе двадцать положений
-   крыльчатки на шаге steps() съезжают с общего такта в 0.05 с. */
+/* ── Firmware's effect on the schematic ───────────────────────────────── */
+/* The period has to stay a multiple of a second — otherwise the impeller's
+   twenty steps() positions drift off the common beat of 0.05 s. */
 .rig.nv-eff { --spin: 2s; }
 
-/* has-fault уже занят чужой логикой (лампы отсутствующих узлов), поэтому
-   Secure Boot: Disabled получает свой признак — sb-off — и повторяет тот
-   же приём индикации на fault-sys, что и has-fault, но не трогает его. */
+/* has-fault is already taken by other logic (lamps of missing units), so
+   Secure Boot: Disabled gets a flag of its own — sb-off — and repeats the same
+   indication trick on fault-sys as has-fault, without touching it. */
 .rig.sb-off .fault-sys {
   fill-opacity: 1;
   animation: faultblink var(--beat) steps(1, end) infinite;

@@ -1,10 +1,11 @@
-  /* Процессор остаётся в сокете — снимается радиатор, как руками. Под ним
-     открывается кристалл: по нему бежит тот же градиент, что по кнопке
-     «скачать» в резюме. Пока радиатор на месте, перелив выключен — он бы
-     зря крутил анимацию под непрозрачной крышкой. */
-  /* Кристалл и поле контактов не выключаются рывком: сначала проступают,
-     а прячутся только после того, как погасли. Отсюда нулевая длительность
-     visibility с задержкой — она ждёт конца проявления. */
+  /* The processor stays in the socket — what comes off is the heatsink, as if
+     by hand. The die is uncovered under it: the same gradient runs over it as
+     over the "download" button on the CV. While the heatsink is in place the
+     sheen is off — it would spin an animation under an opaque cover for
+     nothing. */
+  /* The die and the contact field do not switch off with a jerk: first they
+     show through, and they are hidden only after they have faded out. Hence
+     the zero-duration visibility with a delay — it waits out the fade. */
   .die, .lga {
     visibility: hidden; opacity: 0;
     transition: opacity var(--fade), transform var(--glide), visibility 0s linear 0.45s;
@@ -14,39 +15,45 @@
     visibility: visible; opacity: 1;
     transition: opacity var(--fade), transform var(--glide), visibility 0s;
   }
-  /* Перелив идёт наискось, из левого нижнего угла в правый верхний — по
-     прямой он читался полосой засветки, а не игрой на полированном кремнии. */
-  /* Перелив по кремнию — самая дорогая анимация на схеме: большая полоса с
-     градиентом под clip-path, и раньше она перерисовывалась в каждом кадре
-     монитора. Восемьдесят ступеней за восемь секунд дают те же десять
-     перерисовок в секунду, что и у ламп, и попадают в общий такт. */
+  /* The sheen goes diagonally, from the bottom-left corner to the top-right —
+     straight across it read as a band of glare, not as play on polished
+     silicon. */
+  /* The sheen over the silicon is the most expensive animation on the
+     schematic: a big gradient band under a clip-path, and it used to repaint on
+     every frame of the monitor. Eighty steps over eight seconds give the same
+     ten repaints a second as the lamps, and fall into the common beat. */
   .die-shine { animation: dieShine 8s steps(80, end) infinite; }
   @keyframes dieShine {
     0%, 100% { transform: translate(0, 0); }
     50%      { transform: translate(150px, -82px); }
   }
 
-  /* Разбор процессора идёт в два приёма, как в жизни: сначала снимается
-     радиатор, и только потом из-под него — сам процессор. Радиатор уезжает
-     дальше, чем прежде: он размером с сокет, и на прежних 104 пикселях
-     закрывал место, куда должен лечь процессор. */
+  /* Taking the processor apart goes in two moves, as in life: first the
+     heatsink comes off, and only then, from under it, the processor itself.
+     The heatsink travels further than it used to: it is the size of the
+     socket, and at the old 104 pixels it covered the place where the processor
+     has to lie. */
   .heatsink, .cpu-lid { transition: transform var(--glide); }
   .rig.service .cpu-slot.pulled .pick-body { transform: none; }
   .rig.service .cpu-slot.pulled .heatsink { transform: translate(0, -164px) scale(0.92); }
   .rig.service .cpu-slot.opened .cpu-lid { transform: translate(0, 116px) scale(0.96); }
 
-  /* Поле контактов: пока процессор на месте, его не видно — и правильно,
-     под ним нечего показывать. Проявляется вместе с кристаллом, см. выше. */
-  /* Кристалл живёт на процессоре и уезжает с ним: снятый процессор,
-     светящийся на пустом сокете, — это уже не разбор, а фокус. */
+  /* The contact field: while the processor is in place it is not visible — and
+     rightly so, there is nothing to show under it. It shows through together
+     with the die, see above. */
+  /* The die lives on the processor and travels away with it: a removed
+     processor glowing on an empty socket is no longer a teardown but a
+     magic trick. */
   .rig.service .cpu-slot.opened .die { transform: translate(0, 116px) scale(0.96); }
 
-  /* Сборка: процессор с радиатором опускают в сокет сверху и слегка
-     доворачивают — так его и ставят, целясь по ключам. */
-  /* Сборка процессора идёт в два приёма, как в жизни: сперва в сокет ложится
-     сам процессор, и по открытому кристаллу успевает пробежать перелив, — и
-     только потом сверху опускают радиатор. Одновременная посадка прятала
-     кристалл: его накрывали ровно в тот момент, когда он появлялся. */
+  /* Assembly: the processor with its heatsink is lowered into the socket from
+     above and turned slightly into place — that is how it is fitted, aiming by
+     the keys. */
+  /* Assembling the processor goes in two moves, as in life: first the
+     processor itself settles into the socket and the sheen has time to run
+     across the exposed die — and only then is the heatsink lowered on top.
+     Seating them at once hid the die: it was covered at exactly the moment it
+     appeared. */
   .rig.assembly .cpu-slot .cpu-lid {
     animation: seatCpu 0.7s var(--seat, 0s) cubic-bezier(0.22, 1, 0.36, 1) backwards;
   }
@@ -56,11 +63,12 @@
   @keyframes seatCpu {
     from { opacity: 0; transform: translateY(-52px) scale(0.94); }
   }
-  /* Кристалл едет вместе со своим процессором, а не проявляется на месте:
-     он на нём и лежит. Первые сорок процентов времени — то же движение, что
-     у крышки, дальше он просто открыт, пока сверху не опустится радиатор.
-     Прячем в конце не ради вида — под радиатором его всё равно не видно, —
-     а чтобы перелив не крутился под непрозрачной крышкой. */
+  /* The die travels along with its own processor instead of showing through in
+     place: it lies on it. The first forty percent of the time is the same
+     movement as the processor lid's, after that it simply stays exposed until
+     the heatsink comes down on top. We hide it at the end not for looks — under
+     the heatsink it cannot be seen anyway — but so the sheen does not keep
+     spinning under an opaque cover. */
   .rig.assembly .cpu-slot .die {
     animation: dieSeat 1.75s var(--seat, 0s) cubic-bezier(0.22, 1, 0.36, 1) both;
   }
@@ -71,9 +79,9 @@
     72%  { visibility: visible; opacity: 1; transform: none; }
     to   { visibility: hidden; opacity: 0; transform: none; }
   }
-  /* Пустой сокет — это поле контактов: пока процессора нет, оно открыто, и
-     гаснет ровно тогда, когда его накрывают. both держит оба конца: до
-     старта видно, после — нет. */
+  /* An empty socket is a contact field: while there is no processor it is
+     exposed, and it goes out exactly when it gets covered. both holds both
+     ends: visible before the start, not after. */
   .rig.assembly .cpu-slot .lga {
     animation: lgaCover 0.45s var(--seat, 0s) linear both;
   }

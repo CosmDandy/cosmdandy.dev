@@ -1,10 +1,10 @@
-  /* Защёлки на живой плате — молочно-белый полупрозрачный пластик, и их две:
-     по одной с каждого торца. Лампа ошибки сидит прямо в защёлке — «DIMM
-     error LEDs are located in the handles», как написано на схеме живой
-     машины, — поэтому при сбое желтеет именно она. */
-  /* Кромка защёлки голубая: по коду замены это значит «сначала обесточь».
-     Планку на горячую не меняют, и цвет говорит об этом раньше, чем гость
-     доберётся до наклейки на крышке. */
+  /* On a live board the latches are milky-white translucent plastic, and there
+     are two of them: one at each end. The error lamp sits right inside the
+     latch — "DIMM error LEDs are located in the handles", as the diagram of the
+     live machine puts it — so on a fault it is the latch that turns amber. */
+  /* The edge of the latch is blue: in the replacement colour code that means
+     "power down first". A DIMM is not swapped hot, and the colour says so
+     before the visitor ever gets to the label on the cover. */
   .latch {
     fill: rgba(226, 235, 231, 0.42);
     stroke: rgba(58, 143, 196, 0.85);
@@ -19,9 +19,9 @@
   .latch-r { transform-origin: 100% 100%; }
   .dimm.pulled .latch { fill: var(--amber); }
 
-  /* Планку не вынуть, пока защёлки закрыты, — поэтому сначала откидываются
-     они, и только потом модуль идёт вверх. Разъём при этом остаётся на
-     плате: он нарисован отдельно и никуда не едет. */
+  /* The DIMM cannot come out while the latches are closed — so they throw open
+     first, and only then does the module travel up. The socket meanwhile stays
+     on the board: it is drawn separately and goes nowhere. */
   /* Open means outward: the board runs front-to-right, so the front ear swings
      toward -X and the rear one toward +X — both away from the socket, never
      across the module. A positive angle is clockwise in SVG. */
@@ -32,27 +32,28 @@
     transition-delay: 0.12s;
   }
 
-  /* Сборка: планка входит в разъём коротким движением вниз — ход у неё
-     маленький, и размах должен быть таким же. Порядок задаёт --seat: банки
-     набиваются по каналам, а не подряд, и половины среднего банка достаются
-     разным процессорам. */
+  /* Assembly: the DIMM enters its socket with a short downward move — its
+     travel is small, and the swing has to be as small. The order is set by
+     --seat: banks are filled by channel rather than one after another, and the
+     halves of the middle bank go to different processors. */
   .rig.assembly .dimm .pick-body {
     animation: seatDimm var(--press-hard) var(--seat, 0s) backwards;
   }
-  /* Защёлки — часть платы, а не планки: они приклёпаны к разъёму и стоят на
-     месте всегда. Пока планки нет, они раскрыты: пустой слот на живой машине
-     так и выглядит, с разведёнными в стороны ушами. Закрываются они в тот
-     момент, когда модуль дожали, — отсюда та же задержка --seat. */
+  /* The latches are part of the board, not of the DIMM: they are riveted to
+     the socket and always stay put. While there is no module they are open:
+     that is exactly how an empty slot on a live machine looks, with its ears
+     splayed aside. They close at the moment the module is pressed home — hence
+     the same --seat delay. */
   .rig.assembly .latch-l { animation: latchL var(--press-hard) var(--seat, 0s) backwards; }
   .rig.assembly .latch-r { animation: latchR var(--press-hard) var(--seat, 0s) backwards; }
   @keyframes latchL { from { transform: rotate(-38deg); } }
   @keyframes latchR { from { transform: rotate(38deg); } }
-  /* Планку не опускают, а вдавливают: она входит с сопротивлением и
-     садится, когда защёлки по торцам щёлкнут. */
+  /* A DIMM is not lowered but pressed in: it goes against resistance and
+     seats when the latches at its ends click. */
   @keyframes seatDimm {
     from { opacity: 0; transform: translateY(-22px); }
   }
 
-  /* Планку держат защёлки по торцам: пока они не откинулись, модуль
-     стоит намертво, а дальше выходит рывком. */
+  /* The DIMM is held by the latches at its ends: until they throw open the
+     module stands dead solid, and after that it comes out with a jerk. */
   .dimm .pick-body { transition: transform var(--click); }

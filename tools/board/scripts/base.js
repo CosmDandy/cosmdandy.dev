@@ -489,9 +489,10 @@
   }
 
   if (first && !reduced) {
-    // Полный вход, как в стойке: подали дежурку, BMC инициализируется и
-    // кнопка мигает часто — жать бесполезно. Закончил — мигает редко, и
-    // дальше машину включает уже человек.
+    // The full entrance, as in the rack: standby power is applied, the BMC
+    // initialises and the button blinks fast — pressing it does nothing. Once
+    // it is done the blinking slows down, and from there a human is the one
+    // who switches the machine on.
     state.powered = false; save();
     setPower('init');
     line('standby power applied', 'muted');

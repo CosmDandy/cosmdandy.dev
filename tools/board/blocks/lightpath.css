@@ -1,4 +1,4 @@
-  /* Light Path Diagnostics: панель выдвигается вперёд, за габарит корпуса. */
+  /* Light Path Diagnostics: the panel slides forward, past the chassis outline. */
   .lightpath {
     transform: translateX(194px);
     visibility: hidden;
@@ -6,23 +6,23 @@
     transition: transform var(--spring), fill-opacity var(--fade), stroke-opacity var(--fade);
     pointer-events: none;
   }
-  /* Выдвинутая панель упирается в свою лицевую часть, а не висит от неё в
-     стороне: 22 — ровно зазор между правым краем рисунка панели и левой
-     кромкой язычка. */
+  /* The pulled-out panel butts against its own front face instead of hanging
+     off to the side of it: 22 is exactly the gap between the right edge of the
+     panel drawing and the left edge of the tab. */
   .rig.lp-open .lightpath {
     transform: translateX(22px);
     visibility: visible;
     fill-opacity: 1; stroke-opacity: 1;
   }
   .lp { fill-opacity: 0.07; transition: fill-opacity 0.15s steps(1, end); }
-  /* Панель полного состава: шестнадцать ламп, как на живой машине. Узлы,
-     которые машина умеет диагностировать, зажигают свою; сетевая карта
-     светит LINK, райзер — PCI. Остальные лампы существуют, но в этой
-     сборке гореть им не от чего — так же и на настоящей панели. */
+  /* A full-set panel: sixteen lamps, as on a live machine. The units the
+     machine can diagnose light their own; the network card lights LINK, the
+     riser lights PCI. The remaining lamps exist, but in this build there is
+     nothing to light them — same as on a real panel. */
   .rig.fault-mem .lp-mem, .rig.fault-cpu .lp-cpu, .rig.fault-fan .lp-fan,
   .rig.fault-nic .lp-link, .rig.fault-rsr .lp-pci, .rig.fault-ps .lp-ps,
   .rig.has-fault .lp-log, .rig.has-fault .lp-brd { fill-opacity: 1; }
   .lp-tab { cursor: pointer; }
-  /* Подсвечиваем корпус язычка, а не всё, что на нём стоит:
-     лампы — тоже прямоугольники, и общий селектор обводил их. */
+  /* Highlight the body of the tab, not everything standing on it:
+     the lamps are rectangles too, and a general selector outlined them. */
   .lp-tab:hover > rect { stroke: rgba(147,161,161,0.6); }

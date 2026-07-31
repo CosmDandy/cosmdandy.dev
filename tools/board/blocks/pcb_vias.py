@@ -1,16 +1,19 @@
-"""переходные отверстия.
+"""vias.
 
-Их на плате тысячи, и это единственное тёплое пятно в холодной палитре:
-в отверстие затянута медь, маска на него не заходит. Рисуем прежде всего
-остального — на живой плате via уходят под корпуса, а не лежат поверх.
+There are thousands of them on a board, and they are the only warm spot in a
+cold palette: copper is drawn into the hole, the mask does not run over it.
+They are drawn before everything else — on a real board the vias go under the
+packages, they do not lie on top.
 
-Крупные сидят на изломах дорожек — там переход между слоями и нужен.
-Мелкая россыпь идёт полем: ею прошивают полигоны земли.
+The large ones sit at the bends of the traces — that is where a layer change
+is needed. The fine scatter runs across the field: it stitches the ground
+planes.
 
-Под сокетами, банками памяти и крупными корпусами меди нет: там либо
-контактное поле, либо посадочное место, и сверлить его нечем. Поэтому
-россыпь эти зоны обходит, а по их границам идёт частым контуром — так на
-живой плате медь и обтекает крупный узел.
+There is no copper under the sockets, the memory banks and the large
+packages: there is either a contact field or a footprint, and there is
+nothing to drill through. So the scatter goes around these zones and follows
+their borders with a dense contour — that is how copper flows around a large
+block on a real board.
 """
 
 from board.geom import (
@@ -32,7 +35,7 @@ from board.geom import (
     Y_CPU1,
 )
 
-# Зоны, свободные от меди: сокеты, банки памяти, крупные корпуса.
+# Zones kept free of copper: sockets, memory banks, large packages.
 KEEP_OUT = (
     [(X_SOCK - 10, y - 10, SOCKET_W + 20, SOCKET_H + 20) for y in (Y_CPU0, Y_CPU1)]
     + [(X_CORE - 12, y - 8, DIMM_SOCK_W + 24, BANK_N * PITCH + 16)
@@ -42,12 +45,12 @@ KEEP_OUT = (
 
 
 def clear(px, py):
-    """Свободно ли место под медь — то есть не попали ли мы в чужой узел."""
+    """Is the spot free for copper — that is, did we land in another block."""
     return not any(x <= px <= x + w and y <= py <= y + h for x, y, w, h in KEEP_OUT)
 
 
 def outline(x, y, w, h, gap=6, step=9):
-    """Контур из отверстий вокруг узла: медь обходит его частым рядом."""
+    """A contour of vias around a block: copper skirts it in a dense row."""
     ring = []
     for k in range(int(w // step) + 1):
         px = x + k * step
@@ -63,7 +66,7 @@ def render(cv):
     for x, y, w, h in KEEP_OUT:
         vias.extend(outline(x, y, w, h))
     for i in range(430):
-        # три манеры: рядами вдоль дорожек, кучками у корпусов и вразнобой
+        # three manners: in rows along traces, in clumps by packages, at random
         mode = i % 3
         if mode == 0:
             bx = X_PCB + 20 + (i * 53) % (PCB_W - 60)
@@ -77,8 +80,8 @@ def render(cv):
             vias.append((X_PCB + 18 + (i * 197) % (PCB_W - 40),
                          26 + (i * 149) % (PCB_H - 30)))
 
-    # Мелочь — вдвое меньше диаметром, и её вдвое больше: ряды вдоль магистралей
-    # и прошивка полигонов между ними.
+    # The small ones are half the diameter and there are twice as many: rows
+    # along the trunks and the stitching of the planes between them.
     small_vias = []
     for i in range(560):
         if i % 4:
@@ -91,7 +94,8 @@ def render(cv):
     cv.add('<g class="decor vias">' + ''.join(
         f'<circle cx="{vx:.0f}" cy="{vy:.0f}" r="1.6" fill="none" stroke="rgba(184,115,51,0.34)" stroke-width="1.1"/>'
         for vx, vy in vias if clear(vx, vy))
-        # Мелочь одним путём: полтысячи отдельных кружков стоили бы полтысячи
-        # узлов DOM, а рисуют они одно и то же зерно.
+        # The small ones as a single path: half a thousand separate circles
+        # would cost half a thousand DOM nodes, and they all draw the same
+        # grain anyway.
         + '<path fill="none" stroke="rgba(184,115,51,0.26)" stroke-width="1.5" stroke-linecap="round" d="'
         + ' '.join(f'M{sx:.0f} {sy:.0f}h0.4' for sx, sy in small_vias if clear(sx, sy)) + '"/></g>')
