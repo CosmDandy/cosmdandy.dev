@@ -1065,8 +1065,18 @@
     // Схему показали — вот теперь и собираем, если сборка ждала своего часа.
     if (v === 'rig') onRigShown();
   }
-  let view = 'card';
-  try { view = localStorage.getItem('view') === 'rig' ? 'rig' : 'card'; } catch (e) {}
+  // На компьютере визитка открывается схемой: машина и есть визитка, и
+  // прятать её за кнопкой незачем — гость видит её, не догадываясь нажать.
+  // Исключение — узкое окно: там схема спрятана целиком (@media 820px), и
+  // открывать нечего, так что остаётся карточка.
+  //
+  // Выбор гостя старше умолчания в обе стороны: ушёл на карточку — открываем
+  // карточку, и наоборот.
+  let view = window.matchMedia('(max-width: 820px)').matches ? 'card' : 'rig';
+  try {
+    const saved = localStorage.getItem('view');
+    if (saved === 'rig' || saved === 'card') view = saved;
+  } catch (e) {}
   setView(view);
   viewBtn.addEventListener('click', function () {
     setView(document.body.classList.contains('view-rig') ? 'card' : 'rig');
