@@ -11,11 +11,13 @@ space more.
 """
 
 # Own rectangle: the build checks that the block did not leave it.
-BOUNDS = (0, 0, 168, 190)
+# Во всю высоту машины: фронт — это не только панель с кнопками, но и лист,
+# на котором она стоит, а лист уходит вдоль всей корзины.
+BOUNDS = (0, 0, 168, 863)
 
-from board.geom import BAY_DEPTH, FRONT_W, X_FRONT, Y_PANEL
+from board.geom import BAY_DEPTH, BAY_TOP, FRONT_W, X_FRONT, H
 from board.ink import hit, mono
-from board.lamps import glow, lamp
+from board.lamps import act_led, fault_mark, glow, id_mark, square_led
 from board.metal import hexgrid
 
 # The face of the diagnostics panel. Its height matches the sliding part: it is
@@ -24,55 +26,90 @@ from board.metal import hexgrid
 # above them.
 TAB_X, TAB_Y, TAB_W, TAB_H = X_FRONT + 4, 20, BAY_DEPTH - 2, 150
 
-
-def square_led(x, y, cls, color, mark):
-    """A square lamp with a symbol: the backing lights, the symbol stays dark.
-
-    That is how they are made on the panel: a white square with a black
-    stencil, and on a fault the square itself glows around the symbol. The
-    symbol is drawn last, so it lies over the fill and does not change colour
-    together with it.
-    """
-    s = 16
-    return (f'<rect x="{x}" y="{y}" width="{s}" height="{s}" rx="1.5" '
-            f'fill="rgba(226,235,231,0.34)" stroke="rgba(147,161,161,0.34)" stroke-width="0.8"/>'
-            f'<rect class="{cls} sq-led" x="{x}" y="{y}" width="{s}" height="{s}" rx="1.5" fill="{color}"/>'
-            + mark)
+# Лист фронта — одна штампованная деталь буквой Г: широкая часть под приборами
+# и узкая полоса, уходящая вдоль корзины за каддиками. Раньше это были две
+# решётки со своими подложками и обводками — панель отдельно, нутро корзины
+# отдельно, — и между ними шла глухая перемычка: фронт читался составным,
+# хотя на живой машине его штампуют целиком.
+#
+# Контур с скруглениями по внешним углам и прямым внутренним: плечо — это рез,
+# а не сгиб.
+SHEET_D = (f'M{X_FRONT+4} 6 H{X_FRONT+FRONT_W-4} a4 4 0 0 1 4 4 V{H-12} '
+           f'a4 4 0 0 1 -4 4 H{X_FRONT+BAY_DEPTH} V{BAY_TOP} H{X_FRONT+4} '
+           f'a4 4 0 0 1 -4 -4 V10 a4 4 0 0 1 4 -4 Z')
 
 
 def render(cv):
+    # Перфорация у обеих частей — из одной сетки: шаг колонки 14, ряда 7.36,
+    # первая ячейка в (24, 16.64). Полоса начинается с двадцать шестого ряда
+    # (y 202.03 + 6): ряд чётный, поэтому смещение сот продолжает ряд широкой
+    # части, а не начинает свой. Числа некруглые оттого, что их задаёт сота, а
+    # не глаз.
+    #
+    # Обрезка по контуру листа обязательна: у плеча ряд приходится ровно на
+    # кромку, и без обрезки соты свисали бы с неё в корзину.
     cv.add(f'''<g class="decor">
-  <rect x="{X_FRONT}" y="6" width="{FRONT_W}" height="{Y_PANEL-14}" rx="4" fill="#151d21" stroke="rgba(147,161,161,0.28)"/>
-  <line x1="{TAB_X+TAB_W+8}" y1="90" x2="{X_FRONT+FRONT_W-10}" y2="94" stroke="rgba(147,161,161,0.14)" stroke-width="1"/>
+  <path d="{SHEET_D}" fill="#0a1013" stroke="rgba(147,161,161,0.28)"/>
+  <clipPath id="front-sheet"><path d="{SHEET_D}"/></clipPath>
+  <g opacity="0.5" clip-path="url(#front-sheet)">
+    {hexgrid(18, 10.64, 144, 198, s=6, gap=5)}
+    {hexgrid(88, 202.03, 70, H - 218, s=6, gap=5)}
+  </g>
 </g>''')
 
-    # The button field is the same perforated steel as the inside of the cage:
-    # the machine's front is a single sheet, and the control panel is not stuck
-    # onto it as a separate piece. The grid and its pitch are taken from the
-    # cage, otherwise the seam shows.
-    px0 = TAB_X + TAB_W + 6
-    pw = X_FRONT + FRONT_W - 6 - px0
-    cv.add(f'<g class="decor"><rect x="{px0}" y="12" width="{pw}" height="{Y_PANEL-26}" rx="2" '
-           f'fill="#0a1013" stroke="rgba(147,161,161,0.18)"/>'
-           f'<g opacity="0.5">{hexgrid(px0 + 4, 16, pw - 8, Y_PANEL - 34, s=6, gap=5)}</g></g>')
+    # Модуль питания: кнопка и VGA стоят на своей плашке, как панель
+    # диагностики — на своей. Два прибора на общем листе, а не дырки в нём.
+    # Плашка встаёт вровень с панелью: та же верхняя кромка, та же нижняя.
+    # Разная высота читалась не как две детали, а как вторая, приклеенная криво.
+    MOD_X, MOD_W = X_FRONT + 90, 58
+    cv.add(f'<g class="decor"><rect x="{MOD_X}" y="{TAB_Y}" width="{MOD_W}" height="{TAB_H}" rx="3" '
+           f'fill="#151d21" stroke="rgba(147,161,161,0.26)"/></g>')
 
     # The VGA socket: on servers it lives on where not a single other analogue
     # port is left — a monitor cart is plugged into it right in the rack.
-    # A D-Sub trapezoid with two screw posts on the sides. The socket is turned
-    # across: on a narrow panel its long side lay along the edge.
-    VGA_CX, VGA_CY, VGA_W, VGA_H = X_FRONT + 118, 128, 54, 20
+    #
+    # It is a DE-15, and the number is the whole point: fifteen contacts in
+    # three rows of five, the middle row offset half a pitch. Eleven in two rows
+    # is a different connector altogether — that is a serial port, and anyone
+    # who has ever plugged a crash cart in reads the difference at a glance.
+    #
+    # A socket is not a flat trapezoid either: what faces you is the rim of a
+    # metal shell, inside it a dark cavity, and only then the plastic insert the
+    # contacts sit in. Screw posts on the sides are knurled — they are turned by
+    # hand, without a screwdriver.
+    #
+    # The socket is turned across the panel: on a strip this narrow its long
+    # side would not fit along the edge.
+    VGA_CX, VGA_CY, VGA_W, VGA_H = X_FRONT + 118, 126, 54, 26
     vx, vy = VGA_CX - VGA_W / 2, VGA_CY - VGA_H / 2
+    ink = 'rgba(147,161,161,'
+
+    def trapezoid(inset):
+        """Тот же профиль D-Sub, ужатый внутрь на заданный отступ."""
+        return (f'M{vx + 3 + inset * 1.4:.1f} {vy + inset:.1f} '
+                f'H{vx + VGA_W - 3 - inset * 1.4:.1f} '
+                f'L{vx + VGA_W - inset:.1f} {vy + VGA_H - inset:.1f} '
+                f'H{vx + inset:.1f} Z')
+
+    pins = ''.join(
+        f'<circle cx="{vx + 11 + c * 8 + (4 if r == 1 else 0):.1f}" '
+        f'cy="{vy + 8 + r * 5.4:.1f}" r="1.5" fill="#0a1013" stroke="{ink}0.42)" '
+        f'stroke-width="0.6"/>'
+        for r in range(3) for c in range(5 if r != 1 else 4))
+    posts = ''.join(
+        f'<circle cx="{sx}" cy="{vy + VGA_H / 2:.1f}" r="4" fill="#1b2429" stroke="{ink}0.34)"/>'
+        + ''.join(f'<line x1="{sx - 3}" y1="{vy + VGA_H / 2 - 2 + k * 2:.1f}" '
+                  f'x2="{sx + 3}" y2="{vy + VGA_H / 2 - 2 + k * 2:.1f}" '
+                  f'stroke="{ink}0.26)" stroke-width="0.7"/>' for k in range(3))
+        for sx in (vx - 7, vx + VGA_W + 7))
     cv.add(f'''<g class="decor" transform="rotate(90 {VGA_CX} {VGA_CY})">
-  <path d="M{vx+3} {vy} H{vx+VGA_W-3} L{vx+VGA_W} {vy+VGA_H} H{vx} Z"
-        fill="#12303f" stroke="rgba(147,161,161,0.34)" stroke-width="1.2"/>
-  {''.join(f'<circle cx="{vx+9+c*6.4:.1f}" cy="{vy+6+r*6}" r="1.2" fill="rgba(147,161,161,0.34)"/>'
-
-           for r in range(2) for c in range(6 if r == 0 else 5))}
-  {''.join(f'<circle cx="{sx}" cy="{vy+VGA_H/2}" r="3.4" fill="#1b2429" stroke="rgba(147,161,161,0.30)"/>'
-
-           for sx in (vx - 6, vx + VGA_W + 6))}
+  <path d="{trapezoid(0)}" fill="#39444a" stroke="{ink}0.40)" stroke-width="1.2"/>
+  <path d="{trapezoid(2.5)}" fill="#0b1114" stroke="{ink}0.20)"/>
+  <path d="{trapezoid(5)}" fill="#12303f" stroke="rgba(42,161,152,0.22)"/>
+  {pins}
+  {posts}
 </g>
-<g class="decor">{mono(VGA_CX, VGA_CY + 40, "VGA", 7, op=0.4)}</g>''')
+<g class="decor">{mono(VGA_CX, VGA_CY + 42, "VGA", 7, op=0.4)}</g>''')
 
     PWR_X = TAB_X + TAB_W + 38
     cv.add(f'''<g class="power-btn" id="power" role="button" tabindex="0" aria-label="Питание">
@@ -98,8 +135,6 @@ def render(cv):
 
     # System fault: a yellow square with an exclamation mark.
     err_y = TAB_Y + 22
-    err_mark = (f'<rect x="{cx-1.3}" y="{err_y+3.5}" width="2.6" height="6.6" rx="1" fill="#0a1013"/>'
-                f'<circle cx="{cx}" cy="{err_y+12.6}" r="1.5" fill="#0a1013"/>')
     # Identification in the rack: a blue square with a beacon. It is a button
     # too — it gets pressed to find the machine in a row of identical ones.
     id_y = err_y + 28
@@ -109,32 +144,32 @@ def render(cv):
   <rect x="{TAB_X}" y="{TAB_Y}" width="{TAB_W}" height="{TAB_H}" rx="2" fill="#0f1619" stroke="rgba(147,161,161,0.3)"/>
   {grip}
   <g class="decor">
-    {square_led(cx - 8, err_y, 'fault-sys', '#b58900', err_mark)}
+    {square_led(cx - 8, err_y, 'fault-sys', '#b58900', fault_mark(cx - 8, err_y))}
     {glow('fault-sys', cx, err_y + 8, 8, '#b58900')}
   </g>
 </g>''')
 
-    # The beacon: a cone of light downwards and rays to the sides — the same
-    # symbol as stamped on a real panel. The rays are spread wider than the
-    # cone, otherwise the symbol sticks together into a blob.
-    id_mark = (f'<path d="M{cx-5} {id_y+13} L{cx-1.4} {id_y+6} H{cx+1.4} L{cx+5} {id_y+13} Z" fill="#0a1013"/>'
-               f'<line x1="{cx-7}" y1="{id_y+2.4}" x2="{cx-4.4}" y2="{id_y+4.6}" stroke="#0a1013" stroke-width="1.3"/>'
-               f'<line x1="{cx+7}" y1="{id_y+2.4}" x2="{cx+4.4}" y2="{id_y+4.6}" stroke="#0a1013" stroke-width="1.3"/>'
-               f'<line x1="{cx}" y1="{id_y+1.8}" x2="{cx}" y2="{id_y+4}" stroke="#0a1013" stroke-width="1.3"/>')
     cv.add(f'''<g class="id-btn" id="id-btn" role="button" tabindex="0" aria-label="Опознание в стойке">
   {hit(cx-13, id_y-3, 26, 22)}
-  {square_led(cx - 8, id_y, 'led-id', '#268bd2', id_mark)}
+  {square_led(cx - 8, id_y, 'led-id', '#268bd2', id_mark(cx - 8, id_y))}
   {glow('led-id', cx, id_y + 8, 8, '#268bd2')}
 </g>''')
 
-    # Four network port lamps — one per port, as on a real panel: they show
-    # that there is a link before the machine shows anything at all.
+    # Индикатор сети: по лампе на каждый встроенный интерфейс — два гигабита и
+    # порт управления. Карта в райзере сюда не входит: панель показывает то,
+    # что распаяно на плате и никуда не девается, а карту можно вынуть.
+    #
+    # Мигают все три, и мигают активностью, а не линком: этот ряд повторяет то,
+    # что видно на розетках сзади, а там мигает трафик. Управление янтарное и
+    # мигает даже на выключенной машине — оно живёт на дежурке, и именно этим
+    # отличается от остальных портов.
     net_y = id_y + 30
-    net = [(f'<path d="M{cx-13} {net_y+1} h6 M{cx-10} {net_y+1} v10 M{cx-10} {net_y+6} h6 M{cx-10} {net_y+11} h6" '
+    icon_y = net_y + 7
+    net = [(f'<path d="M{cx-13} {icon_y+1} h6 M{cx-10} {icon_y+1} v10 M{cx-10} {icon_y+6} h6 '
+            f'M{cx-10} {icon_y+11} h6" '
             f'fill="none" stroke="rgba(147,161,161,0.38)" stroke-width="1.1"/>')]
-    for p in range(4):
-        lx, ly = cx + 1 + (p % 2) * 11, net_y + (p // 2) * 12
-        net.append(f'<circle cx="{lx}" cy="{ly}" r="2.6" fill="#0a1013" stroke="rgba(147,161,161,0.22)"/>')
-        net.append(lamp('led-link', lx, ly, 2.6, '#859900'))
+    for p, (color, aux) in enumerate((("#859900", False), ("#859900", False),
+                                      ("#b58900", True))):
+        net.append(act_led(p + 21, cx + 2, net_y + 2 + p * 11, 1.9, color, salt=3, aux=aux))
     cv.add(f'<g class="decor">{"".join(net)}'
            f'{mono(TAB_X + TAB_W / 2, TAB_Y + TAB_H - 8, "LIGHT PATH", 6.5, op=0.34)}</g>')

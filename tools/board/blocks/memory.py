@@ -28,7 +28,7 @@ from board.geom import (
 # any width.
 SOCK_W = DIMM_SOCK_W
 DIMM_W = SOCK_W - 6
-from board.ink import hit, mono, silk_inverse
+from board.ink import hit, silk_inverse
 from board.revision import stamp
 from board.spec import DIMM
 
@@ -42,6 +42,21 @@ def render(cv):
 
     def wave(base):
         return lambda i: f'{base + i * step:.2f}s'
+
+    # The spec is printed on a paper sticker glued over the chips, so it goes
+    # inside pick-body and travels with the module — before it stayed by the
+    # socket and the pulled DIMM left its own label behind.
+    #
+    # Muted on purpose: twenty-four white stickers at full strength read as a
+    # second row of labels and pull the eye off the link tags.
+    def sticker(x, y):
+        text = f"{DIMM['size_gb']}GB {DIMM['kind']} {DIMM['speed']}"
+        w = len(text) * 5 * 0.62 + 8
+        return (f'<rect x="{x}" y="{y}" width="{w:.1f}" height="8" rx="1" '
+                f'fill="#e8e3d5" fill-opacity="0.34" stroke="rgba(147,161,161,0.18)" '
+                f'stroke-width="0.5"/>'
+                f'<text x="{x+4}" y="{y+5.8}" fill="rgba(10,20,23,0.78)" '
+                f'font-family="ui-monospace, Menlo, monospace" font-size="5">{text}</text>')
 
     def bank(y0, n, code, label_y, first=1, delay=None):
         slots = []
@@ -74,11 +89,11 @@ def render(cv):
             <rect x="{X_CORE}" y="{y}" width="{DIMM_W}" height="{SLOT_H}" rx="0" fill="#13323a" stroke="rgba(147,161,161,0.30)"/>
             <rect x="{X_CORE+2}" y="{y+1}" width="{DIMM_W-4}" height="3.4" rx="1" fill="{edge}"/>
             {''.join(f'<rect x="{X_CORE+12+c*44}" y="{y+5.4}" width="32" height="{SLOT_H-7}" rx="0.6" fill="#0d1519"/>' for c in range(6))}
+            {sticker(X_CORE + 10, y + 5.4)}
           </g>
           <path class="latch latch-l" d="M{X_CORE-7} {y+1} h6 v{SLOT_H-2} h-6 a2 2 0 0 1 -2 -2 v{-(SLOT_H-6)} a2 2 0 0 1 2 -2 Z"/>
           <path class="latch latch-r" d="M{X_CORE+DIMM_W+1} {y+1} h6 a2 2 0 0 1 2 2 v{SLOT_H-6} a2 2 0 0 1 -2 2 h-6 Z"/>
           {silk_inverse(X_CORE + DIMM_W + 18, y - 1, f"DIMM{first + i}", 6.5)}
-          {mono(X_CORE + 24, y + SLOT_H - 4, f"{DIMM['size_gb']}GB {DIMM['kind']} {DIMM['speed']}", 5.5, anchor="start", op=0.30)}
         </g>''')
         return f'''<g class="unit" data-unit="dimm-{code}" data-group="dimm" data-href="https://blog.cosmdandy.dev">
       {hit(X_CORE-8, y0-4, SOCK_W + 42, n * PITCH + 6)}

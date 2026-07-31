@@ -57,6 +57,9 @@
     topPane.hidden = mode !== 'top';
     crt.classList.add('on');
     crt.setAttribute('aria-hidden', 'false');
+    // Пока экран поднят, подписей узлов нет: монитор занимает ровно то место,
+    // где они лежат, и всплывать под ним им незачем.
+    rig.classList.add('tags-off');
     shadow(true);
     // Focus has to be moved by hand — showModal() used to do it. Without this
     // the first keystroke would go to whatever was focused before.
@@ -69,6 +72,8 @@
     if (!crtOpen) return;
     crt.classList.remove('on');
     crt.setAttribute('aria-hidden', 'true');
+    // Экран уехал — вот теперь подписи проступают, одна за другой.
+    rig.classList.remove('tags-off');
     shadow(false);
     crtOpen = false;
     dormancy();

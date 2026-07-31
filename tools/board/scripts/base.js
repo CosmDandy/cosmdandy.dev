@@ -66,15 +66,90 @@
     rig.classList.remove('assembly');
   }
 
+  // Конец сборки узнаём у самих анимаций, а не по часам. Таймер идёт по
+  // стенным часам и ничего не знает о том, играет анимация или стоит: во
+  // вкладке, ушедшей в фон, за уехавшей с экрана схемой и под открытым экраном
+  // машины анимации стоят на паузе (.dormant), а таймер всё это время тикает.
+  // Он снимал класс сборки раньше срока — и узлы, до которых очередь не дошла,
+  // просто появлялись на своих местах, разом и без хода. Именно так это и
+  // выглядело: половина машины собралась, а диски, блоки питания и райзеры
+  // проступили одновременно.
+  function seatAnimations() {
+    return chassis.getAnimations({ subtree: true }).filter(function (a) {
+      return String(a.animationName || '').indexOf('seat') === 0;
+    });
+  }
+
+  function whenSeated(done) {
+    // Без Web Animations остаётся прежний способ — по расписанию, которое
+    // узлы носят на себе сами (--seat), плюс ход последнего.
+    if (!chassis.getAnimations) { wait(assemblyEnd(), done); return; }
+    const anims = seatAnimations();
+    // Ни одной анимации — сборке нечего ждать: так бывает при reduced motion,
+    // где ходов нет вовсе.
+    if (!anims.length) { done(); return; }
+    let cancelled = false;
+    Promise.all(anims.map(function (a) {
+      return a.finished.catch(function () { cancelled = true; });
+    })).then(function () {
+      // Схему увели с глаз и вернули: display:none отменяет анимации, и браузер
+      // заводит их заново. Ждём новых, а не считаем сборку состоявшейся.
+      if (cancelled && rig.classList.contains('assembly')) {
+        window.requestAnimationFrame(function () { whenSeated(done); });
+        return;
+      }
+      done();
+    });
+  }
+
+  // Сборку начинаем не по загрузке страницы, а когда схему впервые видно.
+  // Визитка открывается карточкой, и всё это время .rig стоит display:none —
+  // анимаций в нём не заводится вовсе. Расписание же отсчитывалось от загрузки,
+  // и гость, нажавший кнопку сервера через полминуты, получал собранную машину:
+  // смотреть было уже нечего. Теперь машина ждёт его разобранной.
+  // Признак «схему видно» спрашиваем у самой схемы, а не у того, кто мог её
+  // показать. Вид переключает кнопка, но не только она: класс на body ставит и
+  // восстановление сохранённого вида, и тест. Кто именно показал — неважно, а
+  // важно, что .rig вышел из display:none, и это ловит тот же
+  // IntersectionObserver, что уже следит за схемой ради экономии на невидимом.
+  let pendingAssembly = null;
+
+  function onRigShown() {
+    if (!pendingAssembly || !document.body.classList.contains('view-rig')) return;
+    const run = pendingAssembly;
+    pendingAssembly = null;
+    run();
+  }
+
+  function armAssembly(run) {
+    pendingAssembly = run;
+    onRigShown();               // а вдруг схему уже видно
+  }
+
   /** Reassemble the machine: pull the units and seat them again on schedule. */
   function reassemble() {
     if (rig.classList.contains('assembly')) return;
+    // Собирают машину обесточенной: на живой ни планку не воткнёшь, ни
+    // процессор — и разбирать работающую машину мы тоже не даём. Поэтому
+    // сборка сама снимает питание, а по её концу машина стартует с нуля,
+    // с самотестом на экране, как и положено после сборки.
+    if (state.powered) powerOff();
+    // Заодно возвращаются и те узлы, что остались вынутыми: сборка — это
+    // машина целиком, а не повтор анимации над полупустым шасси.
+    chassis.querySelectorAll('.pulled, .unlatched').forEach(function (p) {
+      p.classList.remove('pulled', 'opened', 'unlatched');
+    });
+    updateFault();
     // The class has to be removed and put back on the next frame — otherwise
     // the browser does not count the animation as new and plays nothing.
     rig.classList.remove('assembly');
     void chassis.offsetWidth;
     rig.classList.add('assembly');
-    wait(assemblyEnd(), finishAssembly);
+    whenSeated(function () {
+      finishAssembly();
+      line('all units seated · power on', 'ok');
+      powerOn();
+    });
   }
 
   // ── The address under the cursor ───────────────────────────────────────
@@ -255,7 +330,39 @@
       any = any || on;
     }
     rig.classList.toggle('has-fault', any);
+    updateMains();
     tick();
+  }
+
+  // ── Входное питание ────────────────────────────────────────────────────
+  // Два блока — два независимых ввода, и машина жива, пока на месте хотя бы
+  // один. Вынули второй — не осталось ничего: ни хоста, ни дежурки, на
+  // которой держатся BMC и порт управления. Это не поломка узла, а потеря
+  // питания, поэтому и записывается отдельно — и в журнал событий тоже:
+  // на живой машине наутро ищут именно эту строку.
+  let mainsDown = false;
+
+  function updateMains() {
+    const total = chassis.querySelectorAll('.psu').length;
+    const down = total > 0 && chassis.querySelectorAll('.psu.pulled').length >= total;
+    if (down === mainsDown) return;
+    mainsDown = down;
+    rig.classList.toggle('blackout', down);
+    // Консоль — это SOL к BMC, а BMC питается от той же дежурки. Обесточили
+    // машину — набирать команды стало некуда и некому.
+    const promptField = document.getElementById('prompt');
+    if (promptField) promptField.disabled = down;
+    if (down) {
+      if (screenOpen()) closeCrt();
+      rig.classList.remove('net', 'bmc', 'identify');
+      state.powered = false; save();
+      setPower('standby');
+      line('all psu removed · ac lost, system down hard', 'err');
+      selAdd('Power Unit · power lost — оба ввода обесточены разом', 'err');
+    } else {
+      line('ac restored · standby, press power', 'warn');
+      selAdd('Power Unit · ac restored — дежурное питание есть', 'ok');
+    }
   }
 
   // ── Saving on the invisible ────────────────────────────────────────────
@@ -279,6 +386,8 @@
     new IntersectionObserver(function (entries) {
       onScreen = entries[entries.length - 1].isIntersecting;
       dormancy();
+      // Схема появилась на экране — если сборка ждала зрителя, вот он.
+      if (onScreen) onRigShown();
     }, { threshold: 0 }).observe(chassisBox);
   }
   document.addEventListener('visibilitychange', dormancy);
@@ -310,6 +419,12 @@
       // Assemble the machine completely: a unit could have been left at an
       // intermediate step too — with a drive latch flipped open or a heatsink
       // taken off.
+      //
+      // Возврат идёт одним общим движением: класс на время переключает узлы с
+      // щелчка на кривую композиции, иначе семь узлов, сорвавшихся с места
+      // разом, читаются рывком.
+      rig.classList.add('stowing');
+      wait(1600, function () { rig.classList.remove('stowing'); });
       chassis.querySelectorAll('.pulled, .unlatched').forEach(function (p) {
         p.classList.remove('pulled', 'opened', 'unlatched');
       });
@@ -320,6 +435,35 @@
   svcSwitch.addEventListener('keydown', function (e) {
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleService(); }
   });
+
+  // Выйти из сервисного режима нужно уметь всегда, а выключатель нарисован на
+  // плате — то есть ровно там, где схемы может и не оказаться. Два запасных
+  // выхода.
+  //
+  // Первый — Esc: работает, пока экран машины закрыт и пока не набирают
+  // команду (там Esc свой, он гасит подсказку).
+  //
+  // На перехвате, и это важно: диспетчер экрана слушает того же Esc и тоже на
+  // перехвате, но регистрируется ниже по файлу — значит, мы первые. Иначе
+  // Esc, закрывающий BIOS Setup, к нашему обработчику доходил бы уже с
+  // закрытым экраном и заодно выбрасывал из сервисного режима.
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape' || !rig.classList.contains('service')) return;
+    if (screenOpen()) return;
+    if (e.target && e.target.closest && e.target.closest('input, textarea')) return;
+    toggleService();
+  }, true);
+
+  // Второй — узкое окно. При 820 точках схема прячется целиком и уносит с
+  // собой и выключатель, и консоль, а класс service остаётся: выйти нечем.
+  // Это не только про телефон — зум браузера ужимает css-окно ровно так же,
+  // и на 175 % машина исчезала, а сервисный режим оставался включённым
+  // навсегда. Поэтому, пока схемы нет, нет и режима.
+  const narrow = window.matchMedia('(max-width: 820px)');
+  function keepServiceReachable() {
+    if (narrow.matches && rig.classList.contains('service')) toggleService();
+  }
+  narrow.addEventListener('change', keepServiceReachable);
 
   // The registry of units. Every block says for itself what it is called in
   // the log and, if it does not come apart in one motion, exactly how. This
@@ -389,6 +533,8 @@
     document.body.classList.toggle('view-card', v !== 'rig');
     viewBtn.setAttribute('aria-pressed', String(v === 'rig'));
     try { localStorage.setItem('view', v); } catch (e) {}
+    // Схему показали — вот теперь и собираем, если сборка ждала своего часа.
+    if (v === 'rig') onRigShown();
   }
   let view = 'card';
   try { view = localStorage.getItem('view') === 'rig' ? 'rig' : 'card'; } catch (e) {}
@@ -460,9 +606,8 @@
   const assembleBtn = document.getElementById('assemble-btn');
   if (assembleBtn) {
     assembleBtn.addEventListener('click', function () {
-      line('re-seating all units …', 'muted');
+      line('power off · re-seating all units …', 'muted');
       reassemble();
-      wait(assemblyEnd(), function () { line('all units seated', 'ok'); });
     });
   }
 
@@ -471,20 +616,26 @@
 
   setLid(!!state.lid);
   wait(260, function () { rig.classList.add('ready'); });
-  // first visit: show the closed machine and take the cover off ourselves
-  if (first && !reduced && !state.lid) wait(1500, function () { setLid(true); });
-  else if (!first) setLid(true);
 
   if (first && !reduced) {
-    line('chassis empty · fans and psu first', 'muted');
-    wait(3.0 * 1000, function () { line('cpu seated · dimms by channel', 'muted'); });
-    wait(5.1 * 1000, function () { line('risers in · drives last', 'muted'); });
-    wait(assemblyEnd(), function () {
-      finishAssembly();
-      line('all units seated · power on', 'ok');
-      powerOn();
+    // Первый заход целиком: закрытая машина, с неё сходит крышка, и узлы
+    // садятся по расписанию. Всё это ждёт, пока схему покажут: визитка
+    // открывается карточкой, и до нажатия на кнопку сервера машина стоит
+    // разобранной — иначе смотреть на её сборку гость приходит к шапочному
+    // разбору.
+    armAssembly(function () {
+      if (!state.lid) wait(1500, function () { setLid(true); });
+      line('chassis empty · fans and psu first', 'muted');
+      wait(3.0 * 1000, function () { line('cpu seated · dimms by channel', 'muted'); });
+      wait(5.1 * 1000, function () { line('risers in · drives last', 'muted'); });
+      whenSeated(function () {
+        finishAssembly();
+        line('all units seated · power on', 'ok');
+        powerOn();
+      });
     });
   } else {
+    setLid(true);
     finishAssembly();
   }
 

@@ -69,9 +69,27 @@ Y_PSU_TOP, Y_PSU_BOT = 172, 690
 PSU_Y = (22, 696)
 PSU_W, PSU_H = 300, 145
 RISER = ((176, 176), (366, 80))   # y and height: the upper one is full-height
-IO_AUX_Y, IO_AUX_H = 452, 60      # USB, mini-DP and the system lamps
-IO_Y, IO_H = 512, 180             # onboard I/O module
+IO_AUX_Y, IO_AUX_H = 444, 92      # USB, D-Sub, mini-DP, UID and the system lamps
+IO_Y, IO_H = 512, 180             # the strip of gigabit jacks
 X_PCB_END = 1206
+
+# Задняя часть машины. Текстолит кончается на X_PCB_END — так и на живой
+# плате; всё, что правее, это глубина задней панели, видимая сверху: корпуса
+# разъёмов, а у самого борта стальной лист с окнами.
+#
+# IO_BOARD — то место платы, на котором стоят сами гнёзда: лапки кожухов,
+# магнитопровод за каждой розеткой, гигабитный PHY. Раньше здесь рисовали
+# целую плату встроенных интерфейсов в 234 единицы шириной, которой на живой
+# машине нет, — а её краевой разъём приходился на карман блока питания.
+IO_BOARD = (1096, 540, 110, 152)
+# Свободное поле, оставшееся от той платы: марка изготовителя набирается в нём
+# поперёк, а не вдоль кромки. Полоса выбрана между бирками Telegram и Twitter:
+# бирки непрозрачные и крупные, и всё, что попадает под них, читателю не
+# достаётся вовсе — прежняя вертикальная марка наполовину лежала под ними.
+IO_FREE = (X_REAR + 6, 500, X_PCB_END - 12 - X_REAR, 42)
+# Стальной борт. Лист идёт только между блоками питания: выше и ниже задний
+# торец машины образуют они сами.
+X_WALL, WALL_D = 1282, 22
 
 X_TAG = 470       # core labels — in the empty left part, one under another
 
@@ -93,16 +111,25 @@ X_VRM  = X_CORE - 20                  # core power chokes, right by the socket
 # memory banks is the only unoccupied part of the board, so the packages run
 # along it, but staggered towards the edge. The strip at the left edge is
 # narrow, and three parties share it: the packages, the ribbon headers and
-# the core power electrolytics. Hence the alternating Y values, and the
-# network controller and the TPM moved into the gap between the risers —
-# which is where the controller belongs anyway, right by the rear sockets.
+# the core power electrolytics. Hence the alternating Y values.
+#
+# A package the eye never finds is a package that is not there, and three of
+# these stood exactly where nothing finds them. The network controller and the
+# TPM went into the second riser's pocket — and the bracket of that riser lies
+# straight over them, so on an assembled machine there was simply nothing at
+# that spot. Both moved out into the strip between the sockets and the service
+# zone, one by each processor. The BMC stood in the far top corner, where it
+# had neither neighbours nor anything to lead to; it moved into the pocket
+# between the risers, which is empty on this build and is the one place on the
+# board where a package of its size fits without crowding anyone.
 CHIPS = (
-    ('AST2600',  'U79',  436,  46, 46, 46),   # BMC
     ('PCH C741', 'U31',  438, 120, 44, 44),   # chipset
     ('PCIe SW',  'U44',  436, 380, 42, 42),   # lane switch to the risers
     ('CPLD',     'U12',  442, 700, 34, 34),   # power sequencing logic
-    ('X710',     'U21', 1016, 382, 36, 36),   # network controller
-    ('TPM 2.0',  'U9',  1080, 384, 32, 26),
+    ('X710',     'U21',  768, 224, 36, 36),   # network controller, by CPU0
+    ('TPM 2.0',  'U9',   768, 558, 32, 26),   # by CPU1
+    ('AST2600',  'U79', 1030, 272, 46, 46),   # BMC, between the risers
+    ('BCM54210', 'U55', 1098, 604, 34, 34),   # gigabit PHY, right by its jacks
 )
 
 BAY_TOP, BAY_N, GROUPS = Y_PANEL + 8, 8, 4   # drive cage
@@ -119,9 +146,26 @@ CAP = 46
 # and each drive gets its own. While the number stood in the middle of the
 # group, both numbers of a pair landed on the same point — a cage of eight
 # bays showed four digits.
-BAY_NUM_H = 15
+# The strip is deeper than the digit needs. Hovering lifts a caddy by a few
+# pixels, and at fifteen it climbed onto its own number — the label has to sit
+# clear of the part that moves under it, not merely above it.
+BAY_NUM_H = 21
 
-LID_BTN = (X_SVC + 26, 508, 86)       # cover button: x, y, side of the square
+# Cover button: x, y, side of the square. It went down to the very bottom of
+# the service column, under the service toggle, and grew by a third. Up where
+# it used to stand it overlapped the jumper legend and left the toggle — the
+# wider of the two — squeezed between them; below there was simply free
+# laminate. Both buttons now stand in one column of the same width.
+# Стоит она не по служебной колонке, а по свободному углу платы, и по обеим
+# осям выровнена по тому, что этот угол образует.
+#
+# Вширь — коридор между шелкографией правого банка памяти (кончается на 842) и
+# карманом блока питания (начинается на 998): 156 единиц, центр 920. Колонка
+# служебной зоны кончается левее, и выровненная по ней кнопка садилась в
+# коридоре влево.
+#
+# Ввысь — сам правый банк: сокеты с шелкографией занимают 701..837, центр 769.
+LID_BTN = (X_SVC + 21, 712, 114)
 
 
 # ── Assembling the machine ───────────────────────────────────────────────

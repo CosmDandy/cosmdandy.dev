@@ -160,17 +160,27 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
       0.90 52%, 0.945 63%, 0.975 76%, 0.993 88%, 1);
 
   /* The tempo of the indication. Kept in one place: lamps blink often so the
-     machine looks alive, the fan blades spin fast so they read as blurred.
-     What matters more is that all of them are stepped and not smooth:
-     measurements showed that a smooth spin costs a quarter more than a
-     stepped one, because it asks for a repaint on every frame of the
-     monitor. */
+     machine looks alive. Both of these are stepped rather than smooth —
+     measured, a smooth blink costs a quarter more, because it asks for a
+     repaint on every frame the monitor draws. The fans used to be in the same
+     boat and are not any more: they turn on a layer of their own, where the
+     compositor does the work. */
   --blink: 1.4s;
   --beat: 1s;
-  --spin: 1s;
-  /* The periods are chosen so that every switch falls on a grid of a
-     twentieth of a second: 1.4 s divides into 28 blink positions, one turn of
-     a fan into 20 positions, the pulse and the blink into round fractions. */
+  /* Half a second a turn for the wall — this is a machine at its rated rpm,
+     and at that speed nobody sees blades anyway, only the disc. The fan inside
+     a power supply keeps a second: it cools itself alone off standby power,
+     turns visibly slower, and is the one place on the board where an impeller
+     can still be read as an impeller while the machine runs.
+
+     The Efficiency profile stretches the wall to two seconds (screen.css), and
+     that is where the blades come back. No period has to divide into whole
+     seconds any more — that rule came from the repaint grid, and the fans left
+     it for the compositor. */
+  --spin: 0.5s;
+  --spin-aux: 1s;
+  /* The blink periods still fall on a grid of a twentieth of a second: 1.4 s
+     divides into 28 positions, the pulse and the blink into round fractions. */
 
   /* Seating. Every unit has a character of its own, and that is not
      decoration: a DIMM is pressed home until the latches click, a fan goes
@@ -370,17 +380,27 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   /* In service mode the callouts go away entirely: there the machine is taken
      apart, not read, and the labels stopped fighting the pulled units that
      travel straight through them.
-     It has to be `visibility`, not `opacity` and not `pointer-events`. A
-     transparent <a> is still hit-tested, so the labels kept opening links no
-     one could see; and `pointer-events: none` on the group is undone by the
-     `auto` on a.callout above — pointer-events is inherited, but a descendant
-     may always opt back in. `visibility` inherits the same way, so nothing
-     inside .callouts may declare `visible`; on that condition it does both
-     jobs at once: nothing to hit, and the anchors leave the tab order, so
-     Enter cannot reach them either. */
-  .rig.service .callouts { visibility: hidden; }
-  .co-dot { fill: var(--cyan); stroke: rgba(9,32,38,0.85); stroke-width: 1.8; }
-  .co-line { stroke: rgba(42,161,152,0.8); stroke-width: 2.2; }
+
+     Уходят они плавно и все разом: лесенка на уходе читается задержкой, а не
+     списком, — а возвращаются по-прежнему по одной, это правило .callout ниже.
+     Но ссылкой плашка перестаёт быть сразу, в тот же кадр, и вот это трогать
+     нельзя. Прозрачная <a> по-прежнему ловит и курсор, и Tab: opacity и
+     pointer-events тут уже пробовали, и подписи открывали адреса, которых не
+     видно.
+     Поэтому visibility остаётся — но переезжает на саму <a>: она мгновенно
+     уходит из-под курсора и из порядка обхода, а дети объявляют себе visible и
+     потому продолжают рисоваться, пока идёт затухание. pointer-events на <a>
+     нужен там же и отдельно: дети наследуют его от неё, и перебить её может
+     только правило со специфичностью выше, чем `a.callout`. */
+  .rig.service a.callout { visibility: hidden; pointer-events: none; }
+  .rig.service a.callout > * { visibility: visible; }
+  /* Линия и точка — цвета своего сервиса, того же, что полоска у кромки бирки
+     и значок на ней. Цвет приходит переменной от генератора: он один на всю
+     выноску, и менять его в двух местах значит однажды их развести. Подсветка
+     ниже перебивает его нарочно — под курсором все выноски одинаково
+     бирюзовые, чтобы было видно, какая из них поднята. */
+  .co-dot { fill: var(--accent, var(--cyan)); stroke: rgba(9,32,38,0.85); stroke-width: 1.8; }
+  .co-line { stroke: var(--accent, rgba(42,161,152,0.8)); stroke-width: 2.2; }
   /* The backing is not decoration: without it the light label merges with the
      heatsink nameplates and the power supply stickers, of which the board has
      plenty. */
@@ -592,6 +612,25 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   .rig.service .svc-knob { transform: translateX(52px); fill: rgba(181,137,0,0.35); stroke: rgba(181,137,0,0.7); }
   .svc-switch:hover .svc-knob { stroke: rgba(147,161,161,0.7); }
 
+  /* Блик по выключенному тумблеру. Погашенный он — тёмный прямоугольник на
+     тёмной плате, и единственное, что на схеме вообще можно переключить, гость
+     находил не сразу. Полоса проходит по нему раз в несколько секунд: коротко
+     и не в полную силу, чтобы это читалось отсветом на пластике, а не мигающей
+     рекламой.
+
+     Повторяется — в отличие от блика на бирках-ссылок, который проходит один
+     раз при сборке. Там он представляет узел, здесь зовёт нажать, и замолчать
+     ему можно только после того, как нажали: в сервисном режиме блика нет. */
+  .svc-shine { fill: rgba(238,232,213,0.9); opacity: 0; }
+  .rig:not(.service):not(.assembly) .svc-shine {
+    animation: svcShine 3.4s ease-in-out infinite;
+  }
+  @keyframes svcShine {
+    0%, 64%  { opacity: 0;    transform: translateX(-26px); }
+    72%      { opacity: 0.24; }
+    100%     { opacity: 0;    transform: translateX(140px); }
+  }
+
   /* ── lid ──────────────────────────────── */
   /* Cover. Lives in the same coordinates as the board, so it sits over the
      machine exactly. A person takes it off with the cover button; it does not
@@ -636,6 +675,17 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
                 calc(0.35s + var(--tag-order, 0) * 0.14s);
   }
   .rig.assembly .callout { opacity: 0; transition: opacity 0.2s linear; }
+  /* И ждут экрана. Собранная машина включается, поднимается самотест — подписи
+     проступают только когда экран уехал. Иначе порядок был бессмысленный:
+     плашки всплывали на секунду и тут же прятались под экраном, а после него
+     появлялись во второй раз. */
+  .rig.tags-off .callout { opacity: 0; transition: opacity 0.25s linear; }
+  /* Уход в сервисный режим — одно общее движение: все подписи гаснут разом и
+     за полсекунды. Возвращаются они той же лесенкой, что и после сборки:
+     класс service снимается, и работает переход выше, со своей задержкой на
+     каждую. Разница нарочная — уходя, они освобождают место, и растягивать
+     это на полторы секунды незачем; возвращаясь, читаются списком. */
+  .rig.service .callout { opacity: 0; transition: opacity 0.45s ease; }
   /* Пока идёт сборка, разбирать нечего: клики по полусобранной машине
      оставляли бы узлы в состоянии, из которого их никто не вернёт. */
   .rig.assembly .pick, .rig.assembly .unit { pointer-events: none; }
@@ -657,7 +707,13 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
      the caddy, hinged on an axis at the far edge: it swings outward, towards
      the front, rather than sliding. transform-box: fill-box is needed so that
      the percentage in transform-origin counts from the group itself and not
-     from the canvas. */
+     from the canvas.
+
+     The handle now sits inside .pick-body rather than beside it, and that one
+     move fixes two faults: hovering used to lift the body and leave the handle
+     behind, and pulling drove the two by separate rules so they travelled
+     apart. The whole part moves as one now, and the handle's only job of its
+     own is to swing open. */
   .bay-handle {
     transform-box: fill-box;
     transform-origin: 100% 100%;
@@ -672,43 +728,106 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
      unlatched" but as "something fell off". Moving left with a slight tilt says
      the same thing and gets in nobody's way: the handle has left the latch, and
      the drive itself is exposed under it. */
-  .rig.service .bay.unlatched .bay-handle { transform: translateX(-16px) rotate(-7deg); }
+  .rig.service .bay.unlatched .bay-handle,
+  .rig.service .blank.unlatched .bay-handle { transform: translateX(-16px) rotate(-7deg); }
 
-  /* Outward, past the chassis outline: the drive physically leaves the cage
-     forwards, and an empty bay with its guides stays in its place. */
-  .rig.service .bay.pulled .pick-body { transform: translateX(-104px); }
-  .rig.service .bay.pulled .bay-handle { transform: translateX(-120px) rotate(-7deg); }
+  /* Once the caddy is out, the handle stops having a life of its own: it is
+     one part in a hand now, not a lever on a machine. Leaving it thrown open
+     was what made a pulled drive read as two things flying apart — the frame
+     lagging behind and below its own head. */
+  .rig.service .bay.pulled .bay-handle,
+  .rig.service .blank.pulled .bay-handle { transform: none; }
+
+  /* Outward, past the chassis outline, and far enough to clear the cage. The
+     front frame is a sliver; what is worth seeing is the drive that was hidden
+     behind it, so the travel is the depth of the drive plus its frame and the
+     whole part ends up outside the machine instead of half inside it. */
+  .rig.service .bay.pulled .pick-body,
+  .rig.service .blank.pulled .pick-body { transform: translateX(-152px); }
+
+  /* The drive itself sits deep in the chassis and cannot be seen until the
+     caddy comes out — in an assembled machine only the front frame shows. It
+     fades in rather than appearing, so the frame reads as a part being drawn
+     out of the case and not as a rectangle switching on.
+
+     Both opacities have to go, not just the fill: fill-opacity leaves the
+     outline alone, and an invisible drive still drew its own edges straight
+     through the cage grille — the one thing that gave away that something was
+     hiding in there. */
+  .drive-body {
+    fill-opacity: 0;
+    stroke-opacity: 0;
+    transition: fill-opacity var(--fade), stroke-opacity var(--fade);
+  }
+  .rig.service .bay.pulled .drive-body,
+  .rig.service .blank.pulled .drive-body { fill-opacity: 1; stroke-opacity: 1; }
 
   /* Assembly: the drive is pushed in from the front, along the same path it
      takes coming out during teardown — only the other way round. */
-  .rig.assembly .bay {
+  .rig.assembly .bay,
+  .rig.assembly .blank {
     animation: seatBay var(--press-seat) var(--seat, 0s) backwards;
   }
   /* The caddy runs along its rails freely and meets resistance only right at
      the end: the last centimetre is the handle pressing it home to the click. */
   @keyframes seatBay {
-    from { opacity: 0; transform: translateX(-104px); }
+    from { opacity: 0; transform: translateX(-152px); }
   }
   /* ── fans ──────────────────────────────── */
-  /* Rotation in steps, not smooth: twenty positions per turn. At a one-second
-     revolution the eye cannot tell the steps apart, while the browser makes
-     twenty repaints a second instead of a hundred and forty-four — measured,
-     smooth rotation costs a quarter more. The period is shared; what puts the
-     impellers out of step with each other is a phase shift, and that arrives
-     inline. */
+  /* Rotation went back to smooth, and the steps are gone.
+   *
+   * They were there for a real reason: animation in a large SVG is not
+   * composited, so a turn made the browser rasterise the area and reassemble
+   * the scene on every frame the monitor drew. Twenty steps a second instead
+   * of a hundred and forty-four was worth the jerk.
+   *
+   * will-change changes the deal. It lifts each rotor into a layer of its own
+   * — checked, not assumed: with it the layer tree gains exactly sixteen
+   * layers the size of an impeller, and without it none. A transform on a
+   * layer is the compositor's job and does not touch the main thread, so
+   * smooth costs what stepped used to and looks like nothing at all.
+   *
+   * The grid the lamps blink on does not apply here any more, and with it goes
+   * the rule that a period had to divide into whole seconds. */
   .fan-blades {
-    transform-box: fill-box; transform-origin: center;
-    animation: spin var(--spin) steps(20, end) infinite;
+    will-change: transform;
+    animation: spin var(--spin) linear infinite;
     animation-play-state: paused;
   }
+  .fan-blades.aux { animation-duration: var(--spin-aux); }
   .rig.on .fan-blades { animation-play-state: running; }
+
+  /* Blades or blur. Past a few thousand rpm an impeller is a translucent disc
+     and nothing else — a blade crosses any given point faster than the eye
+     takes it in. So a running wall shows the disc, and that is the default
+     state here, not the exception.
+
+     The blades come back exactly where they would in life: on a machine that
+     is off, on a fan that has been pulled, and when the supply profile drops
+     the rpm. Between the two states we cross-fade, so spinning up reads as the
+     blades smearing rather than as one picture being swapped for another.
+
+     Through fill-opacity and not opacity: opacity on an SVG node lifts it into
+     a layer of its own, and the rotor already has one. */
+  .rotor-vane { fill-opacity: 0.05; transition: fill-opacity var(--fade); }
+  .rotor-blur { fill-opacity: 1; transition: fill-opacity var(--fade); }
+
+  .rig:not(.on) .rotor-vane,
+  .rig.nv-eff .rotor-vane,
+  .fan.pulled .rotor-vane,
+  .fan-blades.aux .rotor-vane { fill-opacity: 0.42; }
+
+  .rig:not(.on) .rotor-blur,
+  .rig.nv-eff .rotor-blur,
+  .fan.pulled .rotor-blur,
+  .fan-blades.aux .rotor-blur { fill-opacity: 0; }
 
   /* Pull even one fan and the rest go to maximum. Any machine behaves this
      way: the controller loses one airflow and makes up for it with rpm. The
      generator writes every impeller its own period inline, which is why
      !important is needed here. The power supply fan lives its own life — it
      has a controller of its own and does not spin up. */
-  .rig.on:has(.fan.pulled) .fan-blades:not(.aux) { animation-duration: 0.55s !important; }
+  .rig.on:has(.fan.pulled) .fan-blades:not(.aux) { animation-duration: 0.28s !important; }
   .rig.on .fan.pulled .fan-blades { animation-play-state: paused; }
   .fan.pulled .fan-blades { animation-play-state: paused; }
   @keyframes spin { to { transform: rotate(360deg); } }
@@ -835,6 +954,39 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   /* The power supply is held by the orange latch — that very click. */
   .psu .pick-body { transition: transform var(--click); }
 
+  /* ── Оба блока вынуты: машина обесточена ───────────────────────────────
+     Резервирование кончилось — кончилось и питание. Гаснет всё разом,
+     включая дежурку: BMC, порт управления и лампы AC висят на том же вводе.
+     Это единственное состояние схемы, где не мигает вообще ничего.
+
+     Гаснет свет, а не лампа: fill-opacity обнуляется только у цветного ядра
+     и ореола, а гнездо нарисовано без класса и остаётся на месте. Обесточенная
+     машина показывает, где стоит индикация, — как и живая. */
+  .rig.blackout .led, .rig.blackout .led-link, .rig.blackout .led-hb,
+  .rig.blackout .led-id, .rig.blackout .fault, .rig.blackout .fault-sys,
+  .rig.blackout .lp, .rig.blackout .seg {
+    fill-opacity: 0 !important;
+    animation: none !important;
+  }
+  .rig.blackout .fan-blades { animation-play-state: paused !important; }
+  /* Кнопка питания — тоже лампа, и гаснет по той же причине. !important
+     здесь ровно затем же, зачем ниже у консоли: правила кнопки живут в
+     блоке фронта, а он встаёт в общий css после этого. */
+  .rig.blackout .pwr-led { stroke-opacity: 0 !important; animation: none !important; }
+
+  /* Консоль — это SOL к BMC, а BMC питается от той же дежурки: машина
+     обесточена, значит и консоль мертва. Серая и не отвечает — ввод при этом
+     ещё и запрещён в скрипте, потому что на pointer-events клавиатура не
+     смотрит.
+     opacity через !important: кусок блока встаёт в общий css выше правил
+     сервисного режима, а там у .rig-side своя прозрачность с той же
+     специфичностью — спор решил бы порядок, и консоль осталась бы яркой. */
+  .rig.blackout .rig-side {
+    filter: grayscale(0.85);
+    opacity: 0.42 !important;
+    pointer-events: none;
+  }
+
   /* ── cpu ──────────────────────────────── */
   /* The processor stays in the socket — what comes off is the heatsink, as if
      by hand. The die is uncovered under it: the same gradient runs over it as
@@ -954,6 +1106,20 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
      ones: that pair has higher specificity, so there is nothing to argue
      about. */
   .sq-led { fill-opacity: 0; transition: fill-opacity 0.15s steps(1, end); }
+
+  /* Выход из сервиса: машина складывается одним движением, а не семью
+     щелчками разом. Щелчок — это как узел ставят руками: треть времени он
+     стоит, потом срывается. Когда так возвращаются все узлы сразу, читается
+     не сборка, а рывок, и рядом с ним плавно едущая разметка выглядит
+     отдельным механизмом.
+     Поэтому на время возврата узлы идут по кривой всей композиции — по той
+     же, по которой съезжается колонка с консолью. Правило стоит после всех
+     блоков нарочно: у каждого свой переход с той же специфичностью, и спор
+     решает порядок. */
+  .rig.stowing .pick-body,
+  .rig.stowing .bay-handle,
+  .rig.stowing .latch,
+  .rig.stowing .heatsink { transition: transform var(--svc); }
 
   .hint {
     margin-top: 14px; text-align: center;

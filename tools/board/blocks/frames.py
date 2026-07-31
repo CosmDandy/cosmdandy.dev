@@ -34,7 +34,12 @@ BANK_H = BANK_N * PITCH
 def render(cv):
     frames = [
         block_frame(X_SVC - 4, 92, 166, 262, "PLATFORM I/O", "U12 U18 C120-C138 R240-R262"),
-        block_frame(428, 34, 62, 148, "BMC", "U79 U31 C300-C318"),
+        # BMC и чипсет стояли в левой кромке рядом и делили одну рамку. Теперь
+        # контроллер управления сидит в кармане между райзерами, и на две
+        # половины платы рамка не растягивается: у каждого своя, иначе обведён
+        # чипсет, а подписано это BMC.
+        block_frame(1020, 258, 108, 78, "BMC", "U79 C300-C312"),
+        block_frame(428, 108, 62, 74, "PCH", "U31 C314-C318"),
         # The socket title is pulled towards the middle: the part-number link
         # sits at the left edge of the frame, and in its old place the plate
         # landed right on top of it.

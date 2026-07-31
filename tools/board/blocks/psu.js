@@ -7,7 +7,12 @@
     pull: function (el, line) {
       const out = el.classList.toggle('pulled');
       const name = 'psu-' + el.dataset.psu;
-      line(out ? 'removed: ' + name + ' · обесточен, нагрузка на втором блоке'
+      // Первый вынутый блок — потеря резерва, второй — потеря питания. Про
+      // саму потерю пишет updateMains(), здесь только судьба нагрузки: обещать
+      // «нагрузка на втором блоке», когда второго блока уже нет, нельзя.
+      const last = !document.querySelector('.psu:not(.pulled)');
+      line(out ? 'removed: ' + name + (last ? ' · нагрузку принять некому'
+                                            : ' · обесточен, нагрузка на втором блоке')
                : 'inserted: ' + name + ' · AC ok', out ? 'warn' : 'ok');
     },
   });

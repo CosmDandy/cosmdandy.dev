@@ -8,6 +8,12 @@
   }
 
   function powerOn() {
+    // Обесточенную машину не включает ни кнопка, ни команда, ни конец
+    // сборки: включать нечем, пока не вставлен хотя бы один блок питания.
+    if (rig.classList.contains('blackout')) {
+      line('power inhibited · no ac', 'warn');
+      return;
+    }
     state.powered = true;
     // Uptime is how long the host has been running, not the tab: without this
     // mark uptime counted from the page load and survived a power off without
@@ -20,13 +26,18 @@
     // does the host start.
     wait(120, function () { rig.classList.add('net'); line('nic · link up 25G', 'ok'); });
     wait(700, function () { rig.classList.add('bmc'); line('BMC 2.14 · heartbeat', 'ok'); });
+    // Экран поднимется через секунду, и подписи ждут его с этой самой минуты:
+    // иначе они успевали проступить в промежутке между концом сборки и
+    // самотестом — и тут же прятались под приехавшим экраном.
+    if (!reduced) rig.classList.add('tags-off');
     wait(1100, runPost);
     tick();
   }
 
   function powerOff() {
     state.powered = false; save();
-    rig.classList.remove('net', 'bmc');
+    // Выключенной машине экран уже не поднимется — ждать подписям нечего.
+    rig.classList.remove('net', 'bmc', 'tags-off');
     setPower('standby');
     line('powering off', 'warn');
     line('standby · bmc only', 'muted');

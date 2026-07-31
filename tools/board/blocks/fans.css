@@ -1,22 +1,57 @@
-  /* Rotation in steps, not smooth: twenty positions per turn. At a one-second
-     revolution the eye cannot tell the steps apart, while the browser makes
-     twenty repaints a second instead of a hundred and forty-four — measured,
-     smooth rotation costs a quarter more. The period is shared; what puts the
-     impellers out of step with each other is a phase shift, and that arrives
-     inline. */
+  /* Rotation went back to smooth, and the steps are gone.
+   *
+   * They were there for a real reason: animation in a large SVG is not
+   * composited, so a turn made the browser rasterise the area and reassemble
+   * the scene on every frame the monitor drew. Twenty steps a second instead
+   * of a hundred and forty-four was worth the jerk.
+   *
+   * will-change changes the deal. It lifts each rotor into a layer of its own
+   * — checked, not assumed: with it the layer tree gains exactly sixteen
+   * layers the size of an impeller, and without it none. A transform on a
+   * layer is the compositor's job and does not touch the main thread, so
+   * smooth costs what stepped used to and looks like nothing at all.
+   *
+   * The grid the lamps blink on does not apply here any more, and with it goes
+   * the rule that a period had to divide into whole seconds. */
   .fan-blades {
-    transform-box: fill-box; transform-origin: center;
-    animation: spin var(--spin) steps(20, end) infinite;
+    will-change: transform;
+    animation: spin var(--spin) linear infinite;
     animation-play-state: paused;
   }
+  .fan-blades.aux { animation-duration: var(--spin-aux); }
   .rig.on .fan-blades { animation-play-state: running; }
+
+  /* Blades or blur. Past a few thousand rpm an impeller is a translucent disc
+     and nothing else — a blade crosses any given point faster than the eye
+     takes it in. So a running wall shows the disc, and that is the default
+     state here, not the exception.
+
+     The blades come back exactly where they would in life: on a machine that
+     is off, on a fan that has been pulled, and when the supply profile drops
+     the rpm. Between the two states we cross-fade, so spinning up reads as the
+     blades smearing rather than as one picture being swapped for another.
+
+     Through fill-opacity and not opacity: opacity on an SVG node lifts it into
+     a layer of its own, and the rotor already has one. */
+  .rotor-vane { fill-opacity: 0.05; transition: fill-opacity var(--fade); }
+  .rotor-blur { fill-opacity: 1; transition: fill-opacity var(--fade); }
+
+  .rig:not(.on) .rotor-vane,
+  .rig.nv-eff .rotor-vane,
+  .fan.pulled .rotor-vane,
+  .fan-blades.aux .rotor-vane { fill-opacity: 0.42; }
+
+  .rig:not(.on) .rotor-blur,
+  .rig.nv-eff .rotor-blur,
+  .fan.pulled .rotor-blur,
+  .fan-blades.aux .rotor-blur { fill-opacity: 0; }
 
   /* Pull even one fan and the rest go to maximum. Any machine behaves this
      way: the controller loses one airflow and makes up for it with rpm. The
      generator writes every impeller its own period inline, which is why
      !important is needed here. The power supply fan lives its own life — it
      has a controller of its own and does not spin up. */
-  .rig.on:has(.fan.pulled) .fan-blades:not(.aux) { animation-duration: 0.55s !important; }
+  .rig.on:has(.fan.pulled) .fan-blades:not(.aux) { animation-duration: 0.28s !important; }
   .rig.on .fan.pulled .fan-blades { animation-play-state: paused; }
   .fan.pulled .fan-blades { animation-play-state: paused; }
   @keyframes spin { to { transform: rotate(360deg); } }

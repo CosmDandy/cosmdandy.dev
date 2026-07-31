@@ -3,7 +3,13 @@
      the caddy, hinged on an axis at the far edge: it swings outward, towards
      the front, rather than sliding. transform-box: fill-box is needed so that
      the percentage in transform-origin counts from the group itself and not
-     from the canvas. */
+     from the canvas.
+
+     The handle now sits inside .pick-body rather than beside it, and that one
+     move fixes two faults: hovering used to lift the body and leave the handle
+     behind, and pulling drove the two by separate rules so they travelled
+     apart. The whole part moves as one now, and the handle's only job of its
+     own is to swing open. */
   .bay-handle {
     transform-box: fill-box;
     transform-origin: 100% 100%;
@@ -18,20 +24,48 @@
      unlatched" but as "something fell off". Moving left with a slight tilt says
      the same thing and gets in nobody's way: the handle has left the latch, and
      the drive itself is exposed under it. */
-  .rig.service .bay.unlatched .bay-handle { transform: translateX(-16px) rotate(-7deg); }
+  .rig.service .bay.unlatched .bay-handle,
+  .rig.service .blank.unlatched .bay-handle { transform: translateX(-16px) rotate(-7deg); }
 
-  /* Outward, past the chassis outline: the drive physically leaves the cage
-     forwards, and an empty bay with its guides stays in its place. */
-  .rig.service .bay.pulled .pick-body { transform: translateX(-104px); }
-  .rig.service .bay.pulled .bay-handle { transform: translateX(-120px) rotate(-7deg); }
+  /* Once the caddy is out, the handle stops having a life of its own: it is
+     one part in a hand now, not a lever on a machine. Leaving it thrown open
+     was what made a pulled drive read as two things flying apart — the frame
+     lagging behind and below its own head. */
+  .rig.service .bay.pulled .bay-handle,
+  .rig.service .blank.pulled .bay-handle { transform: none; }
+
+  /* Outward, past the chassis outline, and far enough to clear the cage. The
+     front frame is a sliver; what is worth seeing is the drive that was hidden
+     behind it, so the travel is the depth of the drive plus its frame and the
+     whole part ends up outside the machine instead of half inside it. */
+  .rig.service .bay.pulled .pick-body,
+  .rig.service .blank.pulled .pick-body { transform: translateX(-152px); }
+
+  /* The drive itself sits deep in the chassis and cannot be seen until the
+     caddy comes out — in an assembled machine only the front frame shows. It
+     fades in rather than appearing, so the frame reads as a part being drawn
+     out of the case and not as a rectangle switching on.
+
+     Both opacities have to go, not just the fill: fill-opacity leaves the
+     outline alone, and an invisible drive still drew its own edges straight
+     through the cage grille — the one thing that gave away that something was
+     hiding in there. */
+  .drive-body {
+    fill-opacity: 0;
+    stroke-opacity: 0;
+    transition: fill-opacity var(--fade), stroke-opacity var(--fade);
+  }
+  .rig.service .bay.pulled .drive-body,
+  .rig.service .blank.pulled .drive-body { fill-opacity: 1; stroke-opacity: 1; }
 
   /* Assembly: the drive is pushed in from the front, along the same path it
      takes coming out during teardown — only the other way round. */
-  .rig.assembly .bay {
+  .rig.assembly .bay,
+  .rig.assembly .blank {
     animation: seatBay var(--press-seat) var(--seat, 0s) backwards;
   }
   /* The caddy runs along its rails freely and meets resistance only right at
      the end: the last centimetre is the handle pressing it home to the click. */
   @keyframes seatBay {
-    from { opacity: 0; transform: translateX(-104px); }
+    from { opacity: 0; transform: translateX(-152px); }
   }
