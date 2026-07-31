@@ -483,6 +483,21 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
      smooth halo means a repaint on every frame of the monitor, and forty
      lamps at once left the stage no idle time. */
   .rig.on .led-act { animation: act var(--blink) steps(1, end) infinite; }
+  /* Приём и передача — одна лампа на два цвета, как на живой розетке: в ней
+     два кристалла под общей линзой, и куда ушёл пакет, видно по тому, каким
+     цветом она моргнула. Янтарный — наружу, зелёный — внутрь. Двумя лампами
+     это говорилось дважды.
+     Мигает по-прежнему act, здесь меняется только заливка, поэтому вторая
+     анимация идёт рядом, а не вместо. Период втрое длиннее вспышек, чтобы
+     цвет держался несколько миганий подряд: смена цвета на каждой вспышке
+     читается мельтешением, а не направлением. Кратно 0.05 с, как всё
+     остальное в индикации. */
+  .rig.on .led-act.led-txrx {
+    animation:
+      act var(--blink) steps(1, end) infinite,
+      txrx calc(var(--blink) * 3) steps(1, end) infinite;
+  }
+  @keyframes txrx { 0%, 50% { fill: var(--amber) } 50.01%, 100% { fill: var(--green) } }
   .halo { transition: fill-opacity 0.35s ease; }
   /* Ореол не мигает: он и так виден, а анимаций в сцене от него втрое
      больше, чем ламп, — по три круга на каждую. Браузер обновляет каждую

@@ -904,9 +904,9 @@
     window.open(stamp.getAttribute('href'), '_blank', 'noopener');
   }, true);   // on capture: otherwise the click goes into taking the machine apart
 
-  // ── Связка узла и подписи ──────────────────────────────────────────────
-  // Подсветка идёт в обе стороны: узел ↔ его выноска. Класс вместо :hover,
-  // потому что элементы лежат в разных ветках дерева.
+  // ── Tying a unit to its label ──────────────────────────────────────────
+  // The highlight goes both ways: unit ↔ its callout. A class instead of
+  // :hover, because the elements sit in different branches of the tree.
   function lit(group, on) {
     chassis.querySelectorAll('[data-group="' + group + '"]').forEach(function (n) {
       n.classList.toggle('lit', on);
@@ -2863,13 +2863,13 @@
     run: function () { screenPost(); return []; },
   });
 
-  // ── Запуск ─────────────────────────────────────────────────────────────
+  // ── Start-up ───────────────────────────────────────────────────────────
   const first = !state.visited;
   state.visited = true; save();
 
-  // Крышка. Гостю не надо догадываться, что её надо снять: при первом заходе
-  // она уходит сама. Обратно ставит кнопка на плате, рядом с тумблером
-  // сервисного режима.
+  // The cover. A visitor should not have to guess that it needs taking off:
+  // on the first visit it comes off by itself. Putting it back is done by a
+  // button on the board, next to the service mode switch.
   const lidRemove = document.getElementById('lid-remove');
   const lidOn = document.getElementById('lid-on');
 
@@ -2898,7 +2898,7 @@
 
   setLid(!!state.lid);
   wait(260, function () { rig.classList.add('ready'); });
-  // первый заход: показываем закрытую машину и снимаем крышку сами
+  // first visit: show the closed machine and take the cover off ourselves
   if (first && !reduced && !state.lid) wait(1500, function () { setLid(true); });
   else if (!first) setLid(true);
 
