@@ -6,8 +6,8 @@
 
 import math
 
-from board.geom import (CHIPS, FAN_N, H, PCB_H, PCB_W, X_PCB, X_PCB_END, X_REAR, X_SVC,
-                        Y_PSU_BOT, Y_PSU_TOP, fan_foot_y)
+from board.geom import (CHIPS, FAN_N, H, IO_FREE, PCB_H, PCB_W, X_PCB, X_PCB_END, X_REAR,
+                        X_SVC, Y_PSU_BOT, Y_PSU_TOP, fan_foot_y)
 from board.ink import empty_pads, hit, mono, silk_boxed
 from board.lamps import lamp
 from board.metal import pad, relief
@@ -193,9 +193,12 @@ def render(cv):
         # место под кварц диктует подпись частоты, а не корпус: он вдвое короче
         place(max(20, len(mark) * 3) + 6, 22, lambda x, y, m=mark: xtal(x + 2, y + 2, m), mark)
     bx, by, bw, bh = next((x, y, w, h) for n, _s, x, y, w, h in CHIPS if n == 'AST2600')
-    parts.append(lamp('led-hb', bx + bw + 10, by + 8, 4, '#859900'))
-    parts.append(silk_boxed(bx + bw + 10, by + 24, "HB", 5.5, op=0.4))
-    cv.busy(bx + bw + 2, by, 24, 32)
+    # Отодвинута от корпуса: на прежних десяти единицах лампа стояла вплотную
+    # к гребёнке выводов, и её зелёный терялся в частых светлых штрихах. Сердце
+    # машины должно быть видно с одного взгляда — иначе оно не сердце.
+    parts.append(lamp('led-hb', bx + bw + 22, by + 8, 4, '#859900'))
+    parts.append(silk_boxed(bx + bw + 22, by + 24, "HB", 5.5, op=0.4))
+    cv.busy(bx + bw + 14, by, 24, 32)
 
     cv.add('<g class="decor parts">' + ''.join(parts) + '</g>')
     if lost:
@@ -374,16 +377,25 @@ def render(cv):
     airflow.append(silk_boxed(X_PCB + 40, 102, "AIRFLOW", 6, op=0.34))
     cv.add('<g class="decor">' + ''.join(airflow) + '</g>')
 
-    # Марка изготовителя: вертикально вдоль служебной зоны, там же где тумблер —
-    # на реальных платах имя вендора идёт по свободной кромке, а не поперёк деталей
-    cv.busy(X_SVC + 110, 300, 76, 380)
+    # Марка изготовителя. Стояла вертикально по правой кромке кеглем в 44 — и
+    # не читалась: кромку пересекают три бирки ссылок, а они непрозрачные, и
+    # половина строки лежала под ними. Крупный кегль этого не лечит, потому
+    # что дело не в размере, а в том, что буквы закрыты.
+    #
+    # Теперь строка набрана поперёк, в поле, которое освободилось от выдуманной
+    # платы встроенных интерфейсов, и полоса под неё выбрана между бирками
+    # Telegram и Twitter — единственный разрыв в их частоколе, где марку видно
+    # целиком. Кегль упирается в ширину поля: 9 знаков по 0.7 em с разрядкой.
+    fx, fy, fw, fh = IO_FREE
+    size = round(min(fh * 0.72, fw / (len("COSMDANDY") * 0.7)))
+    cv.busy(fx, fy, fw, fh)
     cv.add(f'''<g class="decor">
-  <text x="{X_SVC+140}" y="480" transform="rotate(-90 {X_SVC+140} 480)" text-anchor="middle"
-        fill="rgba(147,161,161,0.22)" font-family="ui-monospace, Menlo, monospace"
-        font-size="34" font-weight="600" letter-spacing="0.10em">COSMDANDY</text>
-  <text x="{X_SVC+124}" y="480" transform="rotate(-90 {X_SVC+124} 480)" text-anchor="middle"
-        fill="rgba(147,161,161,0.26)" font-family="ui-monospace, Menlo, monospace"
-        font-size="7" letter-spacing="0.14em">DUAL {CPU['socket']} · {ram_label()}</text>
+  <text x="{fx + fw / 2:.0f}" y="{fy + size:.0f}" text-anchor="middle"
+        fill="rgba(147,161,161,0.46)" font-family="ui-monospace, Menlo, monospace"
+        font-size="{size}" font-weight="600" letter-spacing="0.10em">COSMDANDY</text>
+  <text x="{fx + fw / 2:.0f}" y="{fy + fh - 3:.0f}" text-anchor="middle"
+        fill="rgba(147,161,161,0.34)" font-family="ui-monospace, Menlo, monospace"
+        font-size="8" letter-spacing="0.14em">DUAL {CPU['socket']} · {ram_label()}</text>
 </g>''')
 
     # Ревизия платы — по правому борту от марки. Она же ссылка: номер сборки это

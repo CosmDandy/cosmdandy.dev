@@ -5,7 +5,7 @@ All of it is background — it only reads up close, but without it the board
 looks empty.
 """
 
-from board.geom import (BANK_N, CHIPS, FAN_N, H, PCB_H, PCB_W, PITCH, X_CORE, X_PCB, X_PCB_END, X_REAR,
+from board.geom import (BANK_N, CHIPS, FAN_N, H, IO_BOARD, IO_FREE, PITCH, X_CORE, X_PCB, X_PCB_END, X_REAR,
                         SOCKET_H, X_SVC, X_VRM, fan_foot_y, Y_BANK_L, Y_BANK_R, Y_CPU0, Y_CPU1, Y_PSU_BOT, Y_PSU_TOP)
 
 
@@ -40,6 +40,12 @@ def render(cv):
     # under the plate.
     for ry in (186, 474):
         cv.busy(X_REAR + 12, ry, X_PCB_END - 18 - X_REAR, 192)
+    # Rear jacks: their magnetics and solder tabs, and the field where the
+    # vendor mark is set. Both are drawn much later — by rear_io and by the
+    # scatter's own tail — and both would otherwise be sprinkled with passives
+    # placed before them.
+    cv.busy(*IO_BOARD)
+    cv.busy(*IO_FREE)
     # There is no board under the power supplies: those are cutouts. Small parts
     # and position designators used to land in these pockets and slide under the
     # steel of the chassis.
@@ -47,7 +53,7 @@ def render(cv):
         cv.busy(X_REAR, by, X_PCB_END - X_REAR, bh)
     # service zone: the blocks and their labels, not a whole-area rectangle
     for bx, by, bw, bh in ((X_SVC + 6, 108, 146, 46),    # P1/P2
-                           (X_SVC + 2, 180, 150, 62),    # SATA / SlimSAS
+                           (X_SVC + 2, 180, 150, 62),    # SlimSAS to the backplane
                            (X_SVC + 6, 272, 150, 74),    # CMOS and microSD
                            (X_SVC + 6, 392, 146, 48),    # M.2
                            (X_SVC + 130, 296, 46, 388),  # silkscreen along the edge

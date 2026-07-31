@@ -2,3 +2,22 @@
   .svc-knob { transition: transform var(--spring), fill var(--fade), stroke var(--fade); transform-box: fill-box; }
   .rig.service .svc-knob { transform: translateX(52px); fill: rgba(181,137,0,0.35); stroke: rgba(181,137,0,0.7); }
   .svc-switch:hover .svc-knob { stroke: rgba(147,161,161,0.7); }
+
+  /* Блик по выключенному тумблеру. Погашенный он — тёмный прямоугольник на
+     тёмной плате, и единственное, что на схеме вообще можно переключить, гость
+     находил не сразу. Полоса проходит по нему раз в несколько секунд: коротко
+     и не в полную силу, чтобы это читалось отсветом на пластике, а не мигающей
+     рекламой.
+
+     Повторяется — в отличие от блика на бирках-ссылок, который проходит один
+     раз при сборке. Там он представляет узел, здесь зовёт нажать, и замолчать
+     ему можно только после того, как нажали: в сервисном режиме блика нет. */
+  .svc-shine { fill: rgba(238,232,213,0.9); opacity: 0; }
+  .rig:not(.service):not(.assembly) .svc-shine {
+    animation: svcShine 3.4s ease-in-out infinite;
+  }
+  @keyframes svcShine {
+    0%, 64%  { opacity: 0;    transform: translateX(-26px); }
+    72%      { opacity: 0.24; }
+    100%     { opacity: 0;    transform: translateX(140px); }
+  }

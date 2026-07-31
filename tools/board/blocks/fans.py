@@ -15,7 +15,10 @@ BOUNDS = (184, 6, 244, 832)
 from board.geom import FAN_H, FAN_N, FAN_STEP, FAN_W, X_FAN, X_PCB, H, fan_foot_y, seat
 from board.ink import mono, silk_inverse
 from board.lamps import fault_at, jitter
+from board.palette import ROTOR_BLADE, ROTOR_EDGE, ROTOR_PAD
 from board.revision import stamp
+from board.rotor import HUB_R, blur_disc, impeller
+from board.spec import FAN as FAN_SPEC
 
 
 def render(cv):
@@ -32,19 +35,36 @@ def render(cv):
         rotors = []
         for k in range(2):
             cx, cy = X_FAN + FAN_W / 4 + k * (FAN_W / 2), y + (FAN_STEP - 8) / 2
-            bl, bw = rr * 0.92, rr * 0.25
-            blades = ' '.join(
-                f'M{cx} {cy-bl:.1f} L{cx+bw:.1f} {cy} L{cx} {cy+bl:.1f} L{cx-bw:.1f} {cy} Z' if b % 2 == 0 else
-                f'M{cx-bl:.1f} {cy} L{cx} {cy-bw:.1f} L{cx+bl:.1f} {cy} L{cx} {cy+bw:.1f} Z'
-                for b in range(2))
+            # The barrel the rotor sits in, and the gap between blade tip and
+            # wall. On a live fan that gap is a millimetre, and it is what tells
+            # the eye the thing spins inside something rather than being painted
+            # on: without it the blades hang in an empty circle.
             rotors.append(f'<circle cx="{cx}" cy="{cy}" r="{rr:.1f}" fill="#0d1417" stroke="rgba(147,161,161,0.18)"/>')
-            # The impellers spin with one period and different phases: that way
-            # they run out of step but click to a common beat. The shift is a
-            # multiple of the beat step, otherwise the repaint frames drift
-            # apart.
-            rotors.append(f'<path class="fan-blades" d="{blades}" fill="rgba(34,48,54,0.55)" '
-                          f'stroke="rgba(147,161,161,0.26)" style="animation-delay:-{jitter(i, 0.1, 2.2, k)}s"/>')
-            rotors.append(f'<circle cx="{cx}" cy="{cy}" r="{rr*0.3:.1f}" fill="#0a1215" stroke="rgba(147,161,161,0.22)"/>')
+            rotors.append(f'<circle cx="{cx}" cy="{cy}" r="{rr*0.99:.1f}" fill="none" '
+                          f'stroke="{ROTOR_EDGE}" stroke-opacity="0.30"/>')
+            # Blades and blur ride in one turning group: it is a single layer
+            # for the compositor and a single animation, and which of the two
+            # is visible is decided by fill-opacity in css. The impellers share
+            # a period and differ in phase, so the wall does not pulse in
+            # unison.
+            #
+            # No outline on the blades. Sixteen rotors redraw whenever the wall
+            # turns, and stroking seven curves apiece is the one thing here
+            # worth not paying for — the slots between the blades draw that
+            # edge by themselves.
+            rotors.append(
+                f'<g class="fan-blades" style="animation-delay:-{jitter(i, 0.1, 2.2, k)}s; '
+                f'transform-origin:{cx}px {cy}px">'
+                f'<path class="rotor-vane" d="{impeller(cx, cy, rr)}" fill="{ROTOR_BLADE}"/>'
+                f'<g class="rotor-blur">{blur_disc(cx, cy, rr)}</g>'
+                f'</g>')
+            # The hub, and the maker's sticker on it. From above the sticker is
+            # the brightest thing on the rotor, and on a real fan it is the one
+            # place the maker signs.
+            rotors.append(f'<circle cx="{cx}" cy="{cy}" r="{rr*HUB_R:.1f}" fill="#0a1215" '
+                          f'stroke="rgba(147,161,161,0.22)"/>')
+            rotors.append(f'<circle cx="{cx}" cy="{cy}" r="{rr*HUB_R*0.62:.1f}" fill="{ROTOR_PAD}" '
+                          f'fill-opacity="0.55" stroke="{ROTOR_PAD}" stroke-opacity="0.45"/>')
 
         h = FAN_H
         # The module seat: the guides and the mating header stay in the wall
@@ -77,9 +97,13 @@ def render(cv):
         mounts = ''.join(
             f'<line x1="{mx}" y1="{y+7}" x2="{mx}" y2="{y+h-7}" stroke="rgba(147,161,161,0.16)" '
             f'stroke-width="2.6"/>' for mx in (X_FAN + 14, X_FAN + FAN_W - 14))
+        # The bushings themselves are sand-coloured, and that is the one place
+        # the module is deliberately not the colour of its own frame. Four small
+        # pads carry the recognition without lighting up the wall the way a pale
+        # rotor would.
         mounts += ''.join(
-            f'<rect x="{mx-5}" y="{my-4}" width="10" height="8" rx="4" fill="#1b2429" '
-            f'stroke="rgba(147,161,161,0.30)"/>'
+            f'<rect x="{mx-5}" y="{my-4}" width="10" height="8" rx="4" fill="{ROTOR_PAD}" '
+            f'fill-opacity="0.55" stroke="rgba(147,161,161,0.30)"/>'
             f'<circle cx="{mx}" cy="{my}" r="2.4" fill="#070d10" stroke="rgba(147,161,161,0.22)"/>'
             for mx in (X_FAN + 14, X_FAN + FAN_W - 14) for my in (y + 7, y + h - 7))
         # Power: a header on the body, and from it a leg with a harness down to
@@ -136,7 +160,7 @@ def render(cv):
         {shell}
         {foam}
         {plug}
-        {mono(X_FAN + FAN_W / 2, y + h - 6, f"FAN{i+1} · 18000 RPM", 7, op=0.34)}
+        {mono(X_FAN + FAN_W / 2, y + h - 6, f"FAN{i+1} · {FAN_SPEC['rpm_max']} RPM", 7, op=0.34)}
         <g class="cables">{wires}</g>
         {foot}
       </g>

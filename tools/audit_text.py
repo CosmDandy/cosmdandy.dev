@@ -73,6 +73,11 @@ for b in blocks:
         d = attrs(m.group(1))
         if d.get("fill", "") in ("none", ""):
             continue
+        # Ореол лампы — свет, а не подложка: он полупрозрачен по всему радиусу,
+        # и надпись под ним читается по-прежнему. Считая его подложкой, аудит
+        # ловит ложную ошибку каждый раз, когда свечение стало шире.
+        if "halo" in d.get("class", ""):
+            continue
         r = num(d, "r")
         shapes.append(((num(d, "cx") - r, num(d, "cy") - r, 2 * r, 2 * r),
                        "circle " + d.get("fill", ""), m.start(), float(d.get("fill-opacity", 1))))

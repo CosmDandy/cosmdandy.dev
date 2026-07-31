@@ -345,6 +345,207 @@ check('/proc/cpuinfo knows about the cores',
   (await run('cat /proc/cpuinfo | grep "model name" | wc -l')).trim()
     .endsWith(String(spec.cpu.cores * spec.cpu.n * 2)), await run('cat /proc/cpuinfo | grep "model name" | wc -l'));
 
+// 19. Both supplies out — the machine loses mains: nothing blinks and the
+// console goes grey. One supply out is redundancy lost, two is a power
+// failure, and the two must not read the same.
+await page.evaluate(() => window.__rig.exec('service on'));
+await page.waitForTimeout(300);
+await click('.psu[data-psu="1"]');
+await page.waitForTimeout(200);
+check('one supply out is not a blackout', !(await rigCls()).includes('blackout'), await rigCls());
+await click('.psu[data-psu="2"]');
+await page.waitForTimeout(700);
+const dead = await page.evaluate(() => {
+  const core = document.querySelector('.led-hb:not(.halo)');
+  return { rig: document.getElementById('rig').className,
+           hb: getComputedStyle(core).fillOpacity,
+           anim: getComputedStyle(core).animationName,
+           pwr: getComputedStyle(document.querySelector('.pwr-led')).strokeOpacity,
+           side: getComputedStyle(document.querySelector('.rig-side')).filter };
+});
+check('both supplies out kill the machine',
+      dead.rig.includes('blackout') && !/\bon\b/.test(dead.rig), dead.rig);
+check('nothing is lit on a dead machine',
+      dead.hb === '0' && dead.anim === 'none' && dead.pwr === '0', JSON.stringify(dead));
+check('the console dies with the machine', dead.side.includes('grayscale'), JSON.stringify(dead));
+check('the power failure is in the log', (await logText()).includes('ac lost'), 'log');
+check('the event log keeps it', (await run('sel')).includes('power lost'), await run('sel'));
+await click('.psu[data-psu="2"]');
+await page.waitForTimeout(500);
+check('a supply back means standby',
+      !(await rigCls()).includes('blackout') && (await rigCls()).includes('standby'), await rigCls());
+await click('.psu[data-psu="1"]');
+await page.waitForTimeout(300);
+
+// 20. Esc is the spare way out of service mode: the switch is drawn on the
+// board, and the board is exactly what can be off the screen.
+check('service mode is still on', (await rigCls()).includes('service'), await rigCls());
+await page.keyboard.press('Escape');
+await page.waitForTimeout(300);
+check('Esc leaves service mode', !(await rigCls()).includes('service'), await rigCls());
+
+// 21. A narrow window hides the schematic whole — and with it both the switch
+// and the console. Browser zoom squeezes the css window exactly the same way,
+// so service mode must not survive it: there would be nothing left to leave it
+// with.
+await click('#svc-switch');
+await page.waitForTimeout(200);
+await page.setViewportSize({ width: 780, height: 1000 });
+await page.waitForTimeout(400);
+check('a hidden schematic leaves no service mode',
+      !(await rigCls()).includes('service'), await rigCls());
+await page.setViewportSize({ width: 1600, height: 1000 });
+await page.waitForTimeout(400);
+
+// 22. The machine is assembled with the power off and comes up with a
+// self-test: on a live machine nothing is seated under voltage.
+await page.evaluate(() => window.__rig.exec('power on'));
+await page.waitForFunction(() => document.getElementById('rig').classList.contains('on'),
+  null, { timeout: 15000 }).catch(() => {});
+// Wait for the self-test of that start to play out and the screen to go: while
+// it is up the schematic is inert, so a person could not press the button
+// either — and a screen left over from before would answer for the new one in
+// the check below.
+await page.waitForFunction(() => !document.getElementById('crt').classList.contains('on'),
+  null, { timeout: 25000 }).catch(() => {});
+await page.waitForTimeout(400);
+await click('#assemble-btn');
+await page.waitForTimeout(400);
+check('assembly powers the machine off',
+      (await rigCls()).includes('assembly') && !/\bon\b/.test(await rigCls()), await rigCls());
+await page.waitForFunction(() => !document.getElementById('rig').classList.contains('assembly'),
+  null, { timeout: 30000 }).catch(() => {});
+await page.waitForFunction(() => document.getElementById('crt')?.classList.contains('on')
+  && document.getElementById('crt').dataset.mode === 'post', null, { timeout: 25000 }).catch(() => {});
+check('assembly ends with a self-test on the screen',
+      (await crt()).open && (await crt()).mode === 'post', JSON.stringify(await crt()));
+
+// 23. The plaques wait for the screen. The machine is assembled, the self-test
+// rises — the labels appear only once it has gone. They used to surface for a
+// second in the gap and hide again under the screen.
+const tagOp = () => page.evaluate(() => getComputedStyle(document.querySelector('.callout')).opacity);
+check('no plaques under the screen', (await crt()).open && (await tagOp()) === '0',
+      (await tagOp()) + ' ' + JSON.stringify(await crt()));
+await page.keyboard.press('Escape');
+await page.waitForTimeout(200);
+await page.keyboard.press('Escape');
+await page.waitForFunction(() => !document.getElementById('crt').classList.contains('on'),
+  null, { timeout: 20000 }).catch(() => {});
+await page.waitForTimeout(2200);
+check('the plaques come after the screen', (await tagOp()) === '1', await tagOp());
+
+// 24. A callout is one thing: the line to the board is the colour of the spine
+// at the edge of the plaque and of the icon on it.
+const lines = await page.evaluate(() => [...document.querySelectorAll('.callout')].map(c => {
+  const hex = c.querySelector('.co-edge').getAttribute('fill');
+  const rgb = getComputedStyle(c.querySelector('.co-line')).stroke;
+  const m = /^#(..)(..)(..)$/.exec(hex);
+  return { want: m ? `rgb(${parseInt(m[1], 16)}, ${parseInt(m[2], 16)}, ${parseInt(m[3], 16)})` : hex,
+           got: rgb };
+}));
+check('the leader line is the colour of its own plaque',
+      lines.length > 0 && lines.every(l => l.want === l.got), JSON.stringify(lines.slice(0, 3)));
+
+// 25. The network indicator on the panel: one lamp per built-in interface —
+// two gigabits and the management port. All three blink with traffic, and the
+// management one is amber and lives on standby power.
+const netDots = await page.evaluate(() => [...document.querySelectorAll('.led-act')]
+  .filter(el => !el.classList.contains('halo') && el.hasAttribute('cx')
+                && +el.getAttribute('cx') < 100 && +el.getAttribute('cy') > 95
+                && +el.getAttribute('cy') < 130)
+  .map(d => ({ fill: d.getAttribute('fill'), aux: d.classList.contains('aux'),
+               anim: getComputedStyle(d).animationName })));
+check('three lamps for three built-in interfaces', netDots.length === 3, JSON.stringify(netDots));
+check('all three blink', netDots.every(d => d.anim === 'act'), JSON.stringify(netDots));
+check('management is amber and on standby',
+      netDots.filter(d => d.fill === '#b58900' && d.aux).length === 1
+      && netDots.filter(d => d.fill === '#859900' && !d.aux).length === 2, JSON.stringify(netDots));
+
+// 26. Leaving service mode, the machine folds up in one movement rather than
+// in seven clicks at once: for the duration of the return the units travel on
+// the curve of the whole composition.
+await click('#svc-switch');
+await page.waitForTimeout(300);
+await click('.fan');
+await page.waitForTimeout(400);
+const clickDur = await page.evaluate(() =>
+  getComputedStyle(document.querySelector('.fan .pick-body')).transitionDuration);
+await click('#svc-switch');
+await page.waitForTimeout(150);
+const stowDur = await page.evaluate(() =>
+  getComputedStyle(document.querySelector('.fan .pick-body')).transitionDuration);
+check('the units are stowed on the slow curve', stowDur !== clickDur && stowDur === '1.5s',
+      clickDur + ' → ' + stowDur);
+await page.waitForTimeout(1800);
+check('the click comes back after the return',
+      (await page.evaluate(() =>
+        getComputedStyle(document.querySelector('.fan .pick-body')).transitionDuration)) === clickDur,
+      clickDur);
+
+// A running fan is a disc, a fan at reduced rpm is blades. Both states are
+// pure css, so what can break them silently is a selector — and that is
+// exactly what a screenshot would not tell apart from a colour tweak.
+const rotorState = () => page.evaluate(() => {
+  const f = document.querySelector('.fan .fan-blades');
+  const get = sel => getComputedStyle(f.querySelector(sel)).fillOpacity;
+  return { vane: +get('.rotor-vane'), blur: +get('.rotor-blur') };
+});
+const running = await rotorState();
+check('at rated rpm the impeller is a disc', running.blur > 0.9 && running.vane < 0.1,
+      JSON.stringify(running));
+await page.evaluate(() => document.querySelector('.rig').classList.add('nv-eff'));
+await page.waitForTimeout(700);
+const eased = await rotorState();
+check('the Efficiency profile brings the blades back', eased.vane > 0.3 && eased.blur < 0.1,
+      JSON.stringify(eased));
+await page.evaluate(() => document.querySelector('.rig').classList.remove('nv-eff'));
+// The compositor layer is what pays for smooth rotation: lose it and the turn
+// goes back to repainting the scene on every frame the monitor draws.
+const willChange = await page.evaluate(() =>
+  getComputedStyle(document.querySelector('.fan .fan-blades')).willChange);
+check('the impeller turns on a layer of its own', willChange === 'transform', willChange);
+
+// 27. The entrance waits for the schematic. The card is what opens first, and
+// .rig sits in display: none all that time — no animations are started in it at
+// all. The schedule used to be counted off from page load regardless, so a
+// visitor pressing the server button half a minute later got an assembled
+// machine: there was nothing left to watch. A fresh page of its own — this one
+// has already been visited, and the entrance plays once.
+const p2 = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
+await p2.addInitScript(() => document.addEventListener('DOMContentLoaded',
+  () => document.querySelectorAll('input').forEach(el => el.remove())));
+await p2.addInitScript(() => { try { localStorage.setItem('view', 'card'); } catch (e) {} });
+await p2.goto(url, { waitUntil: 'load' });
+const seatAnims = pg => pg.evaluate(() => document.querySelector('.chassis')
+  .getAnimations({ subtree: true })
+  .filter(a => String(a.animationName || '').startsWith('seat')).length);
+await p2.waitForTimeout(11000);      // дольше всего расписания сборки
+const waiting = await p2.evaluate(() => document.getElementById('rig').className);
+check('the machine waits disassembled while the card is up',
+      waiting.includes('assembly') && (await seatAnims(p2)) === 0, waiting);
+await p2.evaluate(() => document.getElementById('view-switch')
+  .dispatchEvent(new MouseEvent('click', { bubbles: true })));
+await p2.waitForTimeout(1000);
+check('the server button is what starts the assembly', (await seatAnims(p2)) > 0,
+      String(await seatAnims(p2)));
+
+// 28. The assembly ends by its own animations, not by the clock. A tab in the
+// background, a schematic scrolled off the edge, the machine's screen up — all
+// of them pause the animations (.dormant), while a timer keeps ticking. It took
+// the assembly class off early, and the units whose turn had not come simply
+// appeared in place, all at once and without a movement.
+await p2.evaluate(() => document.getElementById('rig').classList.add('dormant'));
+await p2.waitForTimeout(4000);
+const stillOn = await p2.evaluate(() => document.getElementById('rig').className);
+check('a pause does not end the assembly', stillOn.includes('assembly'), stillOn);
+await p2.evaluate(() => document.getElementById('rig').classList.remove('dormant'));
+await p2.waitForFunction(() => !document.getElementById('rig').classList.contains('assembly'),
+  null, { timeout: 20000 }).catch(() => {});
+check('after the pause the assembly plays out to the end',
+      !(await p2.evaluate(() => document.getElementById('rig').className)).includes('assembly')
+      && (await seatAnims(p2)) === 0, await p2.evaluate(() => document.getElementById('rig').className));
+await p2.close();
+
 const failed = results.filter(r => !r[1]);
 for (const [name, ok, got] of results) console.log(`  ${ok ? '·' : 'BROKEN'} ${name}${ok ? '' : ` → ${got}`}`);
 if (errors.length) console.log(`  ERRORS: ${errors.slice(0, 2).join(' | ')}`);

@@ -26,7 +26,6 @@ from board.geom import (
     SOCKET_H,
     SOCKET_W,
     X_CORE,
-    X_IO,
     X_PCB,
     X_PCB_END,
     X_REAR,
@@ -73,11 +72,16 @@ def render(cv):
                 ax, ay, bx, by = x0, y0 + off, x1, y1 + off
                 d = by - ay
                 mx = ax + (bx - ax) * 0.38
+                # Скос идёт туда же, куда и сам пучок. Пока все шины шли слева
+                # направо, знак был не нужен; на шине, идущей справа налево,
+                # скос без него уводит дорожку обратно вперёд, и она возвращается
+                # петлёй — а на плате дорожка так не ходит.
+                step = abs(d) if bx >= ax else -abs(d)
                 paths.append(f'M{ax:.0f} {ay:.0f} H{mx:.0f} '
-                             f'L{mx + abs(d):.0f} {by:.0f} H{bx:.0f}')
+                             f'L{mx + step:.0f} {by:.0f} H{bx:.0f}')
                 if k % 3 == 0:
                     knots.append((mx, ay))
-                    knots.append((mx + abs(d), by))
+                    knots.append((mx + step, by))
         return paths, knots
 
     chip = {name: (x, y, w, h) for name, _sub, x, y, w, h in CHIPS}
@@ -86,6 +90,13 @@ def render(cv):
         """Точка выхода шины из корпуса — от правого борта, к центру платы."""
         x, y, w, h = chip[name]
         return x + w, y + h / 2 + dy
+
+    def left_of(name, dy=0):
+        """То же от левого борта: у корпуса, стоящего у задней стенки, всё, с
+        чем он разговаривает, лежит левее, и шина обязана выходить с той
+        стороны, в которую идёт."""
+        x, y, _w, h = chip[name]
+        return x, y + h / 2 + dy
 
     LINKS = []
     # Межпроцессорная шина: самая широкая на плате. Ширина пучка — две трети
@@ -113,15 +124,18 @@ def render(cv):
     for cy in (Y_CPU0 + SOCKET_H - 30, Y_CPU1 + 30):
         LINKS.append((right_of('PCIe SW')[0], right_of('PCIe SW')[1], X_CORE - 26, cy,
                       9, 3.2, 'mid', False))
-    # Сетевой контроллер стоит у самой панели: к нему идёт шина от коммутатора,
-    # а от него — короткие линии к гнёздам.
-    LINKS.append((*right_of('PCIe SW', 24), X_REAR + 6, 400, 8, 3.2, 'mid', False))
-    LINKS.append((*right_of('X710'), X_IO - 40, 420, 7, 3.0, 'mid', False))
+    # Сетевой контроллер сидит у первого сокета: линии от коммутатора приходят
+    # к нему, а от него шина уходит через всю плату к гнёздам задней панели.
+    LINKS.append((*right_of('PCIe SW', 24), *left_of('X710'), 8, 3.2, 'mid', False))
+    # Шина от контроллера идёт не в пустоту у стенки, а в гигабитный PHY: между
+    # ними MII, и на плате это одна из немногих цепей, которую видно целиком.
+    LINKS.append((*right_of('X710'), *left_of('BCM54210'), 7, 3.0, 'mid', False))
     # BMC — служебная зона и оба сокета: он опрашивает всё, поэтому шин у него
-    # много, но узких.
-    LINKS.append((*right_of('AST2600'), X_SVC + 20, 190, 7, 3.0, 'mid', False))
+    # много, но узких. Стоит он у задней стенки, и всё, что он опрашивает,
+    # лежит левее — поэтому шины выходят из левого борта.
+    LINKS.append((*left_of('AST2600'), X_SVC + 20, 190, 7, 3.0, 'mid', False))
     for cy in (Y_CPU0 + 40, Y_CPU1 + 100):
-        LINKS.append((*right_of('AST2600', 10), X_CORE - 30, cy, 5, 2.8, 'fine', False))
+        LINKS.append((*left_of('AST2600', 10), X_CORE - 30, cy, 5, 2.8, 'fine', False))
     # Чипсет — сокет и служебная зона
     LINKS.append((*right_of('PCH C741'), X_CORE - 30, Y_CPU0 + 70, 11, 3.2, 'mid', False))
     LINKS.append((*right_of('PCH C741', 12), X_SVC + 20, 300, 6, 3.0, 'fine', False))

@@ -21,7 +21,7 @@ def render(cv):
         (X_PCB + 60, Y_BANK_C - 16, "DIMM_CPU0_A1 / CPU1_A0"),
         (X_PCB + 60, Y_BANK_R - 16, "DIMM_CPU1_A1"),
         (X_SVC + 8, 96, "PWR_CONN"),
-        (X_SVC + 8, 250, "SATA_0-2", True),
+        (X_SVC + 8, 250, "SLIMSAS_0-2", True),
         (X_SVC + 8, 360, "BAT1 · CR2032"),
         (X_SVC + 8, 468, "M.2_M-KEY"),
         (X_SVC + 8, 512, "TPM_HDR"),
@@ -29,7 +29,10 @@ def render(cv):
         (X_SVC + 8, 600, "NMI_SW"),
         (X_REAR + 14, 176, "RISER_1 · PCIE_G5", True),
         (X_REAR + 14, 686, "RISER_2 · PCIE_G5", True),
-        (X_IO - 96, 176, f"OCP_3.0 · {PORTS['sfp']}", True),
+        # Не OCP: отдельного отсека под сетевую мезонину в этой машине нет, и
+        # карта нарисована обычной PCIe-картой на кронштейне верхнего райзера.
+        # Обозначение врало ровно про то, по чему разъём и опознают.
+        (X_IO - 96, 176, f"RISER_1_CARD · {PORTS['sfp']}", True),
         (X_IO - 96, 330, f"LAN_1/2 · {PORTS['eth']}", True),
         (X_IO - 96, 464, "MLAN · IPMI 2.0", True),
     ]

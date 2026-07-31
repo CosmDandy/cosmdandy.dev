@@ -46,17 +46,16 @@ DIMM = {
     ),
 }
 
-# Caddies: two bays are taken by fillers — same as on a live machine, a fully
-# packed cage gives away a render. The fillers sit apart rather than side by
-# side: drives reach the fleet as the need arises, and the gaps in the cage are
-# left wherever they happen to fall.
-OPTANE_BAY = 2
-FILLER_BAYS = (4, BAY_N - 1)
+# Caddies: three bays carry fillers — same as on a live machine, a fully packed
+# cage gives away a render. The bottom pair is empty together, the way a cage
+# filled from the top runs out at the far end; the odd one in the middle is the
+# bay whose drive went out and has not come back, which is how a real cage ends
+# up looking a few months in. Every populated bay carries the same drive: the
+# owner standardised the fleet on Optane, so there is no per-bay split to track.
+FILLER_BAYS = (4, BAY_N - 2, BAY_N - 1)
 BAYS = tuple(
     {'bay': i, 'filler': True} if i in FILLER_BAYS else
     {'bay': i, 'model': 'INTEL OPTANE P5800X', 'kind': 'Optane', 'tb': 1.6, 'life': 100}
-    if i == OPTANE_BAY else
-    {'bay': i, 'model': 'U.2 NVMe Gen4', 'kind': 'NVMe U.2', 'tb': 3.84, 'life': 98}
     for i in range(BAY_N))
 
 FAN = {'n': FAN_N, 'model': '40×56 dual-rotor', 'rpm_nom': 12100, 'rpm_max': 18000}

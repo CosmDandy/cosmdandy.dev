@@ -5,6 +5,7 @@ chassis
 
 from board.geom import X_FRONT, H, W
 from board.lamps import glow_defs
+from board.rotor import blur_defs
 
 EAR_D, EAR_OUT = 58, 26   # ear depth and its reach past the side wall
 RAIL_X = (250, 452, 654, 856)   # where the rail studs sit on the side wall
@@ -65,6 +66,7 @@ def render(cv):
     # declared in the very first block: everyone who places a lamp refers to
     # them afterwards.
     cv.add(glow_defs())
+    cv.add(blur_defs())
     cv.add(f'<rect x="4" y="4" width="{W-8}" height="{H-8}" rx="14" fill="#141c20" stroke="rgba(147,161,161,0.30)"/>')
     cv.add(rails())
     cv.add(rack_ears())

@@ -95,7 +95,43 @@ def glow(cls, cx, cy, r, color, extra=''):
     """
     tint = GLOW_TINT.get(color)
     fill = f'url(#{glow_id(color)})' if tint else 'rgba(147,161,161,0.10)'
-    return f'<circle class="{cls} halo" cx="{cx}" cy="{cy}" r="{r*3.4:.1f}" fill="{fill}"{extra}/>' 
+    return f'<circle class="{cls} halo" cx="{cx}" cy="{cy}" r="{r*4.2:.1f}" fill="{fill}"{extra}/>'
+
+
+def square_led(x, y, cls, color, mark='', s=16):
+    """Квадратная лампа с трафаретом: светится подложка, знак остаётся тёмным.
+
+    Так они сделаны на панели: белый квадрат с чёрным трафаретом, а при
+    неисправности сам квадрат разгорается вокруг знака. Знак рисуется
+    последним, поэтому лежит поверх заливки и не перекрашивается вместе с ней.
+
+    Лежит здесь, а не во фронте: те же две лампы продублированы на задней
+    панели, а лампа, нарисованная в двух местах по-разному, перестаёт быть
+    одной и той же лампой.
+    """
+    return (f'<rect x="{x}" y="{y}" width="{s}" height="{s}" rx="1.5" '
+            f'fill="rgba(226,235,231,0.34)" stroke="rgba(147,161,161,0.34)" stroke-width="0.8"/>'
+            f'<rect class="{cls} sq-led" x="{x}" y="{y}" width="{s}" height="{s}" rx="1.5" fill="{color}"/>'
+            + mark)
+
+
+def fault_mark(x, y):
+    """Трафарет неисправности: восклицательный знак в квадратной лампе."""
+    cx = x + 8
+    return (f'<rect x="{cx-1.3}" y="{y+3.5}" width="2.6" height="6.6" rx="1" fill="#0a1013"/>'
+            f'<circle cx="{cx}" cy="{y+12.6}" r="1.5" fill="#0a1013"/>')
+
+
+def id_mark(x, y):
+    """Трафарет опознания: конус света вниз и лучи в стороны.
+
+    Лучи разведены шире конуса, иначе знак слипается в пятно.
+    """
+    cx = x + 8
+    return (f'<path d="M{cx-5} {y+13} L{cx-1.4} {y+6} H{cx+1.4} L{cx+5} {y+13} Z" fill="#0a1013"/>'
+            f'<line x1="{cx-7}" y1="{y+2.4}" x2="{cx-4.4}" y2="{y+4.6}" stroke="#0a1013" stroke-width="1.3"/>'
+            f'<line x1="{cx+7}" y1="{y+2.4}" x2="{cx+4.4}" y2="{y+4.6}" stroke="#0a1013" stroke-width="1.3"/>'
+            f'<line x1="{cx}" y1="{y+1.8}" x2="{cx}" y2="{y+4}" stroke="#0a1013" stroke-width="1.3"/>')
 
 
 def act_led(i, cx, cy, r, color, salt=0, aux=False, extra_cls=''):

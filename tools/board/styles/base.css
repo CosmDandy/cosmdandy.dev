@@ -156,17 +156,27 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
       0.90 52%, 0.945 63%, 0.975 76%, 0.993 88%, 1);
 
   /* The tempo of the indication. Kept in one place: lamps blink often so the
-     machine looks alive, the fan blades spin fast so they read as blurred.
-     What matters more is that all of them are stepped and not smooth:
-     measurements showed that a smooth spin costs a quarter more than a
-     stepped one, because it asks for a repaint on every frame of the
-     monitor. */
+     machine looks alive. Both of these are stepped rather than smooth —
+     measured, a smooth blink costs a quarter more, because it asks for a
+     repaint on every frame the monitor draws. The fans used to be in the same
+     boat and are not any more: they turn on a layer of their own, where the
+     compositor does the work. */
   --blink: 1.4s;
   --beat: 1s;
-  --spin: 1s;
-  /* The periods are chosen so that every switch falls on a grid of a
-     twentieth of a second: 1.4 s divides into 28 blink positions, one turn of
-     a fan into 20 positions, the pulse and the blink into round fractions. */
+  /* Half a second a turn for the wall — this is a machine at its rated rpm,
+     and at that speed nobody sees blades anyway, only the disc. The fan inside
+     a power supply keeps a second: it cools itself alone off standby power,
+     turns visibly slower, and is the one place on the board where an impeller
+     can still be read as an impeller while the machine runs.
+
+     The Efficiency profile stretches the wall to two seconds (screen.css), and
+     that is where the blades come back. No period has to divide into whole
+     seconds any more — that rule came from the repaint grid, and the fans left
+     it for the compositor. */
+  --spin: 0.5s;
+  --spin-aux: 1s;
+  /* The blink periods still fall on a grid of a twentieth of a second: 1.4 s
+     divides into 28 positions, the pulse and the blink into round fractions. */
 
   /* Seating. Every unit has a character of its own, and that is not
      decoration: a DIMM is pressed home until the latches click, a fan goes
@@ -366,17 +376,27 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   /* In service mode the callouts go away entirely: there the machine is taken
      apart, not read, and the labels stopped fighting the pulled units that
      travel straight through them.
-     It has to be `visibility`, not `opacity` and not `pointer-events`. A
-     transparent <a> is still hit-tested, so the labels kept opening links no
-     one could see; and `pointer-events: none` on the group is undone by the
-     `auto` on a.callout above — pointer-events is inherited, but a descendant
-     may always opt back in. `visibility` inherits the same way, so nothing
-     inside .callouts may declare `visible`; on that condition it does both
-     jobs at once: nothing to hit, and the anchors leave the tab order, so
-     Enter cannot reach them either. */
-  .rig.service .callouts { visibility: hidden; }
-  .co-dot { fill: var(--cyan); stroke: rgba(9,32,38,0.85); stroke-width: 1.8; }
-  .co-line { stroke: rgba(42,161,152,0.8); stroke-width: 2.2; }
+
+     Уходят они плавно и все разом: лесенка на уходе читается задержкой, а не
+     списком, — а возвращаются по-прежнему по одной, это правило .callout ниже.
+     Но ссылкой плашка перестаёт быть сразу, в тот же кадр, и вот это трогать
+     нельзя. Прозрачная <a> по-прежнему ловит и курсор, и Tab: opacity и
+     pointer-events тут уже пробовали, и подписи открывали адреса, которых не
+     видно.
+     Поэтому visibility остаётся — но переезжает на саму <a>: она мгновенно
+     уходит из-под курсора и из порядка обхода, а дети объявляют себе visible и
+     потому продолжают рисоваться, пока идёт затухание. pointer-events на <a>
+     нужен там же и отдельно: дети наследуют его от неё, и перебить её может
+     только правило со специфичностью выше, чем `a.callout`. */
+  .rig.service a.callout { visibility: hidden; pointer-events: none; }
+  .rig.service a.callout > * { visibility: visible; }
+  /* Линия и точка — цвета своего сервиса, того же, что полоска у кромки бирки
+     и значок на ней. Цвет приходит переменной от генератора: он один на всю
+     выноску, и менять его в двух местах значит однажды их развести. Подсветка
+     ниже перебивает его нарочно — под курсором все выноски одинаково
+     бирюзовые, чтобы было видно, какая из них поднята. */
+  .co-dot { fill: var(--accent, var(--cyan)); stroke: rgba(9,32,38,0.85); stroke-width: 1.8; }
+  .co-line { stroke: var(--accent, rgba(42,161,152,0.8)); stroke-width: 2.2; }
   /* The backing is not decoration: without it the light label merges with the
      heatsink nameplates and the power supply stickers, of which the board has
      plenty. */
@@ -565,6 +585,17 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
                 calc(0.35s + var(--tag-order, 0) * 0.14s);
   }
   .rig.assembly .callout { opacity: 0; transition: opacity 0.2s linear; }
+  /* И ждут экрана. Собранная машина включается, поднимается самотест — подписи
+     проступают только когда экран уехал. Иначе порядок был бессмысленный:
+     плашки всплывали на секунду и тут же прятались под экраном, а после него
+     появлялись во второй раз. */
+  .rig.tags-off .callout { opacity: 0; transition: opacity 0.25s linear; }
+  /* Уход в сервисный режим — одно общее движение: все подписи гаснут разом и
+     за полсекунды. Возвращаются они той же лесенкой, что и после сборки:
+     класс service снимается, и работает переход выше, со своей задержкой на
+     каждую. Разница нарочная — уходя, они освобождают место, и растягивать
+     это на полторы секунды незачем; возвращаясь, читаются списком. */
+  .rig.service .callout { opacity: 0; transition: opacity 0.45s ease; }
   /* Пока идёт сборка, разбирать нечего: клики по полусобранной машине
      оставляли бы узлы в состоянии, из которого их никто не вернёт. */
   .rig.assembly .pick, .rig.assembly .unit { pointer-events: none; }
@@ -589,6 +620,20 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   /* @block: cpu */
 
   /* @block: front_panel */
+
+  /* Выход из сервиса: машина складывается одним движением, а не семью
+     щелчками разом. Щелчок — это как узел ставят руками: треть времени он
+     стоит, потом срывается. Когда так возвращаются все узлы сразу, читается
+     не сборка, а рывок, и рядом с ним плавно едущая разметка выглядит
+     отдельным механизмом.
+     Поэтому на время возврата узлы идут по кривой всей композиции — по той
+     же, по которой съезжается колонка с консолью. Правило стоит после всех
+     блоков нарочно: у каждого свой переход с той же специфичностью, и спор
+     решает порядок. */
+  .rig.stowing .pick-body,
+  .rig.stowing .bay-handle,
+  .rig.stowing .latch,
+  .rig.stowing .heatsink { transition: transform var(--svc); }
 
   .hint {
     margin-top: 14px; text-align: center;

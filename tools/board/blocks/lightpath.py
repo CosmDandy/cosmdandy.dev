@@ -26,7 +26,10 @@ def render(cv):
                     (x, y + t, t, h / 2 - t * 1.4), (x + w - t, y + t, t, h / 2 - t * 1.4),
                     (x, y + h / 2 + t / 2, t, h / 2 - t * 1.4),
                     (x + w - t, y + h / 2 + t / 2, t, h / 2 - t * 1.4)]
-            return ''.join(f'<rect x="{bx:.1f}" y="{by:.1f}" width="{bw:.1f}" height="{bh:.1f}" fill="{c}"/>'
+            # Класс на сегментах — чтобы гасли вместе со всей индикацией:
+            # на обесточенной машине светиться нечему и здесь.
+            return ''.join(f'<rect class="seg" x="{bx:.1f}" y="{by:.1f}" '
+                           f'width="{bw:.1f}" height="{bh:.1f}" fill="{c}"/>'
                            for bx, by, bw, bh in bars)
 
         ROWS = [

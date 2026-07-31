@@ -102,7 +102,11 @@ def callout(tx, ty, ax, ay, text, anchor="start", href=None, unit=None,
     attr = f' data-for="{unit}"' if unit else ''
     # Порядок нужен показу: бирки проступают одна за другой, и глаз проходит
     # по ним как по списку, а не встречает семь плашек разом.
-    style = f' style="--tag-order:{order}"'
+    # Цвет сервиса уходит переменной: им красится не только полоска у кромки
+    # бирки и значок, но и линия с точкой на узле. Выноска — одна вещь, а
+    # линия, идущая к плате бирюзовой, пока сама бирка помечена терракотой,
+    # разваливала её на две.
+    style = f' style="--tag-order:{order};--accent:{accent}"'
     if href:
         return (f'<a class="callout" href="{href}" target="_blank" rel="noopener"'
                 f'{attr}{style}>{inner}</a>')
