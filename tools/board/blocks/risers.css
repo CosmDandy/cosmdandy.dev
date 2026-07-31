@@ -1,0 +1,16 @@
+  /* The riser and the power supply come out backwards, through the rear wall. */
+  .rig.service .riser.pulled .pick-body { transform: translateX(46px); }
+
+  /* Assembly: the riser is lowered into its slot from above, whole — together
+     with the card and the bracket. */
+  .rig.assembly .riser {
+    animation: seatRiser var(--press-hard) var(--seat, 0s) backwards;
+  }
+  /* The riser seats along its whole connector at once, so it goes in stiff and
+     needs a final push — that is exactly what the tab on it is held by. */
+  @keyframes seatRiser {
+    from { opacity: 0; transform: translateY(-56px); }
+  }
+
+  /* The riser sits tight in its slot: it breaks free whole, card and all. */
+  .riser .pick-body { transition: transform var(--click); }

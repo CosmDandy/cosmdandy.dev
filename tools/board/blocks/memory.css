@@ -1,0 +1,59 @@
+  /* On a live board the latches are milky-white translucent plastic, and there
+     are two of them: one at each end. The error lamp sits right inside the
+     latch — "DIMM error LEDs are located in the handles", as the diagram of the
+     live machine puts it — so on a fault it is the latch that turns amber. */
+  /* The edge of the latch is blue: in the replacement colour code that means
+     "power down first". A DIMM is not swapped hot, and the colour says so
+     before the visitor ever gets to the label on the cover. */
+  .latch {
+    fill: rgba(226, 235, 231, 0.42);
+    stroke: rgba(58, 143, 196, 0.85);
+    stroke-width: 1.1;
+    transform-box: fill-box;
+    transition: fill 0.15s steps(1, end), transform var(--spring);
+  }
+  /* The hinge sits at the outboard end of the socket, not next to the module:
+     a latch tips away from the DIMM it holds. Hence the pivot is the far
+     corner of each ear — left one on its left edge, right one on its right. */
+  .latch-l { transform-origin: 0% 100%; }
+  .latch-r { transform-origin: 100% 100%; }
+  .dimm.pulled .latch { fill: var(--amber); }
+
+  /* The DIMM cannot come out while the latches are closed — so they throw open
+     first, and only then does the module travel up. The socket meanwhile stays
+     on the board: it is drawn separately and goes nowhere. */
+  /* Open means outward: the board runs front-to-right, so the front ear swings
+     toward -X and the rear one toward +X — both away from the socket, never
+     across the module. A positive angle is clockwise in SVG. */
+  .rig.service .dimm.pulled .latch-l { transform: rotate(-38deg); }
+  .rig.service .dimm.pulled .latch-r { transform: rotate(38deg); }
+  .rig.service .dimm.pulled .pick-body {
+    transform: translateY(-13px);
+    transition-delay: 0.12s;
+  }
+
+  /* Assembly: the DIMM enters its socket with a short downward move — its
+     travel is small, and the swing has to be as small. The order is set by
+     --seat: banks are filled by channel rather than one after another, and the
+     halves of the middle bank go to different processors. */
+  .rig.assembly .dimm .pick-body {
+    animation: seatDimm var(--press-hard) var(--seat, 0s) backwards;
+  }
+  /* The latches are part of the board, not of the DIMM: they are riveted to
+     the socket and always stay put. While there is no module they are open:
+     that is exactly how an empty slot on a live machine looks, with its ears
+     splayed aside. They close at the moment the module is pressed home — hence
+     the same --seat delay. */
+  .rig.assembly .latch-l { animation: latchL var(--press-hard) var(--seat, 0s) backwards; }
+  .rig.assembly .latch-r { animation: latchR var(--press-hard) var(--seat, 0s) backwards; }
+  @keyframes latchL { from { transform: rotate(-38deg); } }
+  @keyframes latchR { from { transform: rotate(38deg); } }
+  /* A DIMM is not lowered but pressed in: it goes against resistance and
+     seats when the latches at its ends click. */
+  @keyframes seatDimm {
+    from { opacity: 0; transform: translateY(-22px); }
+  }
+
+  /* The DIMM is held by the latches at its ends: until they throw open the
+     module stands dead solid, and after that it comes out with a jerk. */
+  .dimm .pick-body { transition: transform var(--click); }

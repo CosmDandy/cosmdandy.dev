@@ -1,0 +1,260 @@
+/* Screen of the machine: POST → BIOS Setup → top.
+ *
+ * This is the service cover turned into a display. The panel sits in the
+ * board's own box, leans into the same plane as the chassis and arrives from
+ * above with the motion of a cover being put back on. It used to be a
+ * full-page layer, and on a personal card that was wrong: it covered the
+ * name, the view switch and the machine itself, while all it has to show is
+ * what a monitor plugged into this server would show.
+ *
+ * Every token here is local on purpose. Inheriting .rig colours would drag
+ * the blue of BIOS Setup along with the page theme, and that blue has to stay
+ * blue the way it does on a live machine.
+ *
+ * Sizes inside are in container units (cqw/cqh), not viewport units: the
+ * panel is now the size of the machine rather than the size of the window,
+ * and vh/vw would set type three times larger than the box holding it.
+ */
+.crt {
+  --crt-ink:   #93a1a1;
+  --crt-dim:   #586e75;
+  --crt-head:  #eee8d5;
+  --crt-green: #859900;
+  --crt-cyan:  #2aa198;
+  --crt-amber: #b58900;
+  --crt-red:   #dc322f;
+  --crt-bg:    #041014;
+
+  /* AMI Aptio — a palette of its own, in no way tied to the page theme. */
+  --bios-bg:      #00027a;
+  --bios-bg2:     #0000aa;
+  --bios-border:  #a8a8a8;
+  --bios-text:    #d8d8d8;
+  --bios-sel-bg:  #d8d800;
+  --bios-sel-fg:  #000000;
+  --bios-help-bg: #0000c0;
+
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  /* The panes measure themselves against this box, not against the window. */
+  container-type: size;
+  box-sizing: border-box;
+  padding: 0.7cqw;
+  border-radius: 6px;
+  background: #161f24;
+  border: 1px solid rgba(147, 161, 161, 0.34);
+  box-shadow: 0 20px 46px rgba(0, 0, 0, 0.45);
+  color: var(--crt-ink);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* The plane of the machine: the same tilt .chassis settles into. Hidden by
+     visibility rather than display, so the slide keeps its transition — and
+     so container queries still have a box to measure. */
+  /* Origin stays at the default centre so the settled panel lands in exactly
+     the plane .chassis sits in; pivoting at the top edge projected it a few
+     dozen points lower and wider than the machine underneath. */
+  transform: rotateX(13deg) translate3d(0, -108%, 0);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    transform 1.05s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.5s ease,
+    visibility 0s linear 1.05s;
+}
+
+.crt.on {
+  transform: rotateX(13deg);
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition:
+    transform 1.05s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.4s ease,
+    visibility 0s;
+}
+
+/* The glass itself: the cover carries a bezel, the picture lives inside it. */
+.crt-glass {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--crt-bg);
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crt, .crt.on { transition: opacity 0.2s ease, visibility 0s; }
+  .crt { transform: rotateX(13deg); }
+}
+
+/* ── POST ─────────────────────────────────────────────────────────────── */
+/* Mode panels are switched with the hidden attribute, and each has a display
+   of its own — and the browser rule [hidden] { display: none }, with zero
+   specificity, loses to it. Without this line the self-test, setup and top are
+   visible at once, three windows on top of each other. */
+.crt [hidden] { display: none !important; }
+
+.crt-post {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  padding: 5cqh 6cqw;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  font-size: clamp(9px, 1.9cqw, 17px);
+  line-height: 1.7;
+}
+.crt-post-log > div { white-space: pre; }
+.crt-post-log .ok    { color: var(--crt-green); }
+.crt-post-log .warn  { color: var(--crt-amber); }
+.crt-post-log .err   { color: var(--crt-red); }
+.crt-post-log .muted { color: var(--crt-dim); }
+.crt-post-hint {
+  margin-top: 3cqh;
+  color: var(--crt-dim);
+  font-size: 0.7em;
+}
+
+/* ── BIOS Setup ───────────────────────────────────────────────────────── */
+.crt-setup {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--bios-bg);
+  color: var(--bios-text);
+  font-size: clamp(8px, 1.5cqw, 15px);
+}
+.crt-setup-tabs {
+  display: flex;
+  gap: 2px;
+  background: var(--bios-border);
+  padding: 4px 4px 0;
+}
+.crt-tab {
+  padding: 4px 18px;
+  background: var(--bios-bg2);
+  color: var(--bios-text);
+  border: 1px solid var(--bios-border);
+  border-bottom: none;
+}
+.crt-tab.active {
+  background: var(--bios-bg);
+  color: var(--bios-sel-bg);
+  font-weight: 600;
+}
+.crt-setup-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  border: 4px solid var(--bios-border);
+  border-top: none;
+}
+.crt-setup-rows {
+  flex: 3;
+  min-width: 0;
+  padding: 1.6cqh 2cqw;
+  overflow-y: auto;
+}
+.crt-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 3px 6px;
+}
+.crt-row.sel {
+  background: var(--bios-sel-bg);
+  color: var(--bios-sel-fg);
+}
+.crt-row.sel .crt-row-value { color: var(--bios-sel-fg); }
+.crt-row.editing { outline: 1px dashed var(--bios-sel-bg); outline-offset: -1px; }
+.crt-setup-help {
+  flex: 2;
+  min-width: 0;
+  padding: 1.6cqh 1.8cqw;
+  background: var(--bios-help-bg);
+  border-left: 2px solid var(--bios-border);
+  font-size: 0.9em;
+}
+.crt-setup-note {
+  padding: 4px 18px;
+  background: var(--bios-border);
+  color: #000;
+  font-size: 0.8em;
+}
+.crt-setup-keys {
+  padding: 6px 18px;
+  background: var(--bios-border);
+  color: #000;
+  font-size: 0.8em;
+  letter-spacing: 0.02em;
+}
+
+/* ── top ──────────────────────────────────────────────────────────────── */
+.crt-top {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  padding: 4cqh 4cqw;
+  display: flex;
+  flex-direction: column;
+  gap: 3cqh;
+}
+.crt-top-head {
+  color: var(--crt-head);
+  font-size: clamp(9px, 1.6cqw, 16px);
+  white-space: pre-wrap;
+}
+.crt-top-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16cqw, 1fr));
+  gap: 2cqw;
+  align-content: start;
+}
+.crt-top-card {
+  border: 1px solid var(--crt-dim);
+  border-radius: 6px;
+  padding: 1.6cqh 1.8cqw;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.crt-top-label {
+  color: var(--crt-dim);
+  font-size: 0.75em;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.crt-top-value {
+  color: var(--crt-cyan);
+  font-size: clamp(16px, 3.6cqw, 38px);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.crt-top-value.warn { color: var(--crt-amber); }
+.crt-top-spark { width: 100%; height: 6cqh; display: block; }
+.crt-top-hint {
+  color: var(--crt-dim);
+  font-size: 0.75em;
+  text-align: center;
+}
+
+/* ── Firmware's effect on the schematic ───────────────────────────────── */
+/* The period has to stay a multiple of a second — otherwise the impeller's
+   twenty steps() positions drift off the common beat of 0.05 s. */
+.rig.nv-eff { --spin: 2s; }
+
+/* has-fault is already taken by other logic (lamps of missing units), so
+   Secure Boot: Disabled gets a flag of its own — sb-off — and repeats the same
+   indication trick on fault-sys as has-fault, without touching it. */
+.rig.sb-off .fault-sys {
+  fill-opacity: 1;
+  animation: faultblink var(--beat) steps(1, end) infinite;
+}

@@ -1,0 +1,91 @@
+  /* The processor stays in the socket — what comes off is the heatsink, as if
+     by hand. The die is uncovered under it: the same gradient runs over it as
+     over the "download" button on the CV. While the heatsink is in place the
+     sheen is off — it would spin an animation under an opaque cover for
+     nothing. */
+  /* The die and the contact field do not switch off with a jerk: first they
+     show through, and they are hidden only after they have faded out. Hence
+     the zero-duration visibility with a delay — it waits out the fade. */
+  .die, .lga {
+    visibility: hidden; opacity: 0;
+    transition: opacity var(--fade), transform var(--glide), visibility 0s linear 0.45s;
+  }
+  .rig.service .cpu-slot.pulled .die,
+  .rig.service .cpu-slot.opened .lga {
+    visibility: visible; opacity: 1;
+    transition: opacity var(--fade), transform var(--glide), visibility 0s;
+  }
+  /* The sheen goes diagonally, from the bottom-left corner to the top-right —
+     straight across it read as a band of glare, not as play on polished
+     silicon. */
+  /* The sheen over the silicon is the most expensive animation on the
+     schematic: a big gradient band under a clip-path, and it used to repaint on
+     every frame of the monitor. Eighty steps over eight seconds give the same
+     ten repaints a second as the lamps, and fall into the common beat. */
+  .die-shine { animation: dieShine 8s steps(80, end) infinite; }
+  @keyframes dieShine {
+    0%, 100% { transform: translate(0, 0); }
+    50%      { transform: translate(150px, -82px); }
+  }
+
+  /* Taking the processor apart goes in two moves, as in life: first the
+     heatsink comes off, and only then, from under it, the processor itself.
+     The heatsink travels further than it used to: it is the size of the
+     socket, and at the old 104 pixels it covered the place where the processor
+     has to lie. */
+  .heatsink, .cpu-lid { transition: transform var(--glide); }
+  .rig.service .cpu-slot.pulled .pick-body { transform: none; }
+  .rig.service .cpu-slot.pulled .heatsink { transform: translate(0, -164px) scale(0.92); }
+  .rig.service .cpu-slot.opened .cpu-lid { transform: translate(0, 116px) scale(0.96); }
+
+  /* The contact field: while the processor is in place it is not visible — and
+     rightly so, there is nothing to show under it. It shows through together
+     with the die, see above. */
+  /* The die lives on the processor and travels away with it: a removed
+     processor glowing on an empty socket is no longer a teardown but a
+     magic trick. */
+  .rig.service .cpu-slot.opened .die { transform: translate(0, 116px) scale(0.96); }
+
+  /* Assembly: the processor with its heatsink is lowered into the socket from
+     above and turned slightly into place — that is how it is fitted, aiming by
+     the keys. */
+  /* Assembling the processor goes in two moves, as in life: first the
+     processor itself settles into the socket and the sheen has time to run
+     across the exposed die — and only then is the heatsink lowered on top.
+     Seating them at once hid the die: it was covered at exactly the moment it
+     appeared. */
+  .rig.assembly .cpu-slot .cpu-lid {
+    animation: seatCpu 0.7s var(--seat, 0s) cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  .rig.assembly .cpu-slot .heatsink {
+    animation: seatCpu 0.7s calc(var(--seat, 0s) + 0.85s) cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  @keyframes seatCpu {
+    from { opacity: 0; transform: translateY(-52px) scale(0.94); }
+  }
+  /* The die travels along with its own processor instead of showing through in
+     place: it lies on it. The first forty percent of the time is the same
+     movement as the processor lid's, after that it simply stays exposed until
+     the heatsink comes down on top. We hide it at the end not for looks — under
+     the heatsink it cannot be seen anyway — but so the sheen does not keep
+     spinning under an opaque cover. */
+  .rig.assembly .cpu-slot .die {
+    animation: dieSeat 1.75s var(--seat, 0s) cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  @keyframes dieSeat {
+    from { visibility: visible; opacity: 0; transform: translateY(-52px) scale(0.94); }
+    14%  { visibility: visible; opacity: 0.75; }
+    40%  { visibility: visible; opacity: 1; transform: none; }
+    72%  { visibility: visible; opacity: 1; transform: none; }
+    to   { visibility: hidden; opacity: 0; transform: none; }
+  }
+  /* An empty socket is a contact field: while there is no processor it is
+     exposed, and it goes out exactly when it gets covered. both holds both
+     ends: visible before the start, not after. */
+  .rig.assembly .cpu-slot .lga {
+    animation: lgaCover 0.45s var(--seat, 0s) linear both;
+  }
+  @keyframes lgaCover {
+    from { visibility: visible; opacity: 1; }
+    to   { visibility: hidden; opacity: 0; }
+  }

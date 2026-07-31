@@ -1,12 +1,13 @@
-# Доставка визитки в Cloudflare Workers.
+# Delivering the personal card to Cloudflare Workers.
 #
-# Раньше сайт публиковался GitHub Pages прямо из ветки, без всякого пайплайна:
-# статика лежит в корне репозитория. Теперь тот же набор файлов собирается в
-# _site/ и заливается в воркер — Pages на этом домене больше не участвует.
+# The site used to be published by GitHub Pages straight from the branch, with
+# no pipeline at all: the static files live in the repository root. Now the
+# same set of files is assembled into _site/ and uploaded to the worker —
+# Pages is no longer involved on this domain.
 #
-# Тот же принцип, что в security.yml: actions запиннены по полному commit SHA,
-# а не по тегу — тег владелец экшена может передвинуть на другой код. Версия в
-# комментарии для читаемости, пины обновляет Dependabot.
+# Same principle as in security.yml: actions are pinned by full commit SHA and
+# not by tag — a tag can be moved by the action's owner onto different code.
+# The version in the comment is for readability, Dependabot updates the pins.
 name: deploy
 
 on:
@@ -15,40 +16,55 @@ on:
   pull_request:
   workflow_dispatch:
 
-# Пусто на уровне workflow — каждая job запрашивает права явно и минимально.
+# Empty at the workflow level — every job requests its permissions explicitly
+# and minimally.
 permissions: {}
 
 concurrency:
-  # Не отменяем на лету: прерванный деплой оставит воркер в промежуточном
-  # состоянии. Очередь подождёт, собирать тут нечего.
+  # We do not cancel in flight: an interrupted deploy would leave the worker in
+  # an intermediate state. The queue can wait, there is next to nothing to
+  # build here.
   group: deploy-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   build:
-    name: сборка
+    name: build
     runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # checkout по умолчанию оставляет токен в .git/config, откуда его
-          # прочитает любой следующий шаг. Git после клона тут не нужен.
+          # By default checkout leaves the token in .git/config, where any
+          # following step can read it.
           persist-credentials: false
 
-      # Копируем явным списком, а не «всё, кроме служебного»: список короткий и
-      # не преподносит сюрпризов, когда в корне появится новый файл.
+      # We copy an explicit list rather than "everything except the internals":
+      # the list is short and springs no surprises when a new file shows up in
+      # the repository root.
       #
-      # CNAME намеренно не копируется — он нужен был GitHub Pages, а на
-      # Cloudflare домен привязан к воркеру в дашборде.
-      - name: Собрать _site
+      # CNAME is deliberately not copied — it was needed by GitHub Pages, while
+      # on Cloudflare the domain is bound to the worker in the dashboard.
+      #
+      # history/ is missing here on purpose. The revision strip is a
+      # development tool: it is used to compare how the board looked before,
+      # and a visitor of the card has no need for it. It used to be uploaded by
+      # a separate step, and thirty megabytes of SVG went out into the
+      # deployment — one copy of the board per commit. The strip needs no
+      # switch: the script looks for history/index.json, does not find it and
+      # quietly stays hidden. Locally the files are made by tools/history.py,
+      # and there it works just as it did.
+      #
+      # Hence also checkout without fetch-depth: the full history was only ever
+      # needed by the revision upload.
+      - name: Build _site
         run: |
           mkdir -p _site
-          cp index.html 404.html style.css _site/
+          cp index.html 404.html style.css server.css server.js _site/
           cp robots.txt sitemap.xml site.webmanifest _headers _site/
           cp -r assets fonts _site/
-          echo "Содержимое _site:"
+          echo "Contents of _site:"
           find _site -type f | sort
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -58,7 +74,7 @@ jobs:
           retention-days: 7
 
   deploy:
-    name: деплой
+    name: deploy
     needs: build
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
@@ -70,7 +86,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # Нужен только wrangler.jsonc, история не требуется.
+          # Only wrangler.jsonc is needed, no history required.
           persist-credentials: false
 
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -78,10 +94,11 @@ jobs:
           name: site
           path: _site/
 
-      # Секреты нельзя проверить в if: — контекст secrets там недоступен.
-      # Без этого шага отсутствие токена выглядит как невнятная ошибка внутри
-      # wrangler, и непонятно, сломался деплой или не настроен доступ.
-      - name: Проверка доступа к Cloudflare
+      # Secrets cannot be checked in if: — the secrets context is not available
+      # there. Without this step a missing token looks like an inscrutable
+      # error inside wrangler, and it is unclear whether the deploy broke or
+      # the access was never set up.
+      - name: Check Cloudflare access
         env:
           TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -90,7 +107,7 @@ jobs:
           [ -z "$TOKEN" ] && missing="CLOUDFLARE_API_TOKEN"
           [ -z "$ACCOUNT" ] && missing="${missing:+$missing, }CLOUDFLARE_ACCOUNT_ID"
           if [ -n "$missing" ]; then
-            echo "::error::Не задано: $missing. Settings → Secrets and variables → Actions."
+            echo "::error::Not set: $missing. Settings → Secrets and variables → Actions."
             exit 1
           fi
 
@@ -101,12 +118,12 @@ jobs:
           command: deploy
 
   preview:
-    name: превью
+    name: preview
     needs: build
-    # Только для PR из этого же репозитория: ветке из форка секреты не
-    # достаются, и это правильно. Dependabot исключён отдельно — его PR
-    # выглядят внутренними, но секреты получают из своего хранилища, а не из
-    # Actions, так что превью для него всё равно не собралось бы.
+    # Only for PRs from this same repository: a branch from a fork does not get
+    # the secrets, and that is right. Dependabot is excluded separately — its
+    # PRs look internal, but it receives secrets from its own store and not
+    # from Actions, so a preview would not have built for it anyway.
     if: >-
       github.event_name == 'pull_request' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
@@ -114,6 +131,10 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: read
+      # The preview address is posted as a comment on the PR itself. Otherwise
+      # one has to dig it out of the run summary, while the point of looking at
+      # it is to follow a link from the discussion.
+      pull-requests: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -124,8 +145,9 @@ jobs:
           name: site
           path: _site/
 
-      # versions upload, а не deploy: заливается новая версия воркера со своим
-      # preview-адресом, а прод продолжает отдавать текущую.
+      # versions upload and not deploy: a new version of the worker is uploaded
+      # with its own preview address, while production keeps serving the
+      # current one.
       - id: upload
         uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4.0.0
         with:
@@ -133,15 +155,33 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: versions upload
 
-      - name: Ссылка на превью
+      - name: Preview link
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
           OUTPUT: ${{ steps.upload.outputs.command-output }}
         run: |
+          # grep with no match returns one, and the assignment would bring the
+          # step down: bash is run here with -e.
+          url=$(printf '%s' "$OUTPUT" \
+            | grep -oE 'https://[A-Za-z0-9.-]+\.workers\.dev' | head -1 || true)
+          if [ -z "$url" ]; then
+            url="address not found in wrangler output"
+          fi
           {
-            echo "### Превью этой версии"
+            echo "### Preview of this version"
             echo
-            echo '```'
-            printf '%s' "$OUTPUT" | grep -i "preview" \
-              || echo "адрес не найден в выводе wrangler"
-            echo '```'
+            echo "$url"
           } >> "$GITHUB_STEP_SUMMARY"
+          # Through printf and not a multiline quoted string: inside a YAML
+          # block the second line would keep an indent of ten spaces, and for
+          # markdown that already means a code block.
+          body=$(printf \
+            'Preview: %s\n\nBuilt from `%s`. Production serves the current version.' \
+            "$url" "$SHA")
+          # We edit our own previous comment instead of breeding a new one on
+          # every push: the discussion should keep a single address — the
+          # current one.
+          gh pr comment "$PR" --body "$body" --edit-last \
+            || gh pr comment "$PR" --body "$body"

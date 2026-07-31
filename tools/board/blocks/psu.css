@@ -1,0 +1,57 @@
+  .rig.service .psu.pulled .pick-body { transform: translateX(74px); }
+
+  /* A pulled supply is dead: mains no longer reaches it. Both lamps go out —
+     AC included, the one that burns even on a switched-off machine — and the
+     fan stops. The bay lamp, though, sits on the board and stays where it is:
+     what lights up is not the supply but the socket it was pulled out of. */
+  .psu.pulled .led, .psu.pulled .led.aux,
+  .psu.pulled .fault-sys, .psu.pulled .fault-sys.halo { fill-opacity: 0.1; animation: none; }
+  .psu.pulled .fan-blades { animation-play-state: paused; }
+
+  /* Assembly: the power supply goes in from the back, out of its own bay. It
+     travels further than the rest — its path to the connector is long, and the
+     hand can tell. */
+  .rig.assembly .psu {
+    animation: seatPsu var(--press-snap) var(--seat, 0s) backwards;
+  }
+  /* The supply flies into the bay in one movement — the guides are long and
+     straight, and only the connector at the end slows it down. */
+  @keyframes seatPsu {
+    from { opacity: 0; transform: translateX(96px); }
+  }
+
+  /* The power supply is held by the orange latch — that very click. */
+  .psu .pick-body { transition: transform var(--click); }
+
+  /* ── Оба блока вынуты: машина обесточена ───────────────────────────────
+     Резервирование кончилось — кончилось и питание. Гаснет всё разом,
+     включая дежурку: BMC, порт управления и лампы AC висят на том же вводе.
+     Это единственное состояние схемы, где не мигает вообще ничего.
+
+     Гаснет свет, а не лампа: fill-opacity обнуляется только у цветного ядра
+     и ореола, а гнездо нарисовано без класса и остаётся на месте. Обесточенная
+     машина показывает, где стоит индикация, — как и живая. */
+  .rig.blackout .led, .rig.blackout .led-link, .rig.blackout .led-hb,
+  .rig.blackout .led-id, .rig.blackout .fault, .rig.blackout .fault-sys,
+  .rig.blackout .lp, .rig.blackout .seg {
+    fill-opacity: 0 !important;
+    animation: none !important;
+  }
+  .rig.blackout .fan-blades { animation-play-state: paused !important; }
+  /* Кнопка питания — тоже лампа, и гаснет по той же причине. !important
+     здесь ровно затем же, зачем ниже у консоли: правила кнопки живут в
+     блоке фронта, а он встаёт в общий css после этого. */
+  .rig.blackout .pwr-led { stroke-opacity: 0 !important; animation: none !important; }
+
+  /* Консоль — это SOL к BMC, а BMC питается от той же дежурки: машина
+     обесточена, значит и консоль мертва. Серая и не отвечает — ввод при этом
+     ещё и запрещён в скрипте, потому что на pointer-events клавиатура не
+     смотрит.
+     opacity через !important: кусок блока встаёт в общий css выше правил
+     сервисного режима, а там у .rig-side своя прозрачность с той же
+     специфичностью — спор решил бы порядок, и консоль осталась бы яркой. */
+  .rig.blackout .rig-side {
+    filter: grayscale(0.85);
+    opacity: 0.42 !important;
+    pointer-events: none;
+  }

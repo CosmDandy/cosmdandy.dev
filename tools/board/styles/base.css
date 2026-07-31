@@ -1,0 +1,953 @@
+/* Server schematic — the interactive half of the personal card.
+ *
+ * The prototype and the board generator live in server-proto: 32 memory slots,
+ * eight fans and the silkscreen are put together by a script, nobody writes
+ * that by hand.
+ *
+ * Two levels. Normal: the callout labels are visible at once, the units work
+ * as links. Service (the SERVICE switch on the board): units come out, the
+ * console appears, the diagnostics panel slides out.
+ *
+ * About fills. The schematic once lost its background entirely, and the blame
+ * went first to gradients, then to opacity on SVG nodes. Neither was it: a
+ * rule like `.fault { fill-opacity: 0 }` matched .rig itself, and fill-opacity
+ * is inherited by every descendant. That is why the lamp selectors are
+ * narrowed to circle.fault, and why we put lamps out through fill-opacity and
+ * not opacity — opacity lifts a node into a layer of its own. Gradients do
+ * work meanwhile: url(#die-shine) runs across the CPU die right inside the
+ * tilted stage.
+ */
+
+/* ── Two views of one card ────────────────────────────────────────────────
+ * The card with the list of links, and the server schematic. A button next to
+ * the theme one switches them, the choice is remembered. body centres them —
+ * it is a centring flex already.
+ */
+body.view-card .rig { display: none; }
+body.view-rig main { display: none; }
+/* display only: .rig sets its own width. There used to be width: 100% here,
+   and on specificity it beat the ceiling inside .rig — however much you edited
+   that ceiling, the machine stretched across the whole screen. */
+body.view-rig .rig { display: block; }
+
+/* The view button is the theme switch's own sister: same size, same inverse
+   backing, sitting to its left. Otherwise it gets lost against the page. */
+.view-switch {
+    position: fixed;
+    top: 24px;
+    right: 78px;
+    z-index: 4;
+    display: grid;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    padding: 0;
+    border-radius: 14px;
+    border: 1px solid var(--inv-line);
+    background: var(--inv-surface);
+    box-shadow: var(--inv-shadow);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    animation: contentEnter 0.65s cubic-bezier(0.32, 0.72, 0, 1) 680ms backwards;
+    transition:
+        background   var(--theme-fade),
+        border-color var(--theme-fade),
+        box-shadow   var(--theme-fade),
+        transform    0.44s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* The reassemble button: the same tile as the view and theme ones, third in
+   the row. Shown on the schematic only — in card view there is nothing to
+   reassemble. */
+.assemble-btn {
+    position: fixed;
+    top: 24px;
+    right: 132px;
+    z-index: 4;
+    display: none;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    padding: 0;
+    border-radius: 14px;
+    border: 1px solid var(--inv-line);
+    background: var(--inv-surface);
+    box-shadow: var(--inv-shadow);
+    color: var(--inv-node);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition:
+        background   var(--theme-fade),
+        border-color var(--theme-fade),
+        box-shadow   var(--theme-fade),
+        transform    0.44s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+body.view-rig .assemble-btn { display: grid; }
+.assemble-btn svg { width: 21px; height: 21px; display: block; }
+.assemble-btn:hover { transform: translate3d(0, -1px, 0); }
+/* While the assembly runs the button is released and does not fire again: a
+   second run on top of the first would knock the schedule out, and some of
+   the units would stay outside the machine. */
+.rig.assembly ~ .assemble-btn,
+body:has(.rig.assembly) .assemble-btn { opacity: 0.45; pointer-events: none; }
+.assemble-btn:active svg { transform: rotate(-40deg); }
+.assemble-btn svg { transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.assemble-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+
+.view-switch:hover { transform: translate3d(0, -1px, 0); }
+.view-switch:active { transform: translate3d(0, 0, 0) scale(0.96); }
+.view-switch:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+
+.view-switch svg {
+    grid-area: 1 / 1;
+    width: 22px;
+    height: 22px;
+    display: block;
+    color: var(--inv-node);
+    transition:
+        opacity   0.35s ease,
+        transform 0.55s cubic-bezier(0.34, 1.56, 0.64, 1),
+        color     var(--theme-fade);
+}
+
+/* We show where the click leads: in card view — the rack, and the reverse. */
+.icon-card { opacity: 0; transform: rotate(-90deg) scale(0.5); }
+.icon-rack { opacity: 1; transform: none; }
+body.view-rig .icon-rack { opacity: 0; transform: rotate(90deg) scale(0.5); }
+body.view-rig .icon-card { opacity: 1; transform: none; }
+
+/* The schematic needs colour roles of its own: the card names its tokens
+   differently. */
+.rig {
+  --ink:  #93a1a1;
+  --dim:  #586e75;
+  --head: #eee8d5;
+  --green: #859900;
+  --cyan:  #2aa198;
+  --amber: #b58900;
+  --red:   #dc322f;
+  --edge: rgba(147, 161, 161, 0.22);
+  --fade: 0.45s cubic-bezier(0.32, 0.72, 0, 1);
+  /* The spring is left for the small parts — latches and tabs. Anything big
+     travels on --glide: a long ease-out with no bounce. The heatsink is the
+     size of the socket, and a spring settle on it read as a jerk rather than
+     as a hand moving. */
+  --spring: 0.6s cubic-bezier(0.34, 1.3, 0.64, 1);
+  --glide: 0.72s cubic-bezier(0.22, 1, 0.36, 1);
+  /* Switching the mode is the largest movement on the page: a column opens
+     up, the machine shrinks, the instruments slide in. On --glide it read as
+     a jerk, and not because the curve is bad: in the same three quarters of a
+     second the whole composition travels here, not a single unit. A second
+     and a half on the same bounce-free curve — starts at once, brakes for
+     a long time. */
+  --svc: 1.5s cubic-bezier(0.22, 1, 0.36, 1);
+  /* The click: a latched unit refuses to move at first, then breaks free and
+     runs on freely, slowing down. That is how a DIMM, a fan, a riser and a
+     power supply come out — everything that is held by a catch. The CPU does
+     not move that way: it is not yanked but lifted, so it keeps --glide.
+
+     For a third of the time the unit stands almost still, over the next seven
+     per cent it covers two thirds of the distance — that is the break-free —
+     and the remainder is settled barely visibly. The gap between the yank and
+     the settling is kept large on purpose: on a soft curve the click just
+     reads as a fast movement. */
+  --click: 0.9s linear(
+      0, 0.003 14%, 0.009 24%, 0.018 31%, 0.30 35%, 0.66 39%, 0.83 44%,
+      0.90 52%, 0.945 63%, 0.975 76%, 0.993 88%, 1);
+
+  /* The tempo of the indication. Kept in one place: lamps blink often so the
+     machine looks alive. Both of these are stepped rather than smooth —
+     measured, a smooth blink costs a quarter more, because it asks for a
+     repaint on every frame the monitor draws. The fans used to be in the same
+     boat and are not any more: they turn on a layer of their own, where the
+     compositor does the work. */
+  --blink: 1.4s;
+  --beat: 1s;
+  /* Half a second a turn for the wall — this is a machine at its rated rpm,
+     and at that speed nobody sees blades anyway, only the disc. The fan inside
+     a power supply keeps a second: it cools itself alone off standby power,
+     turns visibly slower, and is the one place on the board where an impeller
+     can still be read as an impeller while the machine runs.
+
+     The Efficiency profile stretches the wall to two seconds (screen.css), and
+     that is where the blades come back. No period has to divide into whole
+     seconds any more — that rule came from the repaint grid, and the fans left
+     it for the compositor. */
+  --spin: 0.5s;
+  --spin-aux: 1s;
+  /* The blink periods still fall on a grid of a twentieth of a second: 1.4 s
+     divides into 28 positions, the pulse and the blink into round fractions. */
+
+  /* Seating. Every unit has a character of its own, and that is not
+     decoration: a DIMM is pressed home until the latches click, a fan goes
+     stiffly down its guides, a power supply flies into its bay in one motion,
+     and a drive first slides freely and only meets resistance at the very
+     end. */
+  --press-hard: 0.95s linear(
+      0, 0.20 10%, 0.40 20%, 0.53 29%, 0.585 38%, 0.60 48%, 0.615 57%,
+      0.68 64%, 0.88 71%, 1.03 78%, 1.01 86%, 1);
+  --press-snap: 0.62s linear(
+      0, 0.05 8%, 0.22 16%, 0.62 24%, 0.94 32%, 1.03 38%, 0.995 48%, 1);
+  --press-seat: 0.9s linear(
+      0, 0.30 12%, 0.55 24%, 0.70 36%, 0.74 46%, 0.755 58%, 0.78 66%,
+      0.94 76%, 1.02 84%, 1);
+
+  position: relative;
+  z-index: 1;
+  margin: 0 auto;
+  width: 100%;
+  padding: 0 12px;
+  /* The size of the machine. The height limit is the main one: the schematic
+     is wide and low, and it runs into the screen by height, not by width.
+     1.66 is the viewBox ratio, and the viewBox is symmetric about the
+     chassis: exactly 120 units left and right, 36 top and bottom. The margin
+     on the left is there for the drive that slides out, and while there was
+     none on the right the chassis stood seventy-six units right of centre —
+     to the eye that read as "the machine is off centre". The top and bottom
+     margins appeared for the rack ears: they stick out sideways, past the
+     side walls. */
+  --rig-w: min(68vh * 1.66, 1200px);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.rig *, .rig *::before, .rig *::after { box-sizing: border-box; }
+
+/* Name and status are visible in both views — this is a personal card, not
+   only a schematic. */
+.rig-id { text-align: center; margin: 0 auto 18px; }
+.rig-id h2 { margin: 0 0 4px; font-size: 1.5rem; font-weight: 600;
+             letter-spacing: -0.02em; color: var(--heading); }
+.rig-id .bio { margin: 0 0 6px; font-size: 0.95rem; color: var(--bio); }
+.rig-id .now { margin: 0; font-size: 0.8rem; color: var(--now); }
+.rig-id .now .live-dot { margin-right: 7px; }
+
+/* The console is part of service mode, below the machine. */
+.rig .panel {
+  display: none;
+  margin: 0;
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  background: linear-gradient(180deg, rgba(9,34,40,0.92) 0%, rgba(7,26,31,0.88) 100%);
+  padding: 10px 12px 8px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+.rig.service .panel { display: block; }
+/* The console heading is its nameplate: the word console, the machine model,
+   the uptime. The model belongs here and not in the log: the log is for
+   events, while the machine's passport is permanent. All grey, at different
+   brightness; a long spec is clipped rather than wrapped — the heading has to
+   stay on one line at any width. */
+.rig .panel h2 {
+  margin: 0 0 8px;
+  font-size: 0.68rem; font-weight: 600;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--dim);
+  display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+  /* The heading is itself a flex item of the column, and its min-width: auto
+     pushed the panel apart from the inside: the spec does not wrap, so
+     min-content equals the whole line. Zero brings the ellipsis back. */
+  min-width: 0;
+}
+.con-name { flex: none; }
+.con-spec {
+  flex: 1 1 auto; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  text-transform: none; letter-spacing: 0.02em; font-weight: 500;
+  color: rgba(88, 110, 117, 0.85);
+}
+.con-up { flex: none; font-variant-numeric: tabular-nums; }
+.console-log { height: 132px; overflow-y: auto; overscroll-behavior: contain;
+               display: flex; flex-direction: column; gap: 2px; }
+.console-log div { white-space: pre-wrap; word-break: break-word; }
+.console-log .ok { color: var(--green); }
+.console-log .warn { color: var(--amber); }
+.console-log .err { color: var(--red); }
+.console-log .muted { color: var(--dim); }
+.console-log::-webkit-scrollbar { width: 6px; }
+.console-log::-webkit-scrollbar-thumb { background: rgba(147,161,161,0.28); border-radius: 3px; }
+
+.prompt { display: flex; align-items: baseline; gap: 6px; margin-top: 8px;
+          border-top: 1px solid rgba(147,161,161,0.14); padding-top: 7px; }
+.ps1 { color: var(--green); white-space: nowrap; }
+.prompt input { flex: 1; min-width: 0; background: none; border: 0; outline: none;
+                color: var(--head); font: inherit; caret-color: var(--cyan); }
+.prompt input::placeholder { color: rgba(88,110,117,0.75); }
+
+
+  /* The prompt: the console does not only print, you can type into it. */
+  .prompt { display: flex; align-items: baseline; gap: 6px; margin-top: 8px;
+            border-top: 1px solid rgba(147,161,161,0.14); padding-top: 7px; }
+
+
+
+  /* ── Panels ───────────────────────────────────────────────────────────── */
+  .panel {
+    border: 1px solid var(--edge);
+    border-radius: 12px;
+    background: linear-gradient(180deg, rgba(9,34,40,0.92) 0%, rgba(7,26,31,0.88) 100%);
+    padding: 12px 14px 14px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 0.82rem;
+    line-height: 1.55;
+  }
+
+  .sensor { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; }
+  .sensor span:last-child { color: var(--head); }
+  .sensor.off span:last-child { color: var(--dim); }
+
+  .bar { height: 3px; border-radius: 2px; background: rgba(147,161,161,0.14); overflow: hidden; margin: 2px 0 8px; }
+  .bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--cyan), var(--green)); width: 0; transition: width 0.9s ease; }
+
+  /* ── Stage ────────────────────────────────────────────────────────────── */
+  /* The tilt is back: the disappearing fills came not from the 3D but from
+     the gradients — the paint server fell off when the group was transformed.
+     There are no gradients left in the SVG, so perspective is safe. */
+  .stage { position: relative; perspective: 1700px; perspective-origin: 50% 42%;
+           display: flex; justify-content: center; }
+  .stage > .chassis { width: 100%; margin: 0 auto; position: relative; z-index: 1; }
+
+  /* The same coloured halo as under the card of links: the machine must not
+     hang on a bare background while the card has one. The spread is smaller —
+     the stage is twice as wide as the card to begin with, and at the full
+     blur(160px) the glow would crawl across the whole screen. */
+  .rig-glow {
+    position: absolute; inset: 4% 12%;
+    border-radius: 80px;
+    background: linear-gradient(45deg,
+        rgba(255, 50, 100, 0.45) 0%,
+        rgba(255, 80, 150, 0.30) 25%,
+        rgba(120, 40, 220, 0.18) 50%,
+        rgba(0, 220, 255, 0.30) 75%,
+        rgba(0, 255, 255, 0.45) 100%);
+    filter: blur(130px);
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0;
+    transition: opacity 1.1s ease;
+  }
+  .rig.ready .rig-glow { opacity: 1; }
+
+  .chassis {
+    position: relative;
+    transform: rotateX(46deg) scale(0.94);
+    will-change: transform;
+    backface-visibility: hidden;
+    opacity: 0;
+    transition: transform 1s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.6s ease;
+  }
+  .rig.ready .chassis { transform: rotateX(13deg); opacity: 1; }
+  .chassis svg { display: block; width: 100%; height: auto; overflow: visible; }
+
+
+  /* ── Components ───────────────────────────────────────────────────────── */
+  /* Two roles, and they do not coincide. A .unit names itself with a tag —
+     that is a drive, a memory bank, a CPU, a network card. A .pick physically
+     comes out — a DIMM, a drive, a fan, a heatsink. A memory bank is one
+     .unit with sixteen .pick inside it: one tag per bank, and it is the DIMM
+     that lifts. */
+  .unit { cursor: pointer; }
+  .rig.service .unit { cursor: grab; }
+  .pick-body {
+    transform-box: fill-box; transform-origin: center;
+    transition: transform var(--glide);
+  }
+  /* Hover: the unit lifts a little and brightens. Eight points of lift read
+     as though the part had already been pulled; three read as a response. */
+  .pick:hover .pick-body { transform: translateY(-3px); filter: brightness(1.2) saturate(1.08); }
+  .pick .pick-body { transition: transform var(--glide), filter var(--fade); }
+
+  /* The tag lives next to its unit and does not run past the edge of the
+     picture. There are deliberately no shadows on the SVG any more: in Safari
+     a filter inside preserve-3d floods the stage white — that was the "white
+     screen" in service mode. */
+  .unit .tag { fill-opacity: 0; transition: fill-opacity var(--fade); pointer-events: none; }
+  .unit:hover .tag, .unit:focus-visible .tag { fill-opacity: 1; }
+  .unit:focus-visible { outline: none; }
+  /* Callouts. A visitor has to see where to click without hovering — so the
+     labels are permanent, and hover only highlights the one in question. */
+  .callouts { pointer-events: none; }
+  a.callout { pointer-events: auto; cursor: pointer; }
+  a.callout:hover .co-box { fill: #fff; stroke: var(--cyan); stroke-width: 2.4; }
+  a.callout:hover .co-line { stroke: var(--cyan); }
+  a.callout:focus-visible { outline: none; }
+  a.callout:focus-visible .co-box { stroke: var(--cyan); stroke-width: 2.2; }
+  /* In service mode the callouts go away entirely: there the machine is taken
+     apart, not read, and the labels stopped fighting the pulled units that
+     travel straight through them.
+
+     Уходят они плавно и все разом: лесенка на уходе читается задержкой, а не
+     списком, — а возвращаются по-прежнему по одной, это правило .callout ниже.
+     Но ссылкой плашка перестаёт быть сразу, в тот же кадр, и вот это трогать
+     нельзя. Прозрачная <a> по-прежнему ловит и курсор, и Tab: opacity и
+     pointer-events тут уже пробовали, и подписи открывали адреса, которых не
+     видно.
+     Поэтому visibility остаётся — но переезжает на саму <a>: она мгновенно
+     уходит из-под курсора и из порядка обхода, а дети объявляют себе visible и
+     потому продолжают рисоваться, пока идёт затухание. pointer-events на <a>
+     нужен там же и отдельно: дети наследуют его от неё, и перебить её может
+     только правило со специфичностью выше, чем `a.callout`. */
+  .rig.service a.callout { visibility: hidden; pointer-events: none; }
+  .rig.service a.callout > * { visibility: visible; }
+  /* Линия и точка — цвета своего сервиса, того же, что полоска у кромки бирки
+     и значок на ней. Цвет приходит переменной от генератора: он один на всю
+     выноску, и менять его в двух местах значит однажды их развести. Подсветка
+     ниже перебивает его нарочно — под курсором все выноски одинаково
+     бирюзовые, чтобы было видно, какая из них поднята. */
+  .co-dot { fill: var(--accent, var(--cyan)); stroke: rgba(9,32,38,0.85); stroke-width: 1.8; }
+  .co-line { stroke: var(--accent, rgba(42,161,152,0.8)); stroke-width: 2.2; }
+  /* The backing is not decoration: without it the light label merges with the
+     heatsink nameplates and the power supply stickers, of which the board has
+     plenty. */
+  .co-shadow { fill: rgba(3, 14, 18, 0.55); }
+  .co-box { fill: rgba(245, 241, 228, 0.98); stroke: rgba(6, 26, 31, 0.9); stroke-width: 1.6; }
+  /* The colour of the spine arrives as an attribute from the generator — one
+     per service. A fill rule here would override it: a presentation attribute
+     is weaker than any style, and all seven labels would go identical
+     again. */
+  .co-text {
+    fill: #06222a; font-family: ui-monospace, Menlo, monospace;
+    font-size: 22px; font-weight: 700; letter-spacing: 0.01em;
+  }
+  /* The second line answers "and what is this": without it the label names
+     the service but does not say why one would click it. */
+  .co-sub {
+    fill: rgba(6, 34, 42, 0.6); font-family: ui-monospace, Menlo, monospace;
+    font-size: 12.5px; font-weight: 500; letter-spacing: 0.02em;
+  }
+  /* The service icon is the same one as in the card of links: a visitor sees
+     the same mark in both views of the card and recognises it faster than he
+     reads it. */
+  .co-icon { fill: none; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+  /* The outward arrow is a web convention: the link opens in a new tab. */
+  .co-ext path {
+    stroke: rgba(6, 34, 42, 0.45); stroke-width: 1.9;
+    stroke-linecap: round; stroke-linejoin: round;
+  }
+  /* The shine crosses the label exactly once, when the machine is assembled:
+     it says "this can be clicked", and repeated it would turn into a blinking
+     banner. */
+  .co-shine { fill: rgba(255, 255, 255, 0.9); opacity: 0; }
+  .rig:not(.assembly) .co-shine {
+    animation: coShine 0.85s calc(1.15s + var(--tag-order, 0) * 0.14s) ease-out 1;
+  }
+  @keyframes coShine {
+    from     { opacity: 0;    transform: translateX(0); }
+    22%      { opacity: 0.5; }
+    to       { opacity: 0;    transform: translateX(380px); }
+  }
+
+  .tag rect { fill: rgba(238,232,213,0.94); }
+  .tag text { fill: #073642; font-family: ui-monospace, Menlo, monospace; font-size: 15px; font-weight: 600; }
+
+  .decor { pointer-events: none; }
+  .cables { opacity: 0.9; }
+
+
+  /* @part: term */
+
+  /* ── Indication ───────────────────────────────────────────────────────── */
+  /* We put lamps out through fill-opacity, not through opacity. opacity on an
+     SVG node lifts it into a separate composited layer, and those layers
+     covered the whole stage — that is what "the entire background went black"
+     looked like. fill-opacity changes the fill only and creates no layers. */
+
+  .led { fill-opacity: 0.16; transition: fill-opacity 0.2s steps(1, end); }
+  .rig.on .led { fill-opacity: 1; }
+
+  /* Standby: the BMC, the management port and the power supplies themselves
+     run always — the machine is off, and they are already live. */
+  .led.aux { fill-opacity: 1; }
+  .led-act.aux { animation: act var(--blink) steps(1, end) infinite; }
+  .fan-blades.aux { animation-play-state: running; }
+
+  /* The blink pattern. Every switching point is a multiple of 5% of the
+     period, and the period is a multiple of a second — so any change falls on
+     the common tick of a tenth of a second. The numbers here are not
+     cosmetic: shift one by a per cent and the lamp starts repainting the
+     stage on frames of its own. */
+  @keyframes act {
+    0.00% { fill-opacity: 1 }
+    3.57% { fill-opacity: 1 }
+    7.14% { fill-opacity: 1 }
+    10.71% { fill-opacity: 0.1 }
+    14.29% { fill-opacity: 0.1 }
+    17.86% { fill-opacity: 0.1 }
+    21.43% { fill-opacity: 0.1 }
+    25.00% { fill-opacity: 1 }
+    28.57% { fill-opacity: 1 }
+    32.14% { fill-opacity: 0.1 }
+    35.71% { fill-opacity: 0.1 }
+    39.29% { fill-opacity: 1 }
+    42.86% { fill-opacity: 1 }
+    46.43% { fill-opacity: 1 }
+    50.00% { fill-opacity: 1 }
+    53.57% { fill-opacity: 1 }
+    57.14% { fill-opacity: 0.1 }
+    60.71% { fill-opacity: 0.1 }
+    64.29% { fill-opacity: 1 }
+    67.86% { fill-opacity: 1 }
+    71.43% { fill-opacity: 0.1 }
+    75.00% { fill-opacity: 0.1 }
+    78.57% { fill-opacity: 0.1 }
+    82.14% { fill-opacity: 1 }
+    85.71% { fill-opacity: 1 }
+    89.29% { fill-opacity: 0.1 }
+    92.86% { fill-opacity: 0.1 }
+    96.43% { fill-opacity: 1 }
+    100% { fill-opacity: 1 }
+  }
+  /* The phase arrives inline from the generator, the period is shared. The
+     halo snaps together with the core rather than crawling across smoothly: a
+     smooth halo means a repaint on every frame of the monitor, and forty
+     lamps at once left the stage no idle time. */
+  .rig.on .led-act { animation: act var(--blink) steps(1, end) infinite; }
+  /* Приём и передача — одна лампа на два цвета, как на живой розетке: в ней
+     два кристалла под общей линзой, и куда ушёл пакет, видно по тому, каким
+     цветом она моргнула. Янтарный — наружу, зелёный — внутрь. Двумя лампами
+     это говорилось дважды.
+     Мигает по-прежнему act, здесь меняется только заливка, поэтому вторая
+     анимация идёт рядом, а не вместо. Период втрое длиннее вспышек, чтобы
+     цвет держался несколько миганий подряд: смена цвета на каждой вспышке
+     читается мельтешением, а не направлением. Кратно 0.05 с, как всё
+     остальное в индикации. */
+  .rig.on .led-act.led-txrx {
+    animation:
+      act var(--blink) steps(1, end) infinite,
+      txrx calc(var(--blink) * 3) steps(1, end) infinite;
+  }
+  @keyframes txrx { 0%, 50% { fill: var(--amber) } 50.01%, 100% { fill: var(--green) } }
+  .halo { transition: fill-opacity 0.35s ease; }
+  /* Ореол не мигает: он и так виден, а анимаций в сцене от него втрое
+     больше, чем ламп, — по три круга на каждую. Браузер обновляет каждую
+     анимацию в каждом кадре, и эта плата не зависит от того, изменилось
+     ли что-нибудь на экране. */
+  .rig.on .led-act.halo { animation: none; fill-opacity: 0.75; }
+  .led-hb.halo, .fault.halo, .fault-sys.halo, .led-id.halo { transition: fill-opacity 0.4s ease; }
+  .rig:not(.init) .led-hb.halo { animation: none; fill-opacity: 0.6; }
+  .pick.pulled .fault.halo, .rig.has-fault .fault-sys.halo { animation: faultblink var(--beat) steps(1, end) infinite; }
+  .rig.identify .led-id.halo { animation: idblink var(--beat) steps(1, end) infinite; }
+
+  /* Линк сети поднимается первым — раньше, чем стартует хост. */
+  .led-link { fill-opacity: 0.12; transition: fill-opacity 0.15s steps(1, end); }
+  .rig.net .led-link, .led-link.aux { fill-opacity: 1; }
+
+  /* Порт, к которому ничего не подключено: лампа активности стоит тёмной и
+     не мигает — рядом с ней янтарный линк, и вместе они читаются как связь
+     на пониженной скорости. */
+  .led-idle { fill-opacity: 0.3; }
+
+  /* Heartbeat BMC: такой же резкий, но единственный строго ровный —
+     короткая вспышка раз в секунду, всё остальное дёргается вразнобой. */
+  .led-hb { fill-opacity: 0.1; }
+  .rig:not(.init) .led-hb { animation: hb var(--beat) steps(1, end) infinite; }
+  @keyframes hb { 0%, 10% { fill-opacity: 1 } 15%, 100% { fill-opacity: 0.1 } }
+
+  /* Неисправность. .fault — лампа своего узла и лежит внутри него, поэтому
+     загорается ровно у того, что вынули. .fault-sys — общая, спереди и
+     сзади, и зажигается от любой ошибки. */
+  circle.fault, circle.fault-sys { fill-opacity: 0; transition: fill-opacity 0.15s steps(1, end); }
+  .pick.pulled > .fault, .pick.pulled .fault { fill-opacity: 1; animation: faultblink var(--beat) steps(1, end) infinite; }
+  .rig.has-fault .fault-sys { fill-opacity: 1; animation: faultblink var(--beat) steps(1, end) infinite; }
+  @keyframes faultblink { 0%, 50% { fill-opacity: 1 } 55%, 100% { fill-opacity: 0.05 } }
+
+
+
+
+  /* @block: lightpath */
+
+  .silk { opacity: 0.85; }
+
+  /* @block: service */
+
+  /* @block: lid */
+
+  /* ── Сборка машины ─────────────────────────────────────────────────────
+   * Первый заход показывает пустое шасси и то, как в него ставят узлы.
+   * Расписание — в geom.py, оно приезжает сюда переменной --seat на каждом
+   * узле; как именно узел садится, описано в его собственном css.
+   *
+   * Класс стоит прямо в разметке: скрипт подключён с defer и мог не успеть
+   * до первого кадра. Скрипт его только снимает — и сразу, если машину уже
+   * видели или гость просил не анимировать.
+   */
+  /* Бирки проступают после сборки, а не включаются вместе с ней. Переход
+     объявлен на самих подписях, а не внутри .rig.assembly: правило с классом
+     исчезает вместе с классом, и гасить-то оно гасило, а проявлять было уже
+     нечему — подписи возникали рывком. */
+  /* Бирки проступают одна за другой: глаз проходит по ним списком, а не
+     встречает семь плашек разом. Порядок каждая знает сама — генератор
+     ставит ей --tag-order. */
+  .callout {
+    opacity: 1;
+    transition: opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1)
+                calc(0.35s + var(--tag-order, 0) * 0.14s);
+  }
+  .rig.assembly .callout { opacity: 0; transition: opacity 0.2s linear; }
+  /* И ждут экрана. Собранная машина включается, поднимается самотест — подписи
+     проступают только когда экран уехал. Иначе порядок был бессмысленный:
+     плашки всплывали на секунду и тут же прятались под экраном, а после него
+     появлялись во второй раз. */
+  .rig.tags-off .callout { opacity: 0; transition: opacity 0.25s linear; }
+  /* Уход в сервисный режим — одно общее движение: все подписи гаснут разом и
+     за полсекунды. Возвращаются они той же лесенкой, что и после сборки:
+     класс service снимается, и работает переход выше, со своей задержкой на
+     каждую. Разница нарочная — уходя, они освобождают место, и растягивать
+     это на полторы секунды незачем; возвращаясь, читаются списком. */
+  .rig.service .callout { opacity: 0; transition: opacity 0.45s ease; }
+  /* Пока идёт сборка, разбирать нечего: клики по полусобранной машине
+     оставляли бы узлы в состоянии, из которого их никто не вернёт. */
+  .rig.assembly .pick, .rig.assembly .unit { pointer-events: none; }
+
+  /* Схема ушла с экрана или вкладку свернули — крутить нечего. Пауза, а не
+     отмена: анимации продолжатся с того же места, включая недоигранную
+     сборку. */
+  .rig.dormant *, .rig.dormant *::before, .rig.dormant *::after {
+    animation-play-state: paused !important;
+  }
+
+  /* ── Сервисный режим: извлечение поштучно ─────────────────────────────── */
+  .rig.service .pick { cursor: grab; }
+  .rig.service .pick.pulled .pick-body { transform: translateY(-24px); }
+  /* Диск выезжает вперёд, к фронту — то есть влево. */
+  /* @block: drives */
+  /* @block: fans */
+  /* @block: memory */
+  /* @block: risers */
+  /* @block: psu */
+
+  /* @block: cpu */
+
+  /* @block: front_panel */
+
+  /* Выход из сервиса: машина складывается одним движением, а не семью
+     щелчками разом. Щелчок — это как узел ставят руками: треть времени он
+     стоит, потом срывается. Когда так возвращаются все узлы сразу, читается
+     не сборка, а рывок, и рядом с ним плавно едущая разметка выглядит
+     отдельным механизмом.
+     Поэтому на время возврата узлы идут по кривой всей композиции — по той
+     же, по которой съезжается колонка с консолью. Правило стоит после всех
+     блоков нарочно: у каждого свой переход с той же специфичностью, и спор
+     решает порядок. */
+  .rig.stowing .pick-body,
+  .rig.stowing .bay-handle,
+  .rig.stowing .latch,
+  .rig.stowing .heatsink { transition: transform var(--svc); }
+
+  .hint {
+    margin-top: 14px; text-align: center;
+    font-family: ui-monospace, Menlo, monospace; font-size: 0.68rem; color: var(--dim);
+  }
+  .hint b { color: var(--ink); font-weight: 600; }
+
+  /* ── Мобильные ────────────────────────────────────────────────────────── */
+  .fallback { display: none; flex-direction: column; gap: 8px; }
+
+
+  @media (max-width: 820px) {
+    .layout, .stage, .hint { display: none; }
+    .fallback { display: flex; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .rig *, .rig *::before, .rig *::after { animation: none !important; transition-duration: 0.01ms !important; }
+    .chassis { transform: rotateX(14deg); opacity: 1; }
+    .lid { display: none; }
+  }
+
+/* ── Сервисный режим: консоль сверху, приборы справа ──────────────────────
+ * Консоль над машиной — терминал, который подкатили к стойке. Приборы сбоку,
+ * зеркально панели диагностики: light path выходит из корпуса слева, метрики
+ * стоят справа.
+ *
+ * Сцена всегда ровно по центру и своего размера не меняет: боковые колонки
+ * одинаковые и сжимаются сами. Иначе машина прыгала бы вбок при каждом
+ * включении сервисного режима.
+ */
+.rig-body {
+  display: grid;
+  /* Вторая колонка есть всегда, просто в обычном виде она нулевой ширины:
+     так её появление можно анимировать, а не включать display. */
+  grid-template-columns: minmax(0, 1fr) 0px;
+  align-items: start;
+  /* Зазор шире обычного: перспектива расширяет схему за габарит сцены
+     примерно на полсотни точек, и без запаса задняя панель подлезает
+     под приборы. */
+  column-gap: 0;
+  row-gap: 0;
+  /* Композиция целиком — машина и приборы — держится посередине экрана.
+     Без потолка приборы прижимались к правому краю окна, а машина уезжала
+     от центра тем дальше, чем шире монитор. */
+  max-width: calc(var(--rig-w) + 700px);
+  margin: 0 auto;
+  /* Поля под перспективу: наклон уводит корпус за габарит сцены примерно на
+     тридцать точек в каждую сторону, и без запаса машина упирается в кромку
+     окна, хотя по разметке стоит ровно. */
+  padding: 0 26px;
+  transition:
+    grid-template-columns var(--svc),
+    column-gap var(--svc),
+    row-gap var(--svc);
+}
+/* Сервисный режим открывает вторую колонку. Машина при этом занимает всё,
+   что осталось, и плавно уходит влево — ровно на половину появившейся
+   колонки. */
+/* Консоли нужно место, и она его получает за счёт машины. Схема при этом не
+   ужимается — ужатая, она перестаёт читаться, — а уезжает влево и краем
+   уходит за кромку окна. В стойке к работающей машине тоже подходят сбоку,
+   так что вид сходится с делом: смотришь в консоль, а не на шасси. */
+.rig.service .rig-body {
+  grid-template-columns: minmax(0, 1fr) clamp(380px, 32vw, 640px);
+  column-gap: 24px; row-gap: 14px;
+}
+/* Машина занимает колонку целиком и ужимается вместе с ней. Уводить её за
+   левую кромку окна нельзя: диск в сервисном режиме выезжает из корзины
+   влево, и всё, что машина отдала за край, отнимается у него — вынуть диск
+   становится нечем.
+   Полей тут больше нет, и это не уборка. Стояло margin-left: 0, и
+   переключение начиналось рывком: auto-поля не интерполируются, машина
+   мгновенно перепрыгивала к левому краю и только потом колонка начинала
+   ехать. Теперь меняется одна величина — ширина колонки, — а схема идёт за
+   ней сама, оставаясь в своей колонке по центру. */
+.rig.service .stage {
+  width: min(100%, var(--rig-w));
+}
+
+/* Места в гриде заданы явно. Без этого лента, объявившая себе первую
+   колонку, уводила приборы во вторую строку — и в сервисном режиме они
+   оказывались под машиной справа, а страница обзаводилась прокруткой. */
+.stage    { grid-area: 1 / 1 / 2 / 2; }
+.rig-side { grid-area: 1 / 2 / 3 / 3; }
+.timeline { grid-area: 2 / 1 / 3 / 2; }
+
+/* 96%, а не 100%: перспектива уводит нижний край схемы за габарит сцены,
+   и последние проценты — это запас, чтобы задняя панель не подлезала
+   под приборы. */
+.stage { width: min(96%, var(--rig-w)); margin: 0 auto; }
+
+.rig-side {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: 14px;
+  height: 100%;
+  /* Колонка нулевой ширины: приборы из неё не должны торчать, пока их не
+     позвали. Появляются они не морганием display, а выездом справа. */
+  overflow: hidden;
+  opacity: 0;
+  transform: translateX(28px);
+  /* Приборы идут в такт с колонкой, которая под них раздвигается: разъехавшись
+     по длительности, они читались как два отдельных движения. */
+  transition: opacity var(--svc), transform var(--svc);
+}
+.rig.service .rig-side { opacity: 1; transform: none; }
+
+.rig.service .panel {
+  display: flex; flex-direction: column;
+  width: auto; margin: 0;
+  min-height: 190px;
+}
+/* min-height: 0 обязателен: без него flex-элемент не сжимается ниже своего
+   содержимого, лог растёт вместе с лентой и overflow-y никогда не срабатывает
+   — прокрутки нет, а панель разъезжается. */
+.rig.service .console-log { flex: 1 1 0; height: auto; min-height: 0; }
+
+
+/* Узкое окно: колонке не хватает места сбоку, уводим её под машину. */
+@media (max-width: 1100px) {
+  .rig.service .rig-body { grid-template-columns: minmax(0, 1fr); }
+  /* Потолок оставляем: голое width: 100% било по нему и растягивало машину
+     на всю колонку, из-за чего приборы под ней уезжали за экран. */
+  .stage { width: min(100%, var(--rig-w)); }
+  /* Колонка одна, поэтому консоль становится третьей строкой — иначе она
+     осталась бы в несуществующей второй колонке. Машина при этом ужимается:
+     под ней теперь стоят и лента, и консоль, и на прежнем размере страница
+     обзаводилась прокруткой. */
+  .rig-side { grid-area: 3 / 1 / 4 / 2; }
+  .rig.service { --rig-w: min(46vh * 1.66, 1200px); }
+  .rig.service .panel { min-height: 140px; }
+}
+
+/* ── Адрес под курсором ───────────────────────────────────────────────────
+ * Наводя на бирку или на узел, гость видит, куда попадёт. Браузер показывает
+ * это в углу окна мелким шрифтом — здесь адрес идёт за курсором и читается
+ * сразу. Держим его тихим: подсказка, а не баннер.
+ */
+.link-hint {
+    position: fixed;
+    left: 0; top: 0;
+    z-index: 6;
+    padding: 7px 11px;
+    border-radius: 9px;
+    border: 1px solid rgba(147, 161, 161, 0.22);
+    background: rgba(6, 22, 27, 0.9);
+    backdrop-filter: blur(6px);
+    color: rgba(238, 232, 213, 0.92);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 0.76rem;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transform: translate3d(0, 6px, 0) scale(0.97);
+    transition: opacity 0.22s ease, transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.link-hint.on { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+/* Схема протокола глуше самого адреса: она одинаковая у всех ссылок и
+   нужна лишь как признак «это адрес». */
+.link-hint .lh-scheme { color: rgba(147, 161, 161, 0.55); }
+.link-hint .lh-host { color: var(--cyan); }
+
+/* ── Партномера узлов ─────────────────────────────────────────────────────
+ * У каждого узла на плате отпечатан хэш коммита, который его последним менял.
+ * Клик копирует номер и открывает этот коммит — так же, как по партномеру на
+ * живой плате ищут деталь в каталоге.
+ */
+a.stamp { cursor: pointer; }
+a.stamp text { transition: fill-opacity var(--fade); }
+a.stamp:hover text { fill-opacity: 0.85; }
+a.stamp:focus-visible { outline: none; }
+a.stamp:focus-visible text { fill-opacity: 1; }
+
+/* ── Связка узла и подписи ────────────────────────────────────────────────
+ * Наводишь на сетевую карту — загорается её подпись, и наоборот. Иначе
+ * непонятно, к чему относится ярлык.
+ */
+/* Подсветка узла и его движение живут на одном элементе, поэтому переход
+   перечисляет оба свойства. Шорткат с одним filter затирал transform, и
+   всё, что лежит внутри .unit — диски, планки, радиатор, — прыгало в
+   конечное положение мгновенно. Вентиляторы при этом ехали плавно: они
+   единственные не обёрнуты в .unit, и правило до них не доставало. */
+.unit .pick-body, .unit .body { transition: transform var(--glide), filter var(--fade); }
+.rig .unit.lit .pick-body,
+.rig .unit.lit .body { filter: brightness(1.35) saturate(1.15); }
+a.callout.lit .co-box { fill: #fff; stroke: var(--cyan); }
+a.callout.lit .co-line { stroke: var(--cyan); }
+a.callout.lit .co-dot { fill: var(--head); }
+
+/* ── Лента ревизий ────────────────────────────────────────────────────────
+ * Плату собирает код, значит у неё есть история — и по ней можно ходить.
+ * Показываем только в сервисном режиме: это инструмент для разобранной
+ * машины, на визитке он был бы лишним хромом.
+ */
+/* Ленты может не быть вовсе: её строит скрипт по истории коммитов, и до
+   этого момента на разметке стоит hidden. Класс сам по себе его перебивал. */
+.timeline[hidden] { display: none; }
+
+.timeline {
+  display: flex;
+  grid-column: 1;              /* своей строкой под сценой, не рядом с ней */
+  align-items: center;
+  gap: 10px;
+  margin: 0 auto;
+  /* Ровно по сцене: та же доля колонки, тот же потолок. */
+  width: min(96%, var(--rig-w));
+  /* Вне сервисного режима лента схлопнута в ноль, а не спрятана display:
+     так её появление можно вести переходом, и места она при этом не занимает. */
+  overflow: hidden;
+  opacity: 0;
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-width: 0;
+  transform: translateY(-10px);
+  transition:
+    opacity var(--fade), transform var(--glide), max-height var(--glide),
+    padding var(--glide), border-width var(--glide), margin var(--glide);
+  padding: 8px 12px;
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  /* Тот же тон, что у консоли: лента — часть той же приборной панели, а не
+     отдельная плашка, и полупрозрачный серый на светлом фоне читался грязью. */
+  background: linear-gradient(180deg, rgba(9, 34, 40, 0.92) 0%, rgba(7, 26, 31, 0.88) 100%);
+  color: var(--fg);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.78rem;
+}
+
+.rig.service .timeline {
+  opacity: 1; transform: none; margin-top: 14px;
+  max-height: 60px; padding: 8px 12px; border-width: 1px;
+}
+
+.tl-btn {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border: 1px solid rgba(147, 161, 161, 0.28);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color var(--fade), color var(--fade);
+}
+
+.tl-btn:hover:not(:disabled) { border-color: var(--cyan); color: var(--cyan); }
+.tl-btn:disabled { opacity: 0.35; cursor: default; }
+
+/* Ползунок делаем сами: у нативного нет ни одного тона от нашей палитры */
+.tl-range {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 4px;
+  appearance: none;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    var(--cyan) calc(var(--tl-pos, 0) * 100%),
+    rgba(147, 161, 161, 0.22) calc(var(--tl-pos, 0) * 100%)
+  );
+  cursor: pointer;
+}
+
+.tl-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--cyan);
+  border: 2px solid var(--bg);
+  cursor: pointer;
+}
+
+.tl-range::-moz-range-thumb {
+  width: 13px;
+  height: 13px;
+  border: 2px solid var(--bg);
+  border-radius: 50%;
+  background: var(--cyan);
+  cursor: pointer;
+}
+
+.tl-meta {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  max-width: 46%;
+  color: inherit;
+  text-decoration: none;
+}
+
+.tl-rev { color: var(--cyan); white-space: nowrap; }
+
+.tl-subject {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.6;
+}
+
+.tl-meta:hover .tl-subject { opacity: 0.9; }
+
+/* Пока версия грузится, плата гаснет — иначе непонятно, случилось ли что-то */
+.chassis.loading { opacity: 0.55; transition: opacity 0.18s ease; }
+
+@media (max-width: 860px) {
+  .tl-meta { display: none; }
+}
+
+/* @part: screen */

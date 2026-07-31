@@ -84,6 +84,9 @@ eggs/
 lib/
 lib64/
 parts/
+# ...кроме наших: части страницы (терминал, экран) лежат рядом с узлами
+# платы, а parts/ выше пришёл из питоновского шаблона и метил в buildout.
+!tools/board/parts/
 sdist/
 var/
 wheels/
@@ -339,3 +342,19 @@ _site/
 
 # Локальный кэш wrangler: состояние дев-сервера и загруженных ассетов.
 .wrangler/
+tools/*.svg.part
+
+# Ревизии платы для ленты истории: собираются из git на этапе сборки
+# скриптом tools/history.py. В репозитории они были бы вторым экземпляром
+# того, что уже лежит в коммитах.
+history/
+
+# кадры визуальной сверки и просмотра — локальные артефакты
+tools/.visual/
+tools/preview.png
+tools/__pycache__/
+tools/board/__pycache__/
+tools/board/blocks/__pycache__/
+
+# кадры покадровой съёмки движения (tools/motion.mjs)
+tools/motion/

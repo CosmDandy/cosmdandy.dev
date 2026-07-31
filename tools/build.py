@@ -1,0 +1,265 @@
+"""Board assembly: block order, checks, insertion into the page.
+
+The schematic is assembled from independent units. A unit is a file in
+board/blocks/: it draws itself and knows nothing about its neighbours. What
+is shared lives in board/: geom — the coordinates, canvas — the canvas and
+the register of taken space, palette/ink/lamps/metal/ports — what we draw
+with, revision — the part numbers.
+
+Only three things live here, the ones a single block cannot know:
+
+1. ORDER. It is also the layer order, and also the queue for space: whoever
+   claims a rectangle first owns it. So the list below is not alphabetical
+   and not "whatever reads nicely", it is the assembly order, and changing
+   it has to be a deliberate act.
+
+2. BOUNDS. A block may declare BOUNDS = (x, y, w, h) — its own rectangle.
+   The build then checks that the block fitted inside it, and fails with
+   the block's name if it did not. That is the guarantee that two people
+   editing different units will not overlap: the mistake is found by the
+   script, not by the eye.
+
+3. REPORT. What did not fit on the board (space ran out) and what each
+   block ended up occupying. Silently losing parts has happened three times.
+
+The geometry is taken from the real Gigabyte R183-S94 layout (top view,
+cover removed), the indicators from an IBM x3550 M3. The composition is
+rotated 90°: front on the left, depth to the right, because the screen is
+wide and the server is long.
+
+Elements have two roles, and they do not coincide:
+  .unit — the thing that names itself with a label on hover (a drive, a
+          memory bank, a processor, a network card). The label lives next
+          to its own unit.
+  .pick — the thing that physically comes out: a DIMM, a drive, a fan, a
+          heatsink, a riser, a power supply.
+The fault lamp always lies inside its own .pick — otherwise the selector
+`.pick.pulled .fault` cannot reach it, and the wrong lamps light up.
+
+Indicators: we dim the lamps with fill-opacity, not opacity. opacity on SVG
+creates a composited layer, and those layers cover the whole scene — that
+is exactly what the "the entire background went black" bug looked like.
+"""
+
+import importlib
+import json
+import re
+from pathlib import Path
+
+from board.canvas import Canvas
+from board.ink import callout_box
+from board.spec import EXPECT, passport
+
+HERE = Path(__file__).parent
+
+# Assembly order. The board goes bottom up: the field, the zones, the
+# traces, the holes, the passives — and only then the units standing on it.
+# The callout labels are second to last: they lie on top of everything
+# except the pull-out panel.
+ORDER = [
+    'chassis',       # chassis and rack ears
+    'pcb_field',     # laminate with cutouts for the power supplies
+    'pcb_zones',     # reservations for the large units + silkscreen
+    'pcb_edge',      # connectors along the edge
+    'pcb_traces',    # traces: publishes the nodes for the vias
+    'pcb_vias',      # vias — placed on the trace nodes
+    'pcb_scatter',   # passives: sit in whatever is left, hence late
+    'vrm',           # core power, right up against the sockets
+    'front_panel',   # control panel on the front
+    'drives',        # 2.5″ cage
+    'backplane',
+    'fans',
+    'memory',
+    'cpu',
+    'service',       # battery, microSD, toggle switch, jumper table
+    'psu',
+    'risers',
+    'rear_io',       # SFP+, RJ45, management port
+    'marks',         # unit designations on the laminate
+    'frames',        # outline frames of the functional blocks
+    'callouts',      # link labels — on top of everything
+    'lightpath',     # pull-out diagnostics panel
+]
+
+
+
+def bbox(fragments):
+    """Rough extents of what was drawn: from the numbers in coordinates.
+
+    We count the coordinate attributes and deliberately do not parse paths:
+    a d="" holds absolute points, relative offsets and arc radii all mixed
+    together, and taking those for coordinates gives an extent twice the
+    real one. For the "did the block creep into its neighbour" check,
+    rectangles, circles, lines and labels are enough — what matters is the
+    order of magnitude.
+    """
+    xs, ys = [], []
+    for frag in fragments:
+        for attr, bag in (('x', xs), ('y', ys), ('cx', xs), ('cy', ys),
+                          ('x1', xs), ('x2', xs), ('y1', ys), ('y2', ys)):
+            for m in re.finditer(rf'\b{attr}="(-?\d+(?:\.\d+)?)"', frag):
+                bag.append(float(m.group(1)))
+    if not xs or not ys:
+        return None
+    return min(xs), min(ys), max(xs), max(ys)
+
+
+def build():
+    board, lid = Canvas(), Canvas()
+    report = []
+
+    for name in ORDER:
+        mod = importlib.import_module(f'board.blocks.{name}')
+        mark = len(board.parts)
+        mod.render(board)
+        drawn = board.parts[mark:]
+        box = bbox(drawn)
+        report.append((name, len(drawn), box))
+
+        limits = getattr(mod, 'BOUNDS', None)
+        if limits and box:
+            lx, ly, lw, lh = limits
+            x0, y0, x1, y1 = box
+            assert lx <= x0 and ly <= y0 and x1 <= lx + lw and y1 <= ly + lh, (
+                f'block {name} went outside its bounds: drew '
+                f'({x0:.0f},{y0:.0f})–({x1:.0f},{y1:.0f}), declared {limits}')
+
+    # The link labels are large and lie on top of everything: overlapping
+    # each other, they hide not a part but an address — the one thing the
+    # whole schematic was made for.
+    boxes = [(callout_box(c[0], c[1], c[4], c[5]), c[4]) for c in board.callouts]
+    for i, ((x1, y1, w1, h1), n1) in enumerate(boxes):
+        for (x2, y2, w2, h2), n2 in boxes[i + 1:]:
+            assert not (x1 < x2 + w2 and x1 + w1 > x2 and y1 < y2 + h2 and y1 + h1 > y2), (
+                f'labels "{n1}" ({x1:.0f},{y1:.0f} {w1:.0f}×{h1:.0f}) and "{n2}" '
+                f'({x2:.0f},{y2:.0f} {w2:.0f}×{h2:.0f}) overlap each other')
+
+    importlib.import_module('board.blocks.lid').render(lid)
+
+    if board.lost:
+        print('DID NOT FIT:', ', '.join(board.lost))
+    return board, lid, report
+
+
+# Two kinds of inserts. @block — a board unit: it has geometry, and the rule
+# "a unit lives in three files of the same name" holds literally. @part — a
+# piece of the page: the terminal, the screen. Those draw nothing, they have
+# no .py, and they live apart so the unit rule need not be blurred with
+# exceptions.
+SRC_DIR = {'block': 'board/blocks', 'part': 'board/parts'}
+
+BLOCK_MARK = re.compile(r'^([ \t]*)/\* @(block|part): ([a-z_]+) \*/[ \t]*$', re.MULTILINE)
+
+
+def build_css():
+    """Assemble server.css: the base plus unit and part styles in place.
+
+    The marker `/* @block: name */` sits exactly where the unit's rules used
+    to be in the single file. That is not decoration: with equal specificity
+    the argument is settled by order, and moving a rule up or down changes
+    the look without breaking anything in the syntax.
+    """
+    base = (HERE / 'board/styles/base.css').read_text(encoding='utf-8')
+    used = []
+
+    def paste(m):
+        indent, kind, name = m.group(1), m.group(2), m.group(3)
+        part = (HERE / f'{SRC_DIR[kind]}/{name}.css').read_text(encoding='utf-8').rstrip('\n')
+        used.append((kind, name))
+        return f'{indent}/* ── {name} ──────────────────────────────── */\n{part}'
+
+    css = BLOCK_MARK.sub(paste, base)
+    head = ('/* СОБРАННЫЙ ФАЙЛ — правки затрёт следующая сборка.\n'
+            ' * Источники: tools/board/styles/base.css и tools/board/blocks/*.css,\n'
+            ' * собирает tools/build.py. Стили узла лежат рядом с его геометрией.\n'
+            ' */\n')
+    (HERE.parent / 'server.css').write_text(head + css, encoding='utf-8')
+    return used
+
+
+JS_MARK = re.compile(r'^([ \t]*)// @(block|part): ([a-z_]+)[ \t]*$', re.MULTILINE)
+
+
+def build_js():
+    """Assemble server.js: the base plus unit behaviour in place.
+
+    The pieces are inserted inside the same IIFE as the base, so the shared
+    scope is preserved: a block still sees line(), rig and the rest, and the
+    terminal sees its functions. Order matters just as much as in CSS — the
+    code runs top to bottom, and a handler lifted above its own element
+    simply will not find it in the DOM.
+    """
+    base = (HERE / 'board/scripts/base.js').read_text(encoding='utf-8')
+    used = []
+
+    def paste(m):
+        kind, name = m.group(2), m.group(3)
+        part = (HERE / f'{SRC_DIR[kind]}/{name}.js').read_text(encoding='utf-8').rstrip('\n')
+        used.append((kind, name))
+        return part
+
+    js = JS_MARK.sub(paste, base)
+    head = ('// СОБРАННЫЙ ФАЙЛ — правки затрёт следующая сборка.\n'
+            '// Источники: tools/board/scripts/base.js и tools/board/blocks/*.js,\n'
+            '// собирает tools/build.py. Поведение узла лежит рядом с его геометрией.\n')
+    (HERE.parent / 'server.js').write_text(head + js, encoding='utf-8')
+    return used
+
+
+def tally(used):
+    """Report line: how many units and how many parts the build inserted."""
+    blocks = [n for k, n in used if k == 'block']
+    parts = [n for k, n in used if k == 'part']
+    out = f'base + {len(blocks)} units ({", ".join(blocks)})'
+    if parts:
+        out += f' + {len(parts)} parts ({", ".join(parts)})'
+    return out
+
+
+def main():
+    board, lid, report = build()
+    svg, lidart = board.svg(), lid.svg()
+    css_blocks = build_css()
+    js_blocks = build_js()
+
+    (HERE / 'board-v17.svg.part').write_text(svg, encoding='utf-8')
+    (HERE / 'board-v17-lid.svg.part').write_text(lidart, encoding='utf-8')
+
+    # The machine's passport goes into the page in the same run as the
+    # schematic — otherwise the two drift apart. Before that we check the
+    # promise against the drawing: if the passport says twenty-four DIMMs
+    # and the board carries twenty-three, the build must fail here rather
+    # than lie to the visitor in the console.
+    drawn = {'dimm': svg.count('data-dimm="'), 'fan': svg.count('data-fan="'),
+             'bay': svg.count('data-unit="hdd'), 'psu': svg.count('data-psu="'),
+             'riser': svg.count('data-riser="'), 'cpu': svg.count('data-cpu="')}
+    for kind, want in EXPECT.items():
+        assert drawn[kind] == want, (
+            f'passport promises {want} ({kind}), the board draws {drawn[kind]}')
+
+    page = HERE.parent / 'index.html'
+    if page.exists():
+        html = page.read_text(encoding='utf-8')
+        html = re.sub(r'(<!-- BOARD:BEGIN -->).*?(<!-- BOARD:END -->)',
+                      lambda m: m.group(1) + '\n' + svg + '\n' + m.group(2), html, flags=re.DOTALL)
+        html = re.sub(r'(<!-- LIDART:BEGIN -->).*?(<!-- LIDART:END -->)',
+                      lambda m: m.group(1) + '\n' + lidart + '\n' + m.group(2), html, flags=re.DOTALL)
+        # We escape only "</": inside <script> it would close the tag early.
+        spec = json.dumps(passport(), ensure_ascii=False, separators=(',', ':')).replace('</', '<\\/')
+        html = re.sub(r'(<!-- SPEC:BEGIN -->).*?(<!-- SPEC:END -->)',
+                      lambda m: m.group(1) + '\n<script type="application/json" id="rig-spec">'
+                                + spec + '</script>\n' + m.group(2), html, flags=re.DOTALL)
+        for probe in ('data-for=', 'class="die"', 'data-group="tw"', 'id="rig-spec"'):
+            assert probe in html, probe
+        page.write_text(html, encoding='utf-8')
+
+    print(f'board: {len(board.parts)} fragments, {len(svg)} chars; '
+          f'lid: {len(lidart)} chars')
+    print(f'passport: {len(json.dumps(passport()))} chars, matches the board')
+    print('styles: ' + tally(css_blocks))
+    print('logic: ' + tally(js_blocks))
+    return report
+
+
+if __name__ == '__main__':
+    main()

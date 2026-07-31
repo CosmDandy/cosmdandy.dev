@@ -1,0 +1,20 @@
+  /* Cover. Lives in the same coordinates as the board, so it sits over the
+     machine exactly. A person takes it off with the cover button; it does not
+     intercept clicks. */
+  .lid {
+    position: absolute; inset: 0;
+    pointer-events: none;
+    z-index: 3;
+    transition: transform 0.9s cubic-bezier(0.32,0.72,0,1), opacity 0.7s ease;
+    z-index: 3;
+  }
+  .lid svg { display: block; width: 100%; height: auto; }
+  .lid-btn-svg { pointer-events: auto; cursor: pointer; }
+  .lid-btn-svg:hover rect:first-child { stroke: var(--cyan); fill: #22303a; }
+  .rig.lid-off .lid { transform: translateY(-30%) scale(1.03); opacity: 0; }
+
+  .id-btn, .lid-on-btn { cursor: pointer; }
+  .lid-on-btn { display: none; }
+  .rig.lid-off .lid-on-btn { display: block; }
+  .lid-on-btn:hover rect:nth-of-type(2) { stroke: var(--cyan); fill: #1c2a31; }
+  .id-btn:hover circle:first-child { stroke: rgba(181,137,0,0.6); }

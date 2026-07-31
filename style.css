@@ -1,18 +1,20 @@
-/* Цвета вынесены в переменные, а тема выбирается атрибутом data-theme на
-   <html>: auto (по системе), light, dark. Атрибут ставит инлайновый скрипт в
-   <head> до отрисовки — иначе на долю секунды мелькала бы чужая тема.
+/* Colours are pulled out into variables, and the theme is chosen by the
+   data-theme attribute on <html>: auto (follow the system), light, dark. The
+   attribute is set by an inline script in <head> before paint — otherwise the
+   wrong theme would flash for a fraction of a second.
 
-   Светлая — Solarized Light, та же гамма, что у блога на blog.cosmdandy.dev.
-   Её значения описаны дважды: для явного выбора и для auto при светлой
-   системной теме. Объединить нельзя — @media и обычный селектор в одно
-   правило не сходятся.
+   Light is Solarized Light, the same range as the blog at blog.cosmdandy.dev.
+   Its values are written out twice: for the explicit choice and for auto under
+   a light system theme. They cannot be merged — @media and a plain selector do
+   not come together into one rule.
 
-   Свечение (.glow) в обеих темах одинаковое: на кремовом фоне оно читается
-   как акварельное пятно и связывает страницу с остальными сайтами. */
+   The glow (.glow) is the same in both themes: on the cream background it reads
+   as a watercolour stain and ties the page to the other sites. */
 :root,
 :root[data-theme="dark"] {
-    /* Длительность перекраски при смене темы. Одно значение на весь файл:
-       иначе фон, текст и рамки приезжают вразнобой и это заметно. */
+    /* Duration of the recolour when the theme changes. One value for the whole
+       file: otherwise background, text and borders arrive out of step, and it
+       shows. */
     --theme-fade: 0.45s cubic-bezier(0.32, 0.72, 0, 1);
 
     --base01: #586e75;
@@ -57,13 +59,13 @@
     --selection-fg: #ededed;
     --focus:        rgba(0, 220, 255, 0.5);
 
-    /* Гигантская «404» на фоне страницы ошибки. */
+    /* The giant "404" in the background of the error page. */
     --ghost:        rgba(237, 237, 237, 0.035);
     --ghost-mobile: rgba(237, 237, 237, 0.16);
 
-    /* Плашка переключателя всегда контрастна фону: на тёмной теме светлая,
-       на светлой тёмная. Так кнопка читается как отдельный предмет, а не
-       растворяется в поверхности. */
+    /* The switch plate always contrasts with the background: light on the dark
+       theme, dark on the light one. That way the button reads as a separate
+       object instead of dissolving into the surface. */
     --inv-surface:  rgba(238, 232, 213, 0.94);
     --inv-line:     rgba(88, 110, 117, 0.22);
     --inv-node:     #657b83;
@@ -84,8 +86,8 @@
     --cursor-glow-1: rgba(7, 54, 66, 0.05);
     --cursor-glow-2: rgba(7, 54, 66, 0.018);
 
-    /* Карточки на base2: та же логика «поверхность чуть плотнее фона»,
-       но со светлым основанием, иначе стекло превращается в грязь. */
+    /* Cards on base2: the same logic of "a surface a little denser than the
+       background", but with a light base, or the glass turns into dirt. */
     --card-from:        rgba(238, 232, 213, 0.55);
     --card-to:          rgba(238, 232, 213, 0.30);
     --card-hover-from:  rgba(238, 232, 213, 0.75);
@@ -135,8 +137,9 @@
         --cursor-glow-1: rgba(7, 54, 66, 0.05);
         --cursor-glow-2: rgba(7, 54, 66, 0.018);
 
-        /* Карточки на base2: та же логика «поверхность чуть плотнее фона»,
-           но со светлым основанием, иначе стекло превращается в грязь. */
+        /* Cards on base2: the same logic of "a surface a little denser than
+           the background", but with a light base, or the glass turns into
+           dirt. */
         --card-from:        rgba(238, 232, 213, 0.55);
         --card-to:          rgba(238, 232, 213, 0.30);
         --card-hover-from:  rgba(238, 232, 213, 0.75);
@@ -547,14 +550,14 @@ h1     { animation-delay: 0ms; }
     }
 }
 
-/* ── Переключатель темы ─────────────────────────────────────────────────────
-   Два состояния, солнце и луна: в разметке нет отдельного «авто». Пустой
-   localStorage сам по себе означает «следуй за системой», а первый клик
-   записывает явный выбор — так третий режим не нужен в интерфейсе, хотя по
-   поведению он есть.
+/* ── Theme switch ───────────────────────────────────────────────────────────
+   Two states, sun and moon: there is no separate "auto" in the markup. An empty
+   localStorage means "follow the system" all by itself, and the first click
+   writes down an explicit choice — that way a third mode is not needed in the
+   interface, even though it is there in behaviour.
 
-   Иконка показывает действующую тему, а не будущую: кнопка отвечает на
-   вопрос «что сейчас», а не «что будет». */
+   The icon shows the theme in force, not the one to come: the button answers
+   the question "what is it now", not "what will it be". */
 .theme-switch {
     position: fixed;
     top: 24px;
@@ -587,7 +590,7 @@ h1     { animation-delay: 0ms; }
     outline-offset: 3px;
 }
 
-/* Обе иконки лежат друг на друге: одна уезжает, вторая приезжает. */
+/* Both icons lie on top of each other: one leaves, the other arrives. */
 .theme-switch svg {
     grid-area: 1 / 1;
     width: 22px;
@@ -614,7 +617,7 @@ h1     { animation-delay: 0ms; }
     transform: rotate(0deg) scale(1);
 }
 
-/* В тёмной теме солнце должно уехать, даже если атрибута ещё нет. */
+/* On the dark theme the sun has to leave even if the attribute is not set. */
 :root[data-theme="dark"] .icon-sun {
     opacity: 0;
     transform: rotate(-90deg) scale(0.5);
@@ -644,10 +647,11 @@ h1     { animation-delay: 0ms; }
     }
 }
 
-/* ── Плавная смена темы ─────────────────────────────────────────────────────
-   Переходы навешиваются только на время переключения и снимаются сразу после.
-   Держать их постоянно нельзя: они перебили бы собственные анимации карточек
-   и подсветку при наведении, у которых свои кривые и длительности. */
+/* ── Smooth theme change ────────────────────────────────────────────────────
+   Transitions are hung on only for the duration of the switch and taken off
+   right afterwards. They cannot be kept on permanently: they would override the
+   cards' own animations and the hover highlight, which have curves and
+   durations of their own. */
 :root.theme-animating,
 :root.theme-animating *,
 :root.theme-animating *::before,

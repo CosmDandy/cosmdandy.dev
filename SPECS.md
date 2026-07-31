@@ -1,0 +1,288 @@
+# How to work with the card
+
+A static site: `index.html`, `style.css`, `server.css`, `server.js` plus fonts
+and images. There is no build step — whatever lies in the repository is what
+goes to Cloudflare Workers from CI. The only generated thing is the server
+schematic: Python assembles it from separate blocks and inserts it into
+`index.html` between the `<!-- BOARD:BEGIN -->` and `<!-- LIDART:BEGIN -->`
+markers.
+
+So the local cycle is exactly this:
+
+```
+edit a block → tools/sync.sh → node tools/preview.mjs → look at the frame
+```
+
+## Rebuild the schematic
+
+```bash
+tools/sync.sh
+```
+
+Assembles the board, inserts it into `index.html`, runs the overlap audit and
+updates the revision strip. Prints how many fragments came out and whether
+anything got lost on the way.
+
+Assembly only, without the insertion and the rest: `python3 tools/build.py`.
+
+## Take a look
+
+```bash
+node tools/preview.mjs              # server view, frame in tools/preview.png
+node tools/preview.mjs --card       # card view
+node tools/preview.mjs --service    # service mode: console and teardown
+node tools/preview.mjs /tmp/x.png   # frame to a place of your own
+```
+
+The script brings the static files up on a free port by itself, opens the
+page, counts the nodes and prints console errors. Do not open `index.html` as
+a file: over `file://` the browser cuts off the fonts by CORS, and the console
+is stuffed with errors that have nothing to do with the matter.
+
+playwright is needed — once, outside the repository:
+
+```bash
+mkdir -p /workspaces/.pw && cd /workspaces/.pw && npm init -y
+PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm i playwright pngjs
+```
+
+The browser is taken from the nix store. A downloaded playwright browser does
+not start here — the container has no `libglib-2.0`.
+
+## Make sure you broke nothing
+
+Three checks, each catching its own class of breakage.
+
+**The picture has not changed.** For edits that must not change the look
+(re-wrapping, refactoring):
+
+```bash
+cp tools/board-v17*.svg.part /tmp/ref/          # baseline before the edit
+python3 tools/diff_ref.py /tmp/ref              # after
+```
+
+Compares byte for byte, forgiving only commit hashes and the revision number —
+those change from the very fact of doing the work.
+
+**The look has not changed.** For edits in CSS and JS, where comparing text is
+meaningless: the order of rules changes the cascade, the order of code changes
+behaviour.
+
+```bash
+node tools/visual_ref.mjs --save    # baseline before the edit
+node tools/visual_ref.mjs           # after: pixel by pixel, five states
+```
+
+The states: card, schematic, service mode, dark theme, pulled nodes.
+Animations, running graphs, the clock and the input caret are killed —
+otherwise the check would be catching those instead of the edits.
+
+**The machine behaves as before.** Seventeen scenarios: power, service mode,
+pulling nodes out, taking the processor apart in three clicks, node names in
+the log, part numbers.
+
+```bash
+node tools/behave.mjs
+```
+
+**The labels have not run into each other:**
+
+```bash
+python3 tools/audit_text.py
+```
+
+On top of that the build itself fails if a node went outside its declared
+bounds or if a part did not find room on the board.
+
+## The schematic is assembled from blocks
+
+```
+tools/build.py          build order, bounds, report, insertion into the page
+tools/board/
+  geom.py               the only place that says what lies where
+  spec.py               the machine spec: what kind of hardware this is
+  canvas.py             canvas, register of taken places, share between blocks
+  palette ink lamps metal ports revision
+  styles/base.css       common schematic styles, with node and part markers
+  scripts/base.js       common machine logic, with node and part markers
+  blocks/               board nodes: geometry.py + styles + behaviour
+  parts/                page parts: terminal, commands, screen
+```
+
+A node lives in three files with one name, and that is the whole node:
+
+```
+blocks/fans.py     geometry: impellers, tabs, lamps, power pins
+blocks/fans.css    look: rotation, spin-up when a neighbour is pulled
+blocks/fans.js     behaviour: its name in the log, how it comes apart
+```
+
+`server.css` and `server.js` are **generated** — editing them is pointless,
+the next build overwrites them. The sources are the base plus the node files;
+the `/* @block: name */` and `// @block: name` markers stand exactly where the
+pieces lay in the single file. This is not cosmetics: in CSS, with equal
+specificity, the dispute is settled by order, and in JS a handler hoisted above
+its element will not find it in the DOM.
+
+The behaviour of a node is described through a registry — the block itself
+says what it is called and whether it comes apart in a special way:
+
+```js
+PICKS.push({
+  test: el => el.dataset.fan !== undefined,
+  name: el => 'fan ' + (Number(el.dataset.fan) + 1),
+  pull: (el, line) => { … },     // optional: the processor has three states
+});
+```
+
+Editing a node is editing its files. It does not touch the neighbours:
+different files, different zones.
+
+```python
+BOUNDS = (178, 6, 274, 832)      # its own rectangle, optional
+
+def render(cv):
+    cv.add('<g class="pick fan">…</g>')     # put down a fragment
+    cv.busy(x, y, w, h)                     # take the place
+    if cv.put(x, y, w, h):                  # take it if free
+        ...
+```
+
+Coordinates come from `geom`, they are not written as numbers. A lamp comes
+from `lamps`, not one of your own: indication must look the same on a drive, a
+fan and a memory module, otherwise the schematic falls apart into patches.
+
+## The machine spec and the three layers of truth
+
+`geom` answers "what lies where", `spec.py` answers "what it is": the
+processor model, the size of a module, which drive sits in which bay. The
+build prints it into the page between the `SPEC:BEGIN/END` markers as JSON and
+**checks what is promised against what is drawn** — if the spec says
+twenty-four modules and there are twenty-three of them in the SVG, the build
+fails with the name of the discrepancy.
+
+Everything the console prints comes from exactly one of three places:
+
+```
+HW spec      what hardware is installed  spec.py → JSON in the page
+DOM          what of it is in place now  .dimm.pulled and other selectors
+NVRAM nv     how it is configured        localStorage rig-nv, edited by BIOS
+```
+
+There must be no literals in the commands. Before, they were absent only on
+paper: the board has twenty-four modules while the console promised
+thirty-two — and so in six places at once.
+
+The labels on the board itself also come from the spec: the type and size of a
+module, the drive model, the socket and the core count on the processor lid,
+the channels on the bank frames. Lying is still possible, but now only in the
+console and on the laminate at the same time.
+
+## Parts of the page
+
+The terminal and the screen draw nothing on the board, so the "a node lives in
+three files" rule does not apply to them. They lie in `parts/`, are wired in
+by `@part: name` markers and may consist of a single file:
+
+```
+parts/term.js    shell core: command registry, lexer, pipeline, history, Tab
+parts/term.css   the completion hint
+parts/hw.js      hardware commands: they also compute the sensor readings
+parts/fs.js      the file system and the file commands
+parts/screen.js  the full-screen layer: POST, BIOS Setup, top
+```
+
+The order of insertion is the order of execution: `term` creates the registry,
+the rest register themselves in it. Mixing up the markers means getting an
+empty help page and silently dead commands, which is why a repeated command
+name crashes the page right away instead of quietly overwriting the previous
+one.
+
+A command declares itself in full and **returns lines rather than printing
+them** — that is the only way the pipeline works:
+
+```js
+cmd({ name: 'sensors', group: 'СОСТОЯНИЕ', brief: 'температуры и обороты',
+      usage: 'sensors [шаблон]', needs: 'power',
+      complete: (argv, i) => [],                 // candidates for Tab
+      run: ctx => [{ t: 'CPU0 Temp 47 °C', c: 'ok' }] });
+```
+
+### The full-screen layer
+
+`parts/screen.js` raises one `<dialog>` over the machine in three modes: the
+self-test at power-on, BIOS Setup and `top`. `showModal()` moves it into the
+top layer and makes the rest of the tree inert — otherwise `Enter` and `Space`
+would keep pressing the buttons of the schematic under the layer. While the
+layer is open, the schematic is paused by the `dormant` class.
+
+Setup is entered by `Enter` or `F2` during the self-test and by `F2` at idle;
+on a mac the top row of keys is given to brightness, so `F2` alone is not
+enough. The settings live in `localStorage['rig-nv']` separately from
+`rig-state`: the firmware is edited by `F10`, while power is toggled every
+time, and `F9` must wipe the first without touching the second.
+
+There is **not a single `<input>`** inside the layer — this chromium build
+crashes the renderer on any input field, and the BMC address is edited by
+typing right in the table row.
+
+The terminal cannot be checked by typing into a field — the chromium build in
+the container crashes the renderer on any `<input>`, and the tools remove the
+fields before painting. For that there is the `window.__rig` handle: `exec`,
+`complete`, `ghost`, `cwd`.
+
+### What must not be edited on its own
+
+- **`ORDER` in `build.py`** — the build order. It is also the layer order and
+  also the queue for space: whoever took a rectangle first owns the place. The
+  discrete components go late, because they seat in what is left.
+- **`geom.py`** — the common table. Moving a node from here means moving
+  everything inside it too.
+- **The palette and the lamps** — edited rarely and as a whole.
+
+### Links between blocks
+
+Only two, both explicit. Data — through `canvas.share`: the routing puts down
+its knots, the vias and the passives take them.
+
+```python
+cv.share['knots'] = knots        # pcb_traces
+kx, ky = cv.share['knots'][i]    # pcb_vias, pcb_scatter
+```
+
+Space — through the register of taken places, in the order given by `ORDER`.
+
+### Part numbers
+
+Every node has its own P/N — the hash of the last commit touching its file.
+`stamp()` works out the file from the call stack, so inside a block `stamp(x,
+y, 'fans')` is enough; the third argument is only for readability. You edit
+`fans.py` — only its number diverges.
+
+## Environment gotchas
+
+- **This chromium build crashes the renderer on any `<input>`.** Reproduced on
+  a bare page with a single field. In the checks the input field is removed
+  before painting — if you write your own script, do the same.
+- **There are no system fonts in the container** (`fc-list` is empty). Frames
+  show no monospaced text: the labels on the board look like empty plates.
+  That is a capture artefact, not a regression.
+- **A downloaded playwright browser does not start** — no `libglib-2.0`, we
+  take chromium from the nix store.
+- `cd` does not survive between Bash calls — absolute paths.
+
+## Commits and deploy
+
+Commits are signed with an SSH key through a forwarded agent. If the agent has
+died (`~/.ssh/ssh_auth_sock` points at a socket that does not exist), signing
+fails with `Couldn't get agent socket?`. Then either fix the agent, or commit
+without a signature and re-sign later:
+
+```bash
+git rebase --exec 'git commit --amend --no-edit -S' <base>
+```
+
+There is no need to deploy locally, and nothing to do it with: a `push` to
+`master` launches `.github/workflows/deploy.yaml`, which builds `_site/` and
+uploads it to the worker. The `server-card` branch is not merged yet — it does
+not go to prod.
