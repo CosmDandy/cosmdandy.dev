@@ -230,15 +230,14 @@ def render(cv):
            + jack_tabs(BY + 128, 50)
            + '</g>')
 
-    # Two gigabit jacks — two different links. The common frame stays: it is one
-    # card and it is pulled out as a whole — but each jack lights up and opens
-    # on its own, so the unit is nested inside the pick and not the other way
-    # round.
+    # Два гигабитных гнезда — две разные ссылки. Общая группа остаётся: пара
+    # распаяна одним узлом и подписана одной строкой, но горит и открывается
+    # каждое своё, поэтому unit вложен в группу, а не наоборот.
     def rj_port(y, group, href, salt, seed):
         """A jack with the full set of lamps: link, receive, transmit."""
-        # The boss now spans the full width of the wall module, like the
-        # management port below it: a lamp column on each side of the jack
-        # does not fit into anything narrower.
+        # Кожух шире самого гнезда: по колонке ламп с каждой стороны в
+        # меньшую ширину не помещается. Он же и есть та металлическая клетка,
+        # которая лапками паяется в плату.
         return (f'<g class="unit" data-group="{group}" data-href="{href}">'
                 f'<g class="body">'
                 f'<rect x="{X_IO}" y="{y-8}" width="86" height="40" rx="3" fill="#0f2226" '
@@ -264,7 +263,7 @@ def render(cv):
     {rj45(X_IO+17, BY + 138, JACK_W)}
     {rj_leds(9, X_IO + 17, BY + 138, 6, aux=True)}
   </g>
-  {mono(X_IO-96, BY + 162, PORTS['mgmt'], 8, op=0.55)}
+  {mono(X_IO-104, BY + 162, PORTS['mgmt'], 8, op=0.55)}
 </g>''')
 
     cv.add(stamp(X_IO + 43, BY - 10, "задняя панель", anchor="middle"))
@@ -276,7 +275,7 @@ def render(cv):
   <rect x="{X_IO}" y="{AY}" width="86" height="{IO_AUX_H}" rx="4" fill="#121a1e"
         stroke="rgba(147,161,161,0.22)"/>
   {usb_stack(X_IO + 8, AY + 6)}
-  {dsub(X_IO + 46, AY + 8)}
+  {dsub(X_IO + 43, AY + 8)}
   {minidp(X_IO + 52, AY + 28)}
   {uid_button(X_IO + 12, AY + 46)}
   {sys_leds(X_IO + 10, AY + 70)}

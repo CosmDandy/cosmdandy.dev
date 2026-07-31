@@ -387,7 +387,11 @@ def render(cv):
     # Telegram и Twitter — единственный разрыв в их частоколе, где марку видно
     # целиком. Кегль упирается в ширину поля: 9 знаков по 0.7 em с разрядкой.
     fx, fy, fw, fh = IO_FREE
-    size = round(min(fh * 0.72, fw / (len("COSMDANDY") * 0.7)))
+    sub = f"DUAL {CPU['socket']} · {ram_label()}"
+    # Знак моноширинного шрифта продвигается на 0.6 em, разрядка добавляет свои
+    # 0.10 em: обе строки набираются под ширину поля, а не подбираются на глаз.
+    size = round(min(fh * 0.66, fw / (len("COSMDANDY") * 0.72)))
+    sub_size = round(min(9, fw / (len(sub) * 0.72)), 1)
     cv.busy(fx, fy, fw, fh)
     cv.add(f'''<g class="decor">
   <text x="{fx + fw / 2:.0f}" y="{fy + size:.0f}" text-anchor="middle"
@@ -395,18 +399,23 @@ def render(cv):
         font-size="{size}" font-weight="600" letter-spacing="0.10em">COSMDANDY</text>
   <text x="{fx + fw / 2:.0f}" y="{fy + fh - 3:.0f}" text-anchor="middle"
         fill="rgba(147,161,161,0.34)" font-family="ui-monospace, Menlo, monospace"
-        font-size="8" letter-spacing="0.14em">DUAL {CPU['socket']} · {ram_label()}</text>
+        font-size="{sub_size}" letter-spacing="0.10em">{sub}</text>
 </g>''')
 
-    # Ревизия платы — по правому борту от марки. Она же ссылка: номер сборки это
-    # число коммитов, серийник — хэш HEAD, и оба ведут на сам коммит.
+    # Ревизия платы — вдоль кромки служебной зоны. Она же ссылка: номер сборки
+    # это число коммитов, серийник — хэш HEAD, и оба ведут на сам коммит.
+    #
+    # Сдвинулась влево на место, которое освободила марка: прежние две колонки
+    # стояли правее и попадали под строку, набранную поперёк. Плашка осталась
+    # вертикальной нарочно — это позиционные данные, а не имя вендора, и вдоль
+    # свободной кромки их и печатают.
     cv.add(f'''<g class="unit" data-unit="plate" data-group="plate"
       data-href="https://github.com/CosmDandy/cosmdandy.dev/commit/{BOARD_SHA.lower()}">
-  {hit(X_SVC+150, 300, 40, 380)}
-  <text x="{X_SVC+172}" y="480" transform="rotate(-90 {X_SVC+172} 480)" text-anchor="middle"
+  {hit(X_SVC+128, 300, 40, 380)}
+  <text x="{X_SVC+150}" y="480" transform="rotate(-90 {X_SVC+150} 480)" text-anchor="middle"
         fill="rgba(147,161,161,0.30)" font-family="ui-monospace, Menlo, monospace"
         font-size="11" letter-spacing="0.12em">REV {BOARD_REV}  ·  S/N {BOARD_SHA}</text>
-  <text x="{X_SVC+186}" y="480" transform="rotate(-90 {X_SVC+186} 480)" text-anchor="middle"
+  <text x="{X_SVC+164}" y="480" transform="rotate(-90 {X_SVC+164} 480)" text-anchor="middle"
         fill="rgba(147,161,161,0.20)" font-family="ui-monospace, Menlo, monospace"
         font-size="8" letter-spacing="0.10em">ASSEMBLED IN A CONTAINER · MADE BY HAND</text>
 </g>''')

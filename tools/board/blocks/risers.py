@@ -91,8 +91,11 @@ def render(cv):
                      + lamp('led-link', X_IO + 8, card_y + 8, 3, '#2aa198')
                      + act_led(3, X_IO + 8, card_y + 20, 3, "#859900", salt=2)
                      + lamp('led-link', X_IO + 8, card_y + 38, 3, '#b58900')
-                     + mono(X_IO + 43, card_y + 74, PORTS['sfp'], 9, op=0.5)
-                     + mono(X_IO + 43, card_y + 86, PORTS['sfp_degraded'], 7, op=0.34))
+                     # Подписи сдвинуты от центра планки влево: у самого борта
+                     # теперь стоит стальной лист, и строка, набранная по
+                     # середине, уезжала хвостом на его перфорацию.
+                     + mono(X_IO + 30, card_y + 74, PORTS['sfp'], 9, op=0.5)
+                     + mono(X_IO + 30, card_y + 86, PORTS['sfp_degraded'], 7, op=0.34))
             card += (f'<g class="unit" data-unit="ocp" data-group="ocp" '
                      f'data-href="https://linkedin.com/in/cosmdandy">{ports}</g>')
         else:
@@ -105,7 +108,7 @@ def render(cv):
                     + ''.join(f'<line x1="{X_IO+14}" y1="{blank_y+10+r*11}" x2="{X_IO+72}" '
                               f'y2="{blank_y+10+r*11}" stroke="rgba(147,161,161,0.14)" '
                               f'stroke-width="1.4"/>' for r in range(int((hh - 34) // 11)))
-                    + silk_boxed(X_IO + 43, blank_y + hh - 22, "SLOT 2 · FREE", 6))
+                    + silk_boxed(X_IO + 38, blank_y + hh - 22, "SLOT 2 · FREE", 6))
 
         # Лепесток-ручка на внешнем торце: райзер вынимают вверх, взявшись за
         # него. Голубой, а не терракотовый: райзер меняют только на
