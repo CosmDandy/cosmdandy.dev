@@ -445,25 +445,26 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   .ghost-typed { color: transparent; font-style: normal; }
   .ghost-rest { color: var(--dim); opacity: 0.7; font-style: normal; }
 
-  /* ── Индикация ────────────────────────────────────────────────────────── */
-  /* Гасим лампы через fill-opacity, а не через opacity. opacity на SVG-узле
-     поднимает его в отдельный composited layer, и эти слои перекрывали сцену
-     целиком — так и выглядел «весь фон стал чёрным». fill-opacity меняет
-     только заливку и слоёв не создаёт. */
+  /* ── Indication ───────────────────────────────────────────────────────── */
+  /* We put lamps out through fill-opacity, not through opacity. opacity on an
+     SVG node lifts it into a separate composited layer, and those layers
+     covered the whole stage — that is what "the entire background went black"
+     looked like. fill-opacity changes the fill only and creates no layers. */
 
   .led { fill-opacity: 0.16; transition: fill-opacity 0.2s steps(1, end); }
   .rig.on .led { fill-opacity: 1; }
 
-  /* Дежурка: BMC, порт управления и сами блоки питания работают всегда —
-     машина выключена, а они уже под напряжением. */
+  /* Standby: the BMC, the management port and the power supplies themselves
+     run always — the machine is off, and they are already live. */
   .led.aux { fill-opacity: 1; }
   .led-act.aux { animation: act var(--blink) steps(1, end) infinite; }
   .fan-blades.aux { animation-play-state: running; }
 
-  /* Рисунок вспышек. Все точки переключения кратны 5% от периода, а период
-     кратен секунде, — значит любое изменение приходится на общий такт в
-     десятую долю секунды. Числа тут не косметика: сдвинешь на процент, и
-     лампа начнёт перерисовывать сцену в свои собственные кадры. */
+  /* The blink pattern. Every switching point is a multiple of 5% of the
+     period, and the period is a multiple of a second — so any change falls on
+     the common tick of a tenth of a second. The numbers here are not
+     cosmetic: shift one by a per cent and the lamp starts repainting the
+     stage on frames of its own. */
   @keyframes act {
     0.00% { fill-opacity: 1 }
     3.57% { fill-opacity: 1 }
@@ -495,10 +496,26 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
     96.43% { fill-opacity: 1 }
     100% { fill-opacity: 1 }
   }
-  /* Фаза приходит инлайн от генератора, период общий. Ореол щёлкает вместе
-     с ядром, а не переползает плавно: плавный ореол — это перерисовка на
-     каждом кадре монитора, и сорок ламп разом не давали сцене простоя. */
+  /* The phase arrives inline from the generator, the period is shared. The
+     halo snaps together with the core rather than crawling across smoothly: a
+     smooth halo means a repaint on every frame of the monitor, and forty
+     lamps at once left the stage no idle time. */
   .rig.on .led-act { animation: act var(--blink) steps(1, end) infinite; }
+  /* Приём и передача — одна лампа на два цвета, как на живой розетке: в ней
+     два кристалла под общей линзой, и куда ушёл пакет, видно по тому, каким
+     цветом она моргнула. Янтарный — наружу, зелёный — внутрь. Двумя лампами
+     это говорилось дважды.
+     Мигает по-прежнему act, здесь меняется только заливка, поэтому вторая
+     анимация идёт рядом, а не вместо. Период втрое длиннее вспышек, чтобы
+     цвет держался несколько миганий подряд: смена цвета на каждой вспышке
+     читается мельтешением, а не направлением. Кратно 0.05 с, как всё
+     остальное в индикации. */
+  .rig.on .led-act.led-txrx {
+    animation:
+      act var(--blink) steps(1, end) infinite,
+      txrx calc(var(--blink) * 3) steps(1, end) infinite;
+  }
+  @keyframes txrx { 0%, 50% { fill: var(--amber) } 50.01%, 100% { fill: var(--green) } }
   .halo { transition: fill-opacity 0.35s ease; }
   /* Ореол не мигает: он и так виден, а анимаций в сцене от него втрое
      больше, чем ламп, — по три круга на каждую. Браузер обновляет каждую

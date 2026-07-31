@@ -32,18 +32,17 @@ JACK_W, LED_R = 52, 2.4
 
 
 def rj_leds(seed, jx, y, salt, aux=False):
-    """Lamps of one jack: the activity pair left of it, link right of it.
+    """Lamps of one jack: activity left of it, link right of it.
 
-    That is how a live jack is lit. Both activity lamps blink, so each needs
-    its own phase — sharing one, they would read as a single lamp flashing
-    twice as wide. The silkscreen letters are what tells them apart at all:
-    without them the pair is just two dots of unknown meaning.
+    Traffic is one lamp, not two. A live jack has a single activity LED with
+    two dies in it, and which way the packet went is told by the colour it
+    flashes — amber out, green in. Two separate lamps said the same thing
+    twice and made the panel look busier than the machine is.
     """
     left, right = jx - 9, jx + JACK_W + 9
-    return (act_led(seed, left, y, LED_R, "#b58900", salt=salt, aux=aux)
-            + mono(left, y + 10, "TX", 4, op=0.32)
-            + act_led(seed, left, y + 19, LED_R, "#859900", salt=salt + 3, aux=aux)
-            + mono(left, y + 29, "RX", 4, op=0.32)
+    return (act_led(seed, left, y + 12, LED_R, "#b58900",
+                    salt=salt, aux=aux, extra_cls='led-txrx')
+            + mono(left, y + 22, "TX/RX", 4, op=0.32)
             # Link is a state, not an event: it holds steady while the cable
             # is in, and that is the whole difference the viewer reads.
             + lamp('led-link aux' if aux else 'led-link', right, y + 12, LED_R, "#859900")
