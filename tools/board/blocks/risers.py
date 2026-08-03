@@ -19,7 +19,7 @@ BOUNDS = (992, 150, 316, 340)
 from board.geom import RISER, X_IO, X_PCB_END, X_REAR, seat
 from board.ink import mono, silk_boxed
 from board.lamps import act_led, fault_at, lamp
-from board.metal import hexgrid
+from board.metal import finned_sink, hexgrid
 from board.palette import COLD
 from board.ports import sfp
 from board.revision import stamp
@@ -71,31 +71,47 @@ def render(cv):
             # стенки: её торец и есть гнёзда, которые видно снаружи.
             card_y = edge_y - 46
             card_w = X_IO - x0 - 18
+            # Радиатор занимает большую часть платы — так он и стоит на живой
+            # карте: под ним контроллер на десять гигабит, и греется он всерьёз.
+            # Рисуется тем же finned_sink, что и силовой в блоке питания:
+            # рёбра вдоль потока, винты по углам. Прежний был вчетверо мельче и
+            # читался просто заштрихованным прямоугольником.
+            sink_x = x0 + 40
+            sink_w = X_IO - 10 - sink_x
             card = (riser_pcb
                     + f'<rect x="{x0+18}" y="{card_y}" width="{card_w}" height="56" rx="1" '
                       f'fill="#0f1c24" stroke="rgba(42,161,152,0.34)"/>'
-                    + f'<rect x="{x0+34}" y="{card_y+6}" width="{cw*0.46:.0f}" height="32" rx="2" '
-                      f'fill="#26333a" stroke="rgba(147,161,161,0.38)"/>'
-                    + ''.join(f'<line x1="{x0+38+f*3.4:.1f}" y1="{card_y+9}" '
-                              f'x2="{x0+38+f*3.4:.1f}" y2="{card_y+35}" '
-                              f'stroke="rgba(147,161,161,0.22)" stroke-width="1.2"/>'
-                              for f in range(int(cw * 0.46 // 3.4) - 2))
-                    + silk_boxed(x0 + 56, card_y + 50, "PCIE_X8_GF1 REV 1.01", 5))
+                    + finned_sink(sink_x, card_y + 4, sink_w, 38, r=4.4, inset=8)
+                    + silk_boxed(x0 + 70, card_y + 50, "PCIE_X8_GF1 REV 1.01", 5))
             # Гнёзда на торце карты. Раньше они были нарисованы прямо на стенке
             # и ни к чему не вели: дырки в корпусе. Теперь видно, что это торец
             # карты, и вместе с райзером они уезжают наружу.
-            ports = (f'<rect x="{X_IO}" y="{card_y-4}" width="86" height="64" rx="4" '
-                     f'fill="#13282c" stroke="rgba(42,161,152,0.50)"/>'
-                     + sfp(X_IO + 14, card_y + 2)
-                     + sfp(X_IO + 14, card_y + 32)
-                     + lamp('led-link', X_IO + 8, card_y + 8, 3, '#2aa198')
-                     + act_led(3, X_IO + 8, card_y + 20, 3, "#859900", salt=2)
-                     + lamp('led-link', X_IO + 8, card_y + 38, 3, '#b58900')
-                     # Подписи сдвинуты от центра планки влево: у самого борта
-                     # теперь стоит стальной лист, и строка, набранная по
-                     # середине, уезжала хвостом на его перфорацию.
-                     + mono(X_IO + 30, card_y + 74, PORTS['sfp'], 9, op=0.5)
-                     + mono(X_IO + 30, card_y + 86, PORTS['sfp_degraded'], 7, op=0.34))
+            #
+            # Ламп у порта две, и обе о разном. LNK — состояние: держится, пока
+            # линк поднят, и цветом говорит, на какой скорости он поднялся.
+            # Зелёный — свои десять гигабит, янтарный — линк упал до гигабита,
+            # то есть карта работает, но не так, как заявлена. ACT — событие:
+            # мигает на трафике. Раньше на две розетки приходилось три лампы
+            # без подписей, и какая из них про что, сказать было нельзя.
+            def sfp_leds(p, py, degraded):
+                lnk_color = "#b58900" if degraded else "#859900"
+                return (lamp('led-link', X_IO + 9, py + 11, 2.4, lnk_color)
+                        + mono(X_IO + 9, py + 21, "LNK", 4, op=0.32)
+                        + act_led(3 + p, X_IO + 79, py + 11, 2.4, "#859900", salt=2 + p)
+                        + mono(X_IO + 79, py + 21, "ACT", 4, op=0.32))
+
+            ports = [(f'<rect x="{X_IO}" y="{card_y-4}" width="86" height="64" rx="4" '
+                      f'fill="#13282c" stroke="rgba(42,161,152,0.50)"/>')]
+            for p, degraded in enumerate((False, True)):
+                py = card_y + 2 + p * 30
+                ports.append(sfp(X_IO + 20, py, w=48, h=22))
+                ports.append(sfp_leds(p, py, degraded))
+            # Подписи сдвинуты от центра планки влево: у самого борта теперь
+            # стоит стальной лист, и строка, набранная по середине, уезжала
+            # хвостом на его перфорацию.
+            ports.append(mono(X_IO + 30, card_y + 74, PORTS['sfp'], 9, op=0.5))
+            ports.append(mono(X_IO + 30, card_y + 86, PORTS['sfp_degraded'], 7, op=0.34))
+            ports = ''.join(ports)
             card += (f'<g class="unit" data-unit="ocp" data-group="ocp" '
                      f'data-href="https://linkedin.com/in/cosmdandy">{ports}</g>')
         else:
@@ -108,7 +124,7 @@ def render(cv):
                     + ''.join(f'<line x1="{X_IO+14}" y1="{blank_y+10+r*11}" x2="{X_IO+72}" '
                               f'y2="{blank_y+10+r*11}" stroke="rgba(147,161,161,0.14)" '
                               f'stroke-width="1.4"/>' for r in range(int((hh - 34) // 11)))
-                    + silk_boxed(X_IO + 38, blank_y + hh - 22, "SLOT 2 · FREE", 6))
+                    + silk_boxed(X_IO + 38, blank_y + hh - 22, "SLOT 2 · EMPTY", 6))
 
         # Лепесток-ручка на внешнем торце: райзер вынимают вверх, взявшись за
         # него. Голубой, а не терракотовый: райзер меняют только на

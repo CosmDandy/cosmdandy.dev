@@ -89,8 +89,8 @@ def power_header(x, y, label="P12V_BP"):
     not a signal.
     """
     w, h = 30, 20
-    out = [f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="2" fill="#161f24" '
-           f'stroke="rgba(147,161,161,0.40)" stroke-width="1.3"/>']
+    out = [(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="2" fill="#161f24" '
+            f'stroke="rgba(147,161,161,0.40)" stroke-width="1.3"/>')]
     for r in range(2):
         for c in range(4):
             out.append(pad(x + 3.6 + c * 6.2, y + 4 + r * 7, 4, 4.6, 0.8))
@@ -102,19 +102,74 @@ def power_header(x, y, label="P12V_BP"):
     return ''.join(out)
 
 
-def hexgrid(x, y, w, h, s=7, gap=5.5):
-    """Hexagonal perforation: it lightens the wide part of the bracket."""
-    out, dx, dy = [], s * 1.5 + gap, (s + gap / 2) * 1.732
-    row = 0
-    cy = y + s
-    while cy < y + h - s * 0.6:
+def hs_screw(x, y, r=5.4):
+    """Винт радиатора: шляпка с крестовым шлицем.
+
+    Без пружины — она нужна только процессорному, где усилие прижима задаёт
+    именно она. Здесь радиатор притянут к своей плате, и прижим держит
+    плоскость основания.
+    """
+    return (f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r:.1f}" fill="#162025" '
+            f'stroke="rgba(147,161,161,0.46)" stroke-width="1.3"/>'
+            f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r*0.48:.1f}" fill="#0c1418" '
+            f'stroke="rgba(147,161,161,0.34)"/>'
+            f'<line x1="{x-r*0.44:.1f}" y1="{y:.1f}" x2="{x+r*0.44:.1f}" y2="{y:.1f}" '
+            f'stroke="rgba(147,161,161,0.5)" stroke-width="1.2"/>'
+            f'<line x1="{x:.1f}" y1="{y-r*0.44:.1f}" x2="{x:.1f}" y2="{y+r*0.44:.1f}" '
+            f'stroke="rgba(147,161,161,0.5)" stroke-width="1.2"/>')
+
+
+def finned_sink(x, y, w, h, r=5.4, inset=10, pitch=3.4):
+    """Пассивный радиатор: рёбра вдоль потока и винты по углам.
+
+    Один вид на всю машину. Раньше их было три разных — процессорный,
+    силовой в блоке питания и какой-то свой у сетевой карты, — и последний
+    читался просто заштрихованным прямоугольником: ни рёбер по потоку, ни
+    крепежа. Радиатор узнают по двум вещам, и обе теперь общие.
+
+    Поток в этой машине идёт спереди назад, то есть по X, — рёбра лежат вдоль
+    него.
+    """
+    fins = ''.join(f'<line x1="{x+inset-1:.1f}" y1="{y+inset-1+i*pitch:.1f}" '
+                   f'x2="{x+w-inset+1:.1f}" y2="{y+inset-1+i*pitch:.1f}" '
+                   f'stroke="rgba(147,161,161,0.22)" stroke-width="1.2"/>'
+                   for i in range(int((h - inset * 2 + 2) // pitch)))
+    screws = ''.join(hs_screw(sx, sy, r)
+                     for sx in (x + inset, x + w - inset)
+                     for sy in (y + inset, y + h - inset))
+    return (f'<rect x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="{h:.1f}" rx="4" '
+            f'fill="#26333a" stroke="rgba(147,161,161,0.38)"/>' + fins + screws)
+
+
+def hexgrid(x, y, w, h, s=6, gap=4.4):
+    """Перфорация сотами: это дырки в стали, а не рисунок на ней.
+
+    Отсюда две вещи, которых раньше не было.
+
+    Шаг. Соту рисуем остриём вверх: ширина у неё 1.72·s, высота 2·s. Значит
+    столбцы стоят через 1.72·s + gap, а соседние ряды — через 1.5·s +
+    0.866·gap со сдвигом на полшага вбок; так соты и укладываются в решётку,
+    не наезжая друг на друга. Прежние формулы брали 1.5·s + gap по горизонтали
+    и вдвое меньше нужного по вертикали, и ряды слипались в сплошное поле.
+
+    Просвет. Дырка заливалась глухим #0a1216 — тем же тоном, каким закрашена
+    сталь вокруг. Получалось пятно на листе, а не отверстие. Теперь заливка
+    полупрозрачная: сквозь неё виден текстолит, а лист поверх него читается
+    именно листом с дырками.
+    """
+    out = []
+    dx = s * 1.72 + gap
+    dy = s * 1.5 + gap * 0.866
+    row, cy = 0, y + s
+    while cy < y + h - s:
         cx = x + s + (dx / 2 if row % 2 else 0)
         while cx < x + w - s * 0.9:
             pts = ' '.join(f'{cx + s*0.86*dxx:.1f},{cy + s*dyy:.1f}' for dxx, dyy in
                            ((0, -1), (1, -0.5), (1, 0.5), (0, 1), (-1, 0.5), (-1, -0.5)))
-            out.append(f'<polygon points="{pts}" fill="#0a1216" stroke="rgba(147,161,161,0.16)"/>')
+            out.append(f'<polygon points="{pts}" fill="rgba(2,7,9,0.42)" '
+                       f'stroke="rgba(147,161,161,0.16)"/>')
             cx += dx
-        cy += dy / 2
+        cy += dy
         row += 1
     return ''.join(out)
 
@@ -145,10 +200,10 @@ def service_label(x, y, w, h, title, lines, head=HOT, arrow=None):
     body_y = y + head_h
     body_h = h - head_h
     parts = [
-        f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="3" fill="#e8e3d5" fill-opacity="0.78" '
-        f'stroke="rgba(147,161,161,0.35)" stroke-width="1.2"/>',
-        f'<path d="M{x} {y+head_h:.1f} V{y+3} Q{x} {y} {x+3} {y} H{x+w-3} Q{x+w} {y} {x+w} {y+3} '
-        f'V{y+head_h:.1f} Z" fill="{head}"/>',
+        (f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="3" fill="#e8e3d5" fill-opacity="0.78" '
+         f'stroke="rgba(147,161,161,0.35)" stroke-width="1.2"/>'),
+        (f'<path d="M{x} {y+head_h:.1f} V{y+3} Q{x} {y} {x+3} {y} H{x+w-3} Q{x+w} {y} {x+w} {y+3} '
+         f'V{y+head_h:.1f} Z" fill="{head}"/>'),
     ]
     icon_r = head_h * 0.34
     icx, icy = x + head_h * 0.6, y + head_h / 2
@@ -189,11 +244,11 @@ def service_legend(x, y, w, h):
     eight times in a row.
     """
     parts = [
-        f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="3" fill="#e8e3d5" fill-opacity="0.78" '
-        f'stroke="rgba(147,161,161,0.35)" stroke-width="1.2"/>',
-        f'<text x="{x+10}" y="{y+h*0.22:.1f}" text-anchor="start" fill="#161005" fill-opacity="0.85" '
-        f'font-family="ui-monospace, Menlo, monospace" font-size="8" font-weight="700" '
-        f'letter-spacing="0.04em">КОД ЗАМЕНЫ</text>',
+        (f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="3" fill="#e8e3d5" fill-opacity="0.78" '
+         f'stroke="rgba(147,161,161,0.35)" stroke-width="1.2"/>'),
+        (f'<text x="{x+10}" y="{y+h*0.22:.1f}" text-anchor="start" fill="#161005" fill-opacity="0.85" '
+         f'font-family="ui-monospace, Menlo, monospace" font-size="8" font-weight="700" '
+         f'letter-spacing="0.04em">КОД ЗАМЕНЫ</text>'),
     ]
     rows = ((HOT, "горячая замена"), (COLD, "обесточить машину"))
     sw = h * 0.16
