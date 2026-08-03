@@ -14,6 +14,10 @@
       line('power inhibited · no ac', 'warn');
       return;
     }
+    // Пароль включения спрашивает прошивка, а не система, — то есть до старта,
+    // а не после него. Пока его не ввели, машина не трогается с места: экран
+    // поднимается пустым и ждёт, как живая.
+    if (!powerOnAllowed(powerOn)) return;
     state.powered = true;
     // Uptime is how long the host has been running, not the tab: without this
     // mark uptime counted from the page load and survived a power off without

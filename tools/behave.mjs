@@ -739,6 +739,227 @@ check('голоса строятся без ошибок', errors.length === err
 await p4.close();
 await loud.close();
 
+// 31. Прошивка. Setup перестал быть плоским списком: Advanced — это оглавление,
+// Enter уводит на уровень ниже, Esc возвращает, а не выбрасывает наружу. Плюс
+// три вещи, которых у плоского списка не было вовсе — рамка подтверждения,
+// окно помощи и всплывающее меню загрузки.
+//
+// Ловушка здесь та же, что в разделе 30, только злее: между концом сборки и
+// подъёмом экрана самотеста есть окно, в котором экран закрыт, а лента ещё не
+// началась. F2, нажатая в нём, уходит в отложенный вход и срабатывает через
+// четыре секунды — посреди чужой проверки. Поэтому ждём весь цикл: экран
+// поднялся, отыграл и ушёл.
+const p5 = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
+p5.on('pageerror', e => errors.push(String(e)));
+await p5.addInitScript(() => document.addEventListener('DOMContentLoaded',
+  () => document.querySelectorAll('input').forEach(el => el.remove())));
+await p5.goto(url, { waitUntil: 'load' });
+await p5.evaluate(() => document.body.classList.add('view-rig'));
+
+const biosSettle = async () => {
+  await p5.waitForFunction(() => !document.getElementById('rig').classList.contains('assembly'),
+                           null, { timeout: 30000 }).catch(() => {});
+  await p5.waitForFunction(() => document.getElementById('crt').classList.contains('on'),
+                           null, { timeout: 30000 }).catch(() => {});
+  await p5.waitForFunction(() => !document.getElementById('crt').classList.contains('on'),
+                           null, { timeout: 30000 }).catch(() => {});
+  await p5.waitForTimeout(400);
+};
+const tap = async k => { await p5.keyboard.press(k); await p5.waitForTimeout(70); };
+const bios = () => p5.evaluate(() => ({
+  mode: document.getElementById('crt').dataset.mode,
+  on: document.getElementById('crt').classList.contains('on'),
+  path: (document.getElementById('crt-setup-path') || {}).textContent || '',
+  tabs: [...document.querySelectorAll('#crt-setup-tabs .crt-tab')].map(t => t.textContent).join('|'),
+  labels: [...document.querySelectorAll('#crt-setup-rows .crt-row-label')].map(t => t.textContent),
+  ovl: document.getElementById('crt-overlay').hidden
+    ? null : document.getElementById('crt-overlay').dataset.kind,
+  ovlText: document.getElementById('crt-overlay-body').textContent,
+  code: (document.getElementById('crt-post-code') || {}).textContent,
+  spin: getComputedStyle(document.getElementById('rig')).getPropertyValue('--spin').trim(),
+}));
+
+await biosSettle();
+await tap('F2');
+let b = await bios();
+check('F2 открывает Setup', b.mode === 'setup' && b.on, `${b.mode}/${b.on}`);
+check('вкладок шесть, со Security и Save & Exit',
+      b.tabs === 'Main|Advanced|Boot|Security|IMM|Save & Exit', b.tabs);
+
+await tap('ArrowRight');
+b = await bios();
+check('Advanced — оглавление, а не список тумблеров',
+      b.labels.length > 0 && b.labels.every(l => l.startsWith('▶ ')), b.labels.join(','));
+await tap('Enter');
+b = await bios();
+check('Enter уводит на уровень ниже, крошки это показывают',
+      b.path === 'Advanced  ▸  Processor Configuration', b.path);
+await tap('ArrowLeft');
+b = await bios();
+check('стрелка внутри подменю не выбрасывает через уровень',
+      b.path.includes('Processor'), b.path);
+await tap('Escape');
+b = await bios();
+check('Esc из подменю возвращает на корень вкладки', b.path === 'Advanced', b.path);
+
+await tap('F1');
+b = await bios();
+check('F1 открывает окно помощи, а не пишет в невидимую консоль',
+      b.ovl === 'help' && b.ovlText.includes('Select Item'), `${b.ovl}: ${b.ovlText.slice(0, 40)}`);
+await tap('Escape');
+
+// Политика оборотов: правка живёт в черновике, пока её не сохранили, и только
+// F10 доводит её до схемы. Это то же разделение, что у всей прошивки, — просто
+// здесь его видно глазом, по периоду вращения крыльчатки.
+const spin0 = (await bios()).spin;
+await p5.evaluate(() => {
+  const raw = JSON.parse(localStorage.getItem('rig-nv') || '{}');
+  raw.fanPolicy = 'Acoustic';
+  localStorage.setItem('rig-nv', JSON.stringify(raw));
+});
+b = await bios();
+check('запись мимо Setup схему не трогает', b.spin === spin0, `${b.spin} vs ${spin0}`);
+
+for (let i = 0; i < 3; i++) await tap('ArrowRight');   // Boot → Security → IMM
+await tap('ArrowDown');                                 // Cooling
+await tap('Enter');
+b = await bios();
+check('политика оборотов стоит в меню контроллера, а не в Advanced',
+      b.path.includes('Cooling') && b.labels.some(l => l.startsWith('Fan Speed Policy')),
+      `${b.path}: ${b.labels.join(',')}`);
+await tap('-');                                         // Balanced → Efficiency
+b = await bios();
+check('до сохранения период вращения прежний', b.spin === spin0, `${b.spin} vs ${spin0}`);
+await tap('F10');
+b = await bios();
+check('F10 спрашивает подтверждение', b.ovl === 'confirm', String(b.ovl));
+await tap('ArrowRight'); await tap('Enter');            // No
+b = await bios();
+check('No оставляет в Setup', b.mode === 'setup' && !b.ovl && b.on, `${b.mode}/${b.ovl}`);
+await tap('F10'); await tap('Enter');                   // Yes
+await p5.waitForTimeout(250);
+b = await bios();
+check('Yes сохраняет, закрывает экран и замедляет крыльчатки',
+      !b.on && Math.abs(parseFloat(b.spin) - 2 * parseFloat(spin0)) < 0.01,
+      `on=${b.on}, spin ${b.spin} vs ${spin0}`);
+
+await tap('F11');
+b = await bios();
+check('F11 поднимает всплывающее меню загрузки', b.ovl === 'boot', String(b.ovl));
+const orderBefore = await p5.evaluate(() => JSON.parse(localStorage.getItem('rig-nv')).bootOrder.join(','));
+await tap('Escape');
+await p5.waitForTimeout(200);
+b = await bios();
+const orderAfter = await p5.evaluate(() => JSON.parse(localStorage.getItem('rig-nv')).bootOrder.join(','));
+check('отмена уносит и меню, и пустой экран под ним', !b.ovl && !b.on, `${b.ovl}/${b.on}`);
+check('меню загрузки не трогает сохранённый порядок', orderBefore === orderAfter,
+      `${orderBefore} → ${orderAfter}`);
+
+// Машина, которой не с чего грузиться. Раньше проверка ловила только Legacy
+// поверх GPT, и пустая корзина бодро «загружалась» с несуществующего диска.
+// Здесь мы убираем все три пути сразу — иначе прошивка обязана уйти в PXE, и
+// это будет правильно.
+await p5.evaluate(() => {
+  const raw = JSON.parse(localStorage.getItem('rig-nv') || '{}');
+  raw.netStack = 'Disabled';
+  raw.vmedia = 'Detached';
+  raw.fanPolicy = 'Balanced';
+  localStorage.setItem('rig-nv', JSON.stringify(raw));
+  location.reload();
+});
+await p5.waitForTimeout(1200);
+await p5.evaluate(() => document.body.classList.add('view-rig'));
+await p5.waitForFunction(() => !document.getElementById('rig').classList.contains('assembly'),
+                         null, { timeout: 30000 }).catch(() => {});
+await p5.waitForTimeout(600);
+await clickIn(p5, '#svc-switch');
+await p5.waitForTimeout(800);
+// У каддика четыре движения, вынимается он двумя: откинуть защёлку и вытянуть.
+for (let step = 0; step < 2; step++) {
+  const bays = await p5.evaluate(() => document.querySelectorAll('.unit.pick.bay').length);
+  for (let i = 0; i < bays; i++) {
+    await p5.evaluate(n => document.querySelectorAll('.unit.pick.bay')[n]
+      ?.dispatchEvent(new MouseEvent('click', { bubbles: true })), i);
+    await p5.waitForTimeout(60);
+  }
+  await p5.waitForTimeout(500);
+}
+// Из сервисного режима не выходим: выход сажает все вынутые узлы обратно.
+await clickIn(p5, '#power');
+await p5.waitForTimeout(500);
+await p5.evaluate(() => { document.getElementById('log').innerHTML = ''; });
+await clickIn(p5, '#power');
+await p5.waitForFunction(() => document.getElementById('crt').classList.contains('on'),
+                         null, { timeout: 20000 }).catch(() => {});
+await p5.waitForTimeout(6500);
+const noboot = await p5.evaluate(() => ({
+  log: [...document.querySelectorAll('#log div')].map(d => d.textContent),
+  on: document.getElementById('crt').classList.contains('on'),
+  code: document.getElementById('crt-post-code').textContent,
+  lit: (() => {
+    const out = [];
+    for (let d = 0; d < 2; d++) for (const seg of 'abcdefg') {
+      const el = document.querySelector('.seg-' + d + seg);
+      if (el && el.classList.contains('on')) out.push(d + seg);
+    }
+    return out.join(',');
+  })(),
+}));
+check('машина без единого устройства не делает вид, что грузится',
+      noboot.log.some(t => /No boot device found/.test(t))
+      && !noboot.log.some(t => /Booting \/dev\/nvme0n1/.test(t)),
+      noboot.log.slice(-4).join(' / '));
+check('и называет причину по каждому устройству',
+      noboot.log.some(t => /NVMe 0 — no drive in cage/.test(t)),
+      noboot.log.filter(t => /—/.test(t)).join(' / '));
+check('экран остаётся стоять на отказе', noboot.on, String(noboot.on));
+// Экран пишет D6, индикатор на плате — d6: на семисегментном D неотличима от 0,
+// и живые платы пишут её строчной. Число при этом одно, и в том весь смысл:
+// пока лента индикатора была заготовленной, эти двое расходились.
+check('код отказа на экране и на плате — один и тот же',
+      noboot.code === 'D6' && noboot.lit === '0b,0c,0d,0e,0g,1a,1c,1d,1e,1f,1g',
+      `экран ${noboot.code}, плата ${noboot.lit}`);
+
+// Пароль задаётся в два ввода, и вторая рамка обязана дожить до ввода. Здесь
+// пряталась тихая ошибка: первая рамка закрывала не себя, а уже открытую
+// следующую, и «повторите ввод» гасло в том же кадре, в котором появлялось.
+await p5.evaluate(() => { localStorage.removeItem('rig-nv'); location.reload(); });
+await p5.waitForTimeout(1200);
+await p5.evaluate(() => document.body.classList.add('view-rig'));
+await biosSettle();
+await tap('F2');
+for (let i = 0; i < 3; i++) await tap('ArrowRight');   // Security
+await tap('Enter');
+let pw = await p5.evaluate(() => document.getElementById('crt-overlay-title').textContent);
+check('Security просит новый пароль', pw === 'Create New Password', pw);
+await p5.keyboard.type('hunter2');
+await tap('Enter');
+pw = await p5.evaluate(() => ({
+  hidden: document.getElementById('crt-overlay').hidden,
+  title: document.getElementById('crt-overlay-title').textContent,
+}));
+check('вторая рамка просит повторить и не гаснет',
+      !pw.hidden && pw.title === 'Confirm New Password', JSON.stringify(pw));
+await p5.keyboard.type('hunter2');
+await tap('Enter');
+const pwRows = await p5.evaluate(() => [...document.querySelectorAll('#crt-setup-rows .crt-row')]
+  .map(r => r.querySelector('.crt-row-label').textContent + ' = '
+          + r.querySelector('.crt-row-value').textContent));
+check('пароль отмечен установленным',
+      pwRows.some(t => /Administrator Password = Installed/.test(t)),
+      pwRows.filter(t => /Password/.test(t)).join(' | '));
+await tap('F10'); await tap('Enter');
+await p5.waitForTimeout(250);
+await tap('F2');
+await p5.waitForTimeout(200);
+pw = await p5.evaluate(() => document.getElementById('crt-overlay-title').textContent);
+check('сохранённый пароль спрашивают на входе', pw === 'Enter Administrator Password', pw);
+await p5.keyboard.type('hunter2');
+await tap('Enter');
+check('и он пускает', (await p5.evaluate(() => document.getElementById('crt').dataset.mode)) === 'setup');
+
+await p5.close();
+
 const failed = results.filter(r => !r[1]);
 for (const [name, ok, got] of results) console.log(`  ${ok ? '·' : 'BROKEN'} ${name}${ok ? '' : ` → ${got}`}`);
 if (errors.length) console.log(`  ERRORS: ${errors.slice(0, 2).join(' | ')}`);

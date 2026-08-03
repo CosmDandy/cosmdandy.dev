@@ -2458,6 +2458,7 @@ a.callout.lit .co-dot { fill: var(--head); }
 
 .crt-post {
   box-sizing: border-box;
+  position: relative;   /* контрольная точка стоит в углу этого поля */
   width: 100%;
   height: 100%;
   padding: 5cqh 6cqw;
@@ -2467,6 +2468,43 @@ a.callout.lit .co-dot { fill: var(--head); }
   gap: 2px;
   font-size: clamp(9px, 1.9cqw, 17px);
   line-height: 1.7;
+}
+
+/* Логотип тихой загрузки: он занимает место ленты, а не ложится поверх — на
+   живой машине это одна и та же область экрана, и лента из-под него не
+   проглядывает. */
+.crt-post-logo {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.2cqh;
+}
+.crt-logo-mark {
+  color: var(--crt-head);
+  font-size: clamp(18px, 5cqw, 54px);
+  font-weight: 600;
+  letter-spacing: 0.22em;
+}
+.crt-logo-sub {
+  color: var(--crt-dim);
+  font-size: 0.8em;
+  letter-spacing: 0.36em;
+}
+
+/* Контрольная точка. Правый нижний угол — то самое место, где её печатает
+   Aptio, и цвет тот же, что у индикатора на плате: это одно число, показанное
+   дважды. */
+.crt-post-code {
+  position: absolute;
+  right: 2.2cqw;
+  bottom: 2cqh;
+  color: var(--crt-red);
+  font-size: clamp(11px, 2.4cqw, 22px);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
 }
 .crt-post-log > div { white-space: pre; }
 .crt-post-log .ok    { color: var(--crt-green); }
@@ -2508,6 +2546,17 @@ a.callout.lit .co-dot { fill: var(--head); }
   color: var(--bios-sel-bg);
   font-weight: 600;
 }
+/* Хлебные крошки: где мы стоим внутри вкладки. Пока список был плоским, их и
+   не требовалось — а с подменю без них уже не сказать, куда вернёт Esc. */
+.crt-setup-path {
+  padding: 2px 18px;
+  background: var(--bios-bg2);
+  color: var(--bios-sel-bg);
+  border-left: 4px solid var(--bios-border);
+  border-right: 4px solid var(--bios-border);
+  font-size: 0.85em;
+  letter-spacing: 0.04em;
+}
 .crt-setup-body {
   flex: 1;
   min-height: 0;
@@ -2516,11 +2565,27 @@ a.callout.lit .co-dot { fill: var(--head); }
   border-top: none;
 }
 .crt-setup-rows {
+  position: relative;
   flex: 3;
   min-width: 0;
   padding: 1.6cqh 2cqw;
   overflow-y: auto;
 }
+/* Маркеры прокрутки — то, чем настоящий BIOS показывает, что список не кончился.
+   Он листает страницами, у нас листает контейнер, но повод тот же. */
+.crt-setup-rows.more-up::before,
+.crt-setup-rows.more-down::after {
+  position: sticky;
+  left: 0;
+  display: block;
+  color: var(--bios-sel-bg);
+  font-size: 0.8em;
+  line-height: 1;
+  text-align: center;
+  pointer-events: none;
+}
+.crt-setup-rows.more-up::before { content: "▲"; top: 0; }
+.crt-setup-rows.more-down::after { content: "▼"; bottom: 0; }
 /* Строки плотнее: в списке настроек их полтора десятка, и на невысоком экране
    вкладка Boot уезжала под кромку — приходилось листать таблицу, у которой
    всего и есть, что порядок из трёх устройств. Настоящий BIOS набирает свои
@@ -2538,6 +2603,18 @@ a.callout.lit .co-dot { fill: var(--head); }
 }
 .crt-row.sel .crt-row-value { color: var(--bios-sel-fg); }
 .crt-row.editing { outline: 1px dashed var(--bios-sel-bg); outline-offset: -1px; }
+/* Вход внутрь и действие — обычные строки Aptio, отличающиеся только тем, что
+   у них нет значения справа. Заголовок группы (Boot Override) читается
+   разделителем, а не пунктом: выбрать его нельзя. */
+.crt-row.menu .crt-row-label,
+.crt-row.action .crt-row-label { color: var(--bios-text); }
+.crt-row.head {
+  margin-top: 0.8cqh;
+  border-top: 1px solid rgba(216, 216, 216, 0.45);
+  padding-top: 3px;
+  color: var(--bios-sel-bg);
+  letter-spacing: 0.06em;
+}
 .crt-setup-help {
   flex: 2;
   min-width: 0;
@@ -2610,10 +2687,95 @@ a.callout.lit .co-dot { fill: var(--head); }
   text-align: center;
 }
 
+/* ── Накладки ─────────────────────────────────────────────────────────── */
+/* Рамка подтверждения, всплывающее меню загрузки, окно помощи и запрос пароля.
+   Одна разметка на всех — и одни стили: в Aptio это буквально одна и та же
+   рамка, меняется только то, что в ней написано.
+
+   Лежит она поверх .crt-glass, а не поверх страницы: монитор, подключённый к
+   серверу, не умеет рисовать мимо своего экрана. */
+.crt-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Поле под накладкой притемняется, но остаётся читаемым — так и на живой
+     машине: подтверждение не прячет того, что подтверждаешь. */
+  background: rgba(0, 0, 0, 0.35);
+}
+.crt-overlay-box {
+  min-width: 44%;
+  max-width: 82%;
+  background: var(--bios-bg2);
+  color: var(--bios-text);
+  border: 2px solid var(--bios-border);
+  box-shadow: 0 0 0 2px var(--bios-bg2), 0 0 0 3px var(--bios-border);
+  font-size: clamp(8px, 1.5cqw, 15px);
+}
+.crt-overlay-title {
+  padding: 4px 14px;
+  background: var(--bios-border);
+  color: #000;
+  text-align: center;
+  letter-spacing: 0.04em;
+}
+.crt-overlay-body {
+  padding: 1.4cqh 1.6cqw;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+/* Рамка подтверждения кладёт Yes и No в строку — как и положено вопросу с
+   двумя ответами. */
+.crt-overlay[data-kind="confirm"] .crt-overlay-body {
+  flex-direction: row;
+  justify-content: center;
+  gap: 3cqw;
+}
+.crt-overlay-item { padding: 1px 10px; }
+.crt-overlay-item.sel {
+  background: var(--bios-sel-bg);
+  color: var(--bios-sel-fg);
+}
+/* Устройство, которого в машине сейчас нет: видно, что оно в списке, и видно,
+   что выбрать его нельзя. */
+.crt-overlay-item.dim { color: var(--crt-dim); }
+.crt-overlay-item.dim.sel { background: none; color: var(--crt-dim); }
+.crt-help-text {
+  margin: 0;
+  white-space: pre;
+  font: inherit;
+  line-height: 1.5;
+}
+.crt-overlay-input {
+  padding: 2px 10px;
+  letter-spacing: 0.24em;
+  color: var(--bios-sel-bg);
+}
+.crt-overlay-note {
+  padding: 0 10px;
+  color: var(--crt-dim);
+  font-size: 0.85em;
+  letter-spacing: 0;
+}
+.crt-overlay-keys {
+  padding: 4px 14px;
+  background: var(--bios-border);
+  color: #000;
+  text-align: center;
+  font-size: 0.8em;
+}
+
 /* ── Firmware's effect on the schematic ───────────────────────────────── */
-/* The period has to stay a multiple of a second — otherwise the impeller's
-   twenty steps() positions drift off the common beat of 0.05 s. */
-.rig.nv-eff { --spin: 2s; }
+/* Период вращения правилом больше не задаётся: режимов охлаждения четыре, и
+   период каждого считается из оборотов в паспорте — прошивка пишет его прямо
+   в --spin на .rig. Четыре правила здесь означали бы второе место, знающее
+   обороты машины, и однажды они разошлись бы с командой fans.
+
+   Класс остался, и остался не зря: ниже номинала лопасти перестают сливаться
+   в диск, и это уже вопрос рисунка, а не скорости (см. fans.css). */
 
 /* has-fault is already taken by other logic (lamps of missing units), so
    Secure Boot: Disabled gets a flag of its own — sb-off — and repeats the same
