@@ -36,7 +36,9 @@
     // Экран поднимается почти сразу: между нажатием и картинкой у живой
     // машины успевают только раскрутиться вентиляторы. Секунда с лишним
     // читалась не выдержкой, а зависанием — гость успевал нажать ещё раз.
-    wait(320, runPost);
+    // Писк спикера идёт вместе с картинкой самотеста, а не с нажатием кнопки:
+    // на живой машине он и означает, что POST прошёл.
+    wait(320, function () { sfx('beep'); runPost(); });
     tick();
   }
 
@@ -52,6 +54,7 @@
   }
 
   document.getElementById('power').addEventListener('click', function () {
+    sfx('click');
     if (rig.classList.contains('init')) {
       line('power inhibited · bmc init', 'warn');
       return;
@@ -66,6 +69,7 @@
   const idBtn = document.getElementById('id-btn');
   function toggleIdentify() {
     const on = rig.classList.toggle('identify');
+    sfx('click');
     line(on ? 'identify: on · blue' : 'identify: off', 'muted');
   }
   idBtn.addEventListener('click', toggleIdentify);
