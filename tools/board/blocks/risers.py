@@ -163,5 +163,5 @@ def render(cv):
         {tab}
       </g>
       {fault_at(cv, x0-14, y + (96 if up else 40), 5)}
-      {stamp(x0 + 18, y + hh - 6 if up else y + 12, "райзеры")}
+      {stamp(x0 + (86 if up else 18), y + hh - 6 if up else y + 12, "райзеры")}
     </g>''')

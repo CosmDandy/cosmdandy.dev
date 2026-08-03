@@ -206,11 +206,11 @@ def render(cv):
     def jack_mid(k):
         return jack_y(k) + JACK_H / 2
 
-    cv.callouts.append((X_IO - 30, 468, X_IO - 8, jack_mid(0), "Telegram", "end",
+    cv.callouts.append((X_IO - 30, 436, X_IO - 8, jack_mid(0), "Telegram", "end",
                         "https://t.me/cosmdandy", "eth", "написать", "telegram"))
-    cv.callouts.append((X_IO - 30, 574, X_IO - 8, jack_mid(1), "Twitter", "end",
+    cv.callouts.append((X_IO - 30, 596, X_IO - 8, jack_mid(1), "Twitter", "end",
                         "https://x.com/cosmdandy", "tw", "мысли", "twitter"))
-    cv.callouts.append((X_IO - 30, 668, X_IO - 8, jack_mid(2), "Email", "end",
+    cv.callouts.append((X_IO - 30, 676, X_IO - 8, jack_mid(2), "Email", "end",
                         "mailto:i@cosmdandy.dev", "bmc", "i@cosmdandy.dev", "email"))
 
     # Обвязка гнёзд на самом текстолите. Гигабитный PHY стоит слева от неё и

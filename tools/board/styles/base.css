@@ -685,6 +685,53 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
      же, по которой съезжается колонка с консолью. Правило стоит после всех
      блоков нарочно: у каждого свой переход с той же специфичностью, и спор
      решает порядок. */
+  /* ── Марка изготовителя ────────────────────────────────────────────────
+     Шелкография на текстолите — и вместе с тем ссылка на исходники платы.
+     Открывается только в сервисном режиме: вне его поверх марки лежат бирки
+     ссылок, они непрозрачны, и вести из-под них некуда.
+
+     Наведение делает две вещи. Буквы наливаются светом и по ним проходит
+     перелив — как по полированному металлу, на котором эту марку выбили. И
+     проступает подчёркивание: тот же язык, которым помечена любая ссылка в
+     вебе, только нарисованный краской по плате. */
+  .silk-name { fill: rgba(147,161,161,0.46); transition: fill var(--fade); }
+  .silk-mark { pointer-events: none; }
+  .silk-rule {
+    stroke: var(--cyan);
+    stroke-width: 1.4;
+    stroke-dasharray: 1 1;
+    stroke-dashoffset: 1;
+    opacity: 0;
+    transition: opacity 0.3s ease, stroke-dasharray 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .rig.service .silk-mark { pointer-events: auto; cursor: pointer; }
+  .rig.service .silk-mark:hover .silk-name,
+  .rig.service .silk-mark:focus-visible .silk-name { fill: rgba(213,222,222,0.86); }
+  /* Перелив — светлая полоса, проходящая по полю марки один раз за наведение.
+     Тем же приёмом блестят бирки ссылок: полосу режет clip самого поля, иначе
+     она уезжает на плату. Градиента с анимацией здесь нет нарочно — на живой
+     плате блик даёт наклон буквы к свету, а не смена цвета. */
+  .silk-shine {
+    fill: rgba(255, 255, 255, 0.55);
+    opacity: 0;
+    pointer-events: none;
+  }
+  .rig.service .silk-mark:hover .silk-shine,
+  .rig.service .silk-mark:focus-visible .silk-shine {
+    animation: silkShine 0.9s ease-out 1;
+  }
+  @keyframes silkShine {
+    from { opacity: 0;    transform: translateX(0); }
+    18%  { opacity: 0.42; }
+    to   { opacity: 0;    transform: translateX(260px); }
+  }
+  .rig.service .silk-mark:hover .silk-rule,
+  .rig.service .silk-mark:focus-visible .silk-rule {
+    opacity: 1;
+    stroke-dasharray: 1 0;
+  }
+  .silk-mark:focus-visible { outline: none; }
+
   .rig.stowing .pick-body,
   .rig.stowing .bay-handle,
   .rig.stowing .latch,
