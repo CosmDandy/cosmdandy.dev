@@ -26,26 +26,34 @@ def relief(x, y, w, h, rx=1):
             f'stroke-width="1.1" fill="none"/>')
 
 def ihs_path(x, y):
-    """Outline of the processor lid: keys on the sides, a cut at pin one.
+    """Контур крышки процессора: прямоугольник со срезанным углом ключа.
 
-    It lives in a function of its own because the die sheen is clipped by
-    this same outline: a rectangular clip turned the lid back into a plain
-    slab and ate the keys the whole thing was done for.
+    Полукруглых вырезов по бокам здесь больше нет. Они изображали ключи
+    сокета, но ключи — это выступы держателя, а не дырки в металле: на живой
+    крышке их нет ни одного. Остался единственный настоящий признак — срез
+    угла у первого вывода, и срез этот на текстолите подложки, а не на самом
+    металле, поэтому подложка рисуется по своему контуру (см. substrate_path).
+
+    Функция отдельная потому, что этим же контуром обрезается перелив по
+    кристаллу: прямоугольный clip превращал крышку обратно в плиту.
     """
     ix, iy = x + 40, y + 34
     iw, ih = SOCKET_W - 80, SOCKET_H - 68
-    notch, cut = 9, 12
-    return (f'M{ix + cut} {iy} '
-            f'H{ix + iw / 2 - notch} '
-            f'a{notch} {notch} 0 0 0 {notch * 2} 0 '
-            f'H{ix + iw} '
-            f'V{iy + ih / 2 - notch} '
-            f'a{notch} {notch} 0 0 0 0 {notch * 2} '
-            f'V{iy + ih} '
-            f'H{ix + iw / 2 + notch} '
-            f'a{notch} {notch} 0 0 0 -{notch * 2} 0 '
-            f'H{ix} '
-            f'V{iy + cut} Z')
+    cut = 14
+    return (f'M{ix + cut} {iy} H{ix + iw} V{iy + ih} H{ix} V{iy + cut} Z')
+
+
+def substrate_path(x, y, m=5):
+    """Контур текстолита процессора: он шире крышки на кайму m.
+
+    Срез угла — здесь: подложку режут по углу первого вывода, чтобы модуль
+    нельзя было посадить в держатель наоборот. Металл крышки просто
+    повторяет срез сверху.
+    """
+    ix, iy = x + 40 - m, y + 34 - m
+    iw, ih = SOCKET_W - 80 + 2 * m, SOCKET_H - 68 + 2 * m
+    cut = 18
+    return (f'M{ix + cut} {iy} H{ix + iw} V{iy + ih} H{ix} V{iy + cut} Z')
 
 def idc_header(x, y, pins, label, vertical=False):
     """Ribbon header: two rows of contacts inside a plastic shroud.

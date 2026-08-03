@@ -6,14 +6,27 @@
 
 import math
 
-from board.geom import (CHIPS, FAN_N, H, IO_FREE, PCB_H, PCB_W, X_PCB, X_PCB_END, X_REAR,
-                        X_SVC, Y_PSU_BOT, Y_PSU_TOP, fan_foot_y)
+from board.geom import (
+    CHIPS,
+    FAN_N,
+    IO_FREE,
+    PCB_H,
+    PCB_W,
+    X_PCB,
+    X_PCB_END,
+    X_REAR,
+    X_SVC,
+    Y_PSU_BOT,
+    Y_PSU_TOP,
+    H,
+    fan_foot_y,
+)
 from board.ink import empty_pads, hit, mono, silk_boxed
 from board.lamps import lamp
 from board.metal import pad, relief
 from board.palette import SILVER
 from board.revision import BOARD_REV, BOARD_SHA
-from board.spec import CPU, ram_label
+from board.spec import CPU, MADE, ram_label
 
 
 def render(cv):
@@ -417,5 +430,5 @@ def render(cv):
         font-size="11" letter-spacing="0.12em">REV {BOARD_REV}  ·  S/N {BOARD_SHA}</text>
   <text x="{X_SVC+164}" y="480" transform="rotate(-90 {X_SVC+164} 480)" text-anchor="middle"
         fill="rgba(147,161,161,0.20)" font-family="ui-monospace, Menlo, monospace"
-        font-size="8" letter-spacing="0.10em">ASSEMBLED IN A CONTAINER · MADE BY HAND</text>
+        font-size="8" letter-spacing="0.10em">ASSEMBLED IN A CONTAINER · {MADE}</text>
 </g>''')

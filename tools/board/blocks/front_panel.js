@@ -30,6 +30,9 @@
     // иначе они успевали проступить в промежутке между концом сборки и
     // самотестом — и тут же прятались под приехавшим экраном.
     if (!reduced) rig.classList.add('tags-off');
+    // Контрольный индикатор начинает считать вместе с хостом, а не вместе с
+    // экраном: на живой машине коды бегут ещё до того, как появится картинка.
+    runCheckpoint();
     wait(1100, runPost);
     tick();
   }
@@ -38,6 +41,7 @@
     state.powered = false; save();
     // Выключенной машине экран уже не поднимется — ждать подписям нечего.
     rig.classList.remove('net', 'bmc', 'tags-off');
+    stopCheckpoint();
     setPower('standby');
     line('powering off', 'warn');
     line('standby · bmc only', 'muted');

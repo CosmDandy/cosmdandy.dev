@@ -25,7 +25,7 @@
   .die-shine { animation: dieShine 8s steps(80, end) infinite; }
   @keyframes dieShine {
     0%, 100% { transform: translate(0, 0); }
-    50%      { transform: translate(150px, -82px); }
+    50%      { transform: translate(196px, -108px); }
   }
 
   /* Taking the processor apart goes in two moves, as in life: first the
@@ -33,10 +33,17 @@
      The heatsink travels further than it used to: it is the size of the
      socket, and at the old 104 pixels it covered the place where the processor
      has to lie. */
+  /* Разносим по диагонали, а не по вертикали. Сверху и снизу от сокета стоят
+     банки памяти: крышка, улетавшая строго вверх, ложилась на плашки, а
+     процессор, уезжавший строго вниз, — на плашки соседнего банка. Теперь
+     радиатор уходит правее и выше, в свободное поле у служебной зоны, а
+     процессор — левее и чуть ниже своей середины, туда, где на плате ничего
+     нет. Ни один из них не накрывает служебную кнопку: она внизу справа, а
+     радиатор от неё выше. */
   .heatsink, .cpu-lid { transition: transform var(--glide); }
   .rig.service .cpu-slot.pulled .pick-body { transform: none; }
-  .rig.service .cpu-slot.pulled .heatsink { transform: translate(0, -164px) scale(0.92); }
-  .rig.service .cpu-slot.opened .cpu-lid { transform: translate(0, 116px) scale(0.96); }
+  .rig.service .cpu-slot.pulled .heatsink { transform: translate(122px, -122px) scale(0.92); }
+  .rig.service .cpu-slot.opened .cpu-lid { transform: translate(-136px, 74px) scale(0.96); }
 
   /* The contact field: while the processor is in place it is not visible — and
      rightly so, there is nothing to show under it. It shows through together
@@ -44,7 +51,7 @@
   /* The die lives on the processor and travels away with it: a removed
      processor glowing on an empty socket is no longer a teardown but a
      magic trick. */
-  .rig.service .cpu-slot.opened .die { transform: translate(0, 116px) scale(0.96); }
+  .rig.service .cpu-slot.opened .die { transform: translate(-136px, 74px) scale(0.96); }
 
   /* Assembly: the processor with its heatsink is lowered into the socket from
      above and turned slightly into place — that is how it is fitted, aiming by
