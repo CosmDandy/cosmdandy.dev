@@ -159,6 +159,50 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
       0, 0.003 14%, 0.009 24%, 0.018 31%, 0.30 35%, 0.66 39%, 0.83 44%,
       0.90 52%, 0.945 63%, 0.975 76%, 0.993 88%, 1);
 
+  /* Дальше — четыре характера, которых одному --click не изобразить. Разница
+     между ними и есть то, что делает машину тяжёлой: у каждого узла свой
+     диапазон срабатывания, и рука, вынимающая его, встречает своё
+     сопротивление. Одна кривая на всё читается как «сделано скриптом»,
+     сколько её ни настраивай.
+
+     --drag: длинная тугая ножка. Райзер и блок питания сидят в глубоком пазу
+     и первые две трети времени ползут, набрав едва пятую часть хода; дальше
+     паз кончается, и остаток узел проходит разгоняясь. Это не смягчённый
+     щелчок, а его противоположность: у щелчка сопротивление кончается разом,
+     здесь оно кончается постепенно. */
+  --drag: 1.15s linear(
+      0, 0.020 10%, 0.045 20%, 0.075 30%, 0.112 40%, 0.158 50%,
+      0.218 60%, 0.300 69%, 0.420 77%, 0.600 84%, 0.790 90%,
+      0.920 95%, 0.985 98%, 1);
+
+  /* --snap: разъём вентилятора. Диапазона у него нет вовсе — он либо
+     защёлкнут, либо нет, как свитч на клавиатуре. Четверть времени ничего не
+     происходит, весь ход укладывается в пятую часть, доводки почти нет. */
+  --snap: 0.46s linear(
+      0, 0.004 26%, 0.012 38%, 0.06 44%, 0.42 50%, 0.86 58%,
+      1.02 66%, 0.998 78%, 1);
+
+  /* --heave: плашка памяти. Сначала микродвижение — модуль подаётся на
+     волосок, пока лепестки ещё держат, — а потом идёт вверх уверенно и
+     ровно: не рывком, но и не всплывая. Солидно. */
+  --heave: 0.8s linear(
+      0, 0.010 12%, 0.024 22%, 0.038 30%, 0.16 38%, 0.38 48%,
+      0.60 58%, 0.78 68%, 0.90 78%, 0.965 88%, 1);
+
+  /* --latch-throw: сам лепесток. Отрицательные значения в начале не описка:
+     на живой плате защёлку сперва додавливают внутрь, к плашке, и только
+     пересилив — она отбрасывается наружу. Это и есть то самое «давишь,
+     давишь, потом — оп». */
+  --latch-throw: 0.55s linear(
+      0, -0.05 16%, -0.09 28%, -0.06 33%, 0.24 39%, 0.66 46%,
+      0.95 54%, 1.06 62%, 1.01 74%, 1);
+
+  /* --lever: ручка каддика. Единственное движение на схеме, которому инерция
+     противопоказана: пластиковый рычаг невесом, пружина отбрасывает его
+     мгновенно, и он встаёт в упор. Поэтому честно линейная и короткая — любая
+     доводка сделала бы его тяжёлым, а он не тяжёлый. */
+  --lever: 0.13s linear;
+
   /* The tempo of the indication. Kept in one place: lamps blink often so the
      machine looks alive. Both of these are stepped rather than smooth —
      measured, a smooth blink costs a quarter more, because it asks for a
@@ -192,6 +236,12 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
       0.68 64%, 0.88 71%, 1.03 78%, 1.01 86%, 1);
   --press-snap: 0.62s linear(
       0, 0.05 8%, 0.22 16%, 0.62 24%, 0.94 32%, 1.03 38%, 0.995 48%, 1);
+  /* Блок питания садится в два приёма: сначала входит в направляющие и
+     упирается — контакт у него длинный, — и только потом его проталкивают до
+     конца. Полка посередине кривой и есть эта остановка. */
+  --press-two: 1.05s linear(
+      0, 0.22 8%, 0.44 16%, 0.58 24%, 0.615 31%, 0.62 40%, 0.63 48%,
+      0.72 56%, 0.86 64%, 0.965 72%, 1.01 80%, 1);
   --press-seat: 0.9s linear(
       0, 0.30 12%, 0.55 24%, 0.70 36%, 0.74 46%, 0.755 58%, 0.78 66%,
       0.94 76%, 1.02 84%, 1);
@@ -717,10 +767,11 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   .bay-handle {
     transform-box: fill-box;
     transform-origin: 100% 100%;
-    /* The caddy latch clicks: it holds until you overpower it, and then it
-       throws itself open. The caddy itself travels evenly — nothing holds it
-       any more. */
-    transition: transform var(--click);
+    /* Ручка невесома, и инерции у неё нет: пружина отбрасывает пластиковый
+       рычаг мгновенно, и он встаёт в упор. Отсюда линейная и очень короткая
+       кривая — единственная такая на схеме. Общий --click делал бы её
+       тяжёлой, а тяжести в ней нет. */
+    transition: transform var(--lever);
   }
 
   /* The travel is small on purpose. A lever thrown open to its full swing lies
@@ -731,19 +782,28 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   .rig.service .bay.unlatched .bay-handle,
   .rig.service .blank.unlatched .bay-handle { transform: translateX(-16px) rotate(-7deg); }
 
-  /* Once the caddy is out, the handle stops having a life of its own: it is
-     one part in a hand now, not a lever on a machine. Leaving it thrown open
-     was what made a pulled drive read as two things flying apart — the frame
-     lagging behind and below its own head. */
+  /* Вынимают каддик за ручку, и на этом её угол становится больше: сперва
+     рычаг доходит до упора, и только потом за ним идёт сам каддик. Пока диск
+     вынут, ручка так и остаётся откинутой — она и есть то, за что его держат.
+     Раньше она в этот момент возвращалась на место, и получалось, что каддик
+     выехал сам собой. */
   .rig.service .bay.pulled .bay-handle,
-  .rig.service .blank.pulled .bay-handle { transform: none; }
+  .rig.service .blank.pulled .bay-handle { transform: translateX(-26px) rotate(-14deg); }
 
   /* Outward, past the chassis outline, and far enough to clear the cage. The
      front frame is a sliver; what is worth seeing is the drive that was hidden
      behind it, so the travel is the depth of the drive plus its frame and the
      whole part ends up outside the machine instead of half inside it. */
+  /* Два движения, а не одно: задержка — это те доли секунды, за которые
+     ручка успевает дойти до упора. Диск трогается после неё, а не вместе с
+     ней. */
   .rig.service .bay.pulled .pick-body,
-  .rig.service .blank.pulled .pick-body { transform: translateX(-152px); }
+  .rig.service .blank.pulled .pick-body,
+  .rig.service .bay.pulled .drive-body,
+  .rig.service .blank.pulled .drive-body {
+    transform: translateX(-152px);
+    transition-delay: 0.16s;
+  }
 
   /* The drive itself sits deep in the chassis and cannot be seen until the
      caddy comes out — in an assembled machine only the front frame shows. It
@@ -754,18 +814,22 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
      outline alone, and an invisible drive still drew its own edges straight
      through the cage grille — the one thing that gave away that something was
      hiding in there. */
-  .drive-body {
-    fill-opacity: 0;
-    stroke-opacity: 0;
-    transition: fill-opacity var(--fade), stroke-opacity var(--fade);
-  }
-  .rig.service .bay.pulled .drive-body,
-  .rig.service .blank.pulled .drive-body { fill-opacity: 1; stroke-opacity: 1; }
+  /* Накопитель едет, а не проявляется. Он нарисован на своём месте в глубине
+     шасси и обрезан по устью отсека (clip-path у неподвижной обёртки вокруг
+     него), поэтому в собранной машине его не видно вовсе, а при вынимании он
+     выезжает из устья — как и в жизни. Прежде он появлялся прозрачностью:
+     деталь не выезжала, а включалась. */
+  .drive-body { transition: transform var(--drag); }
 
   /* Assembly: the drive is pushed in from the front, along the same path it
      takes coming out during teardown — only the other way round. */
-  .rig.assembly .bay,
-  .rig.assembly .blank {
+  /* Анимация висит на рамке и на накопителе по отдельности, а не на всём
+     каддике: обёртка с отсечением обязана стоять на месте, иначе срез поедет
+     вместе с диском и обрезать станет нечего. */
+  .rig.assembly .bay .pick-body,
+  .rig.assembly .blank .pick-body,
+  .rig.assembly .bay .drive-body,
+  .rig.assembly .blank .drive-body {
     animation: seatBay var(--press-seat) var(--seat, 0s) backwards;
   }
   /* The caddy runs along its rails freely and meets resistance only right at
@@ -848,9 +912,11 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
     from { opacity: 0; transform: translateY(-42px); }
   }
 
-  /* A latch holds the fan in the wall: you pull, it does not move, then it
-     breaks free. Exactly the same curve carries it when seating too. */
-  .fan .pick-body { transition: transform var(--click); }
+  /* Разъём вентилятора тугой и без середины: он либо защёлкнут, либо нет.
+     Тянешь — движения нет, потом оп, и вытянулся; обратно так же. Общий
+     --click для этого слишком мягок, у него после срыва есть длинная
+     доводка, а здесь доводить нечего. */
+  .fan .pick-body { transition: transform var(--snap); }
   /* ── memory ──────────────────────────────── */
   /* On a live board the latches are milky-white translucent plastic, and there
      are two of them: one at each end. The error lamp sits right inside the
@@ -864,7 +930,7 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
     stroke: rgba(58, 143, 196, 0.85);
     stroke-width: 1.1;
     transform-box: fill-box;
-    transition: fill 0.15s steps(1, end), transform var(--spring);
+    transition: fill 0.15s steps(1, end), transform var(--latch-throw);
   }
   /* The hinge sits at the outboard end of the socket, not next to the module:
      a latch tips away from the DIMM it holds. Hence the pivot is the far
@@ -881,9 +947,13 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
      across the module. A positive angle is clockwise in SVG. */
   .rig.service .dimm.pulled .latch-l { transform: rotate(-38deg); }
   .rig.service .dimm.pulled .latch-r { transform: rotate(38deg); }
+  /* Задержка — это время, за которое лепестки успевают отойти: плашка не
+     может тронуться, пока они держат. Она чуть больше прежней, потому что
+     сама защёлка теперь сначала додавливается внутрь и только потом
+     отбрасывается. */
   .rig.service .dimm.pulled .pick-body {
     transform: translateY(-13px);
-    transition-delay: 0.12s;
+    transition-delay: 0.22s;
   }
 
   /* Assembly: the DIMM enters its socket with a short downward move — its
@@ -908,12 +978,28 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
     from { opacity: 0; transform: translateY(-22px); }
   }
 
-  /* The DIMM is held by the latches at its ends: until they throw open the
-     module stands dead solid, and after that it comes out with a jerk. */
-  .dimm .pick-body { transition: transform var(--click); }
+  /* Плашку держат лепестки по краям, и пока они не отошли, она стоит
+     намертво. Отошли — модуль идёт вверх сам: сперва на волосок, потом
+     уверенно и ровно. Не рывком — рывок был бы щелчком, а щёлкают тут
+     защёлки, не плашка. */
+  .dimm .pick-body { transition: transform var(--heave); }
+
+  /* Наведение — начало того же движения, а не отдельный отклик. Лепестки
+     чуть отходят, модуль трогается и останавливается: дальше он пойдёт,
+     только если по нему щёлкнуть. Углы взяты долей от полного размаха
+     (38°), чтобы правка одного не разошлась с другим.
+
+     Правило стоит после «вынуто»: у обоих одна специфичность, и наведение на
+     уже вынутую плашку не должно возвращать её лепестки назад. */
+  .dimm:hover:not(.pulled) .latch-l { transform: rotate(-11deg); }
+  .dimm:hover:not(.pulled) .latch-r { transform: rotate(11deg); }
+  .dimm:hover:not(.pulled) .pick-body { transform: translateY(-5px); }
   /* ── risers ──────────────────────────────── */
-  /* The riser and the power supply come out backwards, through the rear wall. */
-  .rig.service .riser.pulled .pick-body { transform: translateX(46px); }
+  /* Райзер выходит назад, сквозь заднюю стенку, и выходит далеко: у него
+     длинная ножка, и пока она в пазу, узел ещё не вынут. Прежние сорок шесть
+     единиц — это меньше самой ножки: кронштейн приподнимался, но оставался
+     в машине. */
+  .rig.service .riser.pulled .pick-body { transform: translateX(112px); }
 
   /* Assembly: the riser is lowered into its slot from above, whole — together
      with the card and the bracket. */
@@ -926,10 +1012,15 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
     from { opacity: 0; transform: translateY(-56px); }
   }
 
-  /* The riser sits tight in its slot: it breaks free whole, card and all. */
-  .riser .pick-body { transition: transform var(--click); }
+  /* Ножка длинная, и вся её длина — сопротивление: узел идёт медленно, по
+     чуть-чуть, а к концу хода разгоняется и вылетает. Не щелчок: у щелчка
+     сопротивление кончается разом, здесь — постепенно. */
+  .riser .pick-body { transition: transform var(--drag); }
   /* ── psu ──────────────────────────────── */
-  .rig.service .psu.pulled .pick-body { transform: translateX(74px); }
+  .rig.service .psu.pulled .pick-body { transform: translateX(104px); }
+  /* Паз у блока такой же глубокий, как у райзера, и ход тот же: тянешь,
+     тянешь, потом поддаётся и идёт легко. */
+  .psu .pick-body { transition: transform var(--drag); }
 
   /* A pulled supply is dead: mains no longer reaches it. Both lamps go out —
      AC included, the one that burns even on a switched-off machine — and the
@@ -943,16 +1034,16 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
      travels further than the rest — its path to the connector is long, and the
      hand can tell. */
   .rig.assembly .psu {
-    animation: seatPsu var(--press-snap) var(--seat, 0s) backwards;
+    animation: seatPsu var(--press-two) var(--seat, 0s) backwards;
   }
-  /* The supply flies into the bay in one movement — the guides are long and
-     straight, and only the connector at the end slows it down. */
+  /* Садится он в два приёма. Контакт у блока длинный: сначала модуль входит в
+     направляющие и упирается, и только потом его проталкивают до конца — на
+     живой машине это два отдельных усилия руки, и полка посередине --press-two
+     ровно про них. Раньше он влетал в карман одним движением, и разъёма в этом
+     не читалось вовсе. */
   @keyframes seatPsu {
-    from { opacity: 0; transform: translateX(96px); }
+    from { opacity: 0; transform: translateX(118px); }
   }
-
-  /* The power supply is held by the orange latch — that very click. */
-  .psu .pick-body { transition: transform var(--click); }
 
   /* ── Оба блока вынуты: машина обесточена ───────────────────────────────
      Резервирование кончилось — кончилось и питание. Гаснет всё разом,
@@ -986,6 +1077,28 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
     opacity: 0.42 !important;
     pointer-events: none;
   }
+
+  /* Оранжевый лепесток. Его нажимают большим пальцем, и он уходит внутрь, к
+     ручке, — это первое из двух движений, которыми блок вынимают. Точка
+     вращения у дальней от ручки кромки: лепесток приклёпан к корпусу тем
+     краем и гнётся к скобе, а не отскакивает от неё.
+
+     Кривая та же короткая и линейная, что у ручки каддика: тонкий пластик
+     невесом, и инерции в нём нет. */
+  .psu-latch {
+    transform-box: fill-box;
+    transform-origin: 0% 50%;
+    transition: transform var(--lever);
+  }
+  .rig.service .psu.pulled .psu-latch { transform: translateY(16px) scaleY(0.62); }
+  /* ── rear_io ──────────────────────────────── */
+  /* Встроенные интерфейсы вынимаются назад, а не вверх. Гнёзда распаяны на
+     системной плате у самой её кромки, и «вынуть» их значит вытянуть плату из
+     машины через задний борт — то же движение, что у райзера и блока питания,
+     и та же тугая ножка под ним. Прежде общее правило поднимало их вверх, и
+     узел уезжал поперёк собственных разъёмов. */
+  .rig.service .pick[data-unit="eth"].pulled .pick-body { transform: translateX(72px); }
+  .pick[data-unit="eth"] .pick-body { transition: transform var(--drag); }
 
   /* ── cpu ──────────────────────────────── */
   /* The processor stays in the socket — what comes off is the heatsink, as if

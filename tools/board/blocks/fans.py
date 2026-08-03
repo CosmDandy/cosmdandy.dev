@@ -10,9 +10,20 @@ Drawn after the harnesses, so the wall covers them.
 """
 
 # Own rectangle: the build checks that the block did not leave it.
-BOUNDS = (184, 6, 244, 832)
+BOUNDS = (184, 6, 244, 840)
 
-from board.geom import FAN_H, FAN_N, FAN_STEP, FAN_W, X_FAN, X_PCB, H, fan_foot_y, seat
+from board.geom import (
+    FAN_H,
+    FAN_LAMP_DY,
+    FAN_N,
+    FAN_STEP,
+    FAN_W,
+    X_FAN,
+    X_PCB,
+    H,
+    fan_foot_y,
+    seat,
+)
 from board.ink import mono, silk_inverse
 from board.lamps import fault_at, jitter
 from board.palette import ROTOR_BLADE, ROTOR_EDGE, ROTOR_PAD
@@ -22,8 +33,14 @@ from board.spec import FAN as FAN_SPEC
 
 
 def render(cv):
-    cv.add(f'<rect class="decor" x="{X_FAN}" y="20" width="{FAN_W}" height="{H-40}" rx="0" fill="#0f1619" stroke="rgba(147,161,161,0.28)"/>')
-    cv.add(stamp(X_FAN + 6, 14, "вентиляторы"))
+    # Площадка стены ровно по высоте текстолита: у платы кромка на 18 и на
+    # H-18, и стена, стоявшая на двадцати, читалась на два поля уже — при
+    # том, что в машине это одна и та же плоскость шасси.
+    cv.add(f'<rect class="decor" x="{X_FAN}" y="18" width="{FAN_W}" height="{H-36}" rx="0" '
+           f'fill="#0f1619" stroke="rgba(147,161,161,0.28)"/>')
+    # Партномер — снизу общей площадки: там под последним модулем есть
+    # свободная полоса, а сверху он стоял вплотную к первому.
+    cv.add(stamp(X_FAN + 6, H - 24, "вентиляторы"))
     for i in range(FAN_N):
         y = 26 + i * FAN_STEP
         # The impellers are deliberately wider than their own half and overlap
@@ -135,35 +152,49 @@ def render(cv):
         # a seam between the two sections, not bare impellers. It is drawn over
         # the rotors as a thin outline — that way the body reads and the
         # rotation stays visible.
+        # Шов идёт двумя отрезками, а не сплошной чертой. Роторы шире своей
+        # половины и заходят на середину модуля: сплошной шов ложился прямо на
+        # лопасти, и вращение читалось перечёркнутым. Отрезки кончаются там,
+        # где начинается крыльчатка, — считаем по её же радиусу, чтобы правка
+        # геометрии не развела их снова.
+        seam_x = X_FAN + FAN_W / 2
+        seam_half = (rr ** 2 - (FAN_W / 4) ** 2) ** 0.5 + 3
+        seam = ''.join(
+            f'<line x1="{seam_x}" y1="{y1:.1f}" x2="{seam_x}" y2="{y2:.1f}" '
+            f'stroke="rgba(147,161,161,0.30)" stroke-width="1.6"/>'
+            for y1, y2 in ((y + 3, y + h / 2 - seam_half), (y + h / 2 + seam_half, y + h - 3)))
         shell = (f'<rect x="{X_FAN+4}" y="{y}" width="{FAN_W-8}" height="{h}" rx="3" fill="none" '
-                 f'stroke="rgba(147,161,161,0.34)" stroke-width="1.6"/>'
-                 f'<line x1="{X_FAN+FAN_W/2}" y1="{y+3}" x2="{X_FAN+FAN_W/2}" y2="{y+h-3}" '
-                 f'stroke="rgba(147,161,161,0.30)" stroke-width="1.6"/>'
-                 f'<line x1="{X_FAN+FAN_W/2}" y1="{y+3}" x2="{X_FAN+FAN_W/2}" y2="{y+h-3}" '
-                 f'stroke="rgba(10,18,21,0.6)" stroke-width="0.7"/>')
+                 f'stroke="rgba(147,161,161,0.34)" stroke-width="1.6"/>' + seam)
         # Foam along the edges: it presses the module against the cover so the
         # air does not take a detour. It is fluffy, so it is drawn with
         # hatching rather than a fill.
+        # Полосы уплотнителя укорочены с обеих сторон, и разрыв посередине —
+        # это место под подписи. Раньше они шли во всю ширину, и номер модуля с
+        # оборотами лежали прямо на них: читалось ни то ни другое.
+        GAP = 30
+        foam_w = (FAN_W - 16) / 2 - GAP
         foam = ''.join(
-            f'<rect x="{X_FAN+8}" y="{fy0}" width="{FAN_W-16}" height="5" rx="2" '
+            f'<rect x="{fx0}" y="{fy0}" width="{foam_w:.1f}" height="5" rx="2" '
             f'fill="rgba(88,96,92,0.42)"/>'
-            + ''.join(f'<line x1="{X_FAN+10+t*7}" y1="{fy0}" x2="{X_FAN+10+t*7}" y2="{fy0+5}" '
-                      f'stroke="rgba(147,161,161,0.16)"/>' for t in range(int((FAN_W-20)//7)))
-            for fy0 in (y + 2, y + h - 7))
+            + ''.join(f'<line x1="{fx0+2+t*7}" y1="{fy0}" x2="{fx0+2+t*7}" y2="{fy0+5}" '
+                      f'stroke="rgba(147,161,161,0.16)"/>' for t in range(int((foam_w-4)//7)))
+            for fy0 in (y + 2, y + h - 7)
+            for fx0 in (X_FAN + 8, X_FAN + FAN_W - 8 - foam_w))
 
         cv.add(f'''<g class="pick fan" data-fan="{i}" style="--seat:{seat('fan', i)}">
       <g class="pick-body">
         {tabs}
-        <rect x="{X_FAN+4}" y="{y}" width="{FAN_W-8}" height="{h}" rx="0" fill="#0b1215" stroke="rgba(147,161,161,0.18)"/>
+        <rect x="{X_FAN+4}" y="{y}" width="{FAN_W-8}" height="{h}" rx="3" fill="#0b1215" stroke="rgba(147,161,161,0.18)"/>
         {mounts}
         {''.join(rotors)}
         {shell}
         {foam}
         {plug}
-        {mono(X_FAN + FAN_W / 2, y + h - 6, f"FAN{i+1} · {FAN_SPEC['rpm_max']} RPM", 7, op=0.34)}
+        {mono(X_FAN + FAN_W / 2, y + 8, f"FAN{i+1}", 7, op=0.42)}
+        {mono(X_FAN + FAN_W / 2, y + h - 2, f"{FAN_SPEC['rpm_max']} RPM", 7, op=0.30)}
         <g class="cables">{wires}</g>
         {foot}
       </g>
-      {fault_at(cv, sx + 18, fy + 8, 5)}
-      {silk_inverse(sx + 30, fy + 2, 'FAN FAULT', 6)}
+      {fault_at(cv, sx + 18, fy + FAN_LAMP_DY, 5)}
+      {silk_inverse(sx + 30, fy + FAN_LAMP_DY - 6, 'FAN FAULT', 6)}
     </g>''')

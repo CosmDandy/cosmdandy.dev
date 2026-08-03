@@ -23,13 +23,21 @@ from board.rotor import HUB_R, blur_disc, impeller
 
 
 def render(cv):
-    for k, (y, flip) in enumerate(zip(PSU_Y, (False, True))):
+    for k, y in enumerate(PSU_Y):
         name = f"PSU-{k+1}"
-        fan_y = y + (8 if flip else 83)      # fan in the corner away from centre
+        # Оба блока одинаковые, и это не придирка к симметрии. Модуль — одна и
+        # та же деталь, вставленная в два кармана: вентилятор у него всегда с
+        # одной стороны, скоба с ручкой — с другой. Пока второй блок рисовался
+        # зеркально, его оранжевый лепесток оказывался под вентилятором, то
+        # есть там, где на живом блоке ухватиться не за что.
+        fan_y = y + 83
         # The bay pocket: the module is inserted into it, not glued to the
         # wall. Without the pocket the two modules read as a single panel on
         # the rear edge.
-        bay = [(f'<rect x="{X_REAR-6}" y="{y-6}" width="312" height="157" rx="6" fill="#0c1316" '
+        # Карман — вырез в шасси, а не деталь: у выреза углы прямые. Скругление
+        # положено корпусу машины и самим модулям, а посадочное место штампуют
+        # по прямой.
+        bay = [(f'<rect x="{X_REAR-6}" y="{y-6}" width="312" height="157" fill="#0c1316" '
                 f'stroke="rgba(147,161,161,0.20)"/>')]
         for gy in (y - 2, y + 143):
             bay.append(f'<line x1="{X_REAR-2}" y1="{gy}" x2="{X_REAR+296}" y2="{gy}" '
@@ -80,11 +88,22 @@ def render(cv):
         # the drive latches: the colour means "this one is touched by hand
         # while live". It reaches past the end face further than the handle,
         # otherwise you cannot get to it.
-        psu.append(f'<path d="M{X_REAR+286} {mid-32} h34 l8 11 -8 11 h-34 Z" '
-                   f'fill="#cb4b16" stroke="rgba(238,232,213,0.55)" stroke-width="1.3"/>')
-        for g in range(2):
-            psu.append(f'<line x1="{X_REAR+294}" y1="{mid-26+g*8}" x2="{X_REAR+316}" y2="{mid-26+g*8}" '
-                       f'stroke="rgba(20,20,10,0.34)" stroke-width="1.6"/>')
+        # Лепесток стоит выше скобы, а не на ней. Раньше он начинался на
+        # шестой единице от оси скобы и ложился прямо поперёк неё: на схеме это
+        # читалось одной деталью, а на живом блоке это две разные вещи, и
+        # нажимают на них по очереди — сперва лепесток, потом тянут за скобу.
+        #
+        # Он ещё и гнётся. Нажатие уводит его внутрь, к ручке: класс на группе
+        # ставит вытаскивание, а угол и точка вращения живут в css.
+        latch_y = mid - 48
+        psu.append(f'<g class="psu-latch">'
+                   f'<path d="M{X_REAR+282} {latch_y} h34 l8 8 -8 8 h-34 Z" '
+                   f'fill="#cb4b16" stroke="rgba(238,232,213,0.55)" stroke-width="1.3"/>'
+                   + ''.join(f'<line x1="{X_REAR+290}" y1="{latch_y+5+g*6}" '
+                             f'x2="{X_REAR+312}" y2="{latch_y+5+g*6}" '
+                             f'stroke="rgba(20,20,10,0.34)" stroke-width="1.6"/>'
+                             for g in range(2))
+                   + '</g>')
         # fan
         psu.append(f'<rect x="{X_REAR+238}" y="{fan_y-4}" width="58" height="58" rx="4" fill="#0b1215" stroke="rgba(147,161,161,0.22)"/>')
         # The same impeller as the wall: seven backswept blades, the barrel it
@@ -141,5 +160,5 @@ def render(cv):
             psu.append(mono(lx + 11, ly + 3, nm, 7, anchor="start", op=0.44))
         cv.add(f'''<g class="pick psu" data-psu="{k+1}" style="--seat:{seat('psu', k)}">
       <g class="pick-body">{''.join(psu)}</g>
-      {fault_at(cv, X_REAR-18, y + (118 if flip else 26), 5)}
+      {fault_at(cv, X_REAR-18, y + 26, 5)}
     </g>''')

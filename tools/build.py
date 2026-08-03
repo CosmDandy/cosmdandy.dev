@@ -64,6 +64,11 @@ ORDER = [
     'pcb_traces',    # traces: publishes the nodes for the vias
     'pcb_vias',      # vias — placed on the trace nodes
     'pcb_scatter',   # passives: sit in whatever is left, hence late
+    # Рамки блоков — это краска на текстолите, и лежать они обязаны под
+    # деталями, а не поверх. Пока они рисовались последними, пунктирная линия
+    # банка проходила по поднятой плашке памяти: узел уезжал вверх, а обводка
+    # оставалась нарисованной сверху.
+    'frames',        # outline frames of the functional blocks
     'vrm',           # core power, right up against the sockets
     'front_panel',   # control panel on the front
     'drives',        # 2.5″ cage
@@ -76,7 +81,6 @@ ORDER = [
     'risers',
     'rear_io',       # SFP+, RJ45, management port
     'marks',         # unit designations on the laminate
-    'frames',        # outline frames of the functional blocks
     'callouts',      # link labels — on top of everything
     'lightpath',     # pull-out diagnostics panel
 ]

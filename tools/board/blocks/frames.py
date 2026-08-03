@@ -58,7 +58,11 @@ def render(cv):
     # written here by hand, they claimed eight — as many as the console made up.
     for y0, b in zip((Y_BANK_L, Y_BANK_C, Y_BANK_R), DIMM['banks']):
         owner = 'CPU0 / CPU1' if b['cpu'] == 'split' else f"CPU{b['cpu']}"
-        title, refs = f"{owner} · {b['ch']}", f"DIMM{b['first']}-{b['first'] + b['n'] - 1}"
+        # В перечне позиций — обозначения разъёмов, а не каналы: каналы уже
+        # названы в заголовке рамки, и второй раз они ничего не добавляют. Сами
+        # слоты подписаны буквами своих каналов, поэтому «DIMM1-8» рядом с ними
+        # читалось как другая, противоречащая нумерация.
+        title, refs = f"{owner} · {b['ch']}", f"J{b['first']}-J{b['first'] + b['n'] - 1}"
         frames.append(block_frame(X_CORE - 10, y0 - 6, DIMM_SOCK_W + 16, BANK_H + 12,
                                   title, refs))
     cv.add('<g class="decor">' + ''.join(frames) + '</g>')

@@ -72,6 +72,8 @@
     from { opacity: 0; transform: translateY(-42px); }
   }
 
-  /* A latch holds the fan in the wall: you pull, it does not move, then it
-     breaks free. Exactly the same curve carries it when seating too. */
-  .fan .pick-body { transition: transform var(--click); }
+  /* Разъём вентилятора тугой и без середины: он либо защёлкнут, либо нет.
+     Тянешь — движения нет, потом оп, и вытянулся; обратно так же. Общий
+     --click для этого слишком мягок, у него после срыва есть длинная
+     доводка, а здесь доводить нечего. */
+  .fan .pick-body { transition: transform var(--snap); }
