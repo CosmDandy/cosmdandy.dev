@@ -46,14 +46,29 @@ def file_sha(path):
     return _cache[rel]
 
 
-def stamp(x, y, label=None, anchor="start", op=0.3):
-    """Part number of a unit, as a link to the commit that last changed it.
+def file_date(path):
+    """Дата последнего коммита, тронувшего файл: её и показывает партномер."""
+    rel = str(Path(path).resolve().relative_to(ROOT))
+    key = 'date:' + rel
+    if key not in _cache:
+        _cache[key] = git("log", "-1", "--format=%ad", "--date=short", "--", rel) or "—"
+    return _cache[key]
 
-    label affects nothing and stays for the readability of the call: a unit is
-    defined by its file, not by its caption.
+
+def stamp(x, y, label=None, anchor="start", op=0.3):
+    """Партномер узла — набивка на детали, а не ссылка.
+
+    Ссылкой он был, и это оказалось лишним: партномеров на схеме много, они
+    мелкие, и каждый уводил со страницы. Теперь он просто меняется под
+    курсором — показывает дату той сборки, номер которой набит рядом. Узнать
+    по нему что-то можно, уйти по нему никуда нельзя.
+
+    label ни на что не влияет и оставлен для читаемости вызова: узел
+    определяется своим файлом, а не подписью.
     """
-    sha = file_sha(inspect.stack()[1].filename)
-    return (f'<a class="stamp" href="{REPO}/commit/{sha}" target="_blank" rel="noopener" '
-            f'data-sha="{sha}">'
+    src = inspect.stack()[1].filename
+    sha = file_sha(src)
+    return (f'<g class="stamp" data-sha="{sha}">'
             + mono(x, y, f"P/N {sha.upper()}", 6, anchor=anchor, op=op)
-            + '</a>')
+            + f'<g class="stamp-alt">{mono(x, y, file_date(src), 6, anchor=anchor, op=op)}</g>'
+            + '</g>')

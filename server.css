@@ -152,6 +152,15 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   --pcb: #0a3037;
   --surface-fade: 0.45s cubic-bezier(0.32, 0.72, 0, 1);
 
+  /* Консоль. В тёмной теме это чернильная подложка Solarized Dark, в светлой —
+     её же светлая половина: та самая кремовая base3, на которой Solarized и
+     построен. Чернила при этом остаются теми же — зелёный, янтарный, красный
+     у Solarized одни на обе половины, и меняется только то, на чём они
+     напечатаны. */
+  --con-bg: linear-gradient(180deg, rgba(9,34,40,0.92) 0%, rgba(7,26,31,0.88) 100%);
+  --con-ink: #93a1a1;
+  --con-dim: #586e75;
+
   --fade: 0.45s cubic-bezier(0.32, 0.72, 0, 1);
   /* The spring is left for the small parts — latches and tabs. Anything big
      travels on --glide: a long ease-out with no bounce. The heatsink is the
@@ -166,19 +175,10 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
      and a half on the same bounce-free curve — starts at once, brakes for
      a long time. */
   --svc: 1.5s cubic-bezier(0.22, 1, 0.36, 1);
-  /* The click: a latched unit refuses to move at first, then breaks free and
-     runs on freely, slowing down. That is how a DIMM, a fan, a riser and a
-     power supply come out — everything that is held by a catch. The CPU does
-     not move that way: it is not yanked but lifted, so it keeps --glide.
-
-     For a third of the time the unit stands almost still, over the next seven
-     per cent it covers two thirds of the distance — that is the break-free —
-     and the remainder is settled barely visibly. The gap between the yank and
-     the settling is kept large on purpose: on a soft curve the click just
-     reads as a fast movement. */
-  --click: 0.9s linear(
-      0, 0.003 14%, 0.009 24%, 0.018 31%, 0.30 35%, 0.66 39%, 0.83 44%,
-      0.90 52%, 0.945 63%, 0.975 76%, 0.993 88%, 1);
+  /* Общей кривой «щелчок» здесь больше нет. Она была одна на все узлы, и
+     ровно это владелец и назвал «сгенерировано скриптом»: разница между
+     тугой ножкой райзера и клавишным щелчком вентилятора важнее, чем то, что
+     оба удерживаются защёлкой. Что у кого — ниже.
 
   /* Дальше — четыре характера, которых одному --click не изобразить. Разница
      между ними и есть то, что делает машину тяжёлой: у каждого узла свой
@@ -203,12 +203,12 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
       0, 0.004 26%, 0.012 38%, 0.06 44%, 0.42 50%, 0.86 58%,
       1.02 66%, 0.998 78%, 1);
 
-  /* --heave: плашка памяти. Сначала микродвижение — модуль подаётся на
-     волосок, пока лепестки ещё держат, — а потом идёт вверх уверенно и
-     ровно: не рывком, но и не всплывая. Солидно. */
-  --heave: 0.8s linear(
-      0, 0.010 12%, 0.024 22%, 0.038 30%, 0.16 38%, 0.38 48%,
-      0.60 58%, 0.78 68%, 0.90 78%, 0.965 88%, 1);
+  /* --heave: плашка памяти. Один уверенный ход без заминок: заминка в этом
+     движении принадлежит защёлкам, и повторять её на самом модуле значит
+     показать два щелчка вместо одного. Ровно, не рывком и не всплывая. */
+  --heave: 0.7s linear(
+      0, 0.06 8%, 0.16 16%, 0.32 26%, 0.52 38%, 0.72 50%,
+      0.87 62%, 0.95 74%, 0.99 86%, 1);
 
   /* --latch-throw: сам лепесток. Отрицательные значения в начале не описка:
      на живой плате защёлку сперва додавливают внутрь, к плашке, и только
@@ -225,6 +225,25 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   --caddy: 1.05s linear(
       0, 0.045 7%, 0.072 13%, 0.078 20%, 0.080 30%, 0.086 38%,
       0.20 46%, 0.42 55%, 0.66 64%, 0.84 73%, 0.945 82%, 0.99 91%, 1);
+
+  /* --latch-close: тот же лепесток, но на вставке. Переход берёт кривую из
+     правила того состояния, в которое едут, — значит, у возвращения она может
+     быть своей, и это единственный способ не получить зеркало.
+
+     Зеркало здесь и было: на --latch-throw обратный ход начинался с того, что
+     лепесток отходил ещё дальше наружу (замерено: −38° → −41,3°), тогда как
+     просили обратного — чтобы он сперва чуть поддвинулся внутрь, «как будто
+     закрылся на пару миллиметров», и только потом захлопнулся. */
+  --latch-close: 0.6s linear(
+      0, 0.055 12%, 0.072 26%, 0.078 42%, 0.22 50%, 0.58 58%,
+      0.92 66%, 1.06 76%, 0.99 88%, 1);
+
+  /* --press-long: райзер на вставке. Ножка у него длинная, и вниз он идёт так
+     же туго, как выходит: равномерное сопротивление почти до конца и короткая
+     доводка, когда краевой разъём пошёл в паз. */
+  --press-long: 1.0s linear(
+      0, 0.06 10%, 0.13 20%, 0.21 30%, 0.30 40%, 0.40 50%, 0.52 60%,
+      0.66 70%, 0.82 79%, 0.95 87%, 1.02 94%, 1);
 
   /* --lever: ручка каддика. Единственное движение на схеме, которому инерция
      противопоказана: пластиковый рычаг невесом, пружина отбрасывает его
@@ -310,11 +329,12 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   margin: 0;
   border: 1px solid var(--edge);
   border-radius: 6px;
-  background: linear-gradient(180deg, rgba(9,34,40,0.92) 0%, rgba(7,26,31,0.88) 100%);
+  background: var(--con-bg);
   padding: 10px 12px 8px;
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
   font-size: 0.82rem;
   line-height: 1.55;
+  color: var(--con-ink);
 }
 .rig.service .panel { display: block; }
 /* The console heading is its nameplate: the word console, the machine model,
@@ -326,7 +346,7 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   margin: 0 0 8px;
   font-size: 0.68rem; font-weight: 600;
   letter-spacing: 0.14em; text-transform: uppercase;
-  color: var(--dim);
+  color: var(--con-dim);
   display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
   /* The heading is itself a flex item of the column, and its min-width: auto
      pushed the panel apart from the inside: the spec does not wrap, so
@@ -338,7 +358,7 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   flex: 1 1 auto; min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   text-transform: none; letter-spacing: 0.02em; font-weight: 500;
-  color: rgba(88, 110, 117, 0.85);
+  color: var(--con-dim);
 }
 .con-up { flex: none; font-variant-numeric: tabular-nums; }
 .console-log { height: 132px; overflow-y: auto; overscroll-behavior: contain;
@@ -347,7 +367,7 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
 .console-log .ok { color: var(--green); }
 .console-log .warn { color: var(--amber); }
 .console-log .err { color: var(--red); }
-.console-log .muted { color: var(--dim); }
+.console-log .muted { color: var(--con-dim); }
 .console-log::-webkit-scrollbar { width: 6px; }
 .console-log::-webkit-scrollbar-thumb { background: rgba(147,161,161,0.28); border-radius: 3px; }
 
@@ -369,7 +389,7 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   .panel {
     border: 1px solid var(--edge);
     border-radius: 12px;
-    background: linear-gradient(180deg, rgba(9,34,40,0.92) 0%, rgba(7,26,31,0.88) 100%);
+    background: var(--con-bg);
     padding: 12px 14px 14px;
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
     font-size: 0.82rem;
@@ -956,8 +976,12 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
      other movement. The moment of seating is set by --seat, which the generator
      writes: the schedule for the whole assembly lives in geom, and only "from
      where and how" lives here. */
+  /* Садится он своим же щелчком: разъём у вентилятора либо защёлкнулся, либо
+     нет, и вставка ничем не отличается от вытаскивания. Общий --press-hard
+     описывает прижим плашки памяти — совсем другое движение, и на нём модуль
+     входил мягко, будто его укладывают. */
   .rig.assembly .fan {
-    animation: seatFan var(--press-hard) var(--seat, 0s) backwards;
+    animation: seatFan var(--press-snap) var(--seat, 0s) backwards;
   }
   /* It seats stiffly: the guides are long, the module travels along them under
      effort, and right at the bottom it is pressed home to the latch. */
@@ -985,7 +1009,7 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
     stroke: rgba(58, 143, 196, 0.85);
     stroke-width: 1.1;
     transform-box: fill-box;
-    transition: fill 0.15s steps(1, end), transform var(--latch-throw);
+    transition: fill 0.15s steps(1, end), transform var(--latch-close);
   }
   /* The hinge sits at the outboard end of the socket, not next to the module:
      a latch tips away from the DIMM it holds. Hence the pivot is the far
@@ -1000,15 +1024,25 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   /* Open means outward: the board runs front-to-right, so the front ear swings
      toward -X and the rear one toward +X — both away from the socket, never
      across the module. A positive angle is clockwise in SVG. */
+  /* Кривая — в правиле открытого состояния: переход берёт её из того
+     правила, в которое едет. Обратный ход тогда идёт по --latch-close, а не
+     зеркалом этой же кривой. */
+  .rig.service .dimm.pulled .latch-l,
+  .rig.service .dimm.pulled .latch-r { transition: transform var(--latch-throw); }
   .rig.service .dimm.pulled .latch-l { transform: rotate(-38deg); }
   .rig.service .dimm.pulled .latch-r { transform: rotate(38deg); }
   /* Задержка — это время, за которое лепестки успевают отойти: плашка не
      может тронуться, пока они держат. Она чуть больше прежней, потому что
      сама защёлка теперь сначала додавливается внутрь и только потом
      отбрасывается. */
+  /* Задержка — время, за которое лепестки успевают отойти. Она короче
+     прежней вдвое: заминка в этом движении принадлежит защёлкам, а сама
+     плашка после них идёт одним уверенным ходом. С прежними 0,22 плюс
+     собственная полка --heave модуль стоял полсекунды, и в кадре читались два
+     щелчка подряд вместо одного. */
   .rig.service .dimm.pulled .pick-body {
     transform: translateY(-13px);
-    transition-delay: 0.22s;
+    transition-delay: 0.11s;
   }
 
   /* Assembly: the DIMM enters its socket with a short downward move — its
@@ -1085,8 +1119,11 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
 
   /* Assembly: the riser is lowered into its slot from above, whole — together
      with the card and the bracket. */
+  /* Вниз он идёт так же туго, как выходит: ножка длинная, сопротивление по
+     всей её длине. На общем --press-hard райзер падал в слот рывком, то есть
+     ровно тем движением, которого у него нет. */
   .rig.assembly .riser {
-    animation: seatRiser var(--press-hard) var(--seat, 0s) backwards;
+    animation: seatRiser var(--press-long) var(--seat, 0s) backwards;
   }
   /* The riser seats along its whole connector at once, so it goes in stiff and
      needs a final push — that is exactly what the tab on it is held by. */
@@ -1101,10 +1138,17 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
      сопротивление кончается разом, здесь — постепенно. */
   .riser .pick-body { transition: transform var(--drag); }
   /* ── psu ──────────────────────────────── */
-  .rig.service .psu.pulled .pick-body { transform: translateX(104px); }
-  /* Паз у блока такой же глубокий, как у райзера, и ход тот же: тянешь,
-     тянешь, потом поддаётся и идёт легко. */
-  .psu .pick-body { transition: transform var(--drag); }
+  /* Вынимается тугим ходом, как райзер: паз глубокий, тянешь, тянешь, потом
+     поддаётся. А возвращается в два приёма — вошёл, упёрся, проталкиваешь.
+     Разные кривые у одного и того же движения возможны потому, что переход
+     берёт кривую из правила того состояния, в которое едут: у «вынуто» она
+     своя, у «на месте» своя. Раньше двухступенчатая посадка жила только в
+     анимации сборки, а руками блок возвращался зеркалом тугого хода. */
+  .rig.service .psu.pulled .pick-body {
+    transform: translateX(104px);
+    transition: transform var(--drag);
+  }
+  .psu .pick-body { transition: transform var(--press-two); }
 
   /* A pulled supply is dead: mains no longer reaches it. Both lamps go out —
      AC included, the one that burns even on a switched-off machine — and the
@@ -1225,17 +1269,24 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
      The heatsink travels further than it used to: it is the size of the
      socket, and at the old 104 pixels it covered the place where the processor
      has to lie. */
-  /* Разносим по диагонали, а не по вертикали. Сверху и снизу от сокета стоят
-     банки памяти: крышка, улетавшая строго вверх, ложилась на плашки, а
-     процессор, уезжавший строго вниз, — на плашки соседнего банка. Теперь
-     радиатор уходит правее и выше, в свободное поле у служебной зоны, а
-     процессор — левее и чуть ниже своей середины, туда, где на плате ничего
-     нет. Ни один из них не накрывает служебную кнопку: она внизу справа, а
-     радиатор от неё выше. */
+  /* Куда именно они разлетаются, диктует не вкус, а то, что стоит вокруг.
+     Сверху и снизу от сокета банки памяти, и всякий заметный ход по вертикали
+     кладёт деталь на плашки. Между банком и сокетом восемнадцать единиц — вот
+     весь запас по высоте, и он же весь допустимый вертикальный ход.
+
+     Поэтому радиатор идёт вправо и лишь чуть вверх: он остаётся в своём
+     коридоре, в полосе между банками, где памяти нет. Ровно сорок пять
+     градусов, которые тут стояли раньше, — это и есть «диагонально в угол», от
+     чего просили уйти: радиатор при этом накрывал шесть плашек из восьми.
+
+     Процессор — влево и ниже своей середины, но не настолько, чтобы дотянуться
+     до следующего банка: сорок вниз при восемнадцати запаса и высоте самой
+     крышки в девяносто два — это ровно до его кромки. Служебную кнопку не
+     накрывает ни тот, ни другой: она внизу справа, а оба остаются выше. */
   .heatsink, .cpu-lid { transition: transform var(--glide); }
   .rig.service .cpu-slot.pulled .pick-body { transform: none; }
-  .rig.service .cpu-slot.pulled .heatsink { transform: translate(122px, -122px) scale(0.92); }
-  .rig.service .cpu-slot.opened .cpu-lid { transform: translate(-136px, 74px) scale(0.96); }
+  .rig.service .cpu-slot.pulled .heatsink { transform: translate(232px, -14px) scale(0.92); }
+  .rig.service .cpu-slot.opened .cpu-lid { transform: translate(-136px, 40px) scale(0.96); }
 
   /* The contact field: while the processor is in place it is not visible — and
      rightly so, there is nothing to show under it. It shows through together
@@ -1340,6 +1391,7 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
      проступает подчёркивание: тот же язык, которым помечена любая ссылка в
      вебе, только нарисованный краской по плате. */
   .silk-name { fill: rgba(147,161,161,0.46); transition: fill var(--fade); }
+  .silk-line { fill: rgba(147,161,161,0.30); transition: fill var(--fade); }
   .silk-mark { pointer-events: none; }
   .silk-rule {
     stroke: var(--cyan);
@@ -1352,6 +1404,10 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   .rig.service .silk-mark { pointer-events: auto; cursor: pointer; }
   .rig.service .silk-mark:hover .silk-name,
   .rig.service .silk-mark:focus-visible .silk-name { fill: rgba(213,222,222,0.86); }
+  /* Светлеет вся марка, а не одно имя: «эта литография, космденди, Dual SP5,
+     24 DDR5 — вот это всё» набито одной краской и блестит целиком. */
+  .rig.service .silk-mark:hover .silk-line,
+  .rig.service .silk-mark:focus-visible .silk-line { fill: rgba(213,222,222,0.60); }
   /* Перелив — светлая полоса, проходящая по полю марки один раз за наведение.
      Тем же приёмом блестят бирки ссылок: полосу режет clip самого поля, иначе
      она уезжает на плату. Градиента с анимацией здесь нет нарочно — на живой
@@ -1552,7 +1608,6 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
  */
 a.stamp { cursor: pointer; }
 a.stamp text { transition: fill-opacity var(--fade); }
-a.stamp:hover text { fill-opacity: 0.85; }
 a.stamp:focus-visible { outline: none; }
 a.stamp:focus-visible text { fill-opacity: 1; }
 
@@ -1981,6 +2036,12 @@ a.callout.lit .co-dot { fill: var(--head); }
     --metal-deep: #49535a;
     --steel: #6a747b;
     --pcb: #0e4d59;
+    /* Консоль светлеет вместе с машиной, но не сливается с фоном страницы:
+       у страницы кремовый base3, у консоли — base2 на полтона темнее, и между
+       ними остаётся видимая кромка. */
+    --con-bg: linear-gradient(180deg, rgba(238,232,213,0.96) 0%, rgba(228,220,197,0.94) 100%);
+    --con-ink: #33555c;
+    --con-dim: #6b7f83;
 }
 
 @media (prefers-color-scheme: light) {
@@ -1990,5 +2051,19 @@ a.callout.lit .co-dot { fill: var(--head); }
         --metal-deep: #49535a;
         --steel: #6a747b;
         --pcb: #0e4d59;
+        --con-bg: linear-gradient(180deg, rgba(238,232,213,0.96) 0%, rgba(228,220,197,0.94) 100%);
+        --con-ink: #33555c;
+        --con-dim: #6b7f83;
     }
 }
+
+/* ── Партномер ─────────────────────────────────────────────────────────────
+   Набивка на детали: мелкая, приглушённая, и под курсором она меняется —
+   вместо номера показывает дату той сборки, которой он принадлежит. Ссылкой
+   партномер был раньше, и это оказалось лишним: их на схеме много, они мелкие,
+   и каждый уводил со страницы. */
+.stamp { cursor: default; }
+.stamp text { transition: fill-opacity var(--fade); }
+.stamp-alt text { fill-opacity: 0; }
+.stamp:hover > text { fill-opacity: 0; }
+.stamp:hover .stamp-alt text { fill-opacity: 0.62; }

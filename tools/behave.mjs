@@ -213,11 +213,17 @@ check('nodes are back in place', stillPulled === 0, `${stillPulled} left out`);
 
 // 8. A part number leads to a commit
 const stamp = await page.evaluate(() => {
-  const a = document.querySelector('a.stamp');
-  return { href: a?.getAttribute('href') ?? '', sha: a?.dataset.sha ?? '' };
+  const g = document.querySelector('g.stamp');
+  if (!g) return null;
+  return { sha: g.dataset.sha, tag: g.tagName,
+           texts: [...g.querySelectorAll('text')].map(t => t.textContent),
+           link: !!g.closest('a') };
 });
-check('part number points at its own commit',
-  stamp.href.includes('/commit/' + stamp.sha) && stamp.sha.length === 7, stamp.sha);
+// Партномер — набивка, а не ссылка: уводить со страницы ему незачем, а под
+// курсором он меняет номер на дату той сборки, которой принадлежит.
+check('the part number is a stamp, not a link',
+      !!stamp && !stamp.link && stamp.sha.length === 7 && stamp.texts.length === 2
+      && stamp.texts[0].startsWith('P/N'), JSON.stringify(stamp));
 
 // 9. The machine passport. It is printed into the page by the generator and
 // must agree with the schematic: if it says twenty-four modules while

@@ -27,12 +27,10 @@ from board.geom import (
     GROUP_GAP,
     GROUP_H,
     X_FRONT,
-    H,
     bay_seat,
 )
 from board.ink import silk_frame
 from board.lamps import act_led, lamp
-from board.revision import stamp
 from board.spec import BAYS
 
 LABEL_H = 43     # наклейка на ручке: вдвое короче прежнего шильдика
@@ -342,4 +340,3 @@ def render(cv):
                      "GitHub", "start", "https://github.com/cosmdandy", "hdd",
                      "код и проекты", "github"))
 
-    cv.add(stamp(X_FRONT + 4, H - 18, "фронт: восемь отсеков"))

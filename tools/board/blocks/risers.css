@@ -6,8 +6,11 @@
 
   /* Assembly: the riser is lowered into its slot from above, whole — together
      with the card and the bracket. */
+  /* Вниз он идёт так же туго, как выходит: ножка длинная, сопротивление по
+     всей её длине. На общем --press-hard райзер падал в слот рывком, то есть
+     ровно тем движением, которого у него нет. */
   .rig.assembly .riser {
-    animation: seatRiser var(--press-hard) var(--seat, 0s) backwards;
+    animation: seatRiser var(--press-long) var(--seat, 0s) backwards;
   }
   /* The riser seats along its whole connector at once, so it goes in stiff and
      needs a final push — that is exactly what the tab on it is held by. */

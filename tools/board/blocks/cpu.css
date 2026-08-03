@@ -33,17 +33,24 @@
      The heatsink travels further than it used to: it is the size of the
      socket, and at the old 104 pixels it covered the place where the processor
      has to lie. */
-  /* Разносим по диагонали, а не по вертикали. Сверху и снизу от сокета стоят
-     банки памяти: крышка, улетавшая строго вверх, ложилась на плашки, а
-     процессор, уезжавший строго вниз, — на плашки соседнего банка. Теперь
-     радиатор уходит правее и выше, в свободное поле у служебной зоны, а
-     процессор — левее и чуть ниже своей середины, туда, где на плате ничего
-     нет. Ни один из них не накрывает служебную кнопку: она внизу справа, а
-     радиатор от неё выше. */
+  /* Куда именно они разлетаются, диктует не вкус, а то, что стоит вокруг.
+     Сверху и снизу от сокета банки памяти, и всякий заметный ход по вертикали
+     кладёт деталь на плашки. Между банком и сокетом восемнадцать единиц — вот
+     весь запас по высоте, и он же весь допустимый вертикальный ход.
+
+     Поэтому радиатор идёт вправо и лишь чуть вверх: он остаётся в своём
+     коридоре, в полосе между банками, где памяти нет. Ровно сорок пять
+     градусов, которые тут стояли раньше, — это и есть «диагонально в угол», от
+     чего просили уйти: радиатор при этом накрывал шесть плашек из восьми.
+
+     Процессор — влево и ниже своей середины, но не настолько, чтобы дотянуться
+     до следующего банка: сорок вниз при восемнадцати запаса и высоте самой
+     крышки в девяносто два — это ровно до его кромки. Служебную кнопку не
+     накрывает ни тот, ни другой: она внизу справа, а оба остаются выше. */
   .heatsink, .cpu-lid { transition: transform var(--glide); }
   .rig.service .cpu-slot.pulled .pick-body { transform: none; }
-  .rig.service .cpu-slot.pulled .heatsink { transform: translate(122px, -122px) scale(0.92); }
-  .rig.service .cpu-slot.opened .cpu-lid { transform: translate(-136px, 74px) scale(0.96); }
+  .rig.service .cpu-slot.pulled .heatsink { transform: translate(232px, -14px) scale(0.92); }
+  .rig.service .cpu-slot.opened .cpu-lid { transform: translate(-136px, 40px) scale(0.96); }
 
   /* The contact field: while the processor is in place it is not visible — and
      rightly so, there is nothing to show under it. It shows through together

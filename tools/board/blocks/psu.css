@@ -1,7 +1,14 @@
-  .rig.service .psu.pulled .pick-body { transform: translateX(104px); }
-  /* Паз у блока такой же глубокий, как у райзера, и ход тот же: тянешь,
-     тянешь, потом поддаётся и идёт легко. */
-  .psu .pick-body { transition: transform var(--drag); }
+  /* Вынимается тугим ходом, как райзер: паз глубокий, тянешь, тянешь, потом
+     поддаётся. А возвращается в два приёма — вошёл, упёрся, проталкиваешь.
+     Разные кривые у одного и того же движения возможны потому, что переход
+     берёт кривую из правила того состояния, в которое едут: у «вынуто» она
+     своя, у «на месте» своя. Раньше двухступенчатая посадка жила только в
+     анимации сборки, а руками блок возвращался зеркалом тугого хода. */
+  .rig.service .psu.pulled .pick-body {
+    transform: translateX(104px);
+    transition: transform var(--drag);
+  }
+  .psu .pick-body { transition: transform var(--press-two); }
 
   /* A pulled supply is dead: mains no longer reaches it. Both lamps go out —
      AC included, the one that burns even on a switched-off machine — and the

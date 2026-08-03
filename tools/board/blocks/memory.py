@@ -176,7 +176,7 @@ def render(cv):
           </g>
           <path class="latch latch-l" d="M{X_CORE-7} {y+1} h6 v{SLOT_H-2} h-6 a2 2 0 0 1 -2 -2 v{-(SLOT_H-6)} a2 2 0 0 1 2 -2 Z"/>
           <path class="latch latch-r" d="M{X_CORE+DIMM_W+1} {y+1} h6 a2 2 0 0 1 2 2 v{SLOT_H-6} a2 2 0 0 1 -2 2 h-6 Z"/>
-          {silk_inverse(X_CORE + DIMM_W + 18, y - 1, f"DIMM {letters[i]}", 6.5)}
+          {silk_inverse(X_CORE + DIMM_W + 18, y + (SLOT_H - 12.5) / 2, f"DIMM {letters[i]}", 6.5)}
         </g>''')
         return f'''<g class="unit" data-unit="dimm-{code}" data-group="dimm" data-href="https://blog.cosmdandy.dev">
       {hit(X_CORE-8, y0-4, SOCK_W + 42, n * PITCH + 6)}

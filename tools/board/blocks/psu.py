@@ -37,7 +37,7 @@ def render(cv):
         # Карман — вырез в шасси, а не деталь: у выреза углы прямые. Скругление
         # положено корпусу машины и самим модулям, а посадочное место штампуют
         # по прямой.
-        bay = [(f'<rect x="{X_REAR-6}" y="{y-6}" width="312" height="157" fill="{METAL_DEEP}" '
+        bay = [(f'<rect x="{X_REAR}" y="{y-6}" width="306" height="157" fill="{METAL_DEEP}" '
                 f'stroke="rgba(147,161,161,0.20)"/>')]
         for gy in (y - 2, y + 143):
             bay.append(f'<line x1="{X_REAR-2}" y1="{gy}" x2="{X_REAR+296}" y2="{gy}" '
