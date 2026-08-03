@@ -16,6 +16,7 @@ BOUNDS = (982, 0, 356, 862)
 from board.geom import PSU_H, PSU_W, PSU_Y, X_REAR, seat
 from board.ink import mono
 from board.lamps import fault_at, jitter, lamp
+from board.metal import finned_sink
 from board.palette import ROTOR_BLADE, ROTOR_EDGE, ROTOR_PAD
 from board.revision import stamp
 from board.rotor import HUB_R, blur_disc, impeller
@@ -110,23 +111,7 @@ def render(cv):
         # Рёбра вдоль потока и винты по углам — как на процессорном.
         sink_x, sink_w = X_REAR + 62, 173
         sink_y, sink_h = y + 24, 76
-        psu.append(f'<rect x="{sink_x}" y="{sink_y}" width="{sink_w}" height="{sink_h}" rx="4" '
-                   f'fill="#26333a" stroke="rgba(147,161,161,0.38)"/>')
-        psu.extend(f'<line x1="{sink_x+9}" y1="{sink_y+9+r*3.4:.1f}" x2="{sink_x+sink_w-9}" '
-                   f'y2="{sink_y+9+r*3.4:.1f}" stroke="rgba(147,161,161,0.22)" stroke-width="1.2"/>'
-                   for r in range(int((sink_h - 18) // 3.4)))
-        # Радиатор привинчен к шасси блока — винт обычный, без пружины: прижим
-        # тут держит не он, а плоскость основания.
-        for sx in (sink_x + 10, sink_x + sink_w - 10):
-            for sy in (sink_y + 10, sink_y + sink_h - 10):
-                psu.append(f'<circle cx="{sx}" cy="{sy}" r="5.4" fill="#162025" '
-                           f'stroke="rgba(147,161,161,0.46)" stroke-width="1.3"/>'
-                           f'<circle cx="{sx}" cy="{sy}" r="2.6" fill="#0c1418" '
-                           f'stroke="rgba(147,161,161,0.34)"/>'
-                           f'<line x1="{sx-2.4}" y1="{sy}" x2="{sx+2.4}" y2="{sy}" '
-                           f'stroke="rgba(147,161,161,0.5)" stroke-width="1.2"/>'
-                           f'<line x1="{sx}" y1="{sy-2.4}" x2="{sx}" y2="{sy+2.4}" '
-                           f'stroke="rgba(147,161,161,0.5)" stroke-width="1.2"/>')
+        psu.append(finned_sink(sink_x, sink_y, sink_w, sink_h))
         # barcode along the inner end face
         for b in range(20):
             w = 1.4 if b % 3 else 2.8
