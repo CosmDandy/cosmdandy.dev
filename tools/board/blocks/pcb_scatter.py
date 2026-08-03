@@ -430,27 +430,34 @@ def render(cv):
     # Кегль каждой строки упирается в ширину поля, а не подбирается на глаз:
     # знак моноширинного продвигается на 0.6 em, разрядка добавляет свои 0.10.
     top = f"DUAL {CPU['socket']} · {ram_label()}"
-    bottom = f'REV {BOARD_REV} · S/N {BOARD_SHA} · ASSEMBLED IN A CONTAINER · {MADE}'
+    # Паспорт двумя строками, а не одной. Семьдесят знаков в строку ужимались
+    # до кегля 3,6 — мельче на плате только гравировка на чипах памяти, и та
+    # мелкая нарочно. Строку, продиктованную дословно, читать было нельзя.
+    rev = f'REV {BOARD_REV} · S/N {BOARD_SHA}'
+    made = f'ASSEMBLED IN A CONTAINER · {MADE}'
     # Разрядка в 0.10 em добавляется к продвижению знака, поэтому в fit()
     # уходит ширина поля, ужатая на ту же долю.
     avail = fw / 1.17
-    name_size = fit('COSMDANDY', avail, fh * 0.52)
+    name_size = fit('COSMDANDY', avail, fh * 0.42)
     # Марка — ссылка на тот самый коммит, которым набрана её же ревизия.
     # Открывается она только в сервисном режиме: вне его поверх марки лежат
     # бирки, и вести оттуда некуда.
     cv.add(f'''<a class="silk-mark" href="https://github.com/CosmDandy/cosmdandy.dev/commit/{BOARD_SHA.lower()}"
    target="_blank" rel="noopener" aria-label="Исходники платы">
   <rect class="silk-hit" x="{fx}" y="{fy}" width="{fw}" height="{fh}" fill="#000" fill-opacity="0.001"/>
-  <text x="{fx + fw / 2:.0f}" y="{fy + 11:.0f}" text-anchor="middle"
-        fill="rgba(147,161,161,0.34)" font-family="ui-monospace, Menlo, monospace"
-        font-size="{fit(top, avail, 9)}" letter-spacing="0.10em">{top}</text>
-  <text class="silk-name" x="{fx + fw / 2:.0f}" y="{fy + 15 + name_size:.0f}" text-anchor="middle"
+  <text class="silk-line" x="{fx + fw / 2:.0f}" y="{fy + 11:.0f}" text-anchor="middle"
+        font-family="ui-monospace, Menlo, monospace"
+        font-size="{fit(top, avail, 8)}" letter-spacing="0.10em">{top}</text>
+  <text class="silk-name" x="{fx + fw / 2:.0f}" y="{fy + 16 + name_size:.0f}" text-anchor="middle"
         font-family="ui-monospace, Menlo, monospace"
         font-size="{name_size}" font-weight="600" letter-spacing="0.10em">COSMDANDY</text>
-  <text x="{fx + fw / 2:.0f}" y="{fy + fh - 12:.0f}" text-anchor="middle"
-        fill="rgba(147,161,161,0.26)" font-family="ui-monospace, Menlo, monospace"
-        font-size="{fit(bottom, avail, 6)}" letter-spacing="0.06em">{bottom}</text>
-  <path class="silk-rule" d="M{fx + 14} {fy + fh - 6} H{fx + fw - 14}" fill="none"/>
+  <text class="silk-line" x="{fx + fw / 2:.0f}" y="{fy + fh - 20:.0f}" text-anchor="middle"
+        font-family="ui-monospace, Menlo, monospace"
+        font-size="{fit(rev, avail, 7)}" letter-spacing="0.06em">{rev}</text>
+  <text class="silk-line" x="{fx + fw / 2:.0f}" y="{fy + fh - 9:.0f}" text-anchor="middle"
+        font-family="ui-monospace, Menlo, monospace"
+        font-size="{fit(made, avail, 7)}" letter-spacing="0.06em">{made}</text>
+  <path class="silk-rule" d="M{fx + 14} {fy + fh - 3} H{fx + fw - 14}" fill="none"/>
   <clipPath id="silk-clip"><rect x="{fx}" y="{fy}" width="{fw}" height="{fh}"/></clipPath>
   <g clip-path="url(#silk-clip)">
     <rect class="silk-shine" x="{fx - 40}" y="{fy}" width="22" height="{fh}"/>

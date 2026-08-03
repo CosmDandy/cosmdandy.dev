@@ -10,7 +10,7 @@
     stroke: rgba(58, 143, 196, 0.85);
     stroke-width: 1.1;
     transform-box: fill-box;
-    transition: fill 0.15s steps(1, end), transform var(--latch-throw);
+    transition: fill 0.15s steps(1, end), transform var(--latch-close);
   }
   /* The hinge sits at the outboard end of the socket, not next to the module:
      a latch tips away from the DIMM it holds. Hence the pivot is the far
@@ -25,15 +25,25 @@
   /* Open means outward: the board runs front-to-right, so the front ear swings
      toward -X and the rear one toward +X — both away from the socket, never
      across the module. A positive angle is clockwise in SVG. */
+  /* Кривая — в правиле открытого состояния: переход берёт её из того
+     правила, в которое едет. Обратный ход тогда идёт по --latch-close, а не
+     зеркалом этой же кривой. */
+  .rig.service .dimm.pulled .latch-l,
+  .rig.service .dimm.pulled .latch-r { transition: transform var(--latch-throw); }
   .rig.service .dimm.pulled .latch-l { transform: rotate(-38deg); }
   .rig.service .dimm.pulled .latch-r { transform: rotate(38deg); }
   /* Задержка — это время, за которое лепестки успевают отойти: плашка не
      может тронуться, пока они держат. Она чуть больше прежней, потому что
      сама защёлка теперь сначала додавливается внутрь и только потом
      отбрасывается. */
+  /* Задержка — время, за которое лепестки успевают отойти. Она короче
+     прежней вдвое: заминка в этом движении принадлежит защёлкам, а сама
+     плашка после них идёт одним уверенным ходом. С прежними 0,22 плюс
+     собственная полка --heave модуль стоял полсекунды, и в кадре читались два
+     щелчка подряд вместо одного. */
   .rig.service .dimm.pulled .pick-body {
     transform: translateY(-13px);
-    transition-delay: 0.22s;
+    transition-delay: 0.11s;
   }
 
   /* Assembly: the DIMM enters its socket with a short downward move — its

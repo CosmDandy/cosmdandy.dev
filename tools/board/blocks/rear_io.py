@@ -52,7 +52,6 @@ from board.ink import mono
 from board.lamps import act_led, fault_mark, glow, id_mark, lamp, square_led
 from board.metal import hexgrid, pad, relief
 from board.ports import rj45
-from board.revision import stamp
 from board.spec import PORTS
 
 # The jack width is needed twice over — to draw the jack and to place the
@@ -60,7 +59,7 @@ from board.spec import PORTS
 # Three lamps have to stand where two stood, hence the smaller bulb.
 JACK_W, LED_R = 52, 2.4
 
-from board.palette import METAL, STEEL  # noqa: E402
+from board.palette import METAL, STEEL
 
 
 def rj_leds(seed, jx, y, salt, aux=False):
@@ -286,7 +285,6 @@ def render(cv):
   {mono(X_IO + 27, AY + 48, "USB 3.0", 5, op=0.42)}
   {mono(X_IO + 63, AY + 48, "D-SUB", 5, op=0.42)}
   {sys_leds(leds_x, AY + 54)}
-  {stamp(X_IO + 43, AY + 80, "задняя панель", anchor="middle")}
 </g>''')
 
     # Борт. Окна под гнёздами этого блока заданы прямо здесь, а торцы карты в

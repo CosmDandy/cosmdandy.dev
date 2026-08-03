@@ -76,7 +76,7 @@ const CASES = [
   ['радиатор CPU', '.cpu-slot[data-cpu="1"]', '.cpu-slot[data-cpu="1"] .heatsink', 1, 1000],
 ];
 for (const [name, click, watch, clicks, span] of CASES) {
-  const track = await page.evaluate(async ([click, watch, clicks, span]) => {
+  const tracks = await page.evaluate(async ([click, watch, clicks, span]) => {
     const el = document.querySelector(watch);
     const btn = document.querySelector(click);
     const read = () => {
@@ -87,19 +87,29 @@ for (const [name, click, watch, clicks, span] of CASES) {
       btn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       if (i < clicks - 1) await new Promise(r => setTimeout(r, 700));
     }
-    const t0 = performance.now();
-    const out = [];
-    await new Promise(done => {
-      const tick = () => {
-        const t = performance.now() - t0;
-        out.push([Math.round(t), read()]);
-        if (t < span) requestAnimationFrame(tick); else done();
-      };
-      requestAnimationFrame(tick);
-    });
-    return out;
+    const sample = async () => {
+      const t0 = performance.now();
+      const out = [];
+      await new Promise(done => {
+        const tick = () => {
+          const t = performance.now() - t0;
+          out.push([Math.round(t), read()]);
+          if (t < span) requestAnimationFrame(tick); else done();
+        };
+        requestAnimationFrame(tick);
+      });
+      return out;
+    };
+    const out = await sample();
+    // Обратный ход: у него своя кривая, и берётся она из правила того
+    // состояния, в которое едут. Проверять его надо отдельно — зеркало
+    // прямого хода это не то же самое, что описанный обратный.
+    btn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    const back = await sample();
+    return { out, back };
   }, [click, watch, clicks, span]);
   // Ось, по которой шло движение
+  for (const [dir, track] of [['→', tracks.out], ['←', tracks.back]]) {
   const last = track[track.length - 1][1];
   const first = track[0][1];
   let axis = 0, best = 0;
@@ -115,7 +125,8 @@ for (const [name, click, watch, clicks, span] of CASES) {
     return ((s[1][axis] - v0) / (v1 - v0 || 1) * 100).toFixed(0);
   };
   const AX = ['x', 'y', 'scaleX', 'scaleY', 'skew'][axis];
-  console.log(`${name.padEnd(20)} ${AX} ${v0.toFixed(2)}→${v1.toFixed(2)}  ` +
-    [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.75, 0.9].map(f => `${(f * 100) | 0}%:${at(f).padStart(4)}`).join(' '));
+  console.log(`${(dir + ' ' + name).padEnd(22)} ${AX} ${v0.toFixed(1)}→${v1.toFixed(1)}  `.padEnd(46) +
+    [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.75, 0.9].map(f => `${at(f).padStart(4)}`).join(' '));
+  }
 }
 await browser.close(); server.close(); process.exit(0);
