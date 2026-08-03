@@ -169,6 +169,111 @@ def a8():
     return worst[0] >= 3 or f'в столбце x={worst[1]} шаг {worst[2]} при полувысоте {worst[3]}'
 
 
+# ── D. Процессор ─────────────────────────────────────────────────────────
+
+def _socket_zone():
+    from board.geom import Y_CPU0
+    i = BOARD.find('data-unit="cpu0"')
+    return BOARD[i:BOARD.find('data-unit="cpu1"')]
+
+
+@check('D1', 'поле контактов отцентровано в держателе')
+def d1():
+    zone = _socket_zone()
+    m = re.search(r'<path d="(M[^"]*h0\.5[^"]*)"', zone)
+    if not m:
+        return 'поля контактов нет'
+    pts = re.findall(r'M([\d.]+) ([\d.]+)h', m.group(1))
+    xs = [float(a) for a, _ in pts]
+    ys = [float(b) for _, b in pts]
+    frame = [r for r in rects(zone, rx='1', fill='#0a1013')]
+    if not frame:
+        return 'подложки поля нет'
+    fx, fy, fw, fh = frame[0][:4]
+    left, right = min(xs) - fx, fx + fw - max(xs)
+    top, bot = min(ys) - fy, fy + fh - max(ys)
+    return (abs(left - right) < 0.6 and abs(top - bot) < 0.6) or \
+        f'поля: слева {left:.1f} справа {right:.1f}, сверху {top:.1f} снизу {bot:.1f}'
+
+
+@check('D2', 'надпись INSTALL не лежит на поле контактов')
+def d2():
+    zone = _socket_zone()
+    m = re.search(r'<text x="([\d.]+)" y="([\d.]+)"[^>]*>INSTALL</text>', zone)
+    if not m:
+        return 'надписи INSTALL нет'
+    ty = float(m.group(2))
+    field = [r for r in rects(zone, rx='1', fill='#0a1013')]
+    fy, fh = field[0][1], field[0][3]
+    return not (fy - 6 < ty < fy + fh + 6) or f'INSTALL на {ty}, поле {fy}..{fy + fh}'
+
+
+@check('D3', 'метки ключа на сокете и на процессоре в одном углу')
+def d3():
+    zone = _socket_zone()
+    tri = re.findall(r'<path d="M([\d.-]+) ([\d.-]+) l[^"]*z" fill="rgba\((?:238,232,213|147,161,161)', zone)
+    if len(tri) != 2:
+        return f'треугольников найдено: {len(tri)}'
+    (x1, y1), (x2, y2) = ((float(a), float(b)) for a, b in tri)
+    return (abs(x1 - x2) < 40 and abs(y1 - y2) < 40) or f'метки в {x1},{y1} и {x2},{y2}'
+
+
+@check('D4', 'номера болтов не лежат на внутренней рамке')
+def d4():
+    from board.geom import SOCKET_H, SOCKET_W, X_SOCK, Y_CPU0
+    zone = _socket_zone()
+    nums = [(x, y) for x, y, t, d in texts(zone) if t in '1234' and len(t) == 1]
+    if len(nums) != 4:
+        return f'номеров болтов: {len(nums)}'
+    inner = (X_SOCK + 14, Y_CPU0 + 14, SOCKET_W - 28, SOCKET_H - 28)
+    bad = [(x, y) for x, y in nums
+           if inner[0] - 5 < x < inner[0] + inner[2] + 5 and inner[1] - 5 < y < inner[1] + inner[3] + 5]
+    return not bad or f'на рамке: {bad}'
+
+
+@check('D5', 'держатель сокета виден всегда, а не только на снятом процессоре')
+def d5():
+    zone = _socket_zone()
+    holder = zone.find('class="ilm-frame"')
+    if holder < 0:
+        return 'держатель не отделён от поля контактов'
+    return 'ilm-frame' not in CSS or 'держатель всё ещё гасится стилями'
+
+
+@check('D6', 'у крышки нет боковых вырезов, срез угла — на подложке')
+def d6():
+    zone = _socket_zone()
+    if 'a9 9 0 0 0' in zone:
+        return 'полукруглые вырезы остались'
+    sub = re.search(r'<path d="M([\d.]+) ([\d.]+) H[\d.]+ V[\d.]+ H[\d.]+ V[\d.]+ Z" fill="#10261f"', zone)
+    return bool(sub) or 'подложка со срезом не найдена'
+
+
+@check('D7', 'пунктирные рамки лежат под процессором')
+def d7():
+    return BOARD.find('block-frame') < BOARD.find('data-unit="cpu0"') or 'рамки идут после процессора'
+
+
+@check('D9', 'радиатор и процессор разлетаются по диагонали')
+def d9():
+    hs = re.search(r'\.cpu-slot\.pulled \.heatsink \{ transform: translate\((-?\d+)px, (-?\d+)px\)', CSS)
+    lid = re.search(r'\.cpu-slot\.opened \.cpu-lid \{ transform: translate\((-?\d+)px, (-?\d+)px\)', CSS)
+    if not hs or not lid:
+        return 'правил разлёта нет'
+    hx, hy = int(hs.group(1)), int(hs.group(2))
+    lx, ly = int(lid.group(1)), int(lid.group(2))
+    return (hx > 0 > hy and lx < 0 < ly) or f'радиатор {hx},{hy}; процессор {lx},{ly}'
+
+
+@check('D10', 'клеймо изготовителя вынесено в переменную и стоит везде одинаково')
+def d10():
+    from board.spec import MADE
+    if 'MADE' not in (ROOT / 'tools/board/spec.py').read_text(encoding='utf-8'):
+        return 'клейма нет в паспорте'
+    hits = BOARD.count(MADE)
+    return hits >= 3 or f'клеймо встречается {hits} раз'
+
+
 # ── E. Память ────────────────────────────────────────────────────────────
 
 def _dimm_chips():
@@ -457,6 +562,81 @@ def k8():
     if -1 in (body, ear, rail):
         return f'не нашлось: корпус {body}, ухо {ear}, штырь {rail}'
     return (ear < body and rail < body) or 'крепёж нарисован поверх корпуса'
+
+
+# ── K. Передняя панель и Light Path ──────────────────────────────────────
+
+@check('K1', 'кнопка питания стала мельче и стоит по центру плашки')
+def k1():
+    from board.geom import X_FRONT
+    ring = [m for m in re.finditer(r'<circle cx="([\d.]+)" cy="50" r="(\d+)" fill="#0f1619"', BOARD)]
+    if not ring:
+        return 'кнопки питания нет'
+    cx, r = float(ring[0].group(1)), int(ring[0].group(2))
+    if r >= 21:
+        return f'радиус прежний: {r}'
+    mod = [x for x in rects(BOARD, fill='#151d21') if abs(x[0] - (X_FRONT + 90)) < 0.1]
+    if not mod:
+        return 'плашки питания нет'
+    return abs(cx - (mod[0][0] + mod[0][2] / 2)) < 0.6 or f'кнопка на {cx}, середина плашки {mod[0][0] + mod[0][2] / 2}'
+
+
+@check('K2', 'у панели диагностики появился зазор слева')
+def k2():
+    from board.geom import X_FRONT
+    tab = re.search(r'<rect x="([\d.]+)" y="20" width="([\d.]+)" height="150" rx="2" fill="#0f1619"', BOARD)
+    if not tab:
+        return 'лицевой панели не найдено'
+    gap = float(tab.group(1)) - (X_FRONT + 4)
+    return gap >= 3 or f'зазор всего {gap}'
+
+
+@check('K3', 'на панели только те лампы, которым есть от чего гореть')
+def k3():
+    from board.blocks import lightpath
+    keys = {k for _, k in lightpath.LAMPS}
+    drawn = set(re.findall(r'class="lp lp-([a-z-]+)"', BOARD))
+    if drawn != keys:
+        return f'нарисовано {sorted(drawn - keys)}, объявлено {sorted(keys - drawn)}'
+    dead = {'pci', 'sp', 'nmi', 'raid'} & drawn
+    if dead:
+        return f'остались лампы без причины: {sorted(dead)}'
+    lit = set(re.findall(r'\.lp-([a-z-]+)', CSS))
+    silent = keys - lit
+    return silent <= {'over-spec', 'vrm', 'temp'} or f'ничем не зажигаются: {sorted(silent)}'
+
+
+@check('K4', 'контрольный индикатор — зелёный семисегментник, коды бегут')
+def k4():
+    segs = re.findall(r'class="seg seg-(\d)([a-g])"', BOARD)
+    if len(segs) != 14:
+        return f'сегментов найдено: {len(segs)}'
+    if '.seg { fill: #859900' not in CSS:
+        return 'индикатор не зелёный'
+    return ('POST_CODES' in JS and 'runCheckpoint' in JS) or 'коды не крутятся'
+
+
+@check('K5', 'кнопка сброса крупнее, в красной рамке и гасит защёлку')
+def k5():
+    m = re.search(r'<circle cx="[\d.-]+" cy="\d+" r="(\d+)" fill="#171f23" stroke="#dc322f"', BOARD)
+    if not m:
+        return 'кнопки сброса в красной рамке нет'
+    if int(m.group(1)) <= 6:
+        return f'радиус прежний: {m.group(1)}'
+    return ('fault-latched' in JS and 'reset refused' in JS) or 'сброс ничего не гасит'
+
+
+@check('K6', 'лампы панели с гнездом и ореолом')
+def k6():
+    halo = len(re.findall(r'class="lp lp-[a-z-]+ halo"', BOARD))
+    from board.blocks import lightpath
+    return halo == len(lightpath.LAMPS) or f'ореолов: {halo} из {len(lightpath.LAMPS)}'
+
+
+@check('K7', 'заголовок панели набран двумя весами')
+def k7():
+    m = re.search(r'font-weight="300"[^>]*>Light Path <tspan font-weight="700"', BOARD)
+    return bool(m) or 'заголовок одним весом'
 
 
 # ── Физика ───────────────────────────────────────────────────────────────

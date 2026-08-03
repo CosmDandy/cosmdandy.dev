@@ -576,7 +576,8 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   .rig.on .led-act.halo { animation: none; fill-opacity: 0.75; }
   .led-hb.halo, .fault.halo, .fault-sys.halo, .led-id.halo { transition: fill-opacity 0.4s ease; }
   .rig:not(.init) .led-hb.halo { animation: none; fill-opacity: 0.6; }
-  .pick.pulled .fault.halo, .rig.has-fault .fault-sys.halo { animation: faultblink var(--beat) steps(1, end) infinite; }
+  .pick.pulled .fault.halo, .rig.has-fault .fault-sys.halo,
+  .rig.fault-latched .fault-sys.halo { animation: faultblink var(--beat) steps(1, end) infinite; }
   .rig.identify .led-id.halo { animation: idblink var(--beat) steps(1, end) infinite; }
 
   /* Линк сети поднимается первым — раньше, чем стартует хост. */
@@ -599,7 +600,10 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
      сзади, и зажигается от любой ошибки. */
   circle.fault, circle.fault-sys { fill-opacity: 0; transition: fill-opacity 0.15s steps(1, end); }
   .pick.pulled > .fault, .pick.pulled .fault { fill-opacity: 1; animation: faultblink var(--beat) steps(1, end) infinite; }
-  .rig.has-fault .fault-sys { fill-opacity: 1; animation: faultblink var(--beat) steps(1, end) infinite; }
+  /* Защёлкнувшаяся ошибка горит и после того, как узел вернули: гасит её
+     только кнопка RESET на панели диагностики. */
+  .rig.has-fault .fault-sys,
+  .rig.fault-latched .fault-sys { fill-opacity: 1; animation: faultblink var(--beat) steps(1, end) infinite; }
   @keyframes faultblink { 0%, 50% { fill-opacity: 1 } 55%, 100% { fill-opacity: 0.05 } }
 
 

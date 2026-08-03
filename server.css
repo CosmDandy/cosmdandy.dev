@@ -595,7 +595,8 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   .rig.on .led-act.halo { animation: none; fill-opacity: 0.75; }
   .led-hb.halo, .fault.halo, .fault-sys.halo, .led-id.halo { transition: fill-opacity 0.4s ease; }
   .rig:not(.init) .led-hb.halo { animation: none; fill-opacity: 0.6; }
-  .pick.pulled .fault.halo, .rig.has-fault .fault-sys.halo { animation: faultblink var(--beat) steps(1, end) infinite; }
+  .pick.pulled .fault.halo, .rig.has-fault .fault-sys.halo,
+  .rig.fault-latched .fault-sys.halo { animation: faultblink var(--beat) steps(1, end) infinite; }
   .rig.identify .led-id.halo { animation: idblink var(--beat) steps(1, end) infinite; }
 
   /* Линк сети поднимается первым — раньше, чем стартует хост. */
@@ -618,7 +619,10 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
      сзади, и зажигается от любой ошибки. */
   circle.fault, circle.fault-sys { fill-opacity: 0; transition: fill-opacity 0.15s steps(1, end); }
   .pick.pulled > .fault, .pick.pulled .fault { fill-opacity: 1; animation: faultblink var(--beat) steps(1, end) infinite; }
-  .rig.has-fault .fault-sys { fill-opacity: 1; animation: faultblink var(--beat) steps(1, end) infinite; }
+  /* Защёлкнувшаяся ошибка горит и после того, как узел вернули: гасит её
+     только кнопка RESET на панели диагностики. */
+  .rig.has-fault .fault-sys,
+  .rig.fault-latched .fault-sys { fill-opacity: 1; animation: faultblink var(--beat) steps(1, end) infinite; }
   @keyframes faultblink { 0%, 50% { fill-opacity: 1 } 55%, 100% { fill-opacity: 0.05 } }
 
 
@@ -641,14 +645,29 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
     visibility: visible;
     fill-opacity: 1; stroke-opacity: 1;
   }
+  .rig.lp-open .lp-reset { pointer-events: auto; cursor: pointer; }
+  .lp-reset:hover circle:first-of-type { fill: #1e282d; }
+  .lp-reset:active circle:last-of-type { fill: rgba(147,161,161,0.55); }
+  .lp-reset:focus-visible { outline: none; }
+
+  /* Лампа гаснет, но не исчезает: у неё есть гнездо, и погашенную видно на
+     своём месте — как на живой панели. Ореол гаснет вместе с ядром. */
   .lp { fill-opacity: 0.07; transition: fill-opacity 0.15s steps(1, end); }
-  /* A full-set panel: sixteen lamps, as on a live machine. The units the
-     machine can diagnose light their own; the network card lights LINK, the
-     riser lights PCI. The remaining lamps exist, but in this build there is
-     nothing to light them — same as on a real panel. */
+  /* Каждая лампа отвечает за свою причину, и причина у каждой есть. BRD — это
+     вынутый райзер: потеряна плата расширения, и на живой машине горит именно
+     она. LOG говорит только одно — в журнале что-то есть. */
   .rig.fault-mem .lp-mem, .rig.fault-cpu .lp-cpu, .rig.fault-fan .lp-fan,
-  .rig.fault-nic .lp-link, .rig.fault-rsr .lp-pci, .rig.fault-ps .lp-ps,
-  .rig.has-fault .lp-log, .rig.has-fault .lp-brd { fill-opacity: 1; }
+  .rig.fault-nic .lp-link, .rig.fault-rsr .lp-brd, .rig.fault-ps .lp-ps,
+  .rig.fault-dasd .lp-dasd, .rig.fault-cnfg .lp-cnfg,
+  .rig.has-fault .lp-log { fill-opacity: 1; }
+
+  /* Контрольный индикатор. Зелёный, а не янтарный: он не про неисправность,
+     а про то, где машина находится — как строка прогресса, только в две
+     цифры. Погашенный сегмент остаётся виден слабой тенью: на живом
+     индикаторе он тоже никуда не девается. */
+  .seg { fill: #859900; fill-opacity: 0.07; transition: fill-opacity 0.06s steps(1, end); }
+  .seg.on { fill-opacity: 1; }
+
   .lp-tab { cursor: pointer; }
   /* Highlight the body of the tab, not everything standing on it:
      the lamps are rectangles too, and a general selector outlined them. */
@@ -1128,7 +1147,7 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   .die-shine { animation: dieShine 8s steps(80, end) infinite; }
   @keyframes dieShine {
     0%, 100% { transform: translate(0, 0); }
-    50%      { transform: translate(150px, -82px); }
+    50%      { transform: translate(196px, -108px); }
   }
 
   /* Taking the processor apart goes in two moves, as in life: first the
@@ -1136,10 +1155,17 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
      The heatsink travels further than it used to: it is the size of the
      socket, and at the old 104 pixels it covered the place where the processor
      has to lie. */
+  /* Разносим по диагонали, а не по вертикали. Сверху и снизу от сокета стоят
+     банки памяти: крышка, улетавшая строго вверх, ложилась на плашки, а
+     процессор, уезжавший строго вниз, — на плашки соседнего банка. Теперь
+     радиатор уходит правее и выше, в свободное поле у служебной зоны, а
+     процессор — левее и чуть ниже своей середины, туда, где на плате ничего
+     нет. Ни один из них не накрывает служебную кнопку: она внизу справа, а
+     радиатор от неё выше. */
   .heatsink, .cpu-lid { transition: transform var(--glide); }
   .rig.service .cpu-slot.pulled .pick-body { transform: none; }
-  .rig.service .cpu-slot.pulled .heatsink { transform: translate(0, -164px) scale(0.92); }
-  .rig.service .cpu-slot.opened .cpu-lid { transform: translate(0, 116px) scale(0.96); }
+  .rig.service .cpu-slot.pulled .heatsink { transform: translate(122px, -122px) scale(0.92); }
+  .rig.service .cpu-slot.opened .cpu-lid { transform: translate(-136px, 74px) scale(0.96); }
 
   /* The contact field: while the processor is in place it is not visible — and
      rightly so, there is nothing to show under it. It shows through together
@@ -1147,7 +1173,7 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   /* The die lives on the processor and travels away with it: a removed
      processor glowing on an empty socket is no longer a teardown but a
      magic trick. */
-  .rig.service .cpu-slot.opened .die { transform: translate(0, 116px) scale(0.96); }
+  .rig.service .cpu-slot.opened .die { transform: translate(-136px, 74px) scale(0.96); }
 
   /* Assembly: the processor with its heatsink is lowered into the socket from
      above and turned slightly into place — that is how it is fitted, aiming by

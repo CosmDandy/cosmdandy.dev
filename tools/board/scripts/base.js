@@ -320,7 +320,17 @@
     nic: '.unit[data-unit="ocp"].pulled, .unit[data-unit="eth"].pulled',
     rsr: '.riser.pulled',
     ps: '.psu.pulled',
+    dasd: '.bay.pulled',
   };
+
+  // Конфигурация, при которой машине нечем работать. Это не отказ узла, а
+  // именно невозможная сборка, и на живой панели у неё своя лампа: ни одной
+  // плашки памяти или ни одного процессора — стартовать не с чего.
+  function badConfig() {
+    const gone = sel => chassis.querySelectorAll(sel + '.pulled').length
+      && chassis.querySelectorAll(sel + '.pulled').length === chassis.querySelectorAll(sel).length;
+    return !!(gone('.dimm') || gone('.cpu-slot'));
+  }
 
   function updateFault() {
     let any = false;
@@ -329,7 +339,14 @@
       rig.classList.toggle('fault-' + key, on);
       any = any || on;
     }
+    const cnfg = badConfig();
+    rig.classList.toggle('fault-cnfg', cnfg);
+    any = any || cnfg;
     rig.classList.toggle('has-fault', any);
+    // Ошибка защёлкивается. Узел вернули на место — лампа неисправности горит
+    // дальше, пока её не сбросят кнопкой на панели диагностики: иначе о
+    // ночном отказе наутро не узнал бы никто. Так и на живой машине.
+    if (any) rig.classList.add('fault-latched');
     updateMains();
     tick();
   }

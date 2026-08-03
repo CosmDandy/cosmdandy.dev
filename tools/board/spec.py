@@ -66,6 +66,11 @@ RISERS = (
     {'slot': 2, 'link': 'PCIe Gen5 ×16', 'card': None, 'empty': True},
 )
 
+# Клеймо изготовителя. Одна строка на всю машину: она набита и на шелкографии
+# платы, и на шильдике радиатора, и менять её надо в одном месте — иначе на
+# одной детали написано одно, на соседней другое.
+MADE = 'FROM RUSSIA WITH LOVE'
+
 PORTS = {'sfp': '2× 10G SFP+', 'sfp_degraded': '1× 1G · degraded',
          'eth': '2× 1GbE', 'mgmt': 'SYSTEM MGMT'}
 

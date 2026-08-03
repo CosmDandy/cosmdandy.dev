@@ -8,72 +8,95 @@ import math
 from board.geom import SOCKET_H, SOCKET_W, X_CORE, X_SOCK, X_TAG, Y_CPU0, Y_CPU1, seat
 from board.ink import hit, mono, silk_boxed, silk_inverse
 from board.lamps import fault
-from board.metal import ihs_path
-from board.revision import stamp
+from board.metal import ihs_path, substrate_path
 from board.palette import COLD
-from board.spec import CPU
+from board.revision import stamp
+from board.spec import CPU, MADE
 
 
 def render(cv):
     def socket(x, y):
-        # Крышка процессора: не просто прямоугольник, а лист с ключами. По бокам
-        # у неё полукруглые вырезы, а на подложке — выемки под выступы сокета:
-        # процессор физически не сядет боком, вставить его неправильно нельзя.
-        # В одном углу срезан угол и стоит треугольник — метка первого вывода.
+        # Крышка процессора: лист металла со срезанным углом первого вывода.
+        # Ни полукруглых вырезов по бокам, ни дырок в теле — на живой крышке
+        # их нет, а срез один и он на текстолите подложки.
         ihs_x, ihs_y = x + 40, y + 34
         ihs_w, ihs_h = SOCKET_W - 80, SOCKET_H - 68
-        notch, cut = 9, 12      # те же ключ и срез, что задаёт ihs_path
+        cut = 14
         ihs = ihs_path(x, y)
         # Поле контактов: у LGA ножек на процессоре нет, они на сокете —
         # 4677 подпружиненных лепестков. Пока процессор на месте, поля не видно;
         # снимешь — и это самое узнаваемое место на плате. Всё поле рисуем одним
         # путём: отдельными фигурами это были бы тысячи узлов DOM.
+        #
+        # Поле отцентровано в держателе честно: считаем, сколько лепестков
+        # помещается с шагом, и раскладываем их от середины. Раньше ряды шли от
+        # левого верхнего угла, а остаток добирался справа и снизу — поле
+        # сидело в рамке наискось.
         px0, py0 = ihs_x - 2, ihs_y - 2
         pw, ph = ihs_w + 4, ihs_h + 4
         step = 2.6
-        dots = ' '.join(
-            f'M{px0 + 3 + c * step:.1f} {py0 + 3 + r * step:.1f}h0.5'
-            for r in range(int((ph - 6) // step)) for c in range(int((pw - 6) // step)))
+        cols, rows = int((pw - 8) // step), int((ph - 8) // step)
+        ox = px0 + (pw - (cols - 1) * step) / 2
+        oy = py0 + (ph - (rows - 1) * step) / 2
+        dots = ' '.join(f'M{ox + c * step:.1f} {oy + r * step:.1f}h0.5'
+                        for r in range(rows) for c in range(cols))
+        # Держатель — часть сокета, а не процессора: рамка с направляющими
+        # штырями приклёпана к плате и никуда не девается. Поэтому она рисуется
+        # отдельно от поля контактов: поле видно только на снятом процессоре, а
+        # рамку — всегда. Раньше они лежали в одной группе, и на собранной
+        # машине держателя не было вовсе, а появлялся он вместе с процессором в
+        # руках.
+        holder = (f'<g class="ilm-frame">'
+                  f'<rect x="{px0-4}" y="{py0-4}" width="{pw+8}" height="{ph+8}" rx="2" fill="none" '
+                  f'stroke="rgba(147,161,161,0.40)" stroke-width="1.6"/>'
+                  + ''.join(f'<circle cx="{px0 + gx}" cy="{py0 + gy}" r="2.6" fill="#1b2429" '
+                            f'stroke="rgba(147,161,161,0.44)"/>'
+                            for gx in (-8, pw + 8) for gy in (-8, ph + 8))
+                  + '</g>')
         lga = (f'<g class="lga">'
                f'<rect x="{px0}" y="{py0}" width="{pw}" height="{ph}" rx="1" fill="#0a1013" '
                f'stroke="rgba(147,161,161,0.30)"/>'
                f'<path d="{dots}" stroke="rgba(212,175,84,0.62)" stroke-width="1.2" '
                f'stroke-linecap="round" fill="none"/>'
-               # рамка держателя с направляющими штырями по углам
-               f'<rect x="{px0-4}" y="{py0-4}" width="{pw+8}" height="{ph+8}" rx="2" fill="none" '
-               f'stroke="rgba(147,161,161,0.40)" stroke-width="1.6"/>'
-               + ''.join(f'<circle cx="{px0 + gx}" cy="{py0 + gy}" r="2.6" fill="#1b2429" '
-                         f'stroke="rgba(147,161,161,0.44)"/>'
-                         for gx in (-8, pw + 8) for gy in (-8, ph + 8))
                + '</g>')
 
         s = [f'<rect x="{x}" y="{y}" width="{SOCKET_W}" height="{SOCKET_H}" rx="4" fill="#101a1e" stroke="rgba(147,161,161,0.42)"/>',
              f'<rect x="{x+14}" y="{y+14}" width="{SOCKET_W-28}" height="{SOCKET_H-28}" rx="2" fill="#0b1316" stroke="rgba(147,161,161,0.26)"/>',
-             lga,
+             lga, holder,
              # Сам процессор — отдельная группа: он снимается вторым, после
              # радиатора, и уезжает вниз, открывая поле контактов.
              '<g class="cpu-lid">',
-             # подложка процессора видна из-под крышки узкой каймой
-             f'<rect x="{ihs_x-5}" y="{ihs_y-5}" width="{ihs_w+10}" height="{ihs_h+10}" rx="1" '
-             f'fill="#123028" stroke="rgba(133,153,0,0.30)"/>',
+             # Текстолит подложки виден из-под крышки узкой каймой, и срез угла
+             # у первого вывода — на нём.
+             f'<path d="{substrate_path(x, y)}" fill="#10261f" stroke="rgba(133,153,0,0.26)"/>',
              f'<path d="{ihs}" fill="#16232a" stroke="rgba(42,161,152,0.30)"/>',
              # металл крышки: блик по верхней кромке, тень по нижней
-             f'<path d="M{ihs_x + cut} {ihs_y} H{ihs_x + ihs_w / 2 - notch} M{ihs_x + ihs_w / 2 + notch} '
-             f'{ihs_y} H{ihs_x + ihs_w}" fill="none" stroke="rgba(223,232,234,0.28)" stroke-width="1.2"/>',
-             f'<path d="M{ihs_x} {ihs_y + ihs_h} H{ihs_x + ihs_w / 2 - notch} M{ihs_x + ihs_w / 2 + notch} '
-             f'{ihs_y + ihs_h} H{ihs_x + ihs_w}" fill="none" stroke="rgba(0,0,0,0.40)" stroke-width="1.4"/>',
-             f'<path d="M{ihs_x} {ihs_y + cut} L{ihs_x + cut} {ihs_y}" fill="none" '
-             f'stroke="rgba(147,161,161,0.34)" stroke-width="1.2"/>',
-             f'<path d="M{ihs_x + 3} {ihs_y + 12} l7 0 l-3.5 -7 z" fill="rgba(238,232,213,0.5)"/>',
+             (f'<path d="M{ihs_x + cut} {ihs_y} H{ihs_x + ihs_w}" fill="none" '
+              f'stroke="rgba(223,232,234,0.28)" stroke-width="1.2"/>'),
+             (f'<path d="M{ihs_x} {ihs_y + ihs_h} H{ihs_x + ihs_w}" fill="none" '
+              f'stroke="rgba(0,0,0,0.40)" stroke-width="1.4"/>'),
+             (f'<path d="M{ihs_x} {ihs_y + cut} L{ihs_x + cut} {ihs_y}" fill="none" '
+              f'stroke="rgba(147,161,161,0.34)" stroke-width="1.2"/>'),
+             # Метка первого вывода — в срезанном углу подложки, там же, где
+             # держатель. На сокете такая же и в том же углу: по паре меток
+             # процессор и ориентируют.
+             f'<path d="M{ihs_x - 2} {ihs_y + 14} l9 0 l-4.5 -9 z" fill="rgba(238,232,213,0.55)"/>',
              # На живой крышке выбито, что за процессор под ней. Число ядер
              # раньше не было написано на плате нигде — консоль называла его
              # с потолка, и проверить её было нечем.
              mono(x + SOCKET_W/2, y + SOCKET_H/2 - 6, CPU['short'], 10, op=0.55),
              mono(x + SOCKET_W/2, y + SOCKET_H/2 + 8, f"{CPU['socket']} · {CPU['cores']}c/{CPU['threads']}t", 7, op=0.4),
              '</g>',
-             f'<path d="M{x+SOCKET_W/2} {y+24} l-5 8 h10 z" fill="rgba(147,161,161,0.32)"/>',
-             silk_boxed(x + SOCKET_W / 2 + 48, y + 32, "INSTALL", 6, op=0.34)]
-        for k, (dx, dy) in enumerate([(11, 11), (SOCKET_W-11, 11), (11, SOCKET_H-11), (SOCKET_W-11, SOCKET_H-11)]):
+             # Метка ключа на самом сокете — в том же углу, что и на процессоре.
+             # Раньше треугольник стоял по середине верхней грани, а его пара на
+             # крышке — в углу: две метки указывали в разные стороны.
+             f'<path d="M{px0 - 12} {py0 + 2} l0 10 l10 -5 z" fill="rgba(147,161,161,0.42)"/>',
+             # Надпись «вставлять сюда» — в нижней полосе держателя. Наверху она
+             # ложилась прямо на поле контактов.
+             silk_boxed(x + SOCKET_W / 2, y + SOCKET_H - 22, "INSTALL", 6, op=0.34)]
+        # Номера болтов — снаружи внутренней рамки. Стояли на её линии, и
+        # цифра оказывалась перечёркнутой.
+        for k, (dx, dy) in enumerate([(7, 7), (SOCKET_W-7, 7), (7, SOCKET_H-7), (SOCKET_W-7, SOCKET_H-7)]):
             s.append(f'<circle cx="{x+dx}" cy="{y+dy}" r="4.5" fill="none" stroke="rgba(147,161,161,0.28)" stroke-width="1.4"/>')
             s.append(mono(x + dx, y + dy + 3, str(k + 1), 7, op=0.34))
         return ''.join(s)
@@ -86,7 +109,12 @@ def render(cv):
     """
         dx, dy = x + 40, y + 34
         return (f'<g class="die" clip-path="url(#die-clip-{n})">'
-                f'<rect class="die-shine" x="{dx-150}" y="{dy-82}" width="450" height="246" '
+                # Полоса уже крышки: раньше она была втрое шире окна, и цветной
+                # была вся крышка целиком — металла под ней не оставалось вовсе,
+                # процессор читался пластиковой карточкой. Теперь по крышке
+                # ходит блик, а вокруг него виден сам металл с выбитой на нём
+                # маркировкой.
+                f'<rect class="die-shine" x="{dx-136}" y="{dy-74}" width="176" height="230" '
                 f'fill="url(#die-shine)"/></g>')
 
     def heatsink(x, y):
@@ -128,7 +156,7 @@ def render(cv):
                + f'<text x="{lx+lw/2}" y="{ly+36}" text-anchor="middle" fill="rgba(10,20,23,0.58)" '
                  f'font-family="ui-monospace, Menlo, monospace" font-size="6">PUSH WHILE ROTATING LEVER</text>'
                + f'<text x="{lx+lw/2}" y="{ly+48}" text-anchor="middle" fill="rgba(10,20,23,0.4)" '
-                 f'font-family="ui-monospace, Menlo, monospace" font-size="6">MADE IN A CONTAINER</text>')
+                 f'font-family="ui-monospace, Menlo, monospace" font-size="6">{MADE}</text>')
         return (f'<g class="pick-body heatsink"><rect x="{x}" y="{y}" width="{SOCKET_W}" height="{SOCKET_H}" rx="6" '
                 f'fill="#26333a" stroke="rgba(147,161,161,0.38)"/>{fins}{tag}{screws}</g>')
 

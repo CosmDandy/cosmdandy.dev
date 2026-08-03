@@ -505,6 +505,53 @@ const willChange = await page.evaluate(() =>
   getComputedStyle(document.querySelector('.fan .fan-blades')).willChange);
 check('the impeller turns on a layer of its own', willChange === 'transform', willChange);
 
+// 29. Панель диагностики. Контрольный индикатор — не лампа: он показывает, где
+// машина находится, и за время самотеста код на нём меняется, а после —
+// замирает на том, с которого начинается загрузка. Кнопка сброса гасит
+// защёлкнувшуюся ошибку и отказывается это делать, пока узел вынут.
+const segMask = () => page.evaluate(() => [...document.querySelectorAll('.seg')]
+  .map(el => (el.classList.contains('on') ? '1' : '0')).join(''));
+await page.evaluate(() => document.getElementById('rig').classList.remove('service'));
+await click('#power');                       // выключаем
+await page.waitForTimeout(300);
+check('the checkpoint goes dark with the machine', /^0+$/.test(await segMask()), await segMask());
+await click('#power');                       // и включаем обратно
+const seen = new Set();
+for (let i = 0; i < 8; i++) { seen.add(await segMask()); await page.waitForTimeout(160); }
+check('the checkpoint counts through the self-test', seen.size >= 3, String(seen.size));
+await page.waitForFunction(() => {
+  const on = [...document.querySelectorAll('.seg')].filter(e => e.classList.contains('on'));
+  return on.length === 12;
+}, null, { timeout: 8000 }).catch(() => {});
+check('the checkpoint stops at the boot code',
+      (await page.evaluate(() => [...document.querySelectorAll('.seg')]
+        .filter(e => e.classList.contains('on')).length)) === 12,
+      await segMask());
+
+// Ошибка защёлкивается: узел вернули, а лампа неисправности горит дальше.
+await page.evaluate(() => document.getElementById('svc-switch')
+  .dispatchEvent(new MouseEvent('click', { bubbles: true })));
+await page.waitForTimeout(400);
+await click('.fan[data-fan="2"]');
+await page.waitForTimeout(200);
+check('a pulled unit latches the fault', (await rigCls()).includes('fault-latched'), await rigCls());
+await click('.fan[data-fan="2"]');           // вернули на место
+await page.waitForTimeout(200);
+check('the latch outlives the repair',
+      !(await rigCls()).includes('has-fault') && (await rigCls()).includes('fault-latched'),
+      await rigCls());
+await click('#lp-reset');
+await page.waitForTimeout(150);
+check('reset clears the latched fault', !(await rigCls()).includes('fault-latched'), await rigCls());
+await click('.fan[data-fan="2"]');           // снова вынули
+await page.waitForTimeout(200);
+await click('#lp-reset');
+await page.waitForTimeout(150);
+check('reset refuses while a unit is out', (await rigCls()).includes('fault-latched')
+      && (await logText()).includes('reset refused'), await rigCls());
+await click('.fan[data-fan="2"]');
+await page.waitForTimeout(200);
+
 // 27. The entrance waits for the schematic. The card is what opens first, and
 // .rig sits in display: none all that time — no animations are started in it at
 // all. The schedule used to be counted off from page load regardless, so a
