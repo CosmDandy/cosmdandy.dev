@@ -5,11 +5,37 @@ All of it is background — it only reads up close, but without it the board
 looks empty.
 """
 
-from board.geom import (BANK_N, CHIPS, FAN_N, H, IO_BOARD, IO_FREE, PITCH, X_CORE, X_PCB, X_PCB_END, X_REAR,
-                        SOCKET_H, X_SVC, X_VRM, fan_foot_y, Y_BANK_L, Y_BANK_R, Y_CPU0, Y_CPU1, Y_PSU_BOT, Y_PSU_TOP)
+from board.blocks.frames import FIELD_FRAMES, title_box
+from board.geom import (
+    BANK_N,
+    CHIPS,
+    FAN_N,
+    IO_BOARD,
+    IO_FREE,
+    PITCH,
+    SOCKET_H,
+    X_CORE,
+    X_PCB,
+    X_PCB_END,
+    X_REAR,
+    X_SVC,
+    X_VRM,
+    Y_BANK_L,
+    Y_BANK_R,
+    Y_CPU0,
+    Y_CPU1,
+    Y_PSU_BOT,
+    Y_PSU_TOP,
+    H,
+    fan_foot_y,
+)
 
 
 def render(cv):
+    # Заголовки рамок функциональных блоков. Рамка рисуется поздно и поверх
+    # рассыпухи, но подпись её — краска, и мелочь под ней читается грязью.
+    for frame in FIELD_FRAMES:
+        cv.busy(*title_box(frame))
 
     # Large zones are claimed in advance so that the small parts do not land on
     # them. The reservations follow the actual dimensions: a generous margin ate

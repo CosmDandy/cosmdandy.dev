@@ -500,11 +500,19 @@
     const cnfg = badConfig();
     rig.classList.toggle('fault-cnfg', cnfg);
     any = any || cnfg;
+    const wasAny = rig.classList.contains('has-fault');
     rig.classList.toggle('has-fault', any);
     // Ошибка защёлкивается. Узел вернули на место — лампа неисправности горит
     // дальше, пока её не сбросят кнопкой на панели диагностики: иначе о
     // ночном отказе наутро не узнал бы никто. Так и на живой машине.
+    //
+    // И об этом надо сказать вслух ровно один раз — в тот момент, когда
+    // причина ушла, а лампа осталась. Молча горящая лампа на собранной машине
+    // читается не защёлкой, а поломкой схемы.
     if (any) rig.classList.add('fault-latched');
+    else if (wasAny && rig.classList.contains('fault-latched')) {
+      line('fault latched · press RESET on the light path panel', 'muted');
+    }
     updateMains();
     tick();
   }

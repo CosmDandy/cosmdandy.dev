@@ -215,5 +215,5 @@ def render(cv):
     # Партномер — в нижнем правом углу рамки банка, по одному на банк. Заголовок
     # рамки стоит в верхнем левом; вдвоём в одном углу они спорили.
     for y0 in (Y_BANK_L, Y_BANK_C, Y_BANK_R):
-        cv.add(stamp(X_CORE + DIMM_SOCK_W + 4, y0 + (BANK_N - 1) * PITCH + SLOT_H + 8,
+        cv.add(stamp(X_CORE + DIMM_SOCK_W, y0 + (BANK_N - 1) * PITCH + SLOT_H + 2,
                      "память", anchor="end"))

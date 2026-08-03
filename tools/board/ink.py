@@ -145,7 +145,13 @@ def silk_boxed(cx, cy, text, size=7, op=0.5):
     """
     w = len(text) * size * 0.62 + 8
     h = size + 6
-    return (f'<rect x="{cx-w/2:.1f}" y="{cy-h/2:.1f}" width="{w:.1f}" height="{h}" rx="1" fill="none" '
+    # Подложка под текстом, а не пустая рамка. Обозначения попадают на
+    # разводку, и светлая краска по светлым дорожкам не читается; тёмная
+    # полупрозрачная заливка глушит то, что под ней, не превращаясь в
+    # непрозрачную плашку. Ею же прерывается пунктир рамки блока, если
+    # обозначение легло на него.
+    return (f'<rect x="{cx-w/2:.1f}" y="{cy-h/2:.1f}" width="{w:.1f}" height="{h}" rx="1" '
+            f'fill="rgba(5,20,24,0.55)" '
             f'stroke="rgba(232,227,213,{op * 0.55:.2f})" stroke-width="0.7"/>'
             f'<text x="{cx:.1f}" y="{cy+size/2-0.5:.1f}" text-anchor="middle" '
             f'fill="rgba(232,227,213,{op:.2f})" '
@@ -166,7 +172,8 @@ def silk_frame(x, y, text, size=7, op=0.6, turn=False):
     w = len(text) * size * 0.62 + 8
     h = size + 6
     spin = f' transform="rotate(-90 {x} {y})"' if turn else ''
-    return (f'<g{spin}><rect x="{x}" y="{y}" width="{w:.1f}" height="{h}" rx="1" fill="none" '
+    return (f'<g{spin}><rect x="{x}" y="{y}" width="{w:.1f}" height="{h}" rx="1" '
+            f'fill="rgba(5,20,24,0.55)" '
             f'stroke="rgba(232,227,213,{op * 0.62:.2f})" stroke-width="0.7"/>'
             f'<text x="{x+4}" y="{y+h-4.5:.1f}" fill="rgba(232,227,213,{op})" '
             f'font-family="ui-monospace, Menlo, monospace" font-size="{size}">{text}</text></g>')
@@ -190,8 +197,11 @@ def block_frame(x, y, w, h, title, refs, title_dx=6):
     return (f'<g class="decor block-frame">'
             f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="2" fill="none" '
             f'stroke="rgba(232,227,213,0.16)" stroke-width="1" stroke-dasharray="7 4"/>'
+            # Заголовок стоит прямо на пунктирной линии рамки, и линия должна под
+            # ним прерываться: заливка плашки её и прерывает. Полупрозрачная —
+            # чтобы плашка не читалась наклейкой поверх текстолита.
             f'<rect x="{x + title_dx}" y="{y - 5}" width="{tw:.1f}" height="10" rx="1" '
-            f'fill="none" stroke="rgba(232,227,213,0.24)" stroke-width="0.7"/>'
+            f'fill="rgba(5,20,24,0.62)" stroke="rgba(232,227,213,0.24)" stroke-width="0.7"/>'
             + mono(x + title_dx + 3.5, y + 3, title, 6, anchor="start", op=0.5)
             + mono(x + 10, y + h - 4, refs, 5, anchor="start", op=0.26)
             + '</g>')

@@ -21,7 +21,7 @@ from board.geom import (
     H,
     fan_foot_y,
 )
-from board.ink import empty_pads, hit, mono, silk_boxed
+from board.ink import empty_pads, mono, silk_boxed
 from board.lamps import lamp
 from board.metal import pad, relief
 from board.palette import SILVER
@@ -234,8 +234,25 @@ def render(cv):
     # плате обвязка жмётся к своей микросхеме — развязка по питанию физически
     # обязана стоять у выводов, иначе не работает. Ровная россыпь читалась как
     # штриховка и вдобавок занимала площадь, которой потом не хватало крупному.
+    def on_laminate(x, y, w=13, h=13):
+        """Целиком ли фигура лежит на текстолите.
+
+    Обвязка раскладывается кольцами вокруг корпусов, и у корпусов, стоящих
+    близко к кромке, кольцо уходило за плату: детали оказывались нарисованными
+    на шасси. cv.put() этого не ловит — он знает только про занятость места, а
+    про край текстолита не знает ничего.
+    """
+        if not (X_PCB <= x and x + w <= X_PCB_END and 18 <= y and y + h <= H - 18):
+            return False
+        # Правее выреза под блоки питания текстолит есть только между ними.
+        if x + w > X_REAR - 4:
+            return Y_PSU_TOP <= y and y + h <= Y_PSU_BOT
+        return True
+
     def small_part(kind, x, y):
         """Один элемент обвязки. Возвращает фигуры или пусто, если места нет."""
+        if not on_laminate(x, y):
+            return []
         # У каждого корпуса есть чем паяться: 0402 стоит на двух площадках, и
         # именно они, а не корпус, блестят на живой плате.
         if kind == 'res':
@@ -368,8 +385,12 @@ def render(cv):
 
     # монтажные отверстия — со своей зоной, чтобы на них ничего не садилось
     holes = []
+    # По углам плата притянута обязательно, по кромкам — через одну. Болта над
+    # верхним банком памяти здесь нет нарочно: пара «сверху и снизу по центру»
+    # читалась симметрией, которой на живой плате не бывает, а нижний нужен —
+    # там кромка длиннее и её ведёт.
     for i, (x, y) in enumerate([(X_PCB+14, 30), (X_REAR-18, 30), (X_PCB+14, H-30), (X_REAR-18, H-30),
-                   (X_PCB+14, 430), (X_REAR-18, 430), (740, 30), (740, H-30),
+                   (X_PCB+14, 430), (X_REAR-18, 430), (740, H-30),
                    (X_PCB_END-14, Y_PSU_TOP+14), (X_PCB_END-14, Y_PSU_BOT-14)]):
         cv.busy(x - 10, y - 10, 20, 20)
         # Медное кольцо вокруг отверстия — маска на него не заходит, поэтому оно
@@ -400,35 +421,38 @@ def render(cv):
     # Telegram и Twitter — единственный разрыв в их частоколе, где марку видно
     # целиком. Кегль упирается в ширину поля: 9 знаков по 0.7 em с разрядкой.
     fx, fy, fw, fh = IO_FREE
-    sub = f"DUAL {CPU['socket']} · {ram_label()}"
-    # Знак моноширинного шрифта продвигается на 0.6 em, разрядка добавляет свои
-    # 0.10 em: обе строки набираются под ширину поля, а не подбираются на глаз.
-    size = round(min(fh * 0.66, fw / (len("COSMDANDY") * 0.72)))
-    sub_size = round(min(9, fw / (len(sub) * 0.72)), 1)
     cv.busy(fx, fy, fw, fh)
-    cv.add(f'''<g class="decor">
-  <text x="{fx + fw / 2:.0f}" y="{fy + size:.0f}" text-anchor="middle"
-        fill="rgba(147,161,161,0.46)" font-family="ui-monospace, Menlo, monospace"
-        font-size="{size}" font-weight="600" letter-spacing="0.10em">COSMDANDY</text>
-  <text x="{fx + fw / 2:.0f}" y="{fy + fh - 3:.0f}" text-anchor="middle"
-        fill="rgba(147,161,161,0.34)" font-family="ui-monospace, Menlo, monospace"
-        font-size="{sub_size}" letter-spacing="0.10em">{sub}</text>
-</g>''')
-
-    # Ревизия платы — вдоль кромки служебной зоны. Она же ссылка: номер сборки
-    # это число коммитов, серийник — хэш HEAD, и оба ведут на сам коммит.
+    # Марка изготовителя. Три строки, и порядок у них тот же, что на живой
+    # плате: сверху чем машина собрана, посередине кто её собрал, снизу её
+    # паспорт. Раньше паспорт стоял отдельно, вертикально вдоль кромки
+    # служебной зоны, и с маркой его ничего не связывало.
     #
-    # Сдвинулась влево на место, которое освободила марка: прежние две колонки
-    # стояли правее и попадали под строку, набранную поперёк. Плашка осталась
-    # вертикальной нарочно — это позиционные данные, а не имя вендора, и вдоль
-    # свободной кромки их и печатают.
-    cv.add(f'''<g class="unit" data-unit="plate" data-group="plate"
-      data-href="https://github.com/CosmDandy/cosmdandy.dev/commit/{BOARD_SHA.lower()}">
-  {hit(X_SVC+128, 300, 40, 380)}
-  <text x="{X_SVC+150}" y="480" transform="rotate(-90 {X_SVC+150} 480)" text-anchor="middle"
-        fill="rgba(147,161,161,0.30)" font-family="ui-monospace, Menlo, monospace"
-        font-size="11" letter-spacing="0.12em">REV {BOARD_REV}  ·  S/N {BOARD_SHA}</text>
-  <text x="{X_SVC+164}" y="480" transform="rotate(-90 {X_SVC+164} 480)" text-anchor="middle"
-        fill="rgba(147,161,161,0.20)" font-family="ui-monospace, Menlo, monospace"
-        font-size="8" letter-spacing="0.10em">ASSEMBLED IN A CONTAINER · {MADE}</text>
-</g>''')
+    # Кегль каждой строки упирается в ширину поля, а не подбирается на глаз:
+    # знак моноширинного продвигается на 0.6 em, разрядка добавляет свои 0.10.
+    top = f"DUAL {CPU['socket']} · {ram_label()}"
+    bottom = f'REV {BOARD_REV} · S/N {BOARD_SHA} · ASSEMBLED IN A CONTAINER · {MADE}'
+    # Разрядка в 0.10 em добавляется к продвижению знака, поэтому в fit()
+    # уходит ширина поля, ужатая на ту же долю.
+    avail = fw / 1.17
+    name_size = fit('COSMDANDY', avail, fh * 0.52)
+    # Марка — ссылка на тот самый коммит, которым набрана её же ревизия.
+    # Открывается она только в сервисном режиме: вне его поверх марки лежат
+    # бирки, и вести оттуда некуда.
+    cv.add(f'''<a class="silk-mark" href="https://github.com/CosmDandy/cosmdandy.dev/commit/{BOARD_SHA.lower()}"
+   target="_blank" rel="noopener" aria-label="Исходники платы">
+  <rect class="silk-hit" x="{fx}" y="{fy}" width="{fw}" height="{fh}" fill="#000" fill-opacity="0.001"/>
+  <text x="{fx + fw / 2:.0f}" y="{fy + 11:.0f}" text-anchor="middle"
+        fill="rgba(147,161,161,0.34)" font-family="ui-monospace, Menlo, monospace"
+        font-size="{fit(top, avail, 9)}" letter-spacing="0.10em">{top}</text>
+  <text class="silk-name" x="{fx + fw / 2:.0f}" y="{fy + 15 + name_size:.0f}" text-anchor="middle"
+        font-family="ui-monospace, Menlo, monospace"
+        font-size="{name_size}" font-weight="600" letter-spacing="0.10em">COSMDANDY</text>
+  <text x="{fx + fw / 2:.0f}" y="{fy + fh - 12:.0f}" text-anchor="middle"
+        fill="rgba(147,161,161,0.26)" font-family="ui-monospace, Menlo, monospace"
+        font-size="{fit(bottom, avail, 6)}" letter-spacing="0.06em">{bottom}</text>
+  <path class="silk-rule" d="M{fx + 14} {fy + fh - 6} H{fx + fw - 14}" fill="none"/>
+  <clipPath id="silk-clip"><rect x="{fx}" y="{fy}" width="{fw}" height="{fh}"/></clipPath>
+  <g clip-path="url(#silk-clip)">
+    <rect class="silk-shine" x="{fx - 40}" y="{fy}" width="22" height="{fh}"/>
+  </g>
+</a>''')

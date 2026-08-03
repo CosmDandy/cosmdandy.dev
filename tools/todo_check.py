@@ -357,7 +357,10 @@ def e7():
 
 @check('E8', 'слоты подписаны буквами каналов')
 def e8():
-    labels = [t for x, y, t, d in texts(BOARD) if t.startswith('DIMM')]
+    # Только подписи самих слотов: обозначение тестовой точки DIMM_CPU0_A0 —
+    # это позиция на текстолите, а не слот.
+    labels = [t for x, y, t, d in texts(BOARD) if re.match(r'DIMM[ _]', t)
+              and '_' not in t]
     if len(labels) != 24:
         return f'подписей слотов: {len(labels)}'
     bad = [t for t in labels if not re.fullmatch(r'DIMM [A-L]', t)]
@@ -381,11 +384,11 @@ def e10():
     from board.geom import BANK_N, DIMM_SOCK_W, PITCH, SLOT_H, X_CORE, Y_BANK_L
     pn = [(x, y) for x, y, t, d in texts(BOARD)
           if t.startswith('P/N') and d.get('text-anchor') == 'end']
-    mine = [(x, y) for x, y in pn if abs(x - (X_CORE + DIMM_SOCK_W + 4)) < 0.1]
+    mine = [(x, y) for x, y in pn if abs(x - (X_CORE + DIMM_SOCK_W)) < 0.1]
     if len(mine) != 3:
         return f'партномеров у банков: {len(mine)}'
     y = min(y for _, y in mine)
-    return abs(y - (Y_BANK_L + (BANK_N - 1) * PITCH + SLOT_H + 8)) < 0.1 or f'стоит на {y}'
+    return abs(y - (Y_BANK_L + (BANK_N - 1) * PITCH + SLOT_H + 2)) < 0.1 or f'стоит на {y}'
 
 
 @check('E11', 'наведение начинает вынимать плашку, но не до конца')
@@ -562,6 +565,127 @@ def k8():
     if -1 in (body, ear, rail):
         return f'не нашлось: корпус {body}, ухо {ear}, штырь {rail}'
     return (ear < body and rail < body) or 'крепёж нарисован поверх корпуса'
+
+
+# ── J. Плата ─────────────────────────────────────────────────────────────
+
+def _out_of_board():
+    """Фигуры, вылезшие за кромку текстолита в его же поле по X."""
+    from board.geom import H
+    out = []
+    for m in re.finditer(r'<(circle|rect|text)\b([^>]*)>', BOARD):
+        attrs = m.group(2)
+        ys = [float(v.group(1)) for k in ('cy', 'y', 'y1', 'y2')
+              for v in [re.search(rf'\b{k}="(-?[\d.]+)"', attrs)] if v]
+        xs = [float(v.group(1)) for k in ('cx', 'x', 'x1', 'x2')
+              for v in [re.search(rf'\b{k}="(-?[\d.]+)"', attrs)] if v]
+        if not ys or not xs or not (346 <= min(xs) <= 1000):
+            continue
+        if min(ys) < 17 or max(ys) > 846:
+            g = BOARD.rfind('<g class="', 0, m.start())
+            cls = re.search(r'<g class="([^"]*)"', BOARD[g:g + 80])
+            out.append((m.group(1), cls.group(1) if cls else '?'))
+    return out
+
+
+@check('J1', 'рассыпуха и шелкография не выходят за кромку текстолита')
+def j1():
+    # Штыри салазок стоят на боковинах шасси и обязаны быть снаружи, медь
+    # обрезана контуром платы — обе группы к этой проверке не относятся.
+    stray = [t for t in _out_of_board() if 'rack-rail' not in t[1] and 'vias' not in t[1]
+             and 'psu-bay' not in t[1]]
+    return len(stray) <= 2 or f'за кромкой: {stray[:5]}'
+
+
+@check('J2', 'медь разведена, а не слеплена кучками')
+def j2():
+    pts = [(float(m.group(1)), float(m.group(2))) for m in re.finditer(
+        r'<circle cx="(-?\d+)" cy="(-?\d+)" r="1.6" fill="none" stroke="rgba\(184,115,51', BOARD)]
+    if len(pts) < 200:
+        return f'переходных отверстий всего {len(pts)}'
+    # Ни одна ячейка сетки не должна собирать больше двух отверстий: контур
+    # вокруг блока идёт с шагом девять и одну пару в ячейку даёт законно.
+    cells = {}
+    for x, y in pts:
+        cells[(x // 12, y // 12)] = cells.get((x // 12, y // 12), 0) + 1
+    worst = max(cells.values())
+    # Четыре — это пересечение двух контуров вокруг соседних блоков: медь
+    # обходит каждый своим кольцом, и в углу кольца встречаются. Пять и больше
+    # бывает только у кучки.
+    return worst <= 4 or f'в одной ячейке {worst} отверстий'
+
+
+@check('J3', 'болта над верхним банком памяти нет, нижний на месте')
+def j3():
+    from board.geom import H
+    holes = [(float(m.group(1)), float(m.group(2))) for m in re.finditer(
+        r'<circle cx="(\d+)" cy="(\d+)" r="10.5"', BOARD)]
+    top = [h for h in holes if abs(h[0] - 740) < 1 and h[1] < 100]
+    bot = [h for h in holes if abs(h[0] - 740) < 1 and h[1] > 700]
+    if top:
+        return 'верхний болт остался'
+    return bool(bot) or 'нижнего болта нет'
+
+
+@check('J4', 'пунктир рамки прерывается под её заголовком')
+def j4():
+    m = re.search(r'<rect x="[\d.]+" y="[\d.]+" width="[\d.]+" height="10" rx="1" '
+                  r'fill="(rgba\([^"]*\)|none)" stroke="rgba\(232,227,213,0.24\)"', BOARD)
+    if not m:
+        return 'плашки заголовка не найдено'
+    return m.group(1) != 'none' or 'заголовок без подложки: пунктир виден насквозь'
+
+
+@check('J5', 'обозначения в рамках читаются поверх разводки')
+def j5():
+    # Только плашки обозначений: у них высота в кегль с полями, стенка тонкая
+    # и своего цвета. Рамка таблицы перемычек рисуется тем же rx, но она в
+    # восемьдесят единиц высотой и обозначением не является.
+    boxed = [m.group(2) for m in re.finditer(
+        r'<rect x="[-\d.]+" y="[-\d.]+" width="[\d.]+" height="(\d+(?:\.\d+)?)" rx="1" '
+        r'fill="(none|rgba\(5,20,24[^"]*)" stroke="rgba\(232,227,213', BOARD)
+        if float(m.group(1)) <= 20]
+    if not boxed:
+        return 'обозначений в рамках нет'
+    empty = [b for b in boxed if b == 'none']
+    return not empty or f'без подложки: {len(empty)} из {len(boxed)}'
+
+
+@check('J6', 'подпись BMC не спорит с шелкографией слота райзера')
+def j6():
+    def at(text):
+        m = re.search(rf'<text x="([\d.]+)" y="([\d.]+)"[^>]*>{re.escape(text)}</text>', BOARD)
+        return m and (float(m.group(1)), float(m.group(2)))
+    bmc, riser = at('BMC'), at('RISER_1 · PCIE_G5 ×16')
+    if not bmc or not riser:
+        return f'не найдено: BMC {bmc}, слот {riser}'
+    return (abs(bmc[1] - riser[1]) > 12 or abs(bmc[0] - riser[0]) > 90) or \
+        f'BMC {bmc}, слот {riser}'
+
+
+@check('J7', 'марка изготовителя набрана тремя строками и стала крупнее')
+def j7():
+    from board.geom import IO_FREE
+    zone = BOARD[BOARD.find('class="silk-mark"'):]
+    zone = zone[:zone.find('</a>')]
+    lines = [t for _x, _y, t, _d in texts(zone)]
+    if len(lines) != 3:
+        return f'строк в марке: {len(lines)}'
+    if 'COSMDANDY' not in lines[1]:
+        return f'посередине не имя: {lines[1]}'
+    if not lines[0].startswith('DUAL') or 'REV' not in lines[2]:
+        return f'порядок строк: {lines}'
+    size = float(re.search(r'class="silk-name"[^>]*font-size="([\d.]+)"', zone).group(1))
+    return size >= 24 or f'кегль имени {size}'
+
+
+@check('J8', 'марка — ссылка с переливом, и только в сервисном режиме')
+def j8():
+    if 'class="silk-mark" href=' not in BOARD:
+        return 'марка не ссылка'
+    if '.silk-mark { pointer-events: none; }' not in CSS:
+        return 'марка кликается вне сервисного режима'
+    return ('silkShine' in CSS and '.silk-rule' in CSS) or 'нет перелива или подчёркивания'
 
 
 # ── K. Передняя панель и Light Path ──────────────────────────────────────

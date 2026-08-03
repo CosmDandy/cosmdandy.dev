@@ -14,6 +14,7 @@ from board.geom import (
     BANK_N,
     DIMM_SOCK_W,
     PITCH,
+    SLOT_H,
     SOCKET_H,
     SOCKET_W,
     X_CORE,
@@ -28,18 +29,39 @@ from board.geom import (
 from board.ink import block_frame
 from board.spec import CPU, DIMM
 
-BANK_H = BANK_N * PITCH
+# Высота банка — это то, что он занимает на самом деле: семь шагов плюс
+# высота последней плашки. По BANK_N * PITCH рамка выходила на шаг ниже
+# последнего модуля, и у нижнего банка её перечень позиций оказывался уже за
+# кромкой текстолита.
+BANK_H = (BANK_N - 1) * PITCH + SLOT_H
+
+# Рамки, стоящие в поле рассыпухи. Их заголовки печатаются прямо на кромке, и
+# мелочь не должна садиться под них — а бронировать место успевает только
+# pcb_zones, он проходит раньше всех. Поэтому координаты объявлены здесь, а
+# берёт их оттуда сосед: рамка и её бронь обязаны быть одним числом.
+FIELD_FRAMES = (
+    (X_SVC - 4, 92, 166, 262, "PLATFORM I/O", "U12 U18 C120-C138 R240-R262", 6),
+    # Заголовок отодвинут вправо, за корпус: слева от него гребёнка выводов
+    # AST2600, и подпись ложилась прямо на неё.
+    (1016, 272, 116, 74, "BMC", "U79 C300-C312", 80),
+    (428, 108, 62, 74, "PCH", "U31 C314-C318", 6),
+)
+
+
+def title_box(frame):
+    """Габарит заголовка рамки: где стоит его плашка."""
+    x, y, _w, _h, title, _refs, dx = frame
+    return (x + dx - 2, y - 6, len(title) * 6 * 0.62 + 11, 12)
 
 
 def render(cv):
     frames = [
-        block_frame(X_SVC - 4, 92, 166, 262, "PLATFORM I/O", "U12 U18 C120-C138 R240-R262"),
         # BMC и чипсет стояли в левой кромке рядом и делили одну рамку. Теперь
         # контроллер управления сидит в кармане между райзерами, и на две
         # половины платы рамка не растягивается: у каждого своя, иначе обведён
         # чипсет, а подписано это BMC.
-        block_frame(1020, 258, 108, 78, "BMC", "U79 C300-C312"),
-        block_frame(428, 108, 62, 74, "PCH", "U31 C314-C318"),
+        *(block_frame(x, y, w, h, title, refs, dx)
+          for x, y, w, h, title, refs, dx in FIELD_FRAMES),
         # The socket title is pulled towards the middle: the part-number link
         # sits at the left edge of the frame, and in its old place the plate
         # landed right on top of it.
