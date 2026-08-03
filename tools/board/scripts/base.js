@@ -48,6 +48,8 @@
   const save = () => { try { localStorage.setItem('rig-state', JSON.stringify(state)); } catch (e) {} };
   const wait = (ms, fn) => window.setTimeout(fn, reduced ? 0 : ms);
 
+  // @part: sfx
+
   // ── Assembly ───────────────────────────────────────────────────────────
   // The assembly class sits in the markup, so the machine starts assembling
   // itself even if the script never runs at all. Here we only decide whether
@@ -148,6 +150,9 @@
     rig.classList.remove('assembly');
     void chassis.offsetWidth;
     rig.classList.add('assembly');
+    // Только здесь, а не в первой сборке при загрузке: та идёт до любого
+    // жеста, и звука браузер для неё всё равно не даст.
+    sfxAssembly();
     whenSeated(function () {
       finishAssembly();
       line('all units seated · power on', 'ok');
@@ -527,6 +532,7 @@
 
   function toggleService() {
     const on = rig.classList.toggle('service');
+    sfx('click');
     line(on ? 'service mode engaged · терминал и диагностика' : 'service mode released',
          on ? 'warn' : 'muted');
     if (on) initTimeline();     // the strip is only for a stripped-down machine
@@ -616,11 +622,19 @@
       // off in two steps — handles itself.
       const kind = PICKS.find(function (k) { return k.test(pick); });
       if (kind && kind.pull) {
+        // Что именно прозвучало, спрашиваем у самого узла, а не у блока: если
+        // после хода узел так и остался на месте, это был первый шаг из двух —
+        // отжатая защёлка или поднятый рычаг. Так одна строка озвучивает и
+        // диски, и процессоры, и блоки питания, и каждому не нужен свой вызов.
+        const was = pick.classList.contains('pulled');
         kind.pull(pick, line);
+        const now = pick.classList.contains('pulled');
+        sfx(now === was ? 'latch' : (now ? 'pull' : 'seat'));
         updateFault();
         return;
       }
       const pulled = pick.classList.toggle('pulled');
+      sfx(pulled ? 'pull' : 'seat');
       line((pulled ? 'removed: ' : 'inserted: ') + unitName(pick), pulled ? 'warn' : 'ok');
       updateFault();
       return;
@@ -957,6 +971,9 @@
   const lidOn = document.getElementById('lid-on');
 
   function setLid(off) {
+    // Тишина, если крышка уже в этом положении: setLid зовут и при
+    // восстановлении состояния из localStorage, где хода нет и звучать нечему.
+    if (rig.classList.contains('lid-off') !== off) sfx('lid');
     rig.classList.toggle('lid-off', off);
     state.lid = off; save();
   }

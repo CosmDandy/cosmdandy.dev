@@ -612,6 +612,85 @@ check('after the pause the assembly plays out to the end',
       && (await seatAnims(p2)) === 0, await p2.evaluate(() => document.getElementById('rig').className));
 await p2.close();
 
+// 29. Звук. Обещание одно и жёсткое: пока гость сам не нажал кнопку, страница
+// не заводит аудиоконтекст вообще. Проверяем счётчиком на конструкторе, а не
+// на слух — контекст, заведённый «про запас», браузер показал бы значком звука
+// на вкладке молчащей визитки, и это ровно то, чего здесь быть не должно.
+const clickIn = (pg, sel) => pg.evaluate(s => document.querySelector(s)
+  ?.dispatchEvent(new MouseEvent('click', { bubbles: true })), sel);
+const acProbe = () => {
+  const Real = window.AudioContext;
+  window.__acs = [];
+  window.AudioContext = function () {
+    const c = new Real();
+    window.__acs.push(c);
+    return c;
+  };
+};
+const p3 = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
+p3.on('pageerror', e => errors.push(String(e)));
+await p3.addInitScript(() => document.addEventListener('DOMContentLoaded',
+  () => document.querySelectorAll('input').forEach(el => el.remove())));
+await p3.addInitScript(acProbe);
+await p3.goto(url, { waitUntil: 'load' });
+await p3.evaluate(() => document.body.classList.add('view-rig'));
+await p3.waitForTimeout(1200);
+const acCount = () => p3.evaluate(() => window.__acs.length);
+const pressed = () => p3.evaluate(() => document.getElementById('sfx-btn').getAttribute('aria-pressed'));
+const soundPref = () => p3.evaluate(() => { try { return localStorage.getItem('sound'); } catch (e) { return null; } });
+check('звука нет, пока его не включили', (await acCount()) === 0 && (await pressed()) === 'false',
+      `contexts: ${await acCount()}, pressed: ${await pressed()}`);
+await clickIn(p3, '#sfx-btn');
+await p3.waitForTimeout(200);
+check('кнопка заводит контекст и запоминает выбор',
+      (await acCount()) === 1 && (await pressed()) === 'true' && (await soundPref()) === 'on',
+      `contexts: ${await acCount()}, pressed: ${await pressed()}, pref: ${await soundPref()}`);
+await clickIn(p3, '#sfx-btn');
+await p3.waitForTimeout(200);
+check('повторное нажатие выключает и второго контекста не заводит',
+      (await acCount()) === 1 && (await pressed()) === 'false' && (await soundPref()) === 'off',
+      `contexts: ${await acCount()}, pressed: ${await pressed()}, pref: ${await soundPref()}`);
+await p3.close();
+
+// 30. Синтез. Проверка выше ничего не говорит о том, что звук вообще
+// собирается: без настоящего жеста браузер держит контекст остановленным, и
+// sfx() честно молчит на каждом вызове. Поэтому отдельное окно с отключённой
+// политикой автозапуска — только там голоса действительно строятся, и видно,
+// падает ли что-нибудь внутри них.
+const errBefore = errors.length;
+const loud = await chromium.launch({ executablePath: CHROME,
+  args: ['--no-sandbox', '--autoplay-policy=no-user-gesture-required'] });
+const p4 = await loud.newPage({ viewport: { width: 1600, height: 1000 } });
+p4.on('pageerror', e => errors.push(String(e)));
+await p4.addInitScript(() => document.addEventListener('DOMContentLoaded',
+  () => document.querySelectorAll('input').forEach(el => el.remove())));
+await p4.addInitScript(acProbe);
+await p4.goto(url, { waitUntil: 'load' });
+await p4.evaluate(() => document.body.classList.add('view-rig'));
+await p4.waitForTimeout(1200);
+await clickIn(p4, '#sfx-btn');
+await p4.waitForTimeout(400);
+const acState = await p4.evaluate(() => window.__acs[0] && window.__acs[0].state);
+check('включённый звук поднимает контекст', acState === 'running', String(acState));
+// Все голоса разом: тумблер, снятие и посадка узла, крышка, писк спикера и
+// целое расписание сборки. Падение внутри любого из них всплывёт в errors.
+await clickIn(p4, '#svc-switch');
+await clickIn(p4, '.unit.pick.bay');
+await p4.waitForTimeout(200);
+await clickIn(p4, '.unit.pick.bay');
+await clickIn(p4, '#lid-remove');
+await p4.waitForTimeout(200);
+await clickIn(p4, '#svc-switch');
+await clickIn(p4, '#power');
+await p4.waitForTimeout(700);
+await clickIn(p4, '#power');
+await clickIn(p4, '#assemble-btn');
+await p4.waitForTimeout(2000);
+check('голоса строятся без ошибок', errors.length === errBefore,
+      errors.slice(errBefore, errBefore + 2).join(' | '));
+await p4.close();
+await loud.close();
+
 const failed = results.filter(r => !r[1]);
 for (const [name, ok, got] of results) console.log(`  ${ok ? '·' : 'BROKEN'} ${name}${ok ? '' : ` → ${got}`}`);
 if (errors.length) console.log(`  ERRORS: ${errors.slice(0, 2).join(' | ')}`);

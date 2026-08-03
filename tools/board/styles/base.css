@@ -140,6 +140,8 @@ body:has(.rig.assembly) .assemble-btn { filter: opacity(0.45); pointer-events: n
 .assemble-btn:active svg { transform: rotate(-40deg); }
 .assemble-btn svg { transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); }
 .assemble-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+/* @part: sfx */
+
 /* Обе плитки лежат вне .rig, и общий запрет анимаций внутри схемы их не
    касается — как и переключатель темы, они отменяют своё появление сами. */
 @media (prefers-reduced-motion: reduce) {
