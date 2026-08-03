@@ -19,7 +19,7 @@
   // up. The screen sits next to .chassis rather than inside it precisely so
   // that inert on the schematic does not swallow the screen along with it.
   const SHADOWED = '.chassis, .rig-side, .timeline, .rig-id, main,' +
-                   ' .theme-switch, .assemble-btn, .view-switch';
+                   ' .theme-switch, .assemble-btn, .zoom-btn';
   const postPane = document.getElementById('crt-post');
   const postLog = document.getElementById('crt-post-log');
   const setupPane = document.getElementById('crt-setup');

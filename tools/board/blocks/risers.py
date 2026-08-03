@@ -106,11 +106,16 @@ def render(cv):
                 py = card_y + 2 + p * 30
                 ports.append(sfp(X_IO + 20, py, w=48, h=22))
                 ports.append(sfp_leds(p, py, degraded))
-            # Подписи сдвинуты от центра планки влево: у самого борта теперь
-            # стоит стальной лист, и строка, набранная по середине, уезжала
-            # хвостом на его перфорацию.
-            ports.append(mono(X_IO + 30, card_y + 74, PORTS['sfp'], 9, op=0.5))
-            ports.append(mono(X_IO + 30, card_y + 86, PORTS['sfp_degraded'], 7, op=0.34))
+            # Что за карта, написано на плате, а не на её торце. Торец — это
+            # два сантиметра стали в задней стенке, и строка там читалась
+            # наклейкой на кронштейне; на живой машине назначение слота
+            # набивают на текстолите рядом с разъёмом, как и все прочие
+            # обозначения. Заодно надпись перестала уезжать на перфорацию
+            # заднего листа, которого раньше не было.
+            ports.append(mono(x0 + 26, card_y + 74, PORTS['sfp'], 9,
+                              anchor='start', op=0.5))
+            ports.append(mono(x0 + 26, card_y + 86, PORTS['sfp_degraded'], 7,
+                              anchor='start', op=0.34))
             ports = ''.join(ports)
             card += (f'<g class="unit" data-unit="ocp" data-group="ocp" '
                      f'data-href="https://linkedin.com/in/cosmdandy">{ports}</g>')
@@ -155,12 +160,30 @@ def render(cv):
       {''.join(f'<line x1="{x0+22+j*9}" y1="{edge_y+1}" x2="{x0+22+j*9}" y2="{edge_y+7}" stroke="rgba(133,153,0,0.22)"/>' for j in range(int(slot_w // 9) - 1))}
       {silk_boxed(x0 + 18 + slot_w / 2, edge_y + 22, f"RISER_{k+1} · PCIE_G5 ×16", 6)}
     </g>''')
+        # Соты кронштейна — тем же размером и зазором, что на крышке и на
+        # борту: на живой машине (см. rear-riser-overview) это одна и та же
+        # штамповка, и полем более частой сетки кронштейн читался бы деталью от
+        # другой машины. Стоит поле там же, где на фото: поперёк всей ширины
+        # кронштейна, в его задней четверти.
+        #
+        # Дырки настоящие, пробитые маской, а не тёмные шестиугольники поверх
+        # стали. Полупрозрачной заливки тут мало по простой причине: под ней
+        # остаётся непрозрачный кронштейн, и сквозь такую «дырку» видно его же,
+        # только темнее. Плата видна только там, где стали физически нет.
         cv.add(f'''<g class="pick riser" data-riser="{k+1}" style="--seat:{riser_seat(k)}">
       <g class="pick-body">
-        <path d="{d}" fill="{STEEL}" stroke="rgba(147,161,161,0.30)" stroke-width="1.4"/>
-        {hexgrid(x1 - T + 8, hex_y, T - 16, hex_h)}
-        {card}
-        {tab}
+        <g class="riser-lift">
+          <defs><mask id="riser-perf-{k}" maskUnits="userSpaceOnUse">
+            <rect x="{x0 - 24}" y="{y - 24}" width="{x1 - x0 + 48}" height="{hh + 48}" fill="#fff"/>
+            {hexgrid(x1 - T + 8, hex_y, T - 16, hex_h, s=6, gap=5, fill='#000', stroke='none')}
+          </mask></defs>
+          <path d="{d}" fill="{STEEL}" stroke="rgba(147,161,161,0.30)" stroke-width="1.4"
+                mask="url(#riser-perf-{k})"/>
+          {hexgrid(x1 - T + 8, hex_y, T - 16, hex_h, s=6, gap=5, fill='none',
+                   stroke='rgba(147,161,161,0.26)')}
+          {card}
+          {tab}
+        </g>
       </g>
       {fault_at(cv, x0-14, y + (96 if up else 40), 5)}
       {stamp(x0 + (86 if up else 18), y + hh - 6 if up else y + 12, "райзеры")}

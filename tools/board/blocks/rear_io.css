@@ -3,5 +3,8 @@
      машины через задний борт — то же движение, что у райзера и блока питания,
      и та же тугая ножка под ним. Прежде общее правило поднимало их вверх, и
      узел уезжал поперёк собственных разъёмов. */
-  .rig.service .pick[data-unit="eth"].pulled .pick-body { transform: translateX(72px); }
-  .pick[data-unit="eth"] .pick-body { transition: transform var(--drag); }
+  .rig.service .pick[data-unit="eth"].pulled .pick-body {
+    transform: translateX(26px);
+    transition: transform var(--tug);
+  }
+  .pick[data-unit="eth"] .pick-body { transition: transform var(--tug); }

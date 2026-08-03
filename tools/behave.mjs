@@ -159,9 +159,12 @@ await click('.cpu-slot');
 await page.waitForTimeout(150);
 check('processor back in place', !(await cls('.cpu-slot')).includes('pulled'), await cls('.cpu-slot'));
 
-// 5b. A drive — three clicks: latch, caddy out, back. The caddy handle is a
-// separate part, and the order has to be exactly this one: until the latch is
-// swung open the drive does not leave the bay.
+// 5b. Каддик — четыре щелчка: защёлка, наружу, обратно в корзину, защёлка
+// закрыта. Ручка — отдельная деталь, и порядок обязан быть ровно таким: пока
+// защёлка не откинута, диск из отсека не выходит, а на обратном пути он
+// сперва заходит в корзину и только потом ручку захлопывают. Раньше третий
+// щелчок снимал оба класса разом: каддик въезжал, ручка складывалась сама на
+// полпути, и второго движения не было вовсе.
 await click('.bay');
 await page.waitForTimeout(150);
 check('drive latch swung open', (await cls('.bay')).includes('unlatched'), await cls('.bay'));
@@ -169,6 +172,11 @@ check('drive still in the bay', !(await cls('.bay')).includes('pulled'), await c
 await click('.bay');
 await page.waitForTimeout(150);
 check('drive pulled', (await cls('.bay')).includes('pulled'), await cls('.bay'));
+await click('.bay');
+await page.waitForTimeout(150);
+check('drive back in the bay, handle still open',
+      !(await cls('.bay')).includes('pulled') && (await cls('.bay')).includes('unlatched'),
+      await cls('.bay'));
 await click('.bay');
 await page.waitForTimeout(150);
 check('drive back in place', !(await cls('.bay')).includes('unlatched'), await cls('.bay'));
@@ -483,10 +491,14 @@ const stowDur = await page.evaluate(() =>
 check('the units are stowed on the slow curve', stowDur !== clickDur && stowDur === '1.5s',
       clickDur + ' → ' + stowDur);
 await page.waitForTimeout(1800);
+// Сравнивать с длительностью, снятой у вынутого узла, нельзя: наружу и внутрь
+// у него разные кривые — своя на вынимание и своя посадочная на возврат. Важно
+// тут другое: что общая медленная кривая уборки после возврата отпустила узел и
+// он снова ходит своей.
+const backDur = await page.evaluate(() =>
+  getComputedStyle(document.querySelector('.fan .pick-body')).transitionDuration);
 check('the click comes back after the return',
-      (await page.evaluate(() =>
-        getComputedStyle(document.querySelector('.fan .pick-body')).transitionDuration)) === clickDur,
-      clickDur);
+      backDur !== stowDur && backDur !== '1.5s', clickDur + ' → ' + stowDur + ' → ' + backDur);
 
 // A running fan is a disc, a fan at reduced rpm is blades. Both states are
 // pure css, so what can break them silently is a selector — and that is
@@ -558,16 +570,18 @@ check('reset refuses while a unit is out', (await rigCls()).includes('fault-latc
 await click('.fan[data-fan="2"]');
 await page.waitForTimeout(200);
 
-// 27. The entrance waits for the schematic. The card is what opens first, and
-// .rig sits in display: none all that time — no animations are started in it at
-// all. The schedule used to be counted off from page load regardless, so a
-// visitor pressing the server button half a minute later got an assembled
-// machine: there was nothing left to watch. A fresh page of its own — this one
-// has already been visited, and the entrance plays once.
-const p2 = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
+// 27. Сборка ждёт схему. На узком экране открывается карточка, .rig лежит в
+// display: none, и ни одна анимация в нём не заводится. Расписание раньше
+// отсчитывалось от загрузки страницы независимо ни от чего, и гость, дошедший
+// до схемы через полминуты, получал уже собранную машину: смотреть было
+// нечего. Своя страница, потому что вход играет один раз за визит.
+//
+// Кнопки переключения вида больше нет — вид выбирает ширина окна. Поэтому и
+// проверяем ширину: узкое окно держит карточку, расширение показывает схему и
+// с ней запускает сборку.
+const p2 = await browser.newPage({ viewport: { width: 700, height: 1000 } });
 await p2.addInitScript(() => document.addEventListener('DOMContentLoaded',
   () => document.querySelectorAll('input').forEach(el => el.remove())));
-await p2.addInitScript(() => { try { localStorage.setItem('view', 'card'); } catch (e) {} });
 await p2.goto(url, { waitUntil: 'load' });
 const seatAnims = pg => pg.evaluate(() => document.querySelector('.chassis')
   .getAnimations({ subtree: true })
@@ -576,10 +590,9 @@ await p2.waitForTimeout(11000);      // дольше всего расписан
 const waiting = await p2.evaluate(() => document.getElementById('rig').className);
 check('the machine waits disassembled while the card is up',
       waiting.includes('assembly') && (await seatAnims(p2)) === 0, waiting);
-await p2.evaluate(() => document.getElementById('view-switch')
-  .dispatchEvent(new MouseEvent('click', { bubbles: true })));
+await p2.setViewportSize({ width: 1600, height: 1000 });
 await p2.waitForTimeout(1000);
-check('the server button is what starts the assembly', (await seatAnims(p2)) > 0,
+check('widening the window is what starts the assembly', (await seatAnims(p2)) > 0,
       String(await seatAnims(p2)));
 
 // 28. The assembly ends by its own animations, not by the clock. A tab in the

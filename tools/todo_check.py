@@ -62,6 +62,40 @@ def texts(src):
             for m in re.finditer(r'<text ([^>]*?)>([^<]*)</text>', src)]
 
 
+def linear_pts(name):
+    """Узлы кривой linear() как (доля времени, доля пути)."""
+    m = re.search(rf'--{name}: [\d.]+s linear\(\s*([^)]*)\)', CSS, re.DOTALL)
+    if not m:
+        return None
+    got = [(0.0, 0.0)]
+    for chunk in m.group(1).split(',')[1:]:
+        part = chunk.split()
+        got.append((float(part[1].rstrip('%')) / 100 if len(part) > 1 else 1.0,
+                    float(part[0])))
+    return got
+
+
+def mirrored(fwd, back, tol=0.02):
+    """Правда ли, что вторая кривая — первая, пущенная задом наперёд.
+
+    Разворот получается из точки (t, p) точкой (1-t, 1-p). Сверяем по
+    нескольким долям времени с интерполяцией: linear() ведёт между узлами по
+    прямой, а сверка по ближайшему узлу врёт ровно на высоту шага.
+    """
+    a, b = linear_pts(fwd), linear_pts(back)
+    if not (a and b):
+        return False
+
+    def at(got, t):
+        for i in range(1, len(got)):
+            if got[i][0] >= t:
+                (t0, p0), (t1, p1) = got[i - 1], got[i]
+                return p0 + (p1 - p0) * ((t - t0) / (t1 - t0 or 1))
+        return got[-1][1]
+
+    return max(abs((1 - at(a, 1 - t)) - at(b, t)) for t in (0.2, 0.4, 0.6, 0.8)) < tol
+
+
 def curve(name):
     """Кривая как список пар «доля пути, доля времени»."""
     m = re.search(rf'--{name}: ([\d.]+)s linear\(([^)]*)\)', CSS)
@@ -166,10 +200,15 @@ def a7():
 
 @check('A8', 'перфорация просвечивает и не слипается')
 def a8():
-    holes = re.findall(r'<polygon points="([^"]*)" fill="([^"]*)"', BOARD)
+    # Соты внутри масок считать нельзя: там глухой чёрный — это и есть дырка,
+    # он вырезает лист, а не закрашивает его. Смотрим только на то, что
+    # рисуется на самой схеме.
+    src = re.sub(r'<mask id="[^"]*".*?</mask>', '', BOARD, flags=re.DOTALL)
+    holes = re.findall(r'<polygon points="([^"]*)" fill="([^"]*)"', src)
     if not holes:
         return 'сот на схеме нет'
-    opaque = [f for _, f in holes if not f.startswith('rgba') or f.endswith(',1)')]
+    opaque = [f for _, f in holes if f != 'none'
+              and (not f.startswith('rgba') or f.endswith(',1)'))]
     if opaque:
         return f'глухих сот: {len(opaque)}'
     # Шаг внутри столбца. Ряды идут вразбежку, поэтому одна и та же координата
@@ -200,19 +239,33 @@ def _socket_zone():
     return BOARD[i:BOARD.find('data-unit="cpu1"')]
 
 
+def _lga_box():
+    """Габарит площадки контактов: (x, y, w, h).
+
+    Площадка теперь путь со срезанным углом, а не прямоугольник — по атрибутам
+    rect её больше не найти. Габарит считаем по её же контуру.
+    """
+    zone = _socket_zone()
+    m = re.search(r'<path d="M([\d.]+) ([\d.]+) H([\d.]+) V([\d.]+) H([\d.]+) V([\d.]+) Z" fill="#0a1013"', zone)
+    if not m:
+        return None
+    cx, y0, x1, y1, x0, _ = (float(v) for v in m.groups())
+    return (x0, y0, x1 - x0, y1 - y0)
+
+
 @check('D1', 'поле контактов отцентровано в держателе')
 def d1():
     zone = _socket_zone()
-    m = re.search(r'<path d="(M[^"]*h0\.5[^"]*)"', zone)
+    m = re.search(r'<path d="(M[^"]*h0\.\d[^"]*)"', zone)
     if not m:
         return 'поля контактов нет'
     pts = re.findall(r'M([\d.]+) ([\d.]+)h', m.group(1))
     xs = [float(a) for a, _ in pts]
     ys = [float(b) for _, b in pts]
-    frame = [r for r in rects(zone, rx='1', fill='#0a1013')]
+    frame = _lga_box()
     if not frame:
         return 'подложки поля нет'
-    fx, fy, fw, fh = frame[0][:4]
+    fx, fy, fw, fh = frame
     left, right = min(xs) - fx, fx + fw - max(xs)
     top, bot = min(ys) - fy, fy + fh - max(ys)
     return (abs(left - right) < 0.6 and abs(top - bot) < 0.6) or \
@@ -226,19 +279,26 @@ def d2():
     if not m:
         return 'надписи INSTALL нет'
     ty = float(m.group(2))
-    field = [r for r in rects(zone, rx='1', fill='#0a1013')]
-    fy, fh = field[0][1], field[0][3]
+    field = _lga_box()
+    if not field:
+        return 'площадки контактов нет'
+    fy, fh = field[1], field[3]
     return not (fy - 6 < ty < fy + fh + 6) or f'INSTALL на {ty}, поле {fy}..{fy + fh}'
 
 
-@check('D3', 'метки ключа на сокете и на процессоре в одном углу')
+@check('D3', 'указателей ключа на гнезде процессора нет')
 def d3():
+    """Требование снято владельцем: «эти стрелочки, две, одна на процессоре,
+    другая на самом сокете — вообще убери, они мешают».
+
+    Раньше просили свести их в один угол, и это было сделано. Смотреть они
+    мешали обеим: пара треугольников в углу гнезда перетягивала внимание с
+    самого гнезда, а ключ у SP5 задан срезом угла подложки — он виден и без
+    указателей.
+    """
     zone = _socket_zone()
-    tri = re.findall(r'<path d="M([\d.-]+) ([\d.-]+) l[^"]*z" fill="rgba\((?:238,232,213|147,161,161)', zone)
-    if len(tri) != 2:
-        return f'треугольников найдено: {len(tri)}'
-    (x1, y1), (x2, y2) = ((float(a), float(b)) for a, b in tri)
-    return (abs(x1 - x2) < 40 and abs(y1 - y2) < 40) or f'метки в {x1},{y1} и {x2},{y2}'
+    tri = re.findall(r'<path d="M[\d.]+ [\d.]+ l[-\d.]+ [-\d.]+ l[-\d.]+ [-\d.]+ z"', zone)
+    return not tri or f'треугольников осталось: {len(tri)}'
 
 
 @check('D4', 'номера болтов не лежат на внутренней рамке')
@@ -277,38 +337,87 @@ def d7():
     return BOARD.find('block-frame') < BOARD.find('data-unit="cpu0"') or 'рамки идут после процессора'
 
 
-@check('D9', 'снятые части не ложатся на память')
+@check('D13', 'радиатор ложится нижней кромкой на центр посадочного места')
+def d13():
+    from board.geom import SOCKET_H, Y_CPU0
+    m = re.search(r'\.cpu-slot\.pulled \.heatsink \{ transform: translate\((-?\d+)px, (-?\d+)px\)', CSS)
+    if not m:
+        return 'правила разлёта радиатора нет'
+    dx, dy = int(m.group(1)), int(m.group(2))
+    if dx <= 0 or dy >= 0:
+        return f'радиатор идёт не вправо-вверх: {dx}, {dy}'
+    # Нижняя кромка радиатора совпадает с нижней кромкой гнезда; после подъёма
+    # она обязана встать на его середину.
+    edge = Y_CPU0 + SOCKET_H + dy
+    mid = Y_CPU0 + SOCKET_H / 2
+    return abs(edge - mid) <= 2 or f'кромка на {edge:.0f}, середина гнезда {mid:.0f}'
+
+
+@check('D14', 'процессор откидывается по той же диагонали в другую сторону')
+def d14():
+    hs = re.search(r'\.cpu-slot\.pulled \.heatsink \{ transform: translate\((-?\d+)px, (-?\d+)px\)', CSS)
+    lid = re.search(r'\.cpu-slot\.opened \.cpu-lid,?\s*(?:\.rig\.service )?'
+                    r'\.cpu-slot\.opened \.die \{\s*transform: translate\((-?\d+)px, (-?\d+)px\)', CSS)
+    if not (hs and lid):
+        return 'одного из правил разлёта нет'
+    hx, hy = int(hs.group(1)), int(hs.group(2))
+    lx, ly = int(lid.group(1)), int(lid.group(2))
+    if lx >= 0 or ly <= 0:
+        return f'процессор идёт не влево-вниз: {lx}, {ly}'
+    # Подъём и опускание равны по модулю: детали расходятся по одной прямой.
+    return abs(abs(hy) - abs(ly)) <= 2 or f'вертикали разошлись: {hy} и {ly}'
+
+
+@check('D9', 'снятые части не улетают дальше своего банка памяти')
 def d9():
-    from board.geom import BANK_N, PITCH, SLOT_H, SOCKET_H, SOCKET_W, X_CORE, X_SOCK
-    from board.geom import DIMM_SOCK_W, Y_BANK_C, Y_BANK_L, Y_BANK_R, Y_CPU0, Y_CPU1
-    hs = re.search(r'\.cpu-slot\.pulled \.heatsink \{ transform: translate\((-?\d+)px, (-?\d+)px\) scale\(([\d.]+)\)', CSS)
-    lid = re.search(r'\.cpu-slot\.opened \.cpu-lid \{ transform: translate\((-?\d+)px, (-?\d+)px\) scale\(([\d.]+)\)', CSS)
+    """Правило смягчено сознательно, и вот чем.
+
+    Изначально просили, чтобы снятые части не ложились на память вовсе. Потом
+    просили развести радиатор и процессор по диагонали так, чтобы нижняя кромка
+    радиатора встала на центр посадочного места, — это подъём в семьдесят пять
+    единиц, а между гнездом и банком всего восемнадцать. Оба условия одновременно
+    не выполнимы, и владелец выбрал диагональ: «не важно, что он залазит, это
+    нормально, мы же в перспективе смотрим».
+
+    Что осталось проверять: деталь не должна уходить дальше своего банка. Пока
+    она лежит на нём, это читается как деталь, снятая и положенная рядом; уйдя
+    за него, она оказывается посреди чужого узла.
+    """
+    from board.geom import (
+        BANK_N,
+        DIMM_SOCK_W,
+        PITCH,
+        SLOT_H,
+        SOCKET_H,
+        SOCKET_W,
+        X_CORE,
+        X_SOCK,
+        Y_BANK_C,
+        Y_BANK_L,
+        Y_BANK_R,
+        Y_CPU0,
+        Y_CPU1,
+    )
+    hs = re.search(r'\.cpu-slot\.pulled \.heatsink \{ transform: translate\((-?\d+)px, (-?\d+)px\)', CSS)
+    lid = re.search(r'\.cpu-slot\.opened \.cpu-lid,?\s*(?:\.rig\.service )?'
+                    r'\.cpu-slot\.opened \.die \{\s*transform: translate\((-?\d+)px, (-?\d+)px\)', CSS)
     if not hs or not lid:
         return 'правил разлёта нет'
-    banks = [(X_CORE, y, DIMM_SOCK_W, (BANK_N - 1) * PITCH + SLOT_H)
-             for y in (Y_BANK_L, Y_BANK_C, Y_BANK_R)]
+    bank_h = (BANK_N - 1) * PITCH + SLOT_H
+    banks = [(X_CORE, y, DIMM_SOCK_W, bank_h) for y in (Y_BANK_L, Y_BANK_C, Y_BANK_R)]
 
     def moved(x, y, w, h, m):
-        dx, dy, k = int(m.group(1)), int(m.group(2)), float(m.group(3))
-        cx, cy = x + w / 2 + dx, y + h / 2 + dy
-        return (cx - w * k / 2, cy - h * k / 2, w * k, h * k)
+        return (x + int(m.group(1)), y + int(m.group(2)), w, h)
 
-    bad = []
     for cy in (Y_CPU0, Y_CPU1):
-        for what, box in (('радиатор', moved(X_SOCK, cy, SOCKET_W, SOCKET_H, hs)),
-                          # Крышка процессора занимает не весь сокет: она внутри
-                          # него, с полем в сорок единиц по X и тридцать по Y.
-                          ('процессор', moved(X_SOCK + 35, cy + 29, SOCKET_W - 70, SOCKET_H - 58, lid))):
-            for bx, by, bw, bh in banks:
-                if (box[0] < bx + bw and bx < box[0] + box[2]
-                        and box[1] < by + bh and by < box[1] + box[3]):
-                    bad.append(f'{what} у {cy} накрывает банк на {by}')
-    if bad:
-        return '; '.join(bad)
-    # И ровно сорок пять градусов — это «диагонально в угол», от чего просили
-    # уйти: ход по вертикали обязан быть заметно меньше горизонтального.
-    dx, dy = abs(int(hs.group(1))), abs(int(hs.group(2)))
-    return dy < dx * 0.5 or f'радиатор уходит по диагонали: {dx}×{dy}'
+        parts = (('радиатор', moved(X_SOCK, cy, SOCKET_W, SOCKET_H, hs)),
+                 ('процессор', moved(X_SOCK + 35, cy + 29, SOCKET_W - 70, SOCKET_H - 58, lid)))
+        for what, (bx, by, bw, bh) in parts:
+            for _, ky, _, kh in banks:
+                # Ушла за дальнюю кромку банка — это уже не «положили рядом».
+                if by < ky and by + bh > ky + kh:
+                    return f'{what} у {cy} перекрыл банк {ky} насквозь'
+    return True
 
 
 @check('D10', 'клеймо изготовителя вынесено в переменную и стоит везде одинаково')
@@ -323,12 +432,17 @@ def d10():
 # ── E. Память ────────────────────────────────────────────────────────────
 
 def _dimm_chips():
-    """Чипы одной плашки: (x, ширина), слева направо."""
-    from board.geom import SLOT_H, X_CORE, Y_BANK_L
+    """Чипы одной плашки: (x, ширина, верх), слева направо.
+
+    Высота у корпусов теперь разная: узкие опущены на две единицы и на столько
+    же ниже, чтобы ряд шёл вразбежку. Отбирать по одной высоте больше нельзя —
+    так находились только широкие.
+    """
+    from board.geom import SLOT_H
     band = BOARD[BOARD.find('data-dimm="L0"'):]
     band = band[:band.find('data-dimm="L1"')]
-    return sorted((r[0], r[2]) for r in rects(band, fill='#0d1519')
-                  if abs(r[3] - (SLOT_H - 8)) < 0.1)
+    return sorted((r[0], r[2], r[1]) for r in rects(band, fill='#0d1519')
+                  if SLOT_H - 11 <= r[3] <= SLOT_H - 8)
 
 
 @check('E1', 'чипы чередуются, первый слева — узкий')
@@ -336,13 +450,16 @@ def e1():
     chips = _dimm_chips()
     if len(chips) < 4:
         return f'чипов на плашке: {len(chips)}'
-    widths = [w for _, w in chips]
+    widths = [w for _, w, _ in chips]
     if widths[0] >= widths[1]:
         return f'первый чип не узкий: {widths[:2]}'
-    swaps = sum(1 for a, b in zip(widths, widths[1:]) if (a < b) != (widths[0] < widths[1]) or a == b)
     alt = all((widths[k] < widths[k + 1]) != (widths[k + 1] < widths[k + 2] if k + 2 < len(widths) else False)
               for k in range(len(widths) - 2))
-    return alt or f'ряд не чередуется: {widths}'
+    if not alt:
+        return f'ряд не чередуется: {widths}'
+    # И по высоте вразбежку: соседние корпуса стоят не на одной линии.
+    tops = [t for _, _, t in chips]
+    return len(set(tops)) == 2 or f'все корпуса на одной высоте: {sorted(set(tops))}'
 
 
 @check('E2', 'синяя полоса модуля темнее прежней')
@@ -404,8 +521,10 @@ def e7():
 @check('E8', 'слоты подписаны буквами каналов и отцентрованы по плашке')
 def e8():
     from board.geom import PITCH, SLOT_H, Y_BANK_L
+    # «DIMM SLOTS» — заголовок разметки на кожухе воздуховода, а не подпись
+    # слота: он один на банк и отлит на пластике, а не набит на текстолите.
     labels = [t for x, y, t, d in texts(BOARD) if re.match(r'DIMM[ _]', t)
-              and '_' not in t]
+              and '_' not in t and t != 'DIMM SLOTS']
     if len(labels) != 24:
         return f'подписей слотов: {len(labels)}'
     bad = [t for t in labels if not re.fullmatch(r'DIMM [A-L]', t)]
@@ -468,22 +587,60 @@ def f4():
 
 @check('F1', 'райзер выезжает на всю длину ножки')
 def f1():
-    m = re.search(r'\.riser\.pulled \.pick-body \{ transform: translateX\((\d+)px\)', CSS)
-    if not m:
+    # Ход у райзера в два движения: сперва строго вверх, на высоту контакта,
+    # и только выйдя из паза — вбок. Диагональю его не вынуть: краевой разъём
+    # смотрит вниз, в плату.
+    lift = re.search(r'\.riser\.pulled \.riser-lift \{\s*transform: translateY\((-\d+)px\)', CSS)
+    slide = re.search(r'\.riser\.pulled \.pick-body \{\s*transform: translateX\((\d+)px\)', CSS)
+    if not lift or not slide:
         return 'правила выезда райзера нет'
-    return int(m.group(1)) >= 100 or f'ход всего {m.group(1)}'
+    up, right = -int(lift.group(1)), int(slide.group(1))
+    if not 20 <= up <= 60 or not 20 <= right <= 60:
+        return f'ход не микродвижение: вверх {up}, вправо {right}'
+    # Отвод обязан начинаться позже подъёма, иначе движение снова диагональ.
+    d = re.search(r'\.riser\.pulled \.pick-body \{[^}]*var\(--riser-slide\) ([\d.]+)s', CSS)
+    return (d and float(d.group(1)) > 0.15) or 'отвод вбок не ждёт подъёма'
+
+
+@check('F6', 'сборка райзера идёт теми же двумя движениями в обратном порядке')
+def f6():
+    m = re.search(r'@keyframes seatRiser \{(.*?)\n  \}', CSS, re.DOTALL)
+    if not m:
+        return 'расписания сборки райзера нет'
+    body = m.group(1)
+    if 'translate(34px, -34px)' not in body:
+        return 'сборка стартует не из положения «вынуто»'
+    # Промежуточный кадр: вбок вернулся, вниз ещё не пошёл.
+    return 'translate(0, -34px)' in body or 'райзер садится по диагонали, одним движением'
 
 
 @check('F2', 'встроенные интерфейсы снимаются назад, а не вверх')
 def f2():
-    m = re.search(r'\.pick\[data-unit="eth"\]\.pulled \.pick-body \{ transform: (\w+)\(', CSS)
+    m = re.search(r'\.pick\[data-unit="eth"\]\.pulled \.pick-body \{\s*transform: (\w+)\(', CSS)
     return (m and m.group(1) == 'translateX') or f'ход: {m and m.group(1)}'
 
 
 @check('F5', 'у райзера тугая длинная кривая, а не щелчок')
 def f5():
-    return ('.riser .pick-body { transition: transform var(--drag); }' in CSS
-            or 'кривая райзера не --drag')
+    # Наружу тугая --drag, внутрь она же развёрнутая. Проверяем обе: одна на
+    # оба состояния означает, что обратный ход повторяет прямой.
+    # Подъём — своей кривой: восемь десятых пути туго, остаток вылетает.
+    if not re.search(r'\.riser\.pulled \.riser-lift \{[^}]*var\(--riser-lift\)', CSS):
+        return 'подъём райзера идёт не своей кривой'
+    # «Восемь десятых проходишь туго, а потом остаток быстро»: скорость в
+    # последней пятой времени должна быть кратно выше средней по остальному
+    # пути. Порогом по доле пути это не поймать — почти любая кривая его
+    # проходит; ловится именно перелом скорости.
+    pts = linear_pts('riser-lift')
+    at = lambda t: next(p for tt, p in pts if tt >= t)
+    slow, fast = at(0.8) / 0.8, (1 - at(0.8)) / 0.2
+    if fast < slow * 2:
+        return f'перелома нет: до восьми десятых {slow:.2f}, после {fast:.2f}'
+    # Обратно — своей посадочной: та же тяжесть по всей длине ножки и короткая
+    # доводка, когда краевой разъём пошёл в паз. Развёрнутая кривая давала
+    # рывок с места, то есть противоположное на глаз при том же по числам.
+    return ('.riser .pick-body { transition: transform var(--riser-slide); }' in CSS
+            or 'обратный ход райзера не своей кривой')
 
 
 # ── G. Блоки питания ─────────────────────────────────────────────────────
@@ -555,8 +712,16 @@ def g5():
 def h1():
     if re.search(r'\.drive-body \{\s*fill-opacity: 0', CSS):
         return 'диск всё ещё проявляется прозрачностью'
-    if '.drive-body { transition: transform var(--caddy); }' not in CSS:
+    # Наружу --caddy, внутрь --caddy-in: та же кривая, развёрнутая во времени.
+    # Полка сопротивления сидит у разъёма и от направления не переезжает.
+    # Наружу --caddy с полкой в начале: каддик выходит за ручкой на сантиметр,
+    # и рука перехватывает. Внутрь --press-seat: перехватывать нечего, толкают
+    # одним движением, упор в последнем сантиметре. Развёрнутая кривая давала
+    # долгую полку почти у места — каддик читался застрявшим.
+    if '.drive-body { transition: transform var(--press-seat); }' not in CSS:
         return 'у диска нет своего хода'
+    if 'transition: transform var(--caddy);' not in CSS:
+        return 'у вынимания нет своей кривой'
     return BOARD.count('clip-path="url(#bay-out-') == 8 or 'отсечений по устью не восемь'
 
 
@@ -1102,12 +1267,25 @@ def h2():
 
 @check('D8', 'по крышке процессора идёт блик, а не сплошная заливка')
 def d8():
-    m = re.search(r'<rect class="die-shine" x="[-\d.]+" y="[-\d.]+" width="(\d+)"', BOARD)
-    if not m:
-        return 'блика на крышке нет'
-    from board.geom import SOCKET_W
-    lid_w = SOCKET_W - 80
-    return int(m.group(1)) < lid_w * 1.6 or f'полоса шире крышки в {int(m.group(1)) / lid_w:.1f} раза'
+    """Мерилом стала прозрачность концов, а не ширина прямоугольника.
+
+    Полоса обязана быть шире крышки: иначе при своём ходе она уходит с неё, и
+    из-под обрезки торчит её собственная кромка — половина крышки цветная,
+    половина нет. Значит «блик, а не заливка» держится тем, что концы полосы
+    сведены в ноль: по краям крышки виден сам металл с выбитой маркировкой.
+    """
+    grad = re.search(r'<linearGradient id="die-shine".*?</linearGradient>', BOARD, re.DOTALL)
+    if not grad:
+        return 'градиента кристалла нет'
+    stops = re.findall(r'offset="(\d+)%"\s+stop-color="[^"]*"\s+stop-opacity="([\d.]+)"', grad.group(0))
+    if len(stops) < 4:
+        return f'узлов градиента: {len(stops)}'
+    first, last = stops[0], stops[-1]
+    if float(first[1]) or float(last[1]):
+        return f'концы полосы не прозрачны: {first[1]}, {last[1]}'
+    # Прозрачная кайма — не меньше четверти длины с каждой стороны.
+    return (int(stops[1][0]) >= 25 and int(stops[-2][0]) <= 75) \
+        or f'кайма узкая: {stops[1][0]}%…{stops[-2][0]}%'
 
 
 @check('F3', 'партномер набит на самом райзере')
@@ -1139,18 +1317,438 @@ def l0b():
     return ('.stamp:hover .stamp-alt text' in CSS) or 'под курсором ничего не меняется'
 
 
+@check('G6', 'блок вынимается тугим ходом райзера, садится в два приёма')
+def g6():
+    # Наружу — тем же тугим ходом, что у райзера: так и надиктовано. Внутрь —
+    # посадка в два приёма. Ход при этом короткий: чуть больше контакта.
+    if not re.search(r'\.psu\.pulled \.pick-body \{[^}]*var\(--drag\)', CSS):
+        return 'блок вынимается не тугим ходом райзера'
+    if '.psu .pick-body { transition: transform var(--press-two); }' not in CSS:
+        return 'посадка блока не в два приёма'
+    m = re.search(r'\.psu\.pulled \.pick-body \{\s*transform: translateX\((\d+)px\)', CSS)
+    return (m and int(m.group(1)) <= 60) or f'ход блока {m and m.group(1)} — это не микродвижение'
+
+
+@check('G7', 'у блока питания нет движения вверх ни в одном состоянии')
+def g7():
+    if '.pick.psu:hover .pick-body { transform: none; }' not in CSS:
+        return 'наводка всё ещё приподнимает блок'
+    m = re.search(r'\.psu\.pulled \.pick-body \{\s*transform: ([^;]+);', CSS)
+    return (m and m.group(1).startswith('translateX')) or f'ход блока: {m and m.group(1)}'
+
+
+@check('H7', 'каддик задвигается свободно, а упирается в последнем сантиметре')
+def h7():
+    if not re.search(r'\.bay \.pick-body, \.blank \.pick-body \{ transition: transform var\(--press-seat\)', CSS):
+        return 'задвигание идёт не своей кривой'
+    # Полка сопротивления обязана быть в конце хода, а не в начале: в начале
+    # она читается как «застряло, не доехав».
+    pts = linear_pts('press-seat')
+    at = lambda t: next(p for tt, p in pts if tt >= t)
+    return at(0.3) > 0.5 or f'к трети времени каддик проходит всего {at(0.3):.0%}'
+
+
+@check('D11', 'кристалл уезжает вместе с крышкой процессора')
+def d11():
+    # Он рисуется рядом с гнездом, а не внутри крышки: внутри его обрезка
+    # уезжала не туда — clipPath задан в пользовательских координатах, и под
+    # переносом группы срез оказывался в другом месте. Значит двигать его
+    # должно то же правило, что и крышку.
+    if not re.search(r'\.cpu-slot\.opened \.cpu-lid,\s*\.rig\.service \.cpu-slot\.opened \.die \{', CSS):
+        return 'кристалл не привязан к правилу крышки'
+    return ('.heatsink, .cpu-lid, .die { transition: transform var(--glide); }' in CSS
+            or 'у кристалла нет перехода — он будет прыгать')
+
+
+@check('O1', 'подсказка автодополнения стоит на строке поля, а не над ней')
+def o1():
+    m = re.search(r'\.ghost \{([^}]*)\}', CSS)
+    if not m:
+        return 'зеркала подсказки нет'
+    body = m.group(1)
+    if 'line-height: normal' in body:
+        return 'строка зеркала считается по своей высоте, а не по высоте поля'
+    return ('align-items: center' in body) or 'зеркало не центровано по вертикали'
+
+
+@check('O2', 'строки настроек BIOS набраны плотно')
+def o2():
+    m = re.search(r'\.crt-row \{([^}]*)\}', CSS)
+    if not m:
+        return 'строк настроек нет'
+    pad = re.search(r'padding: (\d+)px', m.group(1))
+    return (pad and int(pad.group(1)) <= 1) or f'поля строки {pad and pad.group(1)}px'
+
+
+@check('R2', 'штрихи сосчитаны из текста, а не выдуманы, и не только у памяти')
+def r2():
+    from board.ink import barcode
+    from board.spec import DIMM, PSU
+    # Тот же вызов, что делает блок: если генератор перестанет держаться за
+    # текст, ширины совпадут у любых двух разных строк.
+    a = barcode(0, 0, f"{DIMM['size_gb']}GB", 10)
+    b = barcode(0, 0, f"{PSU['model']} {PSU['watt']}W PSU-1", 10)
+    if a == b:
+        return 'разные тексты дают одинаковые штрихи'
+    # И у памяти, и у блока штрихи должны стоять на схеме.
+    thin = BOARD.count('width="0.6"') + BOARD.count('height="1.4"')
+    return thin > 20 or f'штрихов на схеме всего {thin}'
+
+
+# ── L. Интерфейс и режимы ────────────────────────────────────────────────
+
+@check('L1', 'вид выбирает ширина окна, кнопки переключения нет')
+def l1():
+    left = [n for n, src in (('разметке', HTML), ('стилях', CSS), ('скрипте', JS))
+            if 'view-switch' in src]
+    if left:
+        return f'переключатель вида остался в: {", ".join(left)}'
+    return "matchMedia('(min-width: 821px)')" in JS or 'вид не привязан к ширине окна'
+
+
+@check('L2', 'кнопка лупы стоит в ряду и видна только на схеме')
+def l2():
+    if 'id="zoom-btn"' not in HTML:
+        return 'кнопки лупы нет в разметке'
+    return 'body.view-rig .zoom-btn { display: grid; }' in CSS or 'кнопка видна и в карточке'
+
+
+@check('L3', 'лупа: поле во весь экран, три ступени, выход по Esc')
+def l3():
+    if 'ZOOM_STEPS = [1, 1.6, 2.4]' not in JS:
+        return 'ступеней приближения не видно'
+    if 'position: fixed' not in re.search(r'\.rig\.zoom \.rig-body \{([^}]*)\}', CSS).group(1):
+        return 'поле не разложено на весь экран'
+    return "if (rig.classList.contains('zoom')) setZoom(false)" in JS or 'Esc не выводит из лупы'
+
+
+@check('L3а', 'вход и выход — перелётом: замер до и после, разница переходом')
+def l3a():
+    for cls in ('zoom-shift', 'zooming'):
+        if f'.rig.{cls} ' not in CSS or f"'{cls}'" not in JS:
+            return f'класса {cls} нет в стилях или в скрипте'
+    if 'transformOrigin' not in JS or 'getBoundingClientRect' not in JS:
+        return 'перелёт ничего не мерит'
+    # Переходы у летящих узлов обязаны быть выключены до смены раскладки: у
+    # сцены свой переход по width, и замер в эту секунду даёт нулевую разницу.
+    fly = re.search(r'function flyParts\(mutate\) \{(.*?)\n  \}', JS, re.DOTALL)
+    if not fly:
+        return 'flyParts не найдена'
+    body = fly.group(1)
+    # Ищем именно строку смены раскладки, а не первое `mutate()` в тексте:
+    # выше него стоит короткий путь для тех, кому движение не показывают.
+    if body.index("transition = 'none'") > body.index('\n    mutate();'):
+        return 'переходы глушатся после смены раскладки, замер выйдет нулевым'
+    # Корпус распрямляется ровно столько же, сколько длится перелёт.
+    fly_ms = int(re.search(r'const FLY = (\d+);', JS).group(1))
+    css_s = float(re.search(r'\.rig\.zooming \.chassis \{ transition: transform ([\d.]+)s', CSS).group(1))
+    return abs(css_s * 1000 - fly_ms) < 1 or f'перелёт {fly_ms} мс, распрямление {css_s} с'
+
+
+@check('L3б', 'имя и должность летят вместе со сценой, строка о работе гаснет')
+def l3b():
+    if "'.stage, .rig-id h2, .rig-id .bio'" not in JS:
+        return 'шапка не летит вместе со сценой'
+    if '.rig.zoom .rig-id h1' in CSS:
+        return 'в стилях лупы остался h1, а в разметке h2'
+    return '.rig.zoom .rig-id .now { display: none; }' in CSS or 'строка о работе видна в лупе'
+
+
+@check('L3в', 'приближает shift + клик, курсор и подсказка это показывают')
+def l3v():
+    if "!e.shiftKey" not in JS:
+        return 'приближает всякий щелчок'
+    if '.rig.zoom .rig-body { cursor: grab; }' not in CSS:
+        return 'простым курсором машину не возят'
+    if '.rig.zoom.shifted .rig-body { cursor: zoom-in; }' not in CSS:
+        return 'с зажатым shift курсор не становится лупой'
+    return ('lh-key' in CSS and 'lh-key">shift' in JS) or 'про shift подсказка молчит'
+
+
+@check('L5', 'у мелких органов управления вместо рамки — своя подсветка')
+def l5():
+    for sel in ('.svc-switch', '.power-btn', '.lp-reset', '.pick', 'a.callout', '.silk-mark'):
+        if not re.search(rf'{re.escape(sel)}:focus-visible[^{{]*\{{[^}}]*outline: none', CSS):
+            return f'{sel} остался с рамкой фокуса'
+    return True
+
+
+@check('L6', 'блик на переключателе сервиса — размытый и широкий')
+def l6():
+    if 'svc-shine-grad' not in BOARD:
+        return 'блик залит сплошным цветом'
+    r = rects(BOARD, **{'class': 'svc-shine'})
+    return (r and r[0][2] >= 40) or f'ширина блика {r[0][2] if r else "нет"}'
+
+
+@check('L7', 'почта копируется в буфер и отмечается словом')
+def l7():
+    return ('navigator.clipboard' in JS and 'скопировано' in JS) or 'почта только открывает клиент'
+
+
+@check('L8', 'адрес под курсором, длинные хвосты обрезаны')
+def l8():
+    if 'id="link-hint"' not in HTML:
+        return 'подсказки нет в разметке'
+    if 'HINT_TAIL = 28' not in JS:
+        return 'хвост не обрезается'
+    # Карточка — такой же набор ссылок, и подсказка там нужна затем же.
+    return "e.target.closest('.rig')" in JS or 'подсказка живёт только на схеме'
+
+
+@check('L9', 'бирки крупнее: плашка, значок и обе строки')
+def l9():
+    box = re.search(r'class="co-box" x="[\d.]+" y="[\d.]+" width="[\d.]+" height="([\d.]+)"', BOARD)
+    if not box or float(box.group(1)) < 74:
+        return f'высота плашки {box.group(1) if box else "не найдена"}'
+    size = re.search(r'\.co-text \{[^}]*font-size: ([\d.]+)px', CSS)
+    sub = re.search(r'\.co-sub \{[^}]*font-size: ([\d.]+)px', CSS)
+    return ((size and float(size.group(1)) >= 26 and sub and float(sub.group(1)) >= 14.5)
+            or f'кегль строк: {size and size.group(1)}, {sub and sub.group(1)}')
+
+
+@check('L4', 'лента ревизий поднимается командой, а локально сама')
+def l4():
+    if "name: 'revisions'" not in JS:
+        return 'команды revisions нет'
+    if 'revsAsked = true' not in JS:
+        return 'команда не снимает запрет на загрузку истории'
+    return ('if (revs.length || !(LOCAL || revsAsked)) return;' in JS
+            or 'лента не спрашивает ни про локальный запуск, ни про команду')
+
+
+# ── S…AA. Второй круг правок ─────────────────────────────────────────────
+
+@check('S1', 'приближение ведёт скрипт кадр за кадром, а не переход по ширине')
+def s1():
+    if re.search(r'\.rig\.zoom \.stage \{[^}]*transition: width', CSS):
+        return 'ширина всё ещё меняется переходом'
+    return ('requestAnimationFrame(tick)' in JS and 'const ZOOM_MS' in JS) or 'приближение не анимируется'
+
+
+@check('S2', 'точка под курсором остаётся на месте при приближении')
+def s2():
+    # Прокрутка считается из точки в координатах схемы и ставится в том же
+    # кадре, что и масштаб. Пока её доводили после перехода, схема всё это
+    # время ехала вокруг прежней точки.
+    m = re.search(r'function zoomTo\(step, cx, cy\) \{(.*?)\n  \}', JS, re.DOTALL)
+    if not m:
+        return 'zoomTo не найдена'
+    body = m.group(1)
+    return ('panTo(px * k - ax, py * k - ay)' in body) or 'якорь под курсором не держится'
+
+
+@check('S3', 'схему нельзя увезти за край поля')
+def s3():
+    if 'function panTo(' not in JS or 'function scrollMax(' not in JS:
+        return 'границ поля нет'
+    # Границы считаются по самой сцене: прокручиваемая область шире машины —
+    # перспектива и подписи рисуются за её габарит.
+    return ("st.offsetLeft + st.offsetWidth" in JS) or 'границы считаются не по сцене'
+
+
+@check('T1', 'рамки фокуса нет ни у одного органа управления на схеме')
+def t1():
+    for sel in ('.lid-btn-svg', '.lid-on-btn', '.svc-switch', '.lp-reset'):
+        if not re.search(rf'{re.escape(sel)}:focus-visible[^{{]*\{{[^}}]*outline: none', CSS):
+            return f'{sel} остался с рамкой'
+    return True
+
+
+@check('U1', 'тугой ход блока питания стал короче')
+def u1():
+    d = float(re.search(r'--drag: ([\d.]+)s', CSS).group(1))
+    return d <= 0.85 or f'--drag всё ещё {d} с'
+
+
+@check('V5', 'соты на кронштейне райзера — настоящие дырки, а не рисунок')
+def v5():
+    # Полупрозрачной заливки поверх стали мало: под ней остаётся непрозрачный
+    # кронштейн, и сквозь такую «дырку» видно его же, только темнее. Плата
+    # видна там, где стали физически нет, — значит лист обязан пробиваться
+    # маской.
+    if 'mask="url(#riser-perf-' not in BOARD:
+        return 'кронштейн не пробит маской'
+    return BOARD.count('<mask id="riser-perf-') == 2 or 'маска не у каждого кронштейна'
+
+
+@check('W2', 'INSTALL мелкая, без подложки и по середине полосы под площадкой')
+def w2():
+    from board.geom import SOCKET_H, Y_CPU0
+    m = re.search(r'<text x="[\d.]+" y="([\d.]+)"[^>]*font-size="([\d.]+)"[^>]*>INSTALL</text>', BOARD)
+    if not m:
+        return 'надписи INSTALL нет'
+    ty, size = float(m.group(1)), float(m.group(2))
+    if size > 5:
+        return f'кегль INSTALL {size}'
+    # Плашки под ней быть не должно: подложка под четырьмя буквами читалась
+    # ярлыком, а не набивкой. Ищем прямоугольник ровно под этой строкой.
+    if re.search(rf'<rect x="[\d.]+" y="{ty - 8:.0f}[^"]*"[^>]*/><text[^>]*>INSTALL<', BOARD):
+        return 'у надписи осталась подложка'
+    # По середине полосы между нижней кромкой площадки и кромкой гнезда.
+    pad_bot = Y_CPU0 + 29 + (SOCKET_H - 58)
+    mid = pad_bot + (Y_CPU0 + SOCKET_H - pad_bot) / 2
+    return abs(ty - mid) <= 4 or f'INSTALL на {ty}, середина полосы {mid}'
+
+
+@check('X2', 'штрих-код считается от хэша сборки')
+def x2():
+    mem = (ROOT / 'tools/board/blocks/memory.py').read_text(encoding='utf-8')
+    psu = (ROOT / 'tools/board/blocks/psu.py').read_text(encoding='utf-8')
+    return ('barcode(x + 3, y + 1.4, BOARD_SHA' in mem and 'BOARD_SHA + name' in psu) \
+        or 'штрихи считаются не от коммита'
+
+
+@check('Y3', 'ни одна надпись на плате не залезает на её кромку')
+def y3():
+    from board.geom import H
+    bad = [(t, y) for x, y, t, d in texts(BOARD) if y < 20 or y > H - 20]
+    return not bad or f'за кромкой: {bad[:3]}'
+
+
+@check('Y5', 'лампа сердца не накрывает свою подпись')
+def y5():
+    hb = re.search(r'class="lamp led-hb"[^>]*cx="([\d.]+)" cy="([\d.]+)"', BOARD)
+    if not hb:
+        hb = re.search(r'<circle class="[^"]*led-hb[^"]*" cx="([\d.]+)" cy="([\d.]+)"', BOARD)
+    lab = [(x, y) for x, y, t, d in texts(BOARD) if t == 'HB']
+    if not hb or not lab:
+        return f'не нашлось: лампа {bool(hb)}, подпись {bool(lab)}'
+    return abs(float(hb.group(1)) - lab[0][0]) > 10 or 'лампа стоит над подписью'
+
+
+@check('Z1', 'защёлка ошибки снимается чтением журнала')
+def z1():
+    return ('function faultLog()' in JS and 'const cleared = faultLog();' in JS) \
+        or 'журнал не снимает защёлку'
+
+
+@check('Z2', 'на сборке между группами нет простоя')
+def z2():
+    from board.geom import SEAT
+    # Процессор обязан начаться до того, как отыграли вентиляторы: их последний
+    # трогается на 0.46 + 3·0.11 и идёт 0.62 с.
+    fan_end = SEAT['fan'][0] + 3 * SEAT['fan'][1] + 0.62
+    return SEAT['cpu'][0] <= fan_end + 0.05 or \
+        f'процессор стартует на {SEAT["cpu"][0]}, а вентиляторы кончают на {fan_end:.2f}'
+
+
+@check('AA4', 'в лупе тема спрятана, а оставшиеся кнопки крупнее')
+def aa4():
+    if 'body.zoom .theme-switch { display: none; }' not in CSS:
+        return 'кнопка темы в лупе на месте'
+    m = re.search(r'body\.zoom \.zoom-btn,\s*body\.zoom \.assemble-btn \{\s*width: (\d+)px', CSS)
+    return (m and int(m.group(1)) >= 52) or f'ширина кнопок {m and m.group(1)}'
+
+
+@check('AA5', 'включённая лупа горит красным')
+def aa5():
+    m = re.search(r'body\.zoom \.zoom-btn\[aria-pressed="true"\] \{([^}]*)\}', CSS)
+    return (m and '#dc322f' in m.group(1)) or 'кнопка не выделена красным'
+
+
+@check('W5', 'у кристалла одно правило разлёта, без дублей и без масштаба')
+def w5():
+    n = len(re.findall(r'\.cpu-slot\.opened \.die \{', CSS))
+    if n != 1:
+        return f'правил разлёта кристалла: {n}'
+    return 'scale' not in re.search(r'\.cpu-slot\.opened \.die \{([^}]*)\}', CSS).group(1) \
+        or 'масштаб уводит кристалл с крышки'
+
+
+@check('W6', 'блик накрывает крышку целиком в любой точке своего хода')
+def w6():
+    from board.geom import SOCKET_H, SOCKET_W, X_SOCK, Y_CPU0
+    m = re.search(r'class="die-shine" x="([-\d.]+)" y="([-\d.]+)" width="([\d.]+)" height="([\d.]+)"', BOARD)
+    if not m:
+        return 'полосы блика нет'
+    bx, by, bw, bh = (float(v) for v in m.groups())
+    k = re.search(r'50%\s*\{ transform: translate\((\d+)px, (-?\d+)px\)', CSS)
+    dx, dy = (int(k.group(1)), int(k.group(2))) if k else (0, 0)
+    # Крышка сидит внутри гнезда с полем 35 по X и 29 по Y.
+    ix, iy, iw, ih = X_SOCK + 35, Y_CPU0 + 29, SOCKET_W - 70, SOCKET_H - 58
+    for ox, oy in ((0, 0), (dx, dy)):
+        if not (bx + ox <= ix and by + oy <= iy
+                and bx + ox + bw >= ix + iw and by + oy + bh >= iy + ih):
+            return f'при сдвиге {ox},{oy} полоса не накрывает крышку'
+    return True
+
+
+@check('W7', 'обозначение процессора набито под деталью, а не поверх неё')
+def w7():
+    i = BOARD.find('data-unit="cpu0"')
+    body = BOARD[i:BOARD.find('data-unit="cpu1"')]
+    label = body.find('>CPU0<')
+    slot = body.find('class="pick cpu-slot"')
+    return (0 < label < slot) or 'подпись стоит после гнезда — значит поверх снятых частей'
+
+
+@check('V6', 'отвод райзера вбок ждёт, пока подъём кончится')
+def v6():
+    d = re.search(r'\.riser\.pulled \.pick-body \{[^}]*var\(--riser-slide\) ([\d.]+)s', CSS)
+    lift = float(re.search(r'--riser-lift: ([\d.]+)s', CSS).group(1))
+    if not d:
+        return 'задержки отвода нет'
+    return float(d.group(1)) >= lift or f'отвод трогается на {d.group(1)} при подъёме в {lift} с'
+
+
+@check('T2', 'внутри машины браузерных рамок фокуса нет вовсе')
+def t2():
+    return '.rig :focus, .rig :focus-visible { outline: none; }' in CSS \
+        or 'рамки гасятся только у перечисленных органов'
+
+
+@check('AA6', 'кнопки в лупе не наезжают друг на друга')
+def aa6():
+    z = re.search(r'body\.zoom \.zoom-btn \{ right: (\d+)px', CSS)
+    a = re.search(r'body\.zoom \.assemble-btn \{ right: (\d+)px', CSS)
+    w = re.search(r'body\.zoom \.zoom-btn,\s*body\.zoom \.assemble-btn \{\s*width: (\d+)px', CSS)
+    if not (z and a and w):
+        return 'правил размещения в лупе нет'
+    return int(z.group(1)) >= int(a.group(1)) + int(w.group(1)) + 8 \
+        or f'зазор между кнопками {int(z.group(1)) - int(a.group(1)) - int(w.group(1))}'
+
+
+@check('X4', 'серебристых контактов на проборе плашки нет')
+def x4():
+    mem = (ROOT / 'tools/board/blocks/memory.py').read_text(encoding='utf-8')
+    return 'SILVER' not in mem or 'серебро на плашке осталось'
+
+
 # ── N. Светлая тема ──────────────────────────────────────────────────────
 
-@check('N1', 'корпус, блоки и борт перекрашиваются вместе с темой')
+@check('N5', 'консоль остаётся тёмной вместе с машиной')
+def n5():
+    """Тоже перевёрнуто. Консоль — приборная панель этой машины, а не блок
+    страницы: она стоит вплотную к схеме и обязана быть с ней одного тона.
+    Светлая консоль рядом с тёмной машиной читалась приклеенным листом бумаги.
+    """
+    if re.search(r':root\[data-theme="light"\][^{]*\{[^}]*--con-bg', CSS):
+        return 'светлое переопределение консоли вернулось'
+    return '--con-bg:' in CSS or 'токена фона консоли нет'
+
+
+@check('N1', 'машина не перекрашивается вместе с темой страницы')
 def n1():
-    need = ('--chassis', '--metal', '--metal-deep', '--steel')
+    """Требование перевёрнуто сознательно, и вот чем.
+
+    Сначала просили, чтобы корпус, блоки и борт светлели вместе с темой. Это
+    сделали, и оказалось плохо по двум причинам. Цвета машины подобраны под
+    тёмный фон: на кремовом сталь и текстолит читаются выцветшей картинкой, а
+    лампы — просто цветными точками, потому что свет виден только на тёмном.
+    И перекраска шла рывком: страница гасит фон переходом, а фигуры в svg берут
+    цвет из переменной, которая не интерполируется, — машина перещёлкивалась
+    посреди плавного перехода.
+
+    Схема осталась фотографией тёмного предмета: на дневном свету он тёмным и
+    остаётся. Тема живёт у страницы вокруг него.
+    """
+    if re.search(r':root\[data-theme="light"\] \.rig \{', CSS):
+        return 'светлые переопределения схемы вернулись'
+    # Токены при этом на месте: ими машина и красится, просто значение одно.
+    need = ('--chassis', '--metal', '--metal-deep', '--steel', '--pcb')
     missing = [t for t in need if f'{t}:' not in CSS]
-    if missing:
-        return f'нет токенов: {missing}'
-    light = re.search(r':root\[data-theme="light"\] \.rig \{([^}]*)\}', CSS)
-    if not light:
-        return 'светлая тема ничего не переопределяет'
-    return all(t in light.group(1) for t in need) or 'светлая тема меняет не всё'
+    return not missing or f'нет токенов: {missing}'
 
 
 @check('N2', 'райзеры и борт берут цвет из того же токена')
@@ -1158,10 +1756,12 @@ def n2():
     return BOARD.count('var(--steel,') >= 4 or f'по токену стали нарисовано {BOARD.count("var(--steel,")} фигур'
 
 
-@check('N3', 'текстолит светлеет в светлой теме')
+@check('N3', 'у страницы светлая тема осталась')
 def n3():
-    light = re.search(r':root\[data-theme="light"\] \.rig \{([^}]*)\}', CSS)
-    return (light and '--pcb:' in light.group(1)) or 'плата не меняется'
+    # Убрана она только у машины. Карточка, фон и кнопки темой по-прежнему
+    # управляются — иначе переключатель нечем было бы объяснить.
+    page = (ROOT / 'style.css').read_text(encoding='utf-8')
+    return ':root[data-theme="light"]' in page or 'светлая тема исчезла со страницы целиком'
 
 
 @check('N4', 'передний лист и вентиляторы остаются тёмными')
@@ -1170,6 +1770,516 @@ def n4():
     wall = [r for r in rects(BOARD, fill='#0f1619') if abs(r[0] - X_FAN) < 0.1 and r[2] == FAN_W]
     sheet = 'fill="#0a1013"' in BOARD
     return (wall and sheet) or 'фронт или стена вентиляторов ушли в переменную'
+
+
+# ── B. Крышка ────────────────────────────────────────────────────────────
+# Крышка лежит во втором SVG, поэтому все проверки этого раздела читают LID.
+# Читаем именно собранный файл: в исходнике видно, что код написан, а не что
+# он что-то нарисовал.
+
+
+def _turned(src):
+    """Повёрнутые на 90° группы: (центр X, центр Y, содержимое).
+
+    Всё, что на крышке лежит вдоль неё, нарисовано в обычных координатах и
+    повёрнуто целиком — иначе каждую надпись пришлось бы считать в уме.
+    """
+    return [(float(m.group(1)), float(m.group(2)), m.group(3))
+            for m in re.finditer(r'<g transform="rotate\(-90 ([\d.]+) ([\d.]+)\)">(.*?)</g>',
+                                 src, re.DOTALL)]
+
+
+def _psu_plates():
+    """Шильдики питания: номер отсека → (центр поворота, рамка)."""
+    out = {}
+    for cx, cy, body in _turned(LID):
+        m = re.search(r'>PSU (\d)</text>', body)
+        if not m:
+            continue
+        edge = rects(body, stroke='#05090b')
+        if edge:
+            out[m.group(1)] = (cx, cy, edge[0])
+    return out
+
+
+def _perf():
+    """Соты крышки: список центров и полувысота каждой."""
+    out = []
+    for pts in re.findall(r'<polygon points="([^"]*)"', LID):
+        xy = [tuple(map(float, p.split(','))) for p in pts.split()]
+        out.append((sum(p[0] for p in xy) / len(xy), sum(p[1] for p in xy) / len(xy)))
+    return out
+
+
+@check('B1', 'соты только над задней стенкой и отсеками БП, и они сквозные')
+def b1():
+    holes = _perf()
+    if not holes:
+        return 'сот на крышке нет'
+    # Задняя стенка с гнёздами лежит ровно между отсеками БП — это её полоса.
+    zones = {'задняя стенка': (geom.X_IO - 12, geom.Y_PSU_TOP, geom.W, geom.Y_PSU_BOT)}
+    for n, y in enumerate(geom.PSU_Y):
+        zones[f'отсек БП {n+1}'] = (geom.X_REAR, y, geom.W, y + geom.PSU_H)
+    seen = dict.fromkeys(zones, 0)
+    for cx, cy in holes:
+        hit = [k for k, (x0, y0, x1, y1) in zones.items() if x0 <= cx <= x1 and y0 <= cy <= y1]
+        if not hit:
+            return f'сота вне задней стенки и отсеков: ({cx:.0f}, {cy:.0f}), всего сот {len(holes)}'
+        seen[hit[0]] += 1
+    empty = [k for k, n in seen.items() if not n]
+    if empty:
+        return f'без перфорации остались: {", ".join(empty)}'
+    # Сквозная — значит лист в этих местах пробит, а не закрашен: те же соты
+    # лежат в маске, которой вырезано тело листа.
+    mask = re.search(r'<mask id="lid-perf".*?</mask>', LID, re.DOTALL)
+    if not mask or '<polygon' not in mask.group(0):
+        return 'соты нарисованы поверх глухого листа, а не вырезаны в нём'
+    return 'mask="url(#lid-perf)"' in LID or 'маска есть, но лист ею не пробит'
+
+
+@check('B2', 'шильдики питания у правой кромки: PSU 1 в сплошной рамке, PSU 2 в пунктирной')
+def b2():
+    plates = _psu_plates()
+    if sorted(plates) != ['1', '2']:
+        return f'шильдиков с номером отсека: {sorted(plates)}'
+    left = {}
+    for n, (cx, cy, (x, y, w, h, d)) in plates.items():
+        # Поворот на −90° вокруг (cx, cy): по X шильдик занимает cx ± h/2.
+        gap = geom.W - (cx + h / 2)
+        if gap > 12:
+            return f'шильдик PSU {n} не прижат к кромке: до края {gap:.0f}'
+        dashed = 'stroke-dasharray' in d
+        if (n == '2') != dashed:
+            return f'у PSU {n} рамка {"пунктирная" if dashed else "сплошная"}'
+        if float(d.get('stroke-width', 0)) < 3:
+            return f'рамка PSU {n} тонкая: {d.get("stroke-width")}'
+        left[n] = cx - h / 2
+    # «А после, немножечко отходя, начинается перфорация»: соты отсека лежат
+    # левее шильдика и не наезжают на него.
+    for n, y in enumerate(geom.PSU_Y):
+        near = [cx for cx, cy in _perf() if y <= cy <= y + geom.PSU_H]
+        if not near:
+            return f'над отсеком {n+1} перфорации нет'
+        if max(near) > left[str(n + 1)] - 8:
+            return f'соты отсека {n+1} доходят до шильдика: {max(near):.0f} при кромке {left[str(n+1)]:.0f}'
+    return True
+
+
+@check('B3', 'схематика крышки совпадает с местами самих узлов')
+def b3():
+    socks = sorted(rects(BOARD, fill='#05090b', width=str(geom.DIMM_SOCK_W)),
+                   key=lambda r: r[1])
+    if len(socks) != 3 * geom.BANK_N:
+        return f'сокетов памяти на плате: {len(socks)}'
+    for b in range(3):
+        bank = socks[b * geom.BANK_N:(b + 1) * geom.BANK_N]
+        x0, y0 = bank[0][0], bank[0][1]
+        y1 = bank[-1][1] + bank[-1][3]
+        if not [r for r in rects(LID, width=str(geom.DIMM_SOCK_W))
+                if abs(r[0] - x0) < 2 and abs(r[1] - y0) < 2 and abs(r[1] + r[3] - y1) < 2]:
+            return f'рамка банка на крышке не сходится с сокетами: {x0:.0f},{y0:.0f}..{y1:.0f}'
+    for y in (geom.Y_CPU0, geom.Y_CPU1):
+        if not [r for r in rects(LID, width=str(geom.SOCKET_W), height=str(geom.SOCKET_H))
+                if abs(r[0] - geom.X_SOCK) < 1 and abs(r[1] - y) < 1]:
+            return f'рамка процессора на y={y} не по сокету'
+    # Бирки гнёзд стоят против середины своего гнезда, а не там, где пришлось.
+    for k, name in enumerate(('Telegram', 'Twitter', 'Email')):
+        mid = geom.IO_Y + k * geom.JACK_PITCH + geom.JACK_H / 2
+        ys = [y for x, y, t, d in texts(LID) if t == name]
+        if not ys or abs(ys[0] - 4 - mid) > 4:
+            return f'бирка {name} на y={ys} при середине гнезда {mid:.0f}'
+    return True
+
+
+@check('B4', 'методичка Power Supply не лежит под кнопкой снятия крышки')
+def b4():
+    frag = [ln for ln in LID.split('\n') if '>POWER SUPPLY<' in ln]
+    if not frag:
+        return 'методички Power Supply нет'
+    x, y, w, h, _ = rects(frag[0])[0]
+    bx, by, bs = geom.LID_BTN
+    if x < bx + bs and x + w > bx and y < by + bs and y + h > by:
+        return f'методичка ({x:.0f},{y:.0f} {w:.0f}×{h:.0f}) под кнопкой ({bx},{by} {bs}×{bs})'
+    return True
+
+
+@check('B5', 'Hot Swap и код замены повёрнуты, ниже верхнего края и разнесены')
+def b5():
+    was = {'HOT-SWAP HDD': 150, 'КОД ЗАМЕНЫ': 100}     # прежние высоты плашек
+    box = {}
+    for cx, cy, body in _turned(LID):
+        for title, before in was.items():
+            if f'>{title}<' not in body:
+                continue
+            _, _, w, h, _ = rects(body)[0]
+            if h >= before:
+                return f'{title}: высота {h:.0f} — не меньше прежних {before}'
+            box[title] = (cy - w / 2, w)               # после поворота: верх и высота
+    if sorted(box) != sorted(was):
+        return f'повёрнутых наклеек: {sorted(box)}'
+    top = min(v[0] for v in box.values())
+    if top < 80:
+        return f'верхняя наклейка прижата к краю крышки: y={top:.0f}'
+    a, b = sorted(box.values())
+    gap = b[0] - (a[0] + a[1])
+    return gap >= 60 or f'между наклейками {gap:.0f} — тесно'
+
+
+@check('B6', 'на крышке нет ни вентиляторов, ни общей обводки платы')
+def b6():
+    if [r for r in rects(LID, width=str(geom.FAN_W)) if abs(r[0] - geom.X_FAN) < 1]:
+        return 'рамка стенки вентиляторов осталась'
+    if re.search(rf'<circle[^>]*r="{geom.FAN_W / 3.6:.1f}"', LID):
+        return 'крыльчатки остались'
+    if f'M{geom.X_PCB} 18' in LID:
+        return 'обводка платы осталась'
+    return True
+
+
+@check('B7', 'на левой кромке две синие кнопки, и они же снимают крышку')
+def b7():
+    from board.palette import COLD
+    i = LID.find('<g id="lid-remove"')
+    if i < 0:
+        return 'кнопки снятия крышки нет'
+    lat = re.findall(r'<g class="lid-latch">(.*?)</g>', LID[i:], re.DOTALL)
+    if len(lat) != 2:
+        return f'защёлок внутри кнопки снятия: {len(lat)}'
+    for body in lat:
+        x, _, _, _, d = rects(body)[0]
+        if x > geom.X_BP + 14:
+            return f'защёлка не на передней кромке: x={x:.0f}'
+        if d.get('fill') != COLD:
+            return f'защёлка не синяя: {d.get("fill")}'
+    press = re.search(r'\.lid-btn-svg:active \.lid-latch \{([^}]*)\}', CSS)
+    if not press or 'translate' not in press.group(1):
+        return 'нажатие не вдавливает кнопки'
+    return True
+
+
+@check('B8', 'крышка снимается в три движения: туго вправо, приподнялась, ушла')
+def b8():
+    pts = curve('lid-slide')
+    dur = re.search(r'--lid-slide: ([\d.]+)s', CSS)
+    off = re.search(r'\.rig\.lid-off \.lid \{([^}]*)\}', CSS)
+    if not pts or not dur or not off:
+        return 'кривой снятия или правила снятой крышки нет'
+    dur, body = float(dur.group(1)), off.group(1)
+    far = re.search(r'translate:\s*(-?[\d.]+)%', body)
+    if not far or float(far.group(1)) < 50:
+        return f'крышка уезжает недалеко: {far and far.group(1)}'
+    if not re.search(r'scale:\s*1\.0[1-9]', body):
+        return 'крышка не приподнимается — второго движения нет'
+    lift = re.search(r'scale [\d.]+s [a-z-]+ ([\d.]+)s', body)
+    if not lift:
+        return 'подъём идёт без своей задержки: это одно движение, а не три'
+    t = float(lift.group(1))
+    # Первое движение — «туго, примерно на полсантиметра». У листа 1146 единиц
+    # ширины на 44 см живого корпуса, то есть полсантиметра — это около 1,3%.
+    tight = at(pts, t / dur) * float(far.group(1))
+    if not 0.4 <= tight <= 2.5:
+        return f'к подъёму лист прошёл {tight:.2f}% ширины — это не полсантиметра'
+    gone = at(pts, (t + 0.34) / dur) * float(far.group(1))
+    return gone <= 20 or f'лист ушёл на {gone:.0f}% ширины, не дождавшись подъёма'
+
+
+@check('B9', 'на задней кромке крышки два выреза-трапеции со скруглениями')
+def b9():
+    """Требование уточнено владельцем.
+
+    Было: выемка под каждый кронштейн райзера. Стало: два выреза на всю кромку —
+    один под оба слота райзеров разом (перемычка между ними была бы язычком
+    стали в палец шириной), другой под гнёзда встроенных сетевых карт. Под USB
+    и D-Sub выреза нет: там ничего не снимают.
+
+    Спуски под сорок пять градусов, а не прямым углом: штампованный лист так и
+    режут, прямой угол — концентратор напряжений. Углы скруглены, и внешние и
+    внутренние.
+    """
+    m = re.search(r'<path d="(M\d+ 4 H[^"]*)" fill="#161f24"', LID)
+    if not m:
+        return 'контура листа нет'
+    d = m.group(1)
+    # Скос под 45°: у прямой L разница по осям одинакова.
+    slopes = [(float(x), float(y)) for x, y in re.findall(r'L([\d.]+) ([\d.]+)', d)]
+    if len(slopes) != 4:
+        return f'наклонных участков: {len(slopes)} — вырезов должно быть два'
+    # Скруглений на вырез — четыре, дуги малого радиуса.
+    arcs = re.findall(r'a(\d+) \1 0 0 [01] ', d)
+    if len(arcs) < 8:
+        return f'скруглений на кромке: {len(arcs)}'
+    # Первый вырез начинается у верхнего райзера, второй — у первого гнезда
+    # сетевой карты. Точку входа ищем по вертикали перед скруглением: она
+    # отстоит от кромки выреза на r·tg(22.5°).
+    # Начало выреза узнаётся по направлению скругления: внутрь листа кромка
+    # заворачивает дугой со sweep 0, наружу — со sweep 1. Иначе за начало
+    # принимается и дальний край предыдущего выреза.
+    tops = [float(v) for v in re.findall(r'V([\d.]+) a\d+ \d+ 0 0 0 ', d)]
+    want = (geom.RISER[0][0] - 8, geom.IO_Y - 8)
+    for w in want:
+        if not any(abs(t - w) < 4 for t in tops):
+            return f'выреза у y={w} нет; вертикали перед скруглениями: {tops}'
+    # Под мелочью выреза быть не должно.
+    aux = geom.IO_AUX_Y
+    return not any(abs(t - aux) < 12 for t in tops) or 'под мелочью прорезан лишний вырез'
+
+
+@check('B12', 'вырезы крышки согласованы с проёмами задней панели')
+def b12():
+    """Крышка садится на машину, и её вырезы обязаны совпадать с тем, что из
+    машины торчит: с кронштейнами райзеров и с гнёздами сетевых карт. Иначе на
+    надетой крышке вырез приходится на глухую сталь панели, а торчащий
+    кронштейн — на лист.
+
+    Проверяем не числа, а то, что и лист, и панель считают их из одних и тех же
+    имён: RISER и IO_Y с JACK_PITCH. Совпадение, выписанное числами дважды,
+    расходится на первой же правке.
+    """
+    lid_src = (ROOT / 'tools/board/blocks/lid.py').read_text(encoding='utf-8')
+    io_src = (ROOT / 'tools/board/blocks/rear_io.py').read_text(encoding='utf-8')
+    if 'notch(RISER[0][0]' not in lid_src or 'notch(IO_Y' not in lid_src:
+        return 'крышка режет кромку по своим числам, а не по RISER и IO_Y'
+    if 'cutouts=[(y, h) for y, h in RISER]' not in io_src:
+        return 'панель режет проёмы не по RISER'
+    return 'IO_Y + 2 * JACK_PITCH' in io_src or 'панель ставит гнёзда не по шагу JACK_PITCH'
+
+
+@check('B10', 'закрытие крышки — снятие задом наперёд: та же кривая и зеркальные задержки')
+def b10():
+    # Сверять надо не «похоже ли», а три отдельных движения по отдельным
+    # свойствам: одной проверки кривой мало — задержки живут в сокращённой
+    # записи transition и разъезжаются молча.
+    flat = re.sub(r'/\*.*?\*/', ' ', CSS, flags=re.DOTALL)
+
+    def moves(sel):
+        """Свойство → (длительность, задержка) из transition правила."""
+        for m in re.finditer(r'([^{}]+)\{([^{}]*)\}', flat):
+            if sel not in [s.strip() for s in m.group(1).split(',')]:
+                continue
+            line = re.search(r'transition:([^;]*);', m.group(2))
+            if not line:
+                continue
+            out = {}
+            for part in line.group(1).split(','):
+                secs = [float(v) for v in re.findall(r'([\d.]+)s', part)]
+                var = re.search(r'var\(--([\w-]+)\)', part)
+                if var:
+                    span = re.search(rf'--{var.group(1)}: ([\d.]+)s', CSS)
+                    if not span:
+                        return f'кривой --{var.group(1)} нет'
+                    out[part.split()[0]] = (float(span.group(1)), secs[0] if secs else 0.0)
+                else:
+                    out[part.split()[0]] = (secs[0], secs[1] if len(secs) > 1 else 0.0)
+            return out
+        return None
+
+    fwd, back = moves('.rig.lid-off .lid'), moves('.lid')
+    if not isinstance(fwd, dict) or not isinstance(back, dict):
+        return f'переходов крышки не нашлось: снятие {fwd}, закрытие {back}'
+    if not re.search(r'translate var\(--lid-slide\)', flat):
+        return 'снятие идёт не по --lid-slide'
+    if not re.search(r'translate var\(--lid-press\)', flat):
+        return 'закрытие идёт не по --lid-press'
+    if not mirrored('lid-slide', 'lid-press'):
+        return 'кривая закрытия не является разворотом кривой снятия'
+    if sorted(fwd) != sorted(back):
+        return f'движений на снятии {sorted(fwd)}, на закрытии {sorted(back)}'
+    span = fwd['translate'][0]
+    if abs(back['translate'][0] - span) > 0.01:
+        return (f'ход длится {span}s на снятии и {back["translate"][0]}s на закрытии — '
+                'разной длины разворот разворотом не будет')
+    # Развёрнутое движение стартует тогда, когда прямое кончало: задержка
+    # обязана стать (полный ход − конец прямого). Общая добавка ко всем трём
+    # разрешена — это ожидание воздуховодов, оно сдвигает ход целиком.
+    shift = {}
+    for prop, (dur, lag) in fwd.items():
+        if abs(back[prop][0] - dur) > 0.01:
+            return f'{prop}: {dur}s на снятии против {back[prop][0]}s на закрытии'
+        shift[prop] = round(back[prop][1] - (span - (lag + dur)), 3)
+    if max(shift.values()) - min(shift.values()) > 0.02:
+        return f'задержки не зеркальны, разбег добавок: {shift}'
+    return min(shift.values()) >= -0.01 or f'закрытие начинается раньше нуля: {shift}'
+
+
+@check('B11', 'бирки со ссылками живут по крышке: под листом их нет, проступают, когда он сошёл')
+def b11():
+    flat = re.sub(r'/\*.*?\*/', ' ', CSS, flags=re.DOTALL)
+    hid = re.search(r'\.rig:not\(\.lid-off\) \.callout \{([^}]*)\}', flat)
+    if not hid:
+        return 'бирки с крышкой не связаны: правила «лист на месте» нет'
+    if not re.search(r'opacity:\s*0\b', hid.group(1)):
+        return 'под закрытой крышкой бирки видны'
+    if not re.search(r'\.rig:not\(\.lid-off\) a\.callout \{[^}]*pointer-events:\s*none', flat):
+        return 'под закрытой крышкой в бирки всё ещё можно ткнуть'
+    show = re.search(r'\.rig\.lid-off \.callout \{([^}]*)\}', flat)
+    lag = show and re.search(r'transition-delay:\s*calc\(([\d.]+)s \+ '
+                             r'var\(--tag-order[^*]*\* ([\d.]+)s\)', show.group(1))
+    if not lag:
+        return 'снятая крышка бирок не показывает либо показывает разом, без --tag-order'
+    if float(lag.group(2)) <= 0:
+        return 'ступеньки между бирками нет — они выскакивают все сразу'
+    # Раньше времени бирки выскочили бы из-под ещё не ушедшего листа.
+    dur = float(re.search(r'--lid-slide: ([\d.]+)s', CSS).group(1))
+    gone = at(curve('lid-slide'), min(1.0, float(lag.group(1)) / dur))
+    if gone < 0.85:
+        return f'бирки проступают, когда крышка прошла {gone*100:.0f}% пути'
+    # А на закрытии, наоборот, гаснуть надо до того, как лист тронулся: иначе
+    # надписи будут читаться сквозь идущую крышку.
+    start = re.search(r'translate var\(--lid-press\) ([\d.]+)s', flat)
+    if not start:
+        return 'закрытие идёт без задержки — сверять уход бирок не с чем'
+    fade = re.search(r'transition:([^;]*);', hid.group(1))
+    off = sum(float(v) for v in re.findall(r'([\d.]+)s', fade.group(1))) if fade else 0.0
+    return off <= float(start.group(1)) + 0.01 or (
+        f'бирки гаснут {off:.2f}s, а лист трогается на {start.group(1)}s')
+
+
+# ── C. Воздуховоды памяти ────────────────────────────────────────────────
+# Кожух — узел платы, поэтому читаем BOARD. Каждый нарисован одним фрагментом,
+# то есть одной строкой собранного файла.
+
+FAN_OF = {'l': (0,), 'c': (3, 4), 'r': (7,)}
+LETTERS_OF = {'l': 'ABCDEFGH', 'c': 'IJKLABCD', 'r': 'EFGHIJKL'}
+
+
+def _hoods():
+    return {ln[len('<g class="baffle baffle-')]: ln
+            for ln in BOARD.split('\n') if ln.startswith('<g class="baffle baffle-')}
+
+
+def _hood_path(hood):
+    return re.search(r'<path d="([^"]*)" fill="#080c0e"', hood).group(1)
+
+
+def _fan_window(fans):
+    """Окно вентиляторов, к которым ведёт раструб: сверху донизу."""
+    return (26 + fans[0] * geom.FAN_STEP,
+            26 + fans[-1] * geom.FAN_STEP + geom.FAN_H)
+
+
+@check('C1', 'над каждым банком кожух, справа — по границе процессора')
+def c1():
+    hoods = _hoods()
+    if sorted(hoods) != ['c', 'l', 'r']:
+        return f'кожухов на схеме: {sorted(hoods)}'
+    right = geom.X_SOCK + geom.SOCKET_W
+    for code, y0 in zip('lcr', (geom.Y_BANK_L, geom.Y_BANK_C, geom.Y_BANK_R)):
+        m = re.match(r'M[\d.]+ [\d.]+ L[\d.]+ ([\d.]+) H([\d.]+) V([\d.]+)', _hood_path(hoods[code]))
+        if not m:
+            return f'кожух {code}: контур не разобран'
+        top, x_r, bot = float(m.group(1)), float(m.group(2)), float(m.group(3))
+        if abs(x_r - right) > 1:
+            return f'кожух {code} кончается на {x_r:.0f}, край процессора на {right}'
+        bank_bot = y0 + (geom.BANK_N - 1) * geom.PITCH + geom.SLOT_H
+        if top > y0 or bot < bank_bot:
+            return f'кожух {code} накрывает {top:.0f}..{bot:.0f} при банке {y0}..{bank_bot}'
+    # Подписи слотов остаются на виду: они правее кожуха.
+    plates = [r for r in rects(BOARD, rx='1.5') if abs(r[3] - 12.5) < 0.1]
+    if not plates:
+        return 'плашек подписей DIMM не нашлось'
+    return min(r[0] for r in plates) > right or 'подписи DIMM ушли под кожух'
+
+
+@check('C2', 'раструб каждого кожуха приходится на свои вентиляторы, и номера те же')
+def c2():
+    for code, hood in _hoods().items():
+        d = _hood_path(hood)
+        top = float(re.match(r'M[\d.]+ ([\d.]+)', d).group(1))
+        bot = float(re.search(r'L[\d.]+ ([\d.]+) Z', d).group(1))
+        f0, f1 = _fan_window(FAN_OF[code])
+        if abs(top - f0) > 1 or abs(bot - f1) > 1:
+            return (f'кожух {code}: раструб {top:.0f}..{bot:.0f}, '
+                    f'окно вентиляторов {f0:.0f}..{f1:.0f}')
+        nums = sorted(set(re.findall(r'>(\d)</text>', hood)))
+        want = sorted(str(i + 1) for i in FAN_OF[code])
+        if nums != want:
+            return f'кожух {code} подписан вентиляторами {nums}, ведёт к {want}'
+    return True
+
+
+@check('C3', 'у вентилятора полупрозрачная шторка с вырезом под оранжевую ручку')
+def c3():
+    tab_x = geom.X_FAN + geom.FAN_W - 8
+    handles = [r for r in rects(BOARD, fill='#cb4b16') if abs(r[0] - tab_x) < 0.1]
+    for code, hood in _hoods().items():
+        m = re.search(rf'<path d="(M{tab_x} [^"]*)" fill="#dfe8ea" fill-opacity="([\d.]+)"', hood)
+        if not m:
+            return f'у кожуха {code} шторки нет'
+        op = float(m.group(2))
+        if not 0.05 <= op <= 0.35:
+            return f'шторка кожуха {code} залита на {op}: сквозь неё либо всё, либо ничего'
+        notches = [(float(b), float(a)) for a, b in
+                   re.findall(rf'V([\d.]+) H{tab_x+22} V([\d.]+)', m.group(1))]
+        if len(notches) != len(FAN_OF[code]):
+            return f'в шторке кожуха {code} вырезов {len(notches)} на {len(FAN_OF[code])} ручек'
+        for i in FAN_OF[code]:
+            tab = [r for r in handles
+                   if abs(r[1] - (26 + i * geom.FAN_STEP + geom.FAN_H / 2 - 19)) < 0.6]
+            if not tab:
+                return f'ручки вентилятора {i+1} на схеме нет'
+            ty, th = tab[0][1], tab[0][3]
+            if not any(hi <= ty and lo >= ty + th for hi, lo in notches):
+                return f'вырез кожуха {code} не приходится на ручку вентилятора {i+1}'
+    return True
+
+
+@check('C4', 'на пластике отлиты процессор, слоты, вентиляторы и указатель потока')
+def c4():
+    cpu = {'l': 'CPU 0', 'c': 'CPU 0 / CPU 1', 'r': 'CPU 1'}
+    for code, hood in _hoods().items():
+        if f'>{cpu[code]}</text>' not in hood:
+            return f'кожух {code} без обозначения процессора {cpu[code]}'
+        if '>DIMM SLOTS</text>' not in hood:
+            return f'кожух {code} без разметки DIMM SLOTS'
+        got = [t for x, y, t, d in texts(hood) if len(t) == 1 and t.isalpha()]
+        if sorted(set(got)) != sorted(set(LETTERS_OF[code])):
+            return f'кожух {code}: каналы {sorted(set(got))} против {sorted(set(LETTERS_OF[code]))}'
+        # Литьё, а не печать: каждая надпись набрана дважды — тень в канавке и
+        # блик на её кромке. В одну краску это была бы наклейка.
+        if len(got) != 2 * geom.BANK_N:
+            return (f'кожух {code}: буквы каналов набраны {len(got)} раз вместо '
+                    f'{2 * geom.BANK_N} — у литья тень и блик, а не одна краска')
+        if '<ellipse' not in hood:
+            return f'кожух {code} без значка вентилятора'
+        if not re.search(r'<path d="M[\d.]+ [\d.]+ h[\d.]+ v-7 l', hood):
+            return f'кожух {code} без указателя потока'
+    return True
+
+
+@check('C5', 'воздуховоды снимаются после крышки, а встают перед ней')
+def c5():
+    # Комментарии из стилей убираем: иначе они попадают в список селекторов
+    # правила и ни один из них не сходится дословно.
+    flat = re.sub(r'/\*.*?\*/', ' ', CSS, flags=re.DOTALL)
+
+    def rules(sel):
+        out = []
+        for m in re.finditer(r'([^{}]+)\{([^{}]*)\}', flat):
+            if sel in [s.strip() for s in m.group(1).split(',')]:
+                out.append(m.group(2))
+        return ' '.join(out)
+
+    up, down, mid = (rules(f'.rig.lid-off .baffle-{c}') for c in 'lrc')
+    if 'translateY(-' not in up:
+        return 'верхний кожух уходит не вверх'
+    if not re.search(r'translateY\(\d', down):
+        return 'нижний кожух уходит не вниз'
+    if 'translateY(-' not in mid or 'opacity: 0' not in mid:
+        return 'центральный не растворяется на ходу вверх'
+    lag = re.search(r'transform var\(--baffle-lift\) ([\d.]+)s', up)
+    if not lag:
+        return 'кожухи трогаются вместе с крышкой'
+    # Крышку в это время должно быть видно снятой, а не только тронувшейся:
+    # первые полсекунды она идёт туго и с места будто не двигается.
+    dur = float(re.search(r'--lid-slide: ([\d.]+)s', CSS).group(1))
+    gone = at(curve('lid-slide'), min(1.0, float(lag.group(1)) / dur))
+    if gone < 0.5:
+        return f'кожухи трогаются, когда крышка прошла {gone*100:.0f}% пути'
+    if re.search(r'transform var\(--baffle-lift\) [\d.]', rules('.baffle-l')):
+        return 'на обратном ходе кожухи тоже ждут — тогда они встают после крышки'
+    if not re.search(r'translate var\(--lid-press\) [\d.]+s', rules('.lid')):
+        return 'крышка на обратном ходе не ждёт кожухи'
+    return True
 
 
 def main():

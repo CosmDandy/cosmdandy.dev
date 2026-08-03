@@ -12,12 +12,17 @@
      Повторяется — в отличие от блика на бирках-ссылок, который проходит один
      раз при сборке. Там он представляет узел, здесь зовёт нажать, и замолчать
      ему можно только после того, как нажали: в сервисном режиме блика нет. */
-  .svc-shine { fill: rgba(238,232,213,0.9); opacity: 0; }
+  /* Полоса залита градиентом, а не сплошным цветом: сплошная читалась
+     прямоугольником, проезжающим по кнопке, — предметом, а не светом. У
+     отсвета нет кромок, поэтому края полосы уходят в прозрачность, а сама она
+     стала вдвое шире. */
+  .svc-shine { fill: url(#svc-shine-grad); opacity: 0; }
   .rig:not(.service):not(.assembly) .svc-shine {
     animation: svcShine 3.4s ease-in-out infinite;
   }
   @keyframes svcShine {
-    0%, 64%  { opacity: 0;    transform: translateX(-26px); }
-    72%      { opacity: 0.24; }
-    100%     { opacity: 0;    transform: translateX(140px); }
+    0%, 62%  { opacity: 0;    transform: translateX(-46px); }
+    70%      { opacity: 0.34; }
+    84%      { opacity: 0.30; }
+    100%     { opacity: 0;    transform: translateX(150px); }
   }

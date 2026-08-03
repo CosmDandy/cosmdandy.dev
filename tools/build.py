@@ -75,12 +75,20 @@ ORDER = [
     'backplane',
     'fans',
     'memory',
-    'cpu',
     'service',       # battery, microSD, toggle switch, jumper table
     'psu',
     'risers',
     'rear_io',       # SFP+, RJ45, management port
     'marks',         # unit designations on the laminate
+    # Воздуховоды памяти лежат поверх всего, что накрывают: под ними и сокеты,
+    # и шелкография банков. Поэтому и стоят после marks — кожух непрозрачный,
+    # и краска, нарисованная сверху него, висела бы в воздухе.
+    'baffle',        # чёрные кожухи над банками памяти
+    # Процессор идёт после всего, что лежит на текстолите. Снятые радиатор и
+    # крышка уезжают с гнезда на соседнюю территорию, и пока блок стоял раньше
+    # марок, кожухов и сервисной зоны, их накрывало нарисованным поверх: деталь
+    # в руке оказывалась под платой.
+    'cpu',
     'callouts',      # link labels — on top of everything
     'lightpath',     # pull-out diagnostics panel
 ]

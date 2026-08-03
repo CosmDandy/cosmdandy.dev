@@ -91,12 +91,20 @@
   }
 
   cmd({
-    name: 'sel', group: 'СОСТОЯНИЕ', brief: 'журнал системных событий', usage: 'sel',
+    name: 'sel', group: 'СОСТОЯНИЕ', brief: 'журнал событий; чтение снимает защёлку',
+    usage: 'sel',
+    help: ['Лампа неисправности защёлкивается: узел вернули на место, а она',
+           'горит, потому что об отказе никто ещё не узнал. Чтение журнала и',
+           'есть это «узнал» — если чинить больше нечего, индикация снимается',
+           'сама. Кнопка RESET на панели диагностики гасит её, не читая.'],
     run: function () {
-      if (!SEL_LOG.length) return [{ t: 'журнал пуст', c: 'muted' }];
-      return [{ t: 'ID      EVENT', c: 'muted' }].concat(SEL_LOG.map(function (e) {
-        return { t: '0x' + e.id.toString(16).padStart(4, '0') + '  ' + e.t, c: e.c };
-      }));
+      const cleared = faultLog();
+      const head = SEL_LOG.length
+        ? [{ t: 'ID      EVENT', c: 'muted' }].concat(SEL_LOG.map(function (e) {
+            return { t: '0x' + e.id.toString(16).padStart(4, '0') + '  ' + e.t, c: e.c };
+          }))
+        : [{ t: 'журнал пуст', c: 'muted' }];
+      return head.concat(cleared);
     },
   });
 

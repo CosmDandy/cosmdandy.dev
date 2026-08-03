@@ -4,7 +4,11 @@ service zone
 """
 
 # Own rectangle: the build checks that the block did not leave it.
-BOUNDS = (838, 98, 170, 740)
+# Рамка сдвинута влево на семнадцать единиц: переключатель сервиса поставлен по
+# числам владельца, x=825, и его зона нажатия начинается на 821. Это тот случай,
+# когда двигать надо рамку, а не фигуру: место у детали назначено снаружи, а
+# рамка лишь описывает, сколько блок занимает.
+BOUNDS = (821, 98, 187, 740)
 
 from board.geom import LID_BTN, X_SVC
 from board.ink import hit, mono, silk_boxed, silk_inverse
@@ -265,7 +269,10 @@ def render(cv):
     # приходилось искать глазом. Раз в несколько секунд по нему проходит
     # полоса — тот же приём, что у бирок-ссылок, только повторяющийся: там блик
     # представляет узел один раз, здесь — зовёт нажать, пока не нажали.
-    sx, sy, sw, sh = X_SVC + 4, 616, 114, 54
+    # Место задано владельцем числами: x=825, y=570 при ширине 114. На прежних
+    # 616 переключатель попадал ровно под бирки Twitter и Email, которые лежат
+    # поверх всего. От X_SVC он теперь не считается: это точка, а не отступ.
+    sx, sy, sw, sh = 825, 570, 114, 54
     # Обе кнопки занимают своё место в реестре: рассыпуха и позиционные
     # обозначения кладутся туда, где свободно, а на кнопку им нельзя — она
     # непрозрачная, и всё, что нарисовано позже, ложится прямо на неё.
@@ -275,9 +282,15 @@ def render(cv):
   {hit(sx-4, sy-10, sw+8, sh+52)}
   <rect x="{sx}" y="{sy}" width="{sw}" height="{sh}" rx="8" fill="#0f1619" stroke="rgba(147,161,161,0.32)"/>
   <rect class="svc-knob" x="{sx+6}" y="{sy+6}" width="50" height="{sh-12}" rx="5" fill="#22303655" stroke="rgba(147,161,161,0.42)"/>
+  <linearGradient id="svc-shine-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+    <stop offset="0%"   stop-color="#eee8d5" stop-opacity="0"/>
+    <stop offset="35%"  stop-color="#eee8d5" stop-opacity="0.75"/>
+    <stop offset="62%"  stop-color="#eee8d5" stop-opacity="0.85"/>
+    <stop offset="100%" stop-color="#eee8d5" stop-opacity="0"/>
+  </linearGradient>
   <clipPath id="svc-shine-clip"><rect x="{sx}" y="{sy}" width="{sw}" height="{sh}" rx="8"/></clipPath>
   <g clip-path="url(#svc-shine-clip)">
-    <rect class="svc-shine" x="{sx}" y="{sy}" width="20" height="{sh}"/>
+    <rect class="svc-shine" x="{sx}" y="{sy}" width="46" height="{sh}"/>
   </g>
   {mono(sx+sw/2, sy+74, "SERVICE", 11, op=0.6)}
   {mono(sx+sw/2, sy+90, "терминал и диагностика", 8, op=0.36)}

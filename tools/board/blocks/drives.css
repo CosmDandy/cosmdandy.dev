@@ -26,7 +26,31 @@
      the same thing and gets in nobody's way: the handle has left the latch, and
      the drive itself is exposed under it. */
   .rig.service .bay.unlatched .bay-handle,
-  .rig.service .blank.unlatched .bay-handle { transform: translateX(-16px) rotate(-7deg); }
+  .rig.service .blank.unlatched .bay-handle { transform: translateX(-8px) rotate(-5deg); }
+
+  /* Откинутая защёлка уже вытягивает каддик на сантиметр: рычаг тянет его за
+     собой, ещё не отпустив. Раньше на первом щелчке двигалась одна ручка, и
+     каддик стоял — из двух движений читалось одно. Рамка и накопитель едут
+     одним и тем же правилом: разными они разъезжались. */
+  .rig.service .bay.unlatched .pick-body,
+  .rig.service .blank.unlatched .pick-body,
+  .rig.service .bay.unlatched .drive-body,
+  .rig.service .blank.unlatched .drive-body {
+    transform: translateX(-14px);
+    transition: transform var(--lever);
+  }
+
+  /* Тот же сантиметр, но пройденный на обратном пути. Каддик приезжает сюда с
+     полного вылета, и ехать он должен всей длиной направляющих, а не рывком
+     ручки: --lever — это тринадцать сотых секунды, и на возврате они читались
+     тем, что диск «залетает». Отличить одно состояние от другого по классам
+     нельзя — они совпадают, — поэтому обратный ход помечает себя сам. */
+  .rig.service .bay.unlatched.back .pick-body,
+  .rig.service .blank.unlatched.back .pick-body,
+  .rig.service .bay.unlatched.back .drive-body,
+  .rig.service .blank.unlatched.back .drive-body {
+    transition: transform var(--press-seat);
+  }
 
   /* Вынимают каддик за ручку, и на этом её угол становится больше: сперва
      рычаг доходит до упора, и только потом за ним идёт сам каддик. Пока диск
@@ -34,7 +58,7 @@
      Раньше она в этот момент возвращалась на место, и получалось, что каддик
      выехал сам собой. */
   .rig.service .bay.pulled .bay-handle,
-  .rig.service .blank.pulled .bay-handle { transform: translateX(-26px) rotate(-14deg); }
+  .rig.service .blank.pulled .bay-handle { transform: translateX(-13px) rotate(-11deg); }
 
   /* Outward, past the chassis outline, and far enough to clear the cage. The
      front frame is a sliver; what is worth seeing is the drive that was hidden
@@ -43,11 +67,25 @@
   /* Два движения, а не одно: задержка — это те доли секунды, за которые
      ручка успевает дойти до упора. Диск трогается после неё, а не вместе с
      ней. */
-  .bay .pick-body, .blank .pick-body { transition: transform var(--caddy); }
+  /* Задвигают каддик не зеркалом вынимания, и это не отступление от общего
+     правила, а его граница. Полка в начале --caddy принадлежит не разъёму, а
+     руке: каддик выходит на сантиметр вслед за ручкой, и рука перехватывает
+     его. При установке перехватывать нечего — толкают одним движением, упор
+     только в конце, у самого разъёма. Развёрнутая кривая давала долгую полку
+     на девяноста двух процентах пути: каддик доезжал почти до места и там
+     застревал. Это и видно было как «заедает».
+
+     --press-seat ровно про это: свободный ход по направляющим и короткое
+     сопротивление в последнем сантиметре. Той же кривой каддик садится и на
+     сборке. */
+  .bay .pick-body, .blank .pick-body { transition: transform var(--press-seat); }
   .rig.service .bay.pulled .pick-body,
   .rig.service .blank.pulled .pick-body,
   .rig.service .bay.pulled .drive-body,
-  .rig.service .blank.pulled .drive-body { transform: translateX(-152px); }
+  .rig.service .blank.pulled .drive-body {
+    transform: translateX(-152px);
+    transition: transform var(--caddy);
+  }
 
   /* The drive itself sits deep in the chassis and cannot be seen until the
      caddy comes out — in an assembled machine only the front frame shows. It
@@ -68,7 +106,7 @@
      него), поэтому в собранной машине его не видно вовсе, а при вынимании он
      выезжает из устья — как и в жизни. Прежде он появлялся прозрачностью:
      деталь не выезжала, а включалась. */
-  .drive-body { transition: transform var(--caddy); }
+  .drive-body { transition: transform var(--press-seat); }
 
   /* Assembly: the drive is pushed in from the front, along the same path it
      takes coming out during teardown — only the other way round. */
@@ -87,4 +125,22 @@
     0%   { opacity: 0;    transform: translateX(-152px); }
     12%  { opacity: 1; }
     100% { opacity: 1;    transform: none; }
+  }
+
+  /* ── Вынутый каддик мёртв ──────────────────────────────────────────────
+   * Диск тронулся из разъёма — питание и шина ушли, и гореть его лампам нечем.
+   * Гаснут они на первом же движении, не дожидаясь полного вылета: контакт
+   * теряется в первом сантиметре, дальше каддик едет уже мёртвым. Раньше они
+   * мигали до конца хода, а потом ещё и в руке — активность на накопителе,
+   * которого нет в машине.
+   *
+   * Гасим светом, а не прозрачностью всей группы: гнездо остаётся нарисованным,
+   * как и на живой корзине.
+   */
+  .rig.service .bay.unlatched .led,
+  .rig.service .bay.unlatched .led-act,
+  .rig.service .bay.pulled .led,
+  .rig.service .bay.pulled .led-act {
+    fill-opacity: 0.1;
+    animation: none;
   }

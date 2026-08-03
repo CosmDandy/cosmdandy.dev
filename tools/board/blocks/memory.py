@@ -40,9 +40,8 @@ KEY_AT = 0.64
 CHIP_H = SLOT_H - 8          # чипы занимают всё, что осталось под кромкой
 
 from board.geom import dimm_seat
-from board.ink import hit, silk_inverse
-from board.palette import SILVER, SILVER_DIM
-from board.revision import stamp
+from board.ink import barcode, hit, silk_inverse
+from board.revision import BOARD_SHA, stamp
 from board.spec import DIMM
 
 # Маркировка чипа. На живом модуле она мельче всего, что вообще есть на плате,
@@ -74,15 +73,13 @@ def module(x0, y, i, skip=None):
         f'<rect x="{x0+2}" y="{y+1}" width="{DIMM_W-4}" height="3.4" rx="1" fill="{edge}"/>',
     ]
     cy = y + 5.6
-    # Пробор: регистр и обвязка питания модуля. Мелкое серебро — то, чем эта
-    # полоса и отличается от ряда чипов: там корпуса, здесь пайка.
+    # Пробор: регистр и обвязка питания модуля. Серебристых контактов на нём
+    # больше нет — на плашке такого размера шесть светлых столбиков читались не
+    # пайкой, а вторым рядом чипов, и спорили с настоящим рядом справа. Осталась
+    # тёмная площадка: она отделяет контактную гребёнку от корпусов, а этого и
+    # достаточно.
     parts.append(f'<rect x="{x0+5}" y="{cy}" width="30" height="{CHIP_H}" rx="0.6" '
                  f'fill="#0b1418" stroke="rgba(147,161,161,0.18)" stroke-width="0.5"/>')
-    for c in range(6):
-        parts.append(f'<rect x="{x0+7.5+c*4.6:.1f}" y="{cy+1.4:.1f}" width="2.6" '
-                     f'height="{CHIP_H-2.8:.1f}" rx="0.4" fill="{SILVER_DIM}"/>')
-        parts.append(f'<rect x="{x0+7.5+c*4.6:.1f}" y="{cy+1.4:.1f}" width="2.6" '
-                     f'height="{CHIP_H-4:.1f}" rx="0.4" fill="{SILVER}"/>')
 
     # Чипы: узкий — широкий — узкий — широкий, начиная от пробора с узкого.
     # Шаг считается по фактической ширине предыдущего корпуса, а не по среднему
@@ -96,12 +93,16 @@ def module(x0, y, i, skip=None):
             continue
         if cx + w > x0 + DIMM_W - 8:
             break
-        parts.append(f'<rect x="{cx:.1f}" y="{cy}" width="{w}" height="{CHIP_H}" rx="0.6" '
+        # Корпуса стоят вразбежку по высоте: широкий прижат к верхней кромке,
+        # узкий опущен на два. На живой планке чипы и стоят не по одной линии —
+        # ряд читается как ряд, а не как сплошная полоса.
+        chy = cy + (0 if wide else 2)
+        parts.append(f'<rect x="{cx:.1f}" y="{chy}" width="{w}" height="{CHIP_H-2 if not wide else CHIP_H}" rx="0.6" '
                      f'fill="#0d1519" stroke="rgba(147,161,161,0.14)" stroke-width="0.5"/>')
         if wide:
             # Гравировка — только на широких: на узкий корпус её и в жизни не
             # ставят целиком, там остаётся один код партии.
-            parts.append(f'<text x="{cx+w/2:.1f}" y="{cy+CHIP_H/2+1.4:.1f}" text-anchor="middle" '
+            parts.append(f'<text x="{cx+w/2:.1f}" y="{chy+CHIP_H/2+1.4:.1f}" text-anchor="middle" '
                          f'fill="rgba(147,161,161,0.34)" '
                          f'font-family="ui-monospace, Menlo, monospace" '
                          f'font-size="3.4">{CHIP_MARK}</text>')
@@ -125,12 +126,10 @@ def sticker(x, y):
     out = [(f'<rect x="{x}" y="{y}" width="{w:.1f}" height="{SLOT_H-7}" rx="1" '
             f'fill="#e8e3d5" fill-opacity="0.40" stroke="rgba(147,161,161,0.20)" '
             f'stroke-width="0.5"/>')]
-    for k in range(bars):
-        # Толщина штриха берётся из кода символа — рисунок держится за текст, а
-        # не выдуман отдельно от него.
-        thick = 1.1 if (ord(text[k % len(text)]) % 3) else 0.6
-        out.append(f'<rect x="{x+3+k*1.7:.1f}" y="{y+1.4}" width="{thick}" '
-                   f'height="{SLOT_H-9.8:.1f}" fill="rgba(10,20,23,0.72)"/>')
+    # Разряды кода считаются от хэша сборки: на живой планке штрих-код — это
+    # её серийный номер, а серийный номер этой машины и есть коммит, которым
+    # она собрана. Так код меняется вместе с платой, а не живёт своей жизнью.
+    out.append(barcode(x + 3, y + 1.4, BOARD_SHA, SLOT_H - 9.8, bars=bars))
     out.append(f'<text x="{x+bw+4:.1f}" y="{y+SLOT_H-9.6:.1f}" fill="rgba(10,20,23,0.80)" '
                f'font-family="ui-monospace, Menlo, monospace" font-size="4.6">{text}</text>')
     return ''.join(out)
