@@ -43,13 +43,11 @@
   /* Два движения, а не одно: задержка — это те доли секунды, за которые
      ручка успевает дойти до упора. Диск трогается после неё, а не вместе с
      ней. */
+  .bay .pick-body, .blank .pick-body { transition: transform var(--caddy); }
   .rig.service .bay.pulled .pick-body,
   .rig.service .blank.pulled .pick-body,
   .rig.service .bay.pulled .drive-body,
-  .rig.service .blank.pulled .drive-body {
-    transform: translateX(-152px);
-    transition-delay: 0.16s;
-  }
+  .rig.service .blank.pulled .drive-body { transform: translateX(-152px); }
 
   /* The drive itself sits deep in the chassis and cannot be seen until the
      caddy comes out — in an assembled machine only the front frame shows. It
@@ -60,12 +58,17 @@
      outline alone, and an invisible drive still drew its own edges straight
      through the cage grille — the one thing that gave away that something was
      hiding in there. */
-  /* Накопитель едет, а не проявляется. Он нарисован на своём месте в глубине
+  /* Ход каддика — своей кривой: сначала сантиметр вслед за ручкой, потом
+     пауза, потом вынимание целиком. Задержки при этом больше нет: два
+     движения теперь внутри самой кривой, а не разнесены по времени старта —
+     иначе первое движение принадлежало бы ручке, а не каддику.
+
+     Накопитель едет, а не проявляется. Он нарисован на своём месте в глубине
      шасси и обрезан по устью отсека (clip-path у неподвижной обёртки вокруг
      него), поэтому в собранной машине его не видно вовсе, а при вынимании он
      выезжает из устья — как и в жизни. Прежде он появлялся прозрачностью:
      деталь не выезжала, а включалась. */
-  .drive-body { transition: transform var(--drag); }
+  .drive-body { transition: transform var(--caddy); }
 
   /* Assembly: the drive is pushed in from the front, along the same path it
      takes coming out during teardown — only the other way round. */
@@ -81,5 +84,7 @@
   /* The caddy runs along its rails freely and meets resistance only right at
      the end: the last centimetre is the handle pressing it home to the click. */
   @keyframes seatBay {
-    from { opacity: 0; transform: translateX(-152px); }
+    0%   { opacity: 0;    transform: translateX(-152px); }
+    12%  { opacity: 1; }
+    100% { opacity: 1;    transform: none; }
   }

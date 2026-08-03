@@ -69,7 +69,9 @@
   /* It seats stiffly: the guides are long, the module travels along them under
      effort, and right at the bottom it is pressed home to the latch. */
   @keyframes seatFan {
-    from { opacity: 0; transform: translateY(-42px); }
+    0%   { opacity: 0;    transform: translateY(-78px); }
+    14%  { opacity: 1; }
+    100% { opacity: 1;    transform: none; }
   }
 
   /* Разъём вентилятора тугой и без середины: он либо защёлкнут, либо нет.

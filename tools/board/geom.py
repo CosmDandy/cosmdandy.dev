@@ -213,18 +213,70 @@ LID_BTN = (X_SVC + 21, 712, 114)
 # middle bank that belongs to CPU1 share a start time: they are filled at
 # the same time.
 SEAT = {
-    'fan':   (2.30, 0.14),    # start, step between neighbours
-    'psu':   (2.50, 0.42),
-    'cpu':   (3.70, 0.55),
-    'dimm':  (4.10, 0.13),    # first wave; the second one is SEAT_WAVE2
-    'riser': (6.60, 0.42),
-    'bay':   (7.50, 0.17),
+    'psu':   (0.30, 0.34),    # старт и шаг между соседями
+    'fan':   (0.46, 0.11),
+    'cpu':   (2.05, 0.42),
+    'dimm':  (2.25, 0.075),   # первая волна; вторая — SEAT_WAVE2
+    'riser': (3.95, 0.40),
+    'bay':   (4.34, 0.13),
 }
-SEAT_WAVE2 = 5.40             # the second slots of the channels
-SEAT_DONE = 9.60              # by this time the machine is fully assembled
+SEAT_WAVE2 = 3.05             # вторые слоты каналов
+SEAT_DONE = 6.20              # к этому времени машина собрана целиком
+
+# Порядок внутри группы вентиляторов: первый, третий, четвёртый, второй. Так их
+# и ставят руками — крайние держат стенку, средние доводят. Обе группы, верхняя
+# и нижняя, идут одновременно: это одна операция на две руки.
+FAN_ORDER = (0, 3, 1, 2)
+
+# Диски ставят парами, и внутри пары — с дальнего: сначала внутренний отсек,
+# потом внешний. Заглушки идут последними и разом: это не установка, а
+# закрытие пустых мест.
+BAY_ORDER = (1, 0, 3, 2, 5, 4, 7, 6)
+
+# Память заполняют не подряд, а через канал: сначала первый слот каждого
+# второго контроллера, потом остальные. Смысл в пропускной способности —
+# соседние каналы делят один контроллер, и две плашки на нём медленнее, чем
+# две на разных. Порядок букв отсюда и берётся.
+DIMM_ORDER = 'ACEGIKBDFHJL'
+
+
+def wobble(kind, i, spread=0.07):
+    """Разнобой в долях секунды: детерминированный, но не читаемый глазом.
+
+    Без него все узлы группы садятся ровно через равные промежутки, и сборка
+    читается отработкой расписания, а не работой рук. С ним каждая деталь
+    приходит чуть раньше или чуть позже своего такта — ровно настолько, чтобы
+    ритм перестал быть машинным.
+    """
+    salt = sum(ord(c) for c in kind)
+    return ((i * 53 + salt * 17) % 100 / 100 - 0.5) * 2 * spread
 
 
 def seat(kind, i, base=None):
     """Seating delay of unit i — a ready string for a CSS variable."""
     start, step = SEAT[kind]
-    return f'{(base if base is not None else start) + i * step:.2f}s'
+    return f'{(base if base is not None else start) + i * step + wobble(kind, i):.2f}s'
+
+
+def fan_seat(i):
+    """Задержка вентилятора i: своя группа, свой порядок внутри неё."""
+    return seat('fan', FAN_ORDER[i % 4])
+
+
+def bay_seat(i, filler=False):
+    """Задержка каддика i. Заглушки — все в один момент, после дисков."""
+    start, step = SEAT['bay']
+    if filler:
+        return f'{start + 6 * step:.2f}s'
+    return seat('bay', BAY_ORDER.index(i))
+
+
+def riser_seat(k):
+    """Малый райзер ставят первым: он ниже и уходит под большой."""
+    return seat('riser', 0 if k else 1)
+
+
+def dimm_seat(letter, cpu_wave2=False):
+    """Задержка плашки по букве её канала."""
+    base = SEAT_WAVE2 if cpu_wave2 else SEAT['dimm'][0]
+    return seat('dimm', DIMM_ORDER.index(letter), base=base)

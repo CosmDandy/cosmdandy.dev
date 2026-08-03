@@ -16,11 +16,11 @@
 # Первая карта доходит до задней стенки: её торец — это гнёзда SFP+.
 BOUNDS = (992, 150, 316, 340)
 
-from board.geom import RISER, X_IO, X_PCB_END, X_REAR, seat
+from board.geom import RISER, X_IO, X_PCB_END, X_REAR, riser_seat
 from board.ink import mono, silk_boxed
 from board.lamps import act_led, fault_at, lamp
 from board.metal import finned_sink, hexgrid
-from board.palette import COLD
+from board.palette import COLD, STEEL
 from board.ports import sfp
 from board.revision import stamp
 from board.spec import PORTS
@@ -120,7 +120,7 @@ def render(cv):
             blank_y = y + 6
             card = (riser_pcb
                     + f'<rect x="{X_IO}" y="{blank_y}" width="86" height="{hh-12}" rx="3" '
-                      f'fill="#1b2429" stroke="rgba(147,161,161,0.30)"/>'
+                      f'fill="{STEEL}" stroke="rgba(147,161,161,0.30)"/>'
                     + ''.join(f'<line x1="{X_IO+14}" y1="{blank_y+10+r*11}" x2="{X_IO+72}" '
                               f'y2="{blank_y+10+r*11}" stroke="rgba(147,161,161,0.14)" '
                               f'stroke-width="1.4"/>' for r in range(int((hh - 34) // 11)))
@@ -155,9 +155,9 @@ def render(cv):
       {''.join(f'<line x1="{x0+22+j*9}" y1="{edge_y+1}" x2="{x0+22+j*9}" y2="{edge_y+7}" stroke="rgba(133,153,0,0.22)"/>' for j in range(int(slot_w // 9) - 1))}
       {silk_boxed(x0 + 18 + slot_w / 2, edge_y + 22, f"RISER_{k+1} · PCIE_G5 ×16", 6)}
     </g>''')
-        cv.add(f'''<g class="pick riser" data-riser="{k+1}" style="--seat:{seat('riser', k)}">
+        cv.add(f'''<g class="pick riser" data-riser="{k+1}" style="--seat:{riser_seat(k)}">
       <g class="pick-body">
-        <path d="{d}" fill="#141d22" stroke="rgba(147,161,161,0.30)" stroke-width="1.4"/>
+        <path d="{d}" fill="{STEEL}" stroke="rgba(147,161,161,0.30)" stroke-width="1.4"/>
         {hexgrid(x1 - T + 8, hex_y, T - 16, hex_h)}
         {card}
         {tab}

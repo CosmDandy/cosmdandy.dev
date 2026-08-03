@@ -22,7 +22,7 @@ from board.geom import (
     X_PCB,
     H,
     fan_foot_y,
-    seat,
+    fan_seat,
 )
 from board.ink import mono, silk_inverse
 from board.lamps import fault_at, jitter
@@ -181,7 +181,7 @@ def render(cv):
             for fy0 in (y + 2, y + h - 7)
             for fx0 in (X_FAN + 8, X_FAN + FAN_W - 8 - foam_w))
 
-        cv.add(f'''<g class="pick fan" data-fan="{i}" style="--seat:{seat('fan', i)}">
+        cv.add(f'''<g class="pick fan" data-fan="{i}" style="--seat:{fan_seat(i)}">
       <g class="pick-body">
         {tabs}
         <rect x="{X_FAN+4}" y="{y}" width="{FAN_W-8}" height="{h}" rx="3" fill="#0b1215" stroke="rgba(147,161,161,0.18)"/>

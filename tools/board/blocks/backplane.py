@@ -6,7 +6,7 @@ backplane
 # Own rectangle: the build checks that the block did not leave it.
 BOUNDS = (158, 0, 34, 740)
 
-from board.geom import BAY_N, BAY_TOP, H, X_BP
+from board.geom import BAY_N, BAY_TOP, X_BP, H
 
 
 def render(cv):

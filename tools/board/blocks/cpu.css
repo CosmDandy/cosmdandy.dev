@@ -62,13 +62,18 @@
      Seating them at once hid the die: it was covered at exactly the moment it
      appeared. */
   .rig.assembly .cpu-slot .cpu-lid {
-    animation: seatCpu 0.7s var(--seat, 0s) cubic-bezier(0.22, 1, 0.36, 1) backwards;
+    animation: seatCpu 0.62s var(--seat, 0s) cubic-bezier(0.22, 1, 0.36, 1) backwards;
   }
   .rig.assembly .cpu-slot .heatsink {
-    animation: seatCpu 0.7s calc(var(--seat, 0s) + 0.85s) cubic-bezier(0.22, 1, 0.36, 1) backwards;
+    animation: seatCpu 0.62s calc(var(--seat, 0s) + 0.52s) cubic-bezier(0.22, 1, 0.36, 1) backwards;
   }
+  /* Прозрачность набирается в первую шестую хода, а не размазана по всему.
+     Пока фейд шёл вровень с движением, деталь проступала уже на своём месте, и
+     видно было появление, а не путь. */
   @keyframes seatCpu {
-    from { opacity: 0; transform: translateY(-52px) scale(0.94); }
+    0%   { opacity: 0;    transform: translateY(-96px) scale(0.94); }
+    16%  { opacity: 1; }
+    100% { opacity: 1;    transform: none; }
   }
   /* The die travels along with its own processor instead of showing through in
      place: it lies on it. The first forty percent of the time is the same
@@ -77,10 +82,10 @@
      the heatsink it cannot be seen anyway — but so the sheen does not keep
      spinning under an opaque cover. */
   .rig.assembly .cpu-slot .die {
-    animation: dieSeat 1.75s var(--seat, 0s) cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation: dieSeat 1.2s var(--seat, 0s) cubic-bezier(0.22, 1, 0.36, 1) both;
   }
   @keyframes dieSeat {
-    from { visibility: visible; opacity: 0; transform: translateY(-52px) scale(0.94); }
+    from { visibility: visible; opacity: 0; transform: translateY(-96px) scale(0.94); }
     14%  { visibility: visible; opacity: 0.75; }
     40%  { visibility: visible; opacity: 1; transform: none; }
     72%  { visibility: visible; opacity: 1; transform: none; }

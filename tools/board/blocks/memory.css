@@ -48,14 +48,41 @@
      that is exactly how an empty slot on a live machine looks, with its ears
      splayed aside. They close at the moment the module is pressed home — hence
      the same --seat delay. */
-  .rig.assembly .latch-l { animation: latchL var(--press-hard) var(--seat, 0s) backwards; }
-  .rig.assembly .latch-r { animation: latchR var(--press-hard) var(--seat, 0s) backwards; }
-  @keyframes latchL { from { transform: rotate(-38deg); } }
-  @keyframes latchR { from { transform: rotate(38deg); } }
+  .rig.assembly .latch-l { animation: latchL 0.95s linear var(--seat, 0s) backwards; }
+  .rig.assembly .latch-r { animation: latchR 0.95s linear var(--seat, 0s) backwards; }
+  /* Вставка — тот же ход, что и снятие, только наоборот, и первое движение в
+     нём микроскопическое: лепестки стоят в крайних положениях, модуль идёт
+     вниз и подаёт их внутрь на пару градусов. Дальше они держат, пока плашка
+     не сядет, и только тогда захлопываются с перебегом.
+
+     Кривая здесь линейная нарочно: форму задают сами кадры, а не смягчение
+     между ними. С --press-hard каждый промежуток получал бы собственный
+     разгон и торможение, и микродвижение читалось бы дрожью. */
+  @keyframes latchL {
+    0%   { transform: rotate(-38deg); }
+    20%  { transform: rotate(-33deg); }
+    58%  { transform: rotate(-32deg); }
+    78%  { transform: rotate(-4deg); }
+    88%  { transform: rotate(3deg); }
+    100% { transform: rotate(0); }
+  }
+  @keyframes latchR {
+    0%   { transform: rotate(38deg); }
+    20%  { transform: rotate(33deg); }
+    58%  { transform: rotate(32deg); }
+    78%  { transform: rotate(4deg); }
+    88%  { transform: rotate(-3deg); }
+    100% { transform: rotate(0); }
+  }
   /* A DIMM is not lowered but pressed in: it goes against resistance and
      seats when the latches at its ends click. */
+  /* Ход длиннее прежнего вдвое. На двадцати двух единицах плашка возникала
+     почти на месте, и видно было не движение, а появление; теперь видно,
+     откуда деталь приходит. */
   @keyframes seatDimm {
-    from { opacity: 0; transform: translateY(-22px); }
+    0%   { opacity: 0;    transform: translateY(-48px); }
+    16%  { opacity: 1; }
+    100% { opacity: 1;    transform: none; }
   }
 
   /* Плашку держат лепестки по краям, и пока они не отошли, она стоит
