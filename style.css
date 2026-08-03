@@ -176,17 +176,21 @@
     }
 }
 
+/* swap, а не block: block прячет текст до приезда шрифта, и на медленном
+   мобильном соединении это ровно те сотни миллисекунд, когда экран уже
+   свёрстан, но пуст. Шрифты в preload, так что подмена держится недолго.
+   Так же сделано в блоге. */
 @font-face {
     font-family: 'Inter';
     font-weight: 400;
-    font-display: block;
+    font-display: swap;
     src: url('fonts/Inter-Regular.woff2') format('woff2');
 }
 
 @font-face {
     font-family: 'Inter';
     font-weight: 600;
-    font-display: block;
+    font-display: swap;
     src: url('fonts/Inter-SemiBold.woff2') format('woff2');
 }
 

@@ -5,11 +5,19 @@
      drifts out of line with the text. */
   .prompt-field { position: relative; flex: 1; min-width: 0; display: block; }
   .prompt-field input { position: relative; z-index: 1; background: transparent; width: 100%; }
+  /* Зеркало выровнено по вертикали так же, как строка в самом поле, а поле
+     центрует её само. Растянутый на всю высоту блок с line-height: normal
+     ставил строку по верхней кромке, и подсказка оказывалась выше набранного
+     ровно на разницу между высотой поля и высотой строки. Флекс с центровкой
+     сажает обе на одну линию при любой высоте поля и любом кегле. */
   .ghost {
     position: absolute; inset: 0; pointer-events: none; overflow: hidden;
-    white-space: pre; display: block;
+    white-space: pre;
+    display: flex; align-items: center;
     font: inherit; letter-spacing: inherit;
-    line-height: normal;
   }
+  /* Не сжимаются: флекс по умолчанию ужимает длинный элемент, и хвост
+     подсказки наезжал бы на набранное. */
+  .ghost-typed, .ghost-rest { flex: 0 0 auto; }
   .ghost-typed { color: transparent; font-style: normal; }
   .ghost-rest { color: var(--dim); opacity: 0.7; font-style: normal; }

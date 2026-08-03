@@ -162,11 +162,16 @@
   padding: 1.6cqh 2cqw;
   overflow-y: auto;
 }
+/* Строки плотнее: в списке настроек их полтора десятка, и на невысоком экране
+   вкладка Boot уезжала под кромку — приходилось листать таблицу, у которой
+   всего и есть, что порядок из трёх устройств. Настоящий BIOS набирает свои
+   строки знакоместами и тоже вплотную. */
 .crt-row {
   display: flex;
   justify-content: space-between;
   gap: 16px;
-  padding: 3px 6px;
+  padding: 1px 6px;
+  line-height: 1.25;
 }
 .crt-row.sel {
   background: var(--bios-sel-bg);

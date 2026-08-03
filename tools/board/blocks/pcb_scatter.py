@@ -209,9 +209,9 @@ def render(cv):
     # Отодвинута от корпуса: на прежних десяти единицах лампа стояла вплотную
     # к гребёнке выводов, и её зелёный терялся в частых светлых штрихах. Сердце
     # машины должно быть видно с одного взгляда — иначе оно не сердце.
-    parts.append(lamp('led-hb', bx + bw + 22, by + 8, 4, '#859900'))
-    parts.append(silk_boxed(bx + bw + 22, by + 24, "HB", 5.5, op=0.4))
-    cv.busy(bx + bw + 14, by, 24, 32)
+    parts.append(lamp('led-hb', bx + bw + 34, by + 20, 4, '#859900'))
+    parts.append(silk_boxed(bx + bw + 16, by + 20, "HB", 5.5, op=0.4))
+    cv.busy(bx + bw + 8, by + 10, 36, 22)
 
     cv.add('<g class="decor parts">' + ''.join(parts) + '</g>')
     if lost:

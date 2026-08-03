@@ -12,6 +12,9 @@
   const rig = document.getElementById('rig');
   const log = document.getElementById('log');
   const chassis = document.getElementById('chassis');
+  // Поле, по которому машину возят в режиме лупы: прокрутка своя, и
+  // приближение считает координаты от него.
+  const rigBody = document.getElementById('rig-body');
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   // The machine's passport: what hardware is standing here. The generator
@@ -158,13 +161,20 @@
   // schematic's colour, the path in the ordinary tone.
   const linkHint = document.getElementById('link-hint');
 
-  function showLinkHint(href, x, y) {
+  // Хвост адреса обрезаем. Ссылки с хэшем бывают в полсотни знаков, и
+  // подсказка из тихой строчки у курсора превращалась в баннер во всю ширину
+  // окна — при том, что читают в ней только имя хоста и начало пути.
+  const HINT_TAIL = 28;
+
+  function trimTail(tail) {
+    return tail.length > HINT_TAIL ? tail.slice(0, HINT_TAIL - 1) + '…' : tail;
+  }
+
+  // Место у курсора одно, а сказать в нём можно разное: под ссылкой — адрес,
+  // в лупе — чем приближают. Поэтому размещение отделено от содержания.
+  function placeHint(html, x, y) {
     if (!linkHint) return;
-    const m = /^(https?:\/\/|mailto:)([^/]*)(.*)$/.exec(href) || [];
-    linkHint.innerHTML = m.length
-      ? '<span class="lh-scheme">' + m[1] + '</span>'
-        + '<span class="lh-host">' + m[2] + '</span>' + m[3]
-      : href;
+    linkHint.innerHTML = html;
     linkHint.classList.add('on');
     // Keep the hint inside the window: near the right edge it would run off
     // the screen.
@@ -174,12 +184,40 @@
     linkHint.style.transform = 'translate3d(' + left + 'px,' + top + 'px,0)';
   }
 
+  function showLinkHint(href, x, y) {
+    const m = /^(https?:\/\/|mailto:)([^/]*)(.*)$/.exec(href) || [];
+    placeHint(m.length
+      ? '<span class="lh-scheme">' + m[1] + '</span>'
+        + '<span class="lh-host">' + m[2] + '</span>' + trimTail(m[3])
+      : trimTail(href), x, y);
+  }
+
   function hideLinkHint() {
     if (linkHint) linkHint.classList.remove('on');
   }
 
   if (linkHint) {
+    // Карточка — такой же набор ссылок, и адрес там нужен ровно затем же.
+    // Раньше подсказка жила только на схеме, и на узком экране, где схемы нет,
+    // её не было вовсе.
+    document.addEventListener('mousemove', function (e) {
+      if (e.target.closest('.rig')) return;
+      const a = e.target.closest('a[href]');
+      const href = a && a.getAttribute('href');
+      if (href && !href.startsWith('#')) showLinkHint(href, e.clientX, e.clientY);
+      else hideLinkHint();
+    });
     rig.addEventListener('mousemove', function (e) {
+      // В лупе у курсора стоит не адрес, а способ приблизить. Про shift
+      // догадаться нельзя, а сказать о нём больше негде: консоли в этом режиме
+      // нет, и подпись на экране была бы баннером. Зато место у курсора гость
+      // к этому времени уже знает — там он читал адреса ссылок.
+      if (rig.classList.contains('zoom')) {
+        // Наведение на узел — работа с узлом, приближение тут ни при чём.
+        if (e.target.closest('.pick, .unit, a')) hideLinkHint();
+        else placeHint(zoomHint(), e.clientX, e.clientY);
+        return;
+      }
       // In service mode units are taken apart, not opened: the hint there
       // would promise a navigation that is not going to happen.
       const target = rig.classList.contains('service')
@@ -189,6 +227,35 @@
     });
     rig.addEventListener('mouseleave', hideLinkHint);
   }
+
+  // ── Почта ──────────────────────────────────────────────────────────────
+  // Клик по адресу делает две вещи сразу: открывает почтовую программу и
+  // кладёт адрес в буфер. Порядок именно такой — mailto может и не открыться,
+  // если почтовой программы нет, и тогда скопированный адрес остаётся
+  // единственным, что от нажатия осталось.
+  //
+  // Подпись бирки на секунду становится словом «скопировано» и зеленеет: без
+  // этого копирование происходит молча, и гость нажимает второй раз.
+  function flashCopied(el) {
+    const sub = el.querySelector('.co-sub');
+    if (!sub) return;
+    if (sub.dataset.was === undefined) sub.dataset.was = sub.textContent;
+    sub.textContent = 'скопировано';
+    el.classList.add('copied');
+    wait(1600, function () {
+      sub.textContent = sub.dataset.was;
+      el.classList.remove('copied');
+    });
+  }
+
+  document.addEventListener('click', function (e) {
+    const a = e.target.closest('a[href^="mailto:"]');
+    if (!a) return;
+    const addr = a.getAttribute('href').slice(7);
+    if (navigator.clipboard) navigator.clipboard.writeText(addr).catch(function () {});
+    flashCopied(a);
+    line('mail: ' + addr + ' скопирован', 'ok');
+  });
 
   // ── Console ────────────────────────────────────────────────────────────
   function line(text, cls) {
@@ -213,6 +280,11 @@
   // even reach for them — the request would return 404 and leave a red line
   // in the console for no reason at all.
   const LOCAL = ['localhost', '127.0.0.1', '::1', '[::1]'].indexOf(location.hostname) >= 0;
+  // На живом сайте лента ревизий не поднимается сама: шестьдесят восемь схем
+  // по мегабайту — это не то, что гость должен качать, зайдя посмотреть
+  // визитку. Её включают командой в консоли, и включённой она остаётся до
+  // перезагрузки страницы. Локально включать нечего: там она была и есть.
+  let revsAsked = false;
   const timeline = document.getElementById('timeline');
   const board = document.getElementById('board');
   const tlRange = document.getElementById('tl-range');
@@ -268,7 +340,7 @@
   }
 
   async function initTimeline() {
-    if (revs.length || !LOCAL) return;
+    if (revs.length || !(LOCAL || revsAsked)) return;
     try {
       const res = await fetch('history/index.json');
       if (!res.ok) throw new Error(res.status);
@@ -353,10 +425,33 @@
     // читается не защёлкой, а поломкой схемы.
     if (any) rig.classList.add('fault-latched');
     else if (wasAny && rig.classList.contains('fault-latched')) {
-      line('fault latched · press RESET on the light path panel', 'muted');
+      line('fault latched · sel — прочитать журнал и снять', 'muted');
     }
     updateMains();
     tick();
+  }
+
+  // Журнал ошибок. Защёлка снимается чтением, а не только кнопкой: живая
+  // машина узнаёт, что всё исправлено, когда её об этом спрашивают. Пока
+  // журнал не прочитан, лампа горит — именно затем она и защёлкивается.
+  // Кнопка RESET на панели остаётся: ей гасят индикацию, не читая, и это
+  // разные действия. Гость, который не знает про кнопку на плате, теперь
+  // выходит из горящей лампы обычной командой.
+  function faultLog() {
+    const rows = [];
+    for (const key in LP_MAP) {
+      if (chassis.querySelector(LP_MAP[key])) rows.push({ t: 'ACTIVE   · ' + key, c: 'err' });
+    }
+    if (badConfig()) rows.push({ t: 'ACTIVE   · cnfg', c: 'err' });
+    const latched = rig.classList.contains('fault-latched');
+    if (!rows.length && !latched) return [];
+    if (rows.length) {
+      rows.unshift({ t: 'неисправности на месте — защёлка не снята', c: 'warn' });
+      return rows;
+    }
+    rig.classList.remove('fault-latched');
+    tick();
+    return [{ t: 'чинить нечего · индикация снята чтением журнала', c: 'ok' }];
   }
 
   // ── Входное питание ────────────────────────────────────────────────────
@@ -473,10 +568,11 @@
   // Esc, закрывающий BIOS Setup, к нашему обработчику доходил бы уже с
   // закрытым экраном и заодно выбрасывал из сервисного режима.
   document.addEventListener('keydown', function (e) {
-    if (e.key !== 'Escape' || !rig.classList.contains('service')) return;
+    if (e.key !== 'Escape') return;
+    if (!rig.classList.contains('service') && !rig.classList.contains('zoom')) return;
     if (screenOpen()) return;
     if (e.target && e.target.closest && e.target.closest('input, textarea')) return;
-    toggleService();
+    if (rig.classList.contains('zoom')) setZoom(false); else toggleService();
   }, true);
 
   // Второй — узкое окно. При 820 точках схема прячется целиком и уносит с
@@ -548,37 +644,270 @@
 
   // @part: term
 
-  // ── View switch ────────────────────────────────────────────────────────
-  // The business card and the schematic are two ways of showing the same
-  // thing. The choice is remembered, so a returning visitor lands where they
-  // left off.
-  const viewBtn = document.getElementById('view-switch');
+  // ── Какой из двух видов показывать ─────────────────────────────────────
+  // Кнопки переключения больше нет, и это не упрощение. Схема и карточка — не
+  // два варианта на вкус, а одно и то же для разных экранов: на телефоне
+  // машину не рассмотреть, там и открывать нечего, а на компьютере машина и
+  // есть визитка, и прятать её за кнопкой значит показывать гостю список
+  // ссылок вместо того, ради чего всё делалось.
+  //
+  // Порог тот же, на котором схема и так спрятана целиком в css (@media
+  // 820px): держать два разных порога — верный способ получить пустую
+  // страницу между ними.
+  const wide = window.matchMedia('(min-width: 821px)');
+
   function setView(v) {
     document.body.classList.toggle('view-rig', v === 'rig');
     document.body.classList.toggle('view-card', v !== 'rig');
-    viewBtn.setAttribute('aria-pressed', String(v === 'rig'));
-    try { localStorage.setItem('view', v); } catch (e) {}
     // Схему показали — вот теперь и собираем, если сборка ждала своего часа.
     if (v === 'rig') onRigShown();
   }
-  // На компьютере визитка открывается схемой: машина и есть визитка, и
-  // прятать её за кнопкой незачем — гость видит её, не догадываясь нажать.
-  // Исключение — узкое окно: там схема спрятана целиком (@media 820px), и
-  // открывать нечего, так что остаётся карточка.
+
+  function pickView() {
+    setView(wide.matches ? 'rig' : 'card');
+  }
+
+  pickView();
+  // Окно можно растянуть и сузить, и вид обязан пойти за ним: иначе на
+  // повёрнутом планшете остаётся то, что для этой ширины не годится.
+  wide.addEventListener('change', pickView);
+
+
+
+  // ── Лупа ───────────────────────────────────────────────────────────────
+  // Тот же сервисный режим, но без консоли: узлы разобраны и подписаны, а
+  // место приборов отдано машине. Смотреть — не то же, что работать.
   //
-  // Выбор гостя старше умолчания в обе стороны: ушёл на карточку — открываем
-  // карточку, и наоборот.
-  let view = window.matchMedia('(max-width: 820px)').matches ? 'card' : 'rig';
-  try {
-    const saved = localStorage.getItem('view');
-    if (saved === 'rig' || saved === 'card') view = saved;
-  } catch (e) {}
-  setView(view);
-  viewBtn.addEventListener('click', function () {
-    setView(document.body.classList.contains('view-rig') ? 'card' : 'rig');
+  // Отдельного «режима зума» со своей логикой разбора здесь нет нарочно:
+  // разбирает узлы сервисный режим, и делать это второй раз означало бы
+  // держать две копии одного поведения.
+  const zoomBtn = document.getElementById('zoom-btn');
+  const ZOOM_STEPS = [1, 1.6, 2.4];
+  let zoomStep = 0;
+
+  function applyZoom() {
+    rig.style.setProperty('--zoom', ZOOM_STEPS[zoomStep]);
+    rig.classList.toggle('zoom-max', zoomStep === ZOOM_STEPS.length - 1);
+  }
+
+  // ── Перелёт ────────────────────────────────────────────────────────────
+  // Раскладка в лупе другая целиком: машина уходит из грида в поле во весь
+  // экран, шапка — в левый верхний угол, и разницу между этими местами
+  // переходом не взять, position и display не интерполируются. Поэтому
+  // положение меряется до и после, разница выдаётся трансформацией, а
+  // снимается она уже переходом: узел не перепрыгивает на новое место, а
+  // доезжает до него.
+  //
+  // Летят вместе — сцена, имя и должность. Порознь это три отдельных переезда
+  // в одном кадре, и глаз читает их не как смену режима, а как сбой раскладки.
+  //
+  // Саму раскладку при этом меняем без перехода. Колонка приборов в этот
+  // момент погашена, и её отъезд всё равно никто не увидит, а мерить конечное
+  // положение надо по готовой раскладке — иначе перелёт целится туда, откуда
+  // колонка ещё только уезжает, и машина в конце дёргается вбок.
+  const FLY = 550;
+  const FLY_SEL = '.stage, .rig-id h2, .rig-id .bio';
+
+  function flyParts(mutate) {
+    if (reduced) { mutate(); return; }
+    const parts = [];
+    rig.querySelectorAll(FLY_SEL).forEach(function (el) {
+      parts.push({ el: el, a: el.getBoundingClientRect() });
+    });
+    // Переходы глушим у всех, кто летит, и у поля под ними — до смены
+    // раскладки, а не после. У сцены в лупе свой переход по width, и она
+    // трогается с места сразу; замер, взятый в эту секунду, показывает ширину,
+    // с которой переход только начался, разница выходит нулевой, и сцена
+    // никуда не летит — просто прыгает. Имя летело, потому что своего перехода
+    // по размеру у него нет, и на нём поломка не видна.
+    parts.forEach(function (p) { p.el.style.transition = 'none'; });
+    rigBody.style.transition = 'none';
+    mutate();
+    // Замер конечных мест обязан идти по готовой раскладке — чтение rect её
+    // и заставляет пересчитаться, пока переходы выключены.
+    parts.forEach(function (p) { p.b = p.el.getBoundingClientRect(); });
+    rigBody.style.transition = '';
+    parts.forEach(function (p) {
+      if (!p.a.width || !p.b.width) return;
+      p.el.style.transformOrigin = '0 0';
+      p.el.style.transform =
+        'translate(' + (p.a.left - p.b.left) + 'px,' + (p.a.top - p.b.top) + 'px)'
+        + ' scale(' + (p.a.width / p.b.width) + ')';
+      p.el.getBoundingClientRect();  // забрать начальное положение до перехода
+      p.el.style.transition = 'transform ' + (FLY / 1000) + 's cubic-bezier(0.22, 1, 0.36, 1)';
+      p.el.style.transform = '';
+    });
+  }
+
+  function landParts() {
+    rig.querySelectorAll(FLY_SEL).forEach(function (el) {
+      el.style.transition = '';
+      el.style.transform = '';
+      el.style.transformOrigin = '';
+    });
+  }
+
+  // Пока идёт перелёт, второе нажатие кнопки только собьёт замеры.
+  let flying = false;
+
+  function setZoom(on) {
+    if (flying || on === rig.classList.contains('zoom')) return;
+    flying = true;
+    zoomBtn.setAttribute('aria-pressed', String(on));
+    line(on ? 'inspect: on · shift + клик — приблизить · esc — выход'
+            : 'inspect: off', 'muted');
+    // Сначала уходят приборы, и только потом трогается машина. Одновременно
+    // это читается рябью: колонка ещё едет, схема уже летит поверх неё.
+    rig.classList.add('zoom-shift');
+    wait(190, function () {
+      rig.classList.add('zooming');
+      flyParts(function () {
+        rig.classList.toggle('zoom', on);
+        document.body.classList.toggle('zoom', on);
+        if (on) {
+          zoomStep = 0;
+          applyZoom();
+        } else {
+          rig.style.removeProperty('--zoom');
+          rig.classList.remove('zoom-max', 'shifted');
+        }
+        // Сервисный режим включаем его же переключателем, а не классом: у него
+        // на себе висит и раскладка, и запись в журнал, и разбор узлов.
+        if (rig.classList.contains('service') !== on) toggleService();
+      });
+      wait(FLY + 20, function () {
+        landParts();
+        rig.classList.remove('zooming', 'zoom-shift');
+        flying = false;
+      });
+    });
+  }
+
+  zoomBtn.addEventListener('click', function () {
+    setZoom(!rig.classList.contains('zoom'));
   });
 
+  // ── shift ──────────────────────────────────────────────────────────────
+  // Приближает не всякий щелчок, а щелчок с shift. Простой щелчок в этом
+  // режиме занят: им машину возят, и приближение на него садилось поверх —
+  // рука дрогнула, отпустила, и схема прыгнула на ступень вместо того, чтобы
+  // остаться там, куда её привезли.
+  //
+  // Клавишу видно на трёх приборах сразу: курсор становится лупой, рамка
+  // вокруг слова shift в подсказке загорается, и щелчок начинает работать.
+  function zoomHint() {
+    const last = zoomStep === ZOOM_STEPS.length - 1;
+    return '<span class="lh-key">shift</span> + клик — '
+      + (last ? 'к общему виду' : 'приблизить')
+      + ' <span class="lh-scheme">· ×' + ZOOM_STEPS[zoomStep] + '</span>';
+  }
 
+  function armZoom(on) {
+    rig.classList.toggle('shifted', on && rig.classList.contains('zoom'));
+    if (linkHint) linkHint.classList.toggle('armed', on);
+  }
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Shift') armZoom(true);
+  });
+  document.addEventListener('keyup', function (e) {
+    if (e.key === 'Shift') armZoom(false);
+  });
+  // Отпустить клавишу можно и в другом окне — тогда keyup сюда не придёт, и
+  // курсор остался бы лупой над полем, которое уже не приближает.
+  window.addEventListener('blur', function () { armZoom(false); });
+
+  // Щелчок по полю приближает ещё на ступень, а с последней возвращает к
+  // первой. Точка под курсором при этом остаётся на месте: без этого
+  // приближение уводит взгляд с того, на что смотрели.
+  // ── Приближение ────────────────────────────────────────────────────────
+  // Ведём его сами, кадр за кадром, а не переходом по ширине. Переход менял
+  // размер, а прокрутку доводили после него — всё это время схема ехала вокруг
+  // прежней точки, и в конце прыгала на новую. Отсюда и «дёргается», и «зумит
+  // в левый верхний угол»: до конца перехода точка под курсором никого не
+  // держала. Чтобы она стояла на месте, ширину и прокрутку надо менять в одном
+  // кадре — а значит вести обе руками.
+  const ZOOM_MS = 340;
+  let zoomAnim = null;
+
+  // Границы возят по самой схеме, а не по прокручиваемой области. Область
+  // шире машины: перспектива и подписи рисуются за габарит сцены, и браузер
+  // считает это содержимым — замерено, при машине в 2337 точек область выходила
+  // 3892, то есть полторы тысячи точек пустоты справа. По ней-то и уезжало
+  // «вправо бесконечно».
+  function scrollMax() {
+    const st = rigBody.querySelector('.stage');
+    if (!st) return [0, 0];
+    return [Math.max(0, st.offsetLeft + st.offsetWidth - rigBody.clientWidth),
+            Math.max(0, st.offsetTop + st.offsetHeight - rigBody.clientHeight)];
+  }
+
+  function panTo(x, y) {
+    const [mx, my] = scrollMax();
+    rigBody.scrollLeft = Math.max(0, Math.min(mx, x));
+    rigBody.scrollTop = Math.max(0, Math.min(my, y));
+  }
+
+  function zoomTo(step, cx, cy) {
+    const from = ZOOM_STEPS[zoomStep], to = ZOOM_STEPS[step];
+    zoomStep = step;
+    rig.classList.toggle('zoom-max', step === ZOOM_STEPS.length - 1);
+    const r = rigBody.getBoundingClientRect();
+    // Точка под курсором в координатах самой схемы: она и обязана остаться
+    // неподвижной, как бы ни менялся масштаб.
+    const ax = cx - r.left, ay = cy - r.top;
+    const px = (rigBody.scrollLeft + ax) / from, py = (rigBody.scrollTop + ay) / from;
+    if (zoomAnim) cancelAnimationFrame(zoomAnim);
+    const t0 = performance.now();
+    (function tick(now) {
+      const p = reduced ? 1 : Math.min(1, (now - t0) / ZOOM_MS);
+      // Кубическое торможение: масштаб набирается сразу и мягко доводится.
+      // Линейный ход читался рывком ровно в конце, когда движение обрывалось.
+      const k = from + (to - from) * (1 - Math.pow(1 - p, 3));
+      rig.style.setProperty('--zoom', k);
+      panTo(px * k - ax, py * k - ay);
+      zoomAnim = p < 1 ? requestAnimationFrame(tick) : null;
+    })(t0);
+  }
+
+  rigBody.addEventListener('click', function (e) {
+    if (!rig.classList.contains('zoom') || !e.shiftKey) return;
+    // Щелчок по самой машине — это работа с узлом, а не приближение.
+    if (e.target.closest('.pick, .unit, a')) return;
+    zoomTo((zoomStep + 1) % ZOOM_STEPS.length, e.clientX, e.clientY);
+  });
+
+  // Возят машину курсором, как фотографию. Порог в три пикселя отделяет
+  // перетаскивание от щелчка: без него всякая попытка приблизить уезжала бы
+  // вбок на дрожание руки.
+  let drag = null;
+  rigBody.addEventListener('pointerdown', function (e) {
+    if (!rig.classList.contains('zoom') || e.button) return;
+    drag = { x: e.clientX, y: e.clientY,
+             left: rigBody.scrollLeft, top: rigBody.scrollTop, moved: false };
+  });
+  rigBody.addEventListener('pointermove', function (e) {
+    if (!drag) return;
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (!drag.moved && Math.abs(dx) + Math.abs(dy) < 3) return;
+    drag.moved = true;
+    rig.classList.add('dragging');
+    // Возят машину в границах поля: без ограничения прокрутка уходила вправо
+    // сколько ни тяни, и схема пропадала за кромкой.
+    panTo(drag.left - dx, drag.top - dy);
+  });
+  function endDrag() {
+    if (drag && drag.moved) {
+      // Щелчок, родившийся из перетаскивания, приближать не должен.
+      const eat = function (ev) { ev.stopPropagation(); };
+      rigBody.addEventListener('click', eat, { capture: true, once: true });
+    }
+    drag = null;
+    rig.classList.remove('dragging');
+  }
+  rigBody.addEventListener('pointerup', endDrag);
+  rigBody.addEventListener('pointercancel', endDrag);
+  rigBody.addEventListener('pointerleave', endDrag);
 
   // ── Part numbers of the units ──────────────────────────────────────────
   // Clicking the hash copies it and opens the commit: on a real board a part

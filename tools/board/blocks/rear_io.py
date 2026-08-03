@@ -43,6 +43,7 @@ from board.geom import (
     RISER,
     WALL_D,
     X_IO,
+    X_IO_END,
     X_PCB_END,
     X_WALL,
     Y_PSU_BOT,
@@ -102,7 +103,7 @@ def magnetics(cy, label):
     сигнал, который дальше пары сантиметров вести уже нельзя.
     """
     w, h = 46, 20
-    x, y = X_PCB_END - 66, cy - h / 2
+    x, y = X_IO_END - 66, cy - h / 2
     pins = ''.join(pad(x + 4 + k * 4.8, y - 2.6, 3, 3, 0.4)
                    + pad(x + 4 + k * 4.8, y + h - 0.4, 3, 3, 0.4) for k in range(8))
     return (pins
@@ -120,7 +121,7 @@ def jack_tabs(y, h):
     """
     n = max(2, int(h // 13))
     step = (h - 6) / max(1, n - 1)
-    return ''.join(pad(X_PCB_END - 13, y + 3 + k * step - 1.7, 13, 3.4, 0.5)
+    return ''.join(pad(X_IO_END - 13, y + 3 + k * step - 1.7, 13, 3.4, 0.5)
                    for k in range(n))
 
 
@@ -166,35 +167,100 @@ def dsub(x, y):
     return body + slot + pins + screws
 
 
-def rear_wall(holes):
-    """Стальной борт: сплошной лист с окнами ровно по торцам разъёмов.
+def rear_wall(holes, cutouts):
+    """Задняя панель: одна широкая перфорированная планка с окнами.
 
-    Окно пробивают под разъём — поэтому оно и совпадает с ним до единицы, а
-    не «примерно там». Сталь между окнами дырявят сотами: воздух в машине
-    идёт спереди назад и выходит именно через борт, а глухой лист его запрёт.
-    Той же сеткой перфорированы кронштейны райзеров — это одна и та же сталь
-    одной и той же машины.
+    Раньше борт был полосой в двадцать две единицы, а между ним и платами
+    разъёмов оставались тонкие серые заполнители — по одному на каждый просвет.
+    Читалось это не панелью, а набором прокладок. На живой машине задняя стенка
+    одна: штампованный лист во всю глубину кронштейна, в котором вырезаны окна
+    под разъёмы и проёмы под съёмные райзеры.
+
+    Ширина листа взята по кронштейну райзера: от его стойки до внешней кромки
+    борта. Поэтому лист и кронштейн совпадают по левому краю — они и есть одна
+    деталь, только кронштейн съёмный.
+
+    holes   — окна под разъёмы: (y, высота). Сквозные, лист там пробит.
+    cutouts — проёмы под райзеры: (y, высота). Там листа нет вовсе, туда
+              заходит съёмный кронштейн со своей перфорацией.
     """
-    out, y = [], Y_PSU_TOP
-    for hy, hh in holes + [(Y_PSU_BOT, 0)]:
-        seg = hy - y
-        if seg > 2:
-            out.append(f'<rect x="{X_WALL}" y="{y}" width="{WALL_D}" height="{seg}" rx="1" '
-                       f'fill="{STEEL}" stroke="rgba(147,161,161,0.34)" stroke-width="1.1"/>')
-            if seg >= 40:
-                out.append(hexgrid(X_WALL + 2, y + 5, WALL_D - 4, seg - 10, s=4, gap=3.2))
-            out.append(relief(X_WALL, y, WALL_D, seg, 1))
-        if hh:
-            # Кромка окна: лист по краю отогнут внутрь, и на отбортовке ловится
-            # свет — без неё окно читается дыркой в бумаге, а не в стали.
-            out.append(f'<path d="M{X_WALL} {hy} H{X_WALL+WALL_D} M{X_WALL} {hy+hh} '
-                       f'H{X_WALL+WALL_D}" stroke="rgba(223,232,234,0.26)" '
-                       f'stroke-width="1.2" fill="none"/>')
-        y = hy + hh
-    return ''.join(out)
+    # Лист начинается левее стойки кронштейна: он подложка под всё, что стоит у
+    # задней стенки, а не полоска между ней и платами. Правая кромка — внешний
+    # край борта.
+    x0 = X_IO - 24
+    w = X_WALL + WALL_D - x0
+    top, bot = Y_PSU_TOP, Y_PSU_BOT
+
+    # Маска: белое поле листа, чёрным — соты, окна и проёмы. Всё чёрное в
+    # маске это дырка, сквозь неё видно то, что лежит под листом.
+    field = f'<rect x="{x0 - 2}" y="{top - 2}" width="{w + 4}" height="{bot - top + 4}" fill="#fff"/>'
+    mask, plate = [field], [field]
+    edges, ribs = [], []
+
+    for hy, hh in cutouts:
+        hole = f'<rect x="{x0 - 2}" y="{hy}" width="{w + 4}" height="{hh}" fill="#000"/>'
+        mask.append(hole)
+        plate.append(hole)
+    for hy, hh in holes:
+        # Окно пробито только в борту: вглубь машины лист остаётся, на нём и
+        # стоит плата разъёма.
+        hole = f'<rect x="{X_WALL - 1}" y="{hy}" width="{WALL_D + 2}" height="{hh}" fill="#000"/>'
+        mask.append(hole)
+        plate.append(hole)
+        # Кромка окна: лист по краю отогнут внутрь, и на отбортовке ловится
+        # свет — без неё окно читается дыркой в бумаге, а не в стали.
+        edges.append(f'<path d="M{X_WALL} {hy} H{X_WALL+WALL_D} M{X_WALL} {hy+hh} '
+                     f'H{X_WALL+WALL_D}" stroke="rgba(223,232,234,0.26)" '
+                     f'stroke-width="1.2" fill="none"/>')
+
+    # Соты по всему листу: одна сетка, а не по сетке на каждый просвет. Сота
+    # той же величины, что на крышке и на кронштейнах — дырки в этой машине
+    # пробиты одним пуансоном.
+    grid = dict(s=6, gap=5)
+    # Поле сот начинается ниже последнего проёма с отступом: у самой кромки
+    # выреза дырки читались бы обгрызенным краем, а не перфорацией.
+    gy = max(hy + hh for hy, hh in cutouts) + 14 if cutouts else top + 6
+    for fx, fy, fw, fh in ((x0 + 6, top + 6, w - 12, gy - 14 - top - 6),
+                           (x0 + 6, gy, w - 12, bot - 6 - gy)):
+        if fh < 20:
+            continue
+        mask.append(hexgrid(fx, fy, fw, fh, fill='#000', stroke='none', **grid))
+        ribs.append(hexgrid(fx, fy, fw, fh, fill='none',
+                            stroke='rgba(147,161,161,0.26)', **grid))
+
+    # Обводки дырок обрезаются второй маской — по самому листу, без сот.
+    # Первой их резать нельзя: она чёрная ровно по шестиугольникам, то есть
+    # съела бы как раз то, что рисует. А без обрезки кромки сот ложились поверх
+    # карт, стоящих в проёмах: лист рисуется одним прямоугольником, и его сетка
+    # шла по всей его площади, включая вырезы.
+    return ('<defs><mask id="rear-perf" maskUnits="userSpaceOnUse">'
+            + ''.join(mask) + '</mask>'
+            + '<mask id="rear-plate" maskUnits="userSpaceOnUse">'
+            + ''.join(plate) + '</mask></defs>'
+            + f'<rect x="{x0}" y="{top}" width="{w}" height="{bot - top}" rx="2" '
+              f'fill="{STEEL}" stroke="rgba(147,161,161,0.34)" stroke-width="1.1" '
+              f'mask="url(#rear-perf)"/>'
+            + f'<g mask="url(#rear-plate)">{"".join(ribs)}</g>' + ''.join(edges)
+            + relief(X_WALL, top, WALL_D, bot - top, 1))
 
 
 def render(cv):
+    # Задняя панель кладётся первой: это подложка, на которой стоит всё
+    # остальное. Пока она добавлялась последней, лист ложился поверх гнёзд и
+    # закрывал их собой.
+    cv.add('<g class="decor">' + rear_wall(
+        holes=[
+            (IO_AUX_Y, IO_AUX_H),          # кронштейн мелочи
+            (IO_Y + 0 * JACK_PITCH, JACK_H),   # LAN_1
+            (IO_Y + 1 * JACK_PITCH, JACK_H),   # LAN_2
+            (IO_Y + 2 * JACK_PITCH, JACK_H),   # порт управления
+        ],
+        # Проёмы под съёмные райзеры: листа там нет вовсе, туда заходит
+        # кронштейн со своей перфорацией. Оба слота, и занятый, и пустой:
+        # пустой закрыт заглушкой, а заглушка — часть кронштейна.
+        cutouts=[(y, h) for y, h in RISER],
+    ) + '</g>')
+
     BY = IO_Y
     # Три гнезда одного размера, через один шаг. Середина гнезда k — это и
     # якорь его бирки, и высота его магнитопровода: одно число на все три
@@ -227,8 +293,8 @@ def render(cv):
     cv.add('<g class="decor">'
            + ''.join(magnetics(jack_mid(k), f"T{k+1} · 1G") for k in range(3))
            + ''.join(jack_tabs(jack_y(k), JACK_H) for k in range(3))
-           + mono(X_PCB_END - 43, gap_mid + 3, PORTS['eth'], 7, op=0.5)
-           + mono(X_PCB_END - 43, gap_mid2 + 3, PORTS['mgmt'], 7, op=0.5)
+           + mono(X_IO_END - 43, gap_mid + 3, PORTS['eth'], 7, op=0.5)
+           + mono(X_IO_END - 43, gap_mid2 + 3, PORTS['mgmt'], 7, op=0.5)
            + '</g>')
 
     # Два гигабитных гнезда — две разные ссылки. Общая группа остаётся: пара
@@ -293,11 +359,3 @@ def render(cv):
     # навсегда — вынимаешь карту, окно остаётся.
     ry0, _rh0 = RISER[0]
     ry1, rh1 = RISER[1]
-    cv.add('<g class="decor">' + rear_wall([
-        (ry0 + 8, 64),            # торец сетевой карты: гнёзда SFP+
-        (ry1 + 6, rh1 - 12),      # глухая планка пустого слота
-        (AY, IO_AUX_H),           # кронштейн мелочи
-        (jack_y(0), JACK_H),      # LAN_1
-        (jack_y(1), JACK_H),      # LAN_2
-        (jack_y(2), JACK_H),      # порт управления
-    ]) + '</g>')

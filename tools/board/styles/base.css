@@ -30,14 +30,18 @@ body.view-rig main { display: none; }
    that ceiling, the machine stretched across the whole screen. */
 body.view-rig .rig { display: block; }
 
-/* The view button is the theme switch's own sister: same size, same inverse
-   backing, sitting to its left. Otherwise it gets lost against the page. */
-.view-switch {
+/* Кнопка лупы — сестра переключателя темы: тот же размер, та же обратная
+   подложка, слева от неё. Ряд справа налево: тема, лупа, пересборка.
+
+   На её месте стояла кнопка «карточка или схема». Её больше нет: вид решает
+   ширина экрана, а не гость, — на телефоне машину не рассмотреть, на
+   компьютере карточка не нужна. */
+.zoom-btn {
     position: fixed;
     top: 24px;
     right: 78px;
     z-index: 4;
-    display: grid;
+    display: none;
     place-items: center;
     width: 42px;
     height: 42px;
@@ -46,6 +50,7 @@ body.view-rig .rig { display: block; }
     border: 1px solid var(--inv-line);
     background: var(--inv-surface);
     box-shadow: var(--inv-shadow);
+    color: var(--inv-node);
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
     animation: contentEnter 0.65s cubic-bezier(0.32, 0.72, 0, 1) 680ms backwards;
@@ -53,7 +58,32 @@ body.view-rig .rig { display: block; }
         background   var(--theme-fade),
         border-color var(--theme-fade),
         box-shadow   var(--theme-fade),
+        color        var(--theme-fade),
+        /* Размер и место — тоже переходом. В лупе кнопка растёт и уезжает
+           вправо, и без этих трёх свойств она перескакивала: первый кадр в
+           одном углу и одного размера, следующий — в другом и другого. */
+        width        0.42s cubic-bezier(0.22, 1, 0.36, 1),
+        height       0.42s cubic-bezier(0.22, 1, 0.36, 1),
+        right        0.42s cubic-bezier(0.22, 1, 0.36, 1),
+        border-radius 0.42s cubic-bezier(0.22, 1, 0.36, 1),
         transform    0.44s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+body.view-rig .zoom-btn { display: grid; }
+/* Значок внутри растёт вместе с плиткой, иначе он остаётся мелкой точкой в
+   середине выросшей кнопки. */
+.zoom-btn svg, .assemble-btn svg {
+    transition: width 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+                height 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.zoom-btn svg { width: 21px; height: 21px; display: block; }
+.zoom-btn:hover { transform: translate3d(0, -1px, 0); }
+.zoom-btn:active { transform: translate3d(0, 0, 0) scale(0.96); }
+.zoom-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+/* Включённая лупа видна по самой кнопке: она горит, как горит нажатая кнопка
+   прибора, — иначе непонятно, чем именно вызван весь этот новый вид. */
+.zoom-btn[aria-pressed="true"] {
+    border-color: var(--cyan);
+    color: var(--cyan);
 }
 
 /* The reassemble button: the same tile as the view and theme ones, third in
@@ -76,10 +106,27 @@ body.view-rig .rig { display: block; }
     color: var(--inv-node);
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
+    /* Третья в ряду — и появляется третьей, следом за темой (620) и лупой
+       (680). Без этого она одна висела на месте с первого кадра, пока соседи
+       ещё только выплывали. */
+    animation: contentEnter 0.65s cubic-bezier(0.32, 0.72, 0, 1) 740ms backwards;
     transition:
         background   var(--theme-fade),
         border-color var(--theme-fade),
         box-shadow   var(--theme-fade),
+        /* Пока идёт сборка, кнопка отпущена и гаснет — это состояние обязано
+           приходить переходом. Скачок читался не «кнопка занята», а «страница
+           моргнула». Гасим фильтром, а не opacity: сборка идёт с первой
+           секунды, и правило «занята» держало бы кнопку тусклой ещё до того,
+           как она появилась, — а выплывать ей надо в ту прозрачность, которая
+           у неё сейчас, не споря с анимацией входа за одно и то же свойство. */
+        filter       0.3s ease,
+        /* Как и у лупы: в этом режиме плитка растёт и переезжает, и без
+           перехода по размеру и месту она перескакивала. */
+        width        0.42s cubic-bezier(0.22, 1, 0.36, 1),
+        height       0.42s cubic-bezier(0.22, 1, 0.36, 1),
+        right        0.42s cubic-bezier(0.22, 1, 0.36, 1),
+        border-radius 0.42s cubic-bezier(0.22, 1, 0.36, 1),
         transform    0.44s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 body.view-rig .assemble-btn { display: grid; }
@@ -89,32 +136,16 @@ body.view-rig .assemble-btn { display: grid; }
    second run on top of the first would knock the schedule out, and some of
    the units would stay outside the machine. */
 .rig.assembly ~ .assemble-btn,
-body:has(.rig.assembly) .assemble-btn { opacity: 0.45; pointer-events: none; }
+body:has(.rig.assembly) .assemble-btn { filter: opacity(0.45); pointer-events: none; }
 .assemble-btn:active svg { transform: rotate(-40deg); }
 .assemble-btn svg { transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); }
 .assemble-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
-
-.view-switch:hover { transform: translate3d(0, -1px, 0); }
-.view-switch:active { transform: translate3d(0, 0, 0) scale(0.96); }
-.view-switch:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
-
-.view-switch svg {
-    grid-area: 1 / 1;
-    width: 22px;
-    height: 22px;
-    display: block;
-    color: var(--inv-node);
-    transition:
-        opacity   0.35s ease,
-        transform 0.55s cubic-bezier(0.34, 1.56, 0.64, 1),
-        color     var(--theme-fade);
+/* Обе плитки лежат вне .rig, и общий запрет анимаций внутри схемы их не
+   касается — как и переключатель темы, они отменяют своё появление сами. */
+@media (prefers-reduced-motion: reduce) {
+    .zoom-btn, .assemble-btn { animation: none; }
 }
 
-/* We show where the click leads: in card view — the rack, and the reverse. */
-.icon-card { opacity: 0; transform: rotate(-90deg) scale(0.5); }
-.icon-rack { opacity: 1; transform: none; }
-body.view-rig .icon-rack { opacity: 0; transform: rotate(90deg) scale(0.5); }
-body.view-rig .icon-card { opacity: 1; transform: none; }
 
 /* The schematic needs colour roles of its own: the card names its tokens
    differently. */
@@ -145,6 +176,7 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   --metal: #121a1e;
   --metal-deep: #0c1316;
   --steel: #1b2429;
+  --pcb-ink: #071a1f;
   --pcb: #0a3037;
   --surface-fade: 0.45s cubic-bezier(0.32, 0.72, 0, 1);
 
@@ -182,15 +214,41 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
      сопротивление. Одна кривая на всё читается как «сделано скриптом»,
      сколько её ни настраивай.
 
-     --drag: длинная тугая ножка. Райзер и блок питания сидят в глубоком пазу
+     --drag: тугой ход блока питания. Секунда с лишним, которая тут стояла,
+     на коротком ходе в сорок четыре единицы читалась не тяжестью, а
+     задержкой: узел давно вышел, а движение всё длилось.
+
+     Райзер этой кривой больше не ходит — у него своя, --riser-lift: там
+     сопротивление кончается разом, как только контакт вышел из паза.
+
+     Прежнее описание: длинная тугая ножка. Блок питания сидит в глубоком пазу
      и первые две трети времени ползут, набрав едва пятую часть хода; дальше
      паз кончается, и остаток узел проходит разгоняясь. Это не смягчённый
      щелчок, а его противоположность: у щелчка сопротивление кончается разом,
      здесь оно кончается постепенно. */
-  --drag: 1.15s linear(
+  --drag: 0.48s linear(
       0, 0.020 10%, 0.045 20%, 0.075 30%, 0.112 40%, 0.158 50%,
       0.218 60%, 0.300 69%, 0.420 77%, 0.600 84%, 0.790 90%,
       0.920 95%, 0.985 98%, 1);
+
+  /* Обратный ход у каждого узла — его же посадочная кривая, та самая, которой
+     он садится на сборке. Это и значит «одинаковая физика в обе стороны»:
+     одинаковая тяжесть, а не одна кривая, пущенная задом наперёд.
+
+     Разворот во времени пробовали, и он выглядит противоположно замыслу:
+     сопротивление уезжает в конец хода, и узел трогается с места рывком. По
+     числам зеркало, на глаз — другое движение. Каддик на развёрнутой кривой
+     и вовсе застревал у самого места: полка приходилась на девяносто два
+     процента пути.
+
+  /* --tug и --tug-in: встроенная сетевая карта. Форма та же тугая, что у
+     райзера, а время вдвое короче: карта сидит в мезонине на пару сантиметров,
+     и полторы секунды на этот ход читались не тугим ходом, а зависанием. */
+  --tug: 0.55s linear(
+      0, 0.020 10%, 0.045 20%, 0.075 30%, 0.112 40%, 0.158 50%,
+      0.218 60%, 0.300 69%, 0.420 77%, 0.600 84%, 0.790 90%,
+      0.920 95%, 0.985 98%, 1);
+
 
   /* --snap: разъём вентилятора. Диапазона у него нет вовсе — он либо
      защёлкнут, либо нет, как свитч на клавиатуре. Четверть времени ничего не
@@ -241,6 +299,20 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
       0, 0.06 10%, 0.13 20%, 0.21 30%, 0.30 40%, 0.40 50%, 0.52 60%,
       0.66 70%, 0.82 79%, 0.95 87%, 1.02 94%, 1);
 
+  /* --riser-lift: подъём кронштейна из паза. Восемь десятых пути идут туго,
+     остаток вылетает: контакт у райзера в сантиметр, и всё сопротивление —
+     это он. Короче и жёстче прежнего общего --drag: там тяжесть размазана по
+     всей длине, а здесь она кончается разом, как только контакт вышел. */
+  --riser-lift: 0.33s linear(
+      0, 0.05 14%, 0.10 26%, 0.17 38%, 0.25 50%, 0.34 62%, 0.45 72%,
+      0.58 80%, 0.80 88%, 0.95 94%, 1);
+  /* --riser-slide: отвод в сторону, уже вынутого. Сопротивления нет — узел в
+     руке, и движение только показывает, что он снят. */
+  /* Мягкий старт обязателен: отвод идёт после паузы, пока кончается подъём, и
+     на ease-out он начинался с максимальной скорости — после неподвижности это
+     читалось скачком вбок, а не продолжением движения. */
+  --riser-slide: 0.42s cubic-bezier(0.45, 0, 0.25, 1);
+
   /* --lever: ручка каддика. Единственное движение на схеме, которому инерция
      противопоказана: пластиковый рычаг невесом, пружина отбрасывает его
      мгновенно, и он встаёт в упор. Поэтому честно линейная и короткая — любая
@@ -286,7 +358,11 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   --press-two: 1.05s linear(
       0, 0.22 8%, 0.44 16%, 0.58 24%, 0.615 31%, 0.62 40%, 0.63 48%,
       0.72 56%, 0.86 64%, 0.965 72%, 1.01 80%, 1);
-  --press-seat: 0.9s linear(
+  /* Вынимание блока — разворот его же посадки. Полка, на которой блок упирается
+     в направляющие, приходится теперь на вторую половину хода: тянешь, тянешь,
+     потом отпускает и он выходит разом. На собственной кривой блок выходил
+     равномерно по всей длине, и хват руки в этом не читался. */
+  --press-seat: 1.2s linear(
       0, 0.30 12%, 0.55 24%, 0.70 36%, 0.74 46%, 0.755 58%, 0.78 66%,
       0.94 76%, 1.02 84%, 1);
 
@@ -313,9 +389,18 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
 /* Name and status are visible in both views — this is a personal card, not
    only a schematic. */
 .rig-id { text-align: center; margin: 0 auto 18px; }
-.rig-id h2 { margin: 0 0 4px; font-size: 1.5rem; font-weight: 600;
-             letter-spacing: -0.02em; color: var(--heading); }
-.rig-id .bio { margin: 0 0 6px; font-size: 0.95rem; color: var(--bio); }
+/* Ширина по содержимому, а центрирование — полями. При переезде в лупу имя
+   летит от своего места к углу экрана, и лететь оно должно от текста, а не от
+   левого края страницы, на котором блок во всю ширину начинается формально.
+   Строчными блоками их для этого сделать нельзя: имя и должность встали бы в
+   одну строку, пока помещаются. */
+/* Имя выплывает первым, как заголовок на карточке: там это h1, здесь h2, и
+   правило появления по имени тега его не доставало — должность и строка о
+   работе выплывали, а имя стояло на месте с первого кадра. */
+.rig-id h2 { width: fit-content; margin: 0 auto 4px; font-size: 1.5rem; font-weight: 600;
+             letter-spacing: -0.02em; color: var(--heading);
+             animation: contentEnter 0.65s cubic-bezier(0.32, 0.72, 0, 1) backwards; }
+.rig-id .bio { width: fit-content; margin: 0 auto 6px; font-size: 0.95rem; color: var(--bio); }
 .rig-id .now { margin: 0; font-size: 0.8rem; color: var(--now); }
 .rig-id .now .live-dot { margin-right: 7px; }
 
@@ -411,16 +496,24 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
      hang on a bare background while the card has one. The spread is smaller —
      the stage is twice as wide as the card to begin with, and at the full
      blur(160px) the glow would crawl across the whole screen. */
+  /* Пятно чуть шире машины и выходит за её габарит сверху и снизу: пока оно
+     сидело внутри контура (4% / 12%), от градиента был виден один центр —
+     самое невыразительное его место. Растянутое до -18% / -8% оно заливало
+     собой весь кадр и переставало быть свечением за предметом. Здесь середина
+     между тем и другим, и она же оптимум: видны оба края градиента, но пятно
+     остаётся привязанным к машине.
+
+     Яркость всё это время та же — меняется площадь, а не насыщенность. */
   .rig-glow {
-    position: absolute; inset: 4% 12%;
-    border-radius: 80px;
+    position: absolute; inset: -7% 2%;
+    border-radius: 110px;
     background: linear-gradient(45deg,
         rgba(255, 50, 100, 0.45) 0%,
         rgba(255, 80, 150, 0.30) 25%,
         rgba(120, 40, 220, 0.18) 50%,
         rgba(0, 220, 255, 0.30) 75%,
         rgba(0, 255, 255, 0.45) 100%);
-    filter: blur(130px);
+    filter: blur(140px);
     pointer-events: none;
     z-index: 0;
     opacity: 0;
@@ -436,6 +529,9 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
     opacity: 0;
     transition: transform 1s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.6s ease;
   }
+  /* Тринадцать градусов, и это проверено на глаз: при восемнадцати разница с
+     плоской лупой читалась сильнее, но сама схема — хуже. Дальний край мельчает
+     быстрее, чем растёт выразительность наклона. */
   .rig.ready .chassis { transform: rotateX(13deg); opacity: 1; }
   .chassis svg { display: block; width: 100%; height: auto; overflow: visible; }
 
@@ -464,6 +560,32 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   .unit .tag { fill-opacity: 0; transition: fill-opacity var(--fade); pointer-events: none; }
   .unit:hover .tag, .unit:focus-visible .tag { fill-opacity: 1; }
   .unit:focus-visible { outline: none; }
+  /* Ни у одного органа управления на самой схеме нет рамки фокуса. Браузер
+     обводит габарит элемента, а габарит здесь — это группа со всеми её
+     подписями и ореолами: вокруг квадратной лампочки в шестнадцать единиц
+     появлялся квадрат в полсотни, и он читался не подсказкой, а поломкой.
+     Взамен подсвечивается сам орган — тем же, чем он отвечает на наведение,
+     только заметнее. */
+  /* Рамку фокуса браузер рисует вокруг всего, что умеет принимать таб, и на
+     группе svg она обводит весь её габарит — по кнопке снятия крышки это целый
+     блок в бело-синей рамке. Гасим её у всех органов управления разом и
+     показываем фокус тем же, чем показываем наведение: самим органом. */
+  /* Ни одной браузерной рамки внутри машины. Перечислять органы поимённо
+     оказалось недостаточно: таб ходит и по ссылкам-биркам, и по группам узлов,
+     и рамка обводила то целый блок, то половину платы. Фокус показывается тем
+     же, чем наведение, — самим органом. */
+  .rig :focus, .rig :focus-visible { outline: none; }
+  .svc-switch:focus-visible, .power-btn:focus-visible,
+  .id-btn:focus-visible, .lp-tab:focus-visible,
+  .lp-reset:focus-visible, .pick:focus-visible,
+  .lid-btn-svg:focus-visible, .lid-on-btn:focus-visible { outline: none; }
+  .lid-btn-svg:focus-visible rect:nth-of-type(2),
+  .lid-on-btn:focus-visible rect:nth-of-type(2) { stroke: var(--cyan); }
+  .svc-switch:focus-visible .svc-knob { stroke: var(--cyan); stroke-width: 2.4; }
+  .power-btn:focus-visible .pwr-ring { stroke: var(--green); }
+  .id-btn:focus-visible .sq-led { fill-opacity: 0.5; }
+  .lp-tab:focus-visible > rect { stroke: var(--cyan); }
+  .lp-reset:focus-visible circle:nth-of-type(1) { stroke-width: 3.2; }
   /* Callouts. A visitor has to see where to click without hovering — so the
      labels are permanent, and hover only highlights the one in question. */
   .callouts { pointer-events: none; }
@@ -507,13 +629,13 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
      again. */
   .co-text {
     fill: #06222a; font-family: ui-monospace, Menlo, monospace;
-    font-size: 22px; font-weight: 700; letter-spacing: 0.01em;
+    font-size: 26px; font-weight: 700; letter-spacing: 0.01em;
   }
   /* The second line answers "and what is this": without it the label names
      the service but does not say why one would click it. */
   .co-sub {
     fill: rgba(6, 34, 42, 0.6); font-family: ui-monospace, Menlo, monospace;
-    font-size: 12.5px; font-weight: 500; letter-spacing: 0.02em;
+    font-size: 14.5px; font-weight: 500; letter-spacing: 0.02em;
   }
   /* The service icon is the same one as in the card of links: a visitor sees
      the same mark in both views of the card and recognises it faster than he
@@ -717,6 +839,9 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   /* @block: drives */
   /* @block: fans */
   /* @block: memory */
+  /* Кожух памяти лежит поверх её плашек — и правила его стоят следом за
+     ними, тем же порядком, что и на схеме. */
+  /* @block: baffle */
   /* @block: risers */
   /* @block: psu */
   /* @block: rear_io */
@@ -924,6 +1049,85 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   .rig.service .panel { min-height: 140px; }
 }
 
+/* ── Режим лупы ────────────────────────────────────────────────────────────
+ * Это тот же сервисный режим, только без консоли: узлы разобраны, всё
+ * подписано, а место, которое занимала колонка с приборами, отдано самой
+ * машине. Смотреть — не то же самое, что работать: когда рассматривают, лишним
+ * становится всё, кроме предмета.
+ *
+ * Имя и должность уезжают в шапку слева, как в резюме: страница перестаёт быть
+ * страницей с заголовком по центру и становится рабочим столом с предметом на
+ * нём. Кнопки при этом остаются на своих местах — по ним из этого режима и
+ * выходят.
+ */
+body.zoom { overflow: hidden; }
+
+.rig.zoom .rig-side,
+.rig.zoom .timeline { display: none; }
+
+/* Шапка: имя слева, мелко, в одну строку. По центру и в три строки, как на
+   обычной странице, оно съедало треть высоты — ровно ту, ради которой сюда и
+   заходят.
+
+   Селекторы тут были на h1, а в разметке стоит h2, и правила не срабатывали
+   ни разу: имя в лупе оставалось полуторного кегля и лежало поперёк фронта
+   машины. */
+.rig.zoom .rig-id {
+    position: fixed;
+    top: 26px; left: 28px;
+    z-index: 5;
+    margin: 0;
+    text-align: left;
+}
+.rig.zoom .rig-id h2 { font-size: 1.02rem; margin: 0; }
+.rig.zoom .rig-id .bio { font-size: 0.74rem; margin: 2px 0 0; }
+/* Чем занят — это про сегодня, а не про машину. В лупе рассматривают предмет,
+   и строка о работе тут ровно то лишнее, ради ухода от которого сюда заходят. */
+.rig.zoom .rig-id .now { display: none; }
+.rig.zoom .hint { display: none; }
+
+/* Поле, по которому машину возят. Прокрутка своя, полосы спрятаны: возят
+   курсором, а не полосой, и полоса тут только отняла бы место у предмета. */
+.rig.zoom .rig-body {
+    position: fixed;
+    inset: 0;
+    z-index: 3;
+    display: block;
+    padding: 0;
+    overflow: auto;
+    scrollbar-width: none;
+    /* Та же точечная сетка, что и на странице, и тем же шагом. Глухая заливка
+       накрывала её собой: поле в этом режиме лежит поверх всего, а сетка
+       нарисована под ним, и вход в лупу гасил фон целиком. */
+    background:
+        radial-gradient(circle, var(--dots) 1px, transparent 1px) 0 0 / 24px 24px,
+        var(--bg);
+}
+.rig.zoom .rig-body::-webkit-scrollbar { width: 0; height: 0; }
+/* Курсор поля задан в конце файла, вместе с остальным поведением shift. */
+
+/* Сама машина. Ширина задаётся множителем, а не потолком: щелчок увеличивает
+   множитель, и схема растёт, оставаясь в том же поле. Перехода нет только у
+   прокрутки — её ведёт скрипт, чтобы точка под курсором осталась на месте. */
+/* На первой ступени машина занимает экран целиком — ради этого сюда и
+   заходят. Потолок в 1200 точек, который держит её в обычном виде, тут снят:
+   там он бережёт композицию страницы, а здесь страницы нет, есть предмет.
+   Верхний отступ — под шапку с именем, иначе она ложится на фронт машины. */
+.rig.zoom { --rig-w: min(88vh * 1.66, 94vw); }
+.rig.zoom .stage {
+    width: calc(var(--rig-w) * var(--zoom, 1));
+    max-width: none;
+    margin: 84px auto 48px;
+    /* Перехода по ширине здесь нет нарочно: приближение ведёт скрипт, кадр за
+       кадром, вместе с прокруткой. Переход менял размер сам по себе, а точка
+       под курсором при этом никого не держала. */
+}
+
+/* Схема в этом режиме не наклонена. Наклон — это витрина: он делает машину
+   картинкой. Рассматривают её плоской, иначе дальний край втрое мельче
+   ближнего и подписи на нём не читаются. */
+.rig.zoom .chassis { transform: none; }
+
 /* ── Адрес под курсором ───────────────────────────────────────────────────
  * Наводя на бирку или на узел, гость видит, куда попадёт. Браузер показывает
  * это в углу окна мелким шрифтом — здесь адрес идёт за курсором и читается
@@ -1119,36 +1323,7 @@ a.callout.lit .co-dot { fill: var(--head); }
 /* @part: screen */
 
 
-/* ── Светлая тема ──────────────────────────────────────────────────────────
-   Металл в ней средне-серый и заметно темнее фона страницы: машина обязана
-   читаться предметом на столе, а не пятном на нём. Текстолит светлеет вместе
-   с ней — на дневном свету зелёная маска бирюзовая, а не чернильная. */
-:root[data-theme="light"] .rig {
-    --chassis: #58636a;
-    --metal: #626d74;
-    --metal-deep: #49535a;
-    --steel: #6a747b;
-    --pcb: #0e4d59;
-    /* Консоль светлеет вместе с машиной, но не сливается с фоном страницы:
-       у страницы кремовый base3, у консоли — base2 на полтона темнее, и между
-       ними остаётся видимая кромка. */
-    --con-bg: linear-gradient(180deg, rgba(238,232,213,0.96) 0%, rgba(228,220,197,0.94) 100%);
-    --con-ink: #33555c;
-    --con-dim: #6b7f83;
-}
 
-@media (prefers-color-scheme: light) {
-    :root:not([data-theme]) .rig {
-        --chassis: #58636a;
-        --metal: #626d74;
-        --metal-deep: #49535a;
-        --steel: #6a747b;
-        --pcb: #0e4d59;
-        --con-bg: linear-gradient(180deg, rgba(238,232,213,0.96) 0%, rgba(228,220,197,0.94) 100%);
-        --con-ink: #33555c;
-        --con-dim: #6b7f83;
-    }
-}
 
 /* ── Партномер ─────────────────────────────────────────────────────────────
    Набивка на детали: мелкая, приглушённая, и под курсором она меняется —
@@ -1160,3 +1335,113 @@ a.callout.lit .co-dot { fill: var(--head); }
 .stamp-alt text { fill-opacity: 0; }
 .stamp:hover > text { fill-opacity: 0; }
 .stamp:hover .stamp-alt text { fill-opacity: 0.62; }
+
+/* ── Вход в лупу и выход из неё ────────────────────────────────────────────
+ * Смена режима — это движение, а не переключатель. Сначала уходят приборы,
+ * и только потом трогается машина: одновременно они мешают друг другу —
+ * колонка ещё едет, схема уже летит поверх неё, и глазу не за что зацепиться.
+ *
+ * Блок стоит в конце файла нарочно. `.rig.service .rig-side` и
+ * `.rig.service .timeline` объявлены выше и ровно той же специфичности, так
+ * что спор решает порядок. Стой это рядом со своим разделом «Режим лупы» —
+ * приборы гасли бы только вне сервисного режима, то есть никогда: лупа его
+ * как раз и включает.
+ *
+ * .zoom-shift гасит приборы и строку о работе. Имя и должность не гаснут:
+ * они переезжают в угол экрана тем же движением, каким машина выходит на весь
+ * экран, и ведёт их скрипт — раскладка в лупе другая целиком, а position
+ * переходом не берётся.
+ *
+ * .zooming живёт ровно столько, сколько длится перелёт, и на это время
+ * распрямляет корпус в тот же срок: штатный наклон отпускает целую секунду, и
+ * машина ложилась плашмя заметно позже, чем приезжала.
+ */
+.rig .rig-id .now { transition: opacity 0.26s ease; }
+.rig.zoom-shift .rig-id .now,
+.rig.zoom-shift .rig-side,
+.rig.zoom-shift .timeline {
+    opacity: 0;
+    transition: opacity 0.18s ease;
+}
+.rig.zooming .chassis { transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1); }
+
+/* ── Курсор в лупе ─────────────────────────────────────────────────────────
+ * Приближает не всякий щелчок, а щелчок с shift, и курсор обязан это
+ * показывать заранее: лупа под курсором, когда клавиша зажата, и рука — когда
+ * нет. Иначе гость щёлкает, ничего не происходит, и он решает, что режим
+ * сломан.
+ */
+.rig.zoom .rig-body { cursor: grab; }
+.rig.zoom.shifted .rig-body { cursor: zoom-in; }
+.rig.zoom.shifted.zoom-max .rig-body { cursor: zoom-out; }
+.rig.zoom.dragging .rig-body,
+.rig.zoom.shifted.dragging .rig-body { cursor: grabbing; }
+
+/* Клавиша в подсказке набрана как клавиша — рамкой. Пока shift зажат, рамка
+   загорается: это единственное подтверждение, что машина услышала. */
+.link-hint .lh-key {
+    padding: 1px 5px;
+    margin-right: 3px;
+    border: 1px solid rgba(147, 161, 161, 0.3);
+    border-radius: 4px;
+    font-size: 0.7rem;
+    transition: border-color var(--fade), background var(--fade), color var(--fade);
+}
+.link-hint.armed .lh-key {
+    border-color: var(--cyan);
+    background: rgba(42, 161, 152, 0.16);
+    color: var(--cyan);
+}
+
+/* ── Шапка в режиме лупы ───────────────────────────────────────────────────
+ * Здесь остаётся только то, чем из этого режима выходят и чем машину
+ * пересобирают. Переключатель темы уходит: тема — это про страницу, а страницы
+ * тут нет, есть предмет на столе, и лишняя кнопка в углу спорит с ним за
+ * внимание ровно так же, как спорила консоль.
+ *
+ * Две оставшиеся становятся крупнее — вровень с шапкой из имени и должности,
+ * которая стоит в противоположном углу. Мелкие плитки рядом с ней читались
+ * значками, а не органами управления: из режима, который занимает весь экран,
+ * выход обязан быть виден.
+ */
+body.zoom .theme-switch { display: none; }
+body.zoom .zoom-btn,
+body.zoom .assemble-btn {
+    width: 56px;
+    height: 56px;
+    border-radius: 18px;
+}
+/* Обе прижаты к правому краю: место переключателя темы освободилось, и без
+   явного правила пересборка оставалась на своём третьем месте в ряду, а лупа
+   выросшая вдвое наезжала на неё. */
+body.zoom .assemble-btn { right: 24px; }
+body.zoom .zoom-btn { right: 96px; }
+body.zoom .zoom-btn svg,
+body.zoom .assemble-btn svg { width: 27px; height: 27px; }
+
+/* Включённая лупа горит красным. Синий тут был вежливым намёком, а нужен
+   признак: этот режим в машине один такой, из него выходят, и кнопка выхода
+   должна быть видна как кнопка выхода. */
+/* Красный записан числом, а не токеном: токены схемы объявлены внутри .rig, а
+   кнопка стоит в углу страницы, снаружи. Это тот же solarized red, что горит на
+   лампах неисправности. */
+body.zoom .zoom-btn[aria-pressed="true"] {
+    border-color: #dc322f;
+    color: #dc322f;
+    box-shadow: 0 0 0 1px #dc322f, var(--inv-shadow);
+}
+
+/* ── Почему машина не перекрашивается ──────────────────────────────────────
+ * Светлая тема у схемы была, и её убрали. Две причины, обе замеченные глазом.
+ *
+ * Первая: цвета машины подобраны под тёмный фон и в светлом не работают.
+ * Сталь, текстолит и медь на кремовом читаются выцветшей картинкой, а лампы,
+ * которые светятся, — просто цветными точками: свет виден на тёмном.
+ *
+ * Вторая: перекраска шла рывком. Страница гасит фон и текст переходом, а
+ * фигуры в svg берут цвет из переменных, и переменная не интерполируется —
+ * машина перещёлкивалась мгновенно посреди плавного перехода страницы.
+ *
+ * Схема — это фотография тёмного предмета, и на дневном свету он тёмным и
+ * остаётся. Тема осталась у страницы вокруг него: карточка, фон, кнопки.
+ */

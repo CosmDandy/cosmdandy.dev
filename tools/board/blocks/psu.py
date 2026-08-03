@@ -14,11 +14,12 @@ barcode.
 BOUNDS = (982, 0, 356, 862)
 
 from board.geom import PSU_H, PSU_W, PSU_Y, X_REAR, seat
-from board.ink import mono
+from board.ink import barcode, mono
+from board.spec import PSU
 from board.lamps import fault_at, jitter, lamp
 from board.metal import finned_sink
 from board.palette import METAL, METAL_DEEP, ROTOR_BLADE, ROTOR_EDGE, ROTOR_PAD
-from board.revision import stamp
+from board.revision import BOARD_SHA, stamp
 from board.rotor import HUB_R, blur_disc, impeller
 
 
@@ -135,10 +136,13 @@ def render(cv):
         sink_x, sink_w = X_REAR + 62, 173
         sink_y, sink_h = y + 24, 76
         psu.append(finned_sink(sink_x, sink_y, sink_w, sink_h))
-        # barcode along the inner end face
-        for b in range(20):
-            w = 1.4 if b % 3 else 2.8
-            psu.append(f'<rect x="{X_REAR+16}" y="{y+34+b*4}" width="24" height="{w}" fill="rgba(147,161,161,0.22)"/>')
+        # Штрих-код вдоль внутреннего торца. Разряды сосчитаны из партномера
+        # блока — тем же генератором, что и на наклейке памяти. Прежде штрихи
+        # шли через один по остатку от номера позиции: узор, который не менялся
+        # ни от чего и ни с чем рядом не сходился.
+        psu.append(barcode(X_REAR + 16, y + 34, BOARD_SHA + name, 24, bars=20,
+                           pitch=4, thin=1.4, thick=2.8,
+                           fill='rgba(147,161,161,0.22)', vertical=True))
         # The module name runs along the module, not across it: on a real
         # machine the label is stuck to the long side, and you read it by
         # turning your head. The label on the cover is turned the same way.

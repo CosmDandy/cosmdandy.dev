@@ -69,9 +69,12 @@ const CASES = [
   ['память: лепесток', '.dimm[data-dimm="L4"]', '.dimm[data-dimm="L4"] .latch-l', 1, 900],
   ['блок питания', '.psu[data-psu="1"]', '.psu[data-psu="1"] .pick-body', 1, 1500],
   ['лепесток блока', '.psu[data-psu="2"]', '.psu[data-psu="2"] .psu-latch', 1, 500],
-  ['райзер', '.riser[data-riser="1"]', '.riser[data-riser="1"] .pick-body', 1, 1500],
+  ['райзер: подъём', '.riser[data-riser="1"]', '.riser[data-riser="1"] .riser-lift', 1, 1200],
+  ['райзер: отвод', '.riser[data-riser="1"]', '.riser[data-riser="1"] .pick-body', 1, 1200],
   ['вентилятор', '.fan[data-fan="3"]', '.fan[data-fan="3"] .pick-body', 1, 800],
   ['каддик', '.bay[data-unit="hdd1"]', '.bay[data-unit="hdd1"] .pick-body', 2, 1400],
+  ['диск в каддике', '.bay[data-unit="hdd5"]', '.bay[data-unit="hdd5"] .drive-body', 2, 1400],
+  ['сетевая карта', '.pick[data-unit="eth"]', '.pick[data-unit="eth"] .pick-body', 1, 900],
   ['ручка каддика', '.bay[data-unit="hdd3"]', '.bay[data-unit="hdd3"] .bay-handle', 1, 400],
   ['радиатор CPU', '.cpu-slot[data-cpu="1"]', '.cpu-slot[data-cpu="1"] .heatsink', 1, 1000],
 ];
@@ -125,7 +128,13 @@ for (const [name, click, watch, clicks, span] of CASES) {
     return ((s[1][axis] - v0) / (v1 - v0 || 1) * 100).toFixed(0);
   };
   const AX = ['x', 'y', 'scaleX', 'scaleY', 'skew'][axis];
-  console.log(`${(dir + ' ' + name).padEnd(22)} ${AX} ${v0.toFixed(1)}→${v1.toFixed(1)}  `.padEnd(46) +
+  // Побочные оси печатаем рядом: движение вверх там, где его быть не должно,
+  // главная ось не показывает — она берёт только самое крупное смещение.
+  const side = ['x', 'y'].map((n, k) => {
+    const d = last[k] - first[k];
+    return Math.abs(d) > 0.5 && k !== axis ? ` +${n}${d.toFixed(0)}` : '';
+  }).join('');
+  console.log(`${(dir + ' ' + name).padEnd(22)} ${AX} ${v0.toFixed(1)}→${v1.toFixed(1)}${side}  `.padEnd(50) +
     [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.75, 0.9].map(f => `${at(f).padStart(4)}`).join(' '));
   }
 }
