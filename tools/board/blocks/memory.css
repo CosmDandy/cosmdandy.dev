@@ -10,7 +10,7 @@
     stroke: rgba(58, 143, 196, 0.85);
     stroke-width: 1.1;
     transform-box: fill-box;
-    transition: fill 0.15s steps(1, end), transform var(--spring);
+    transition: fill 0.15s steps(1, end), transform var(--latch-throw);
   }
   /* The hinge sits at the outboard end of the socket, not next to the module:
      a latch tips away from the DIMM it holds. Hence the pivot is the far
@@ -27,9 +27,13 @@
      across the module. A positive angle is clockwise in SVG. */
   .rig.service .dimm.pulled .latch-l { transform: rotate(-38deg); }
   .rig.service .dimm.pulled .latch-r { transform: rotate(38deg); }
+  /* Задержка — это время, за которое лепестки успевают отойти: плашка не
+     может тронуться, пока они держат. Она чуть больше прежней, потому что
+     сама защёлка теперь сначала додавливается внутрь и только потом
+     отбрасывается. */
   .rig.service .dimm.pulled .pick-body {
     transform: translateY(-13px);
-    transition-delay: 0.12s;
+    transition-delay: 0.22s;
   }
 
   /* Assembly: the DIMM enters its socket with a short downward move — its
@@ -54,6 +58,19 @@
     from { opacity: 0; transform: translateY(-22px); }
   }
 
-  /* The DIMM is held by the latches at its ends: until they throw open the
-     module stands dead solid, and after that it comes out with a jerk. */
-  .dimm .pick-body { transition: transform var(--click); }
+  /* Плашку держат лепестки по краям, и пока они не отошли, она стоит
+     намертво. Отошли — модуль идёт вверх сам: сперва на волосок, потом
+     уверенно и ровно. Не рывком — рывок был бы щелчком, а щёлкают тут
+     защёлки, не плашка. */
+  .dimm .pick-body { transition: transform var(--heave); }
+
+  /* Наведение — начало того же движения, а не отдельный отклик. Лепестки
+     чуть отходят, модуль трогается и останавливается: дальше он пойдёт,
+     только если по нему щёлкнуть. Углы взяты долей от полного размаха
+     (38°), чтобы правка одного не разошлась с другим.
+
+     Правило стоит после «вынуто»: у обоих одна специфичность, и наведение на
+     уже вынутую плашку не должно возвращать её лепестки назад. */
+  .dimm:hover:not(.pulled) .latch-l { transform: rotate(-11deg); }
+  .dimm:hover:not(.pulled) .latch-r { transform: rotate(11deg); }
+  .dimm:hover:not(.pulled) .pick-body { transform: translateY(-5px); }

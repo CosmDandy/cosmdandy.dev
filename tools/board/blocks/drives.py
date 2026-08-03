@@ -266,13 +266,27 @@ def render(cv):
         # Ёмкость, а не повтор модели. Развилка «для Optane пишем P5800X» имела
         # смысл, пока Optane стоял в одном отсеке из восьми; теперь такие все,
         # и наклейка дважды повторяла бы то, что уже написано строкой выше.
-        kind = 'FILLER' if filler else spec_bay.get('kind', '')
-        size = '—' if filler else f"{spec_bay.get('tb', 0)} TB"
-        sled = [(f'<g class="drive-body">'
+        # У заглушки на наклейке не написано ничего: это глухая панель, и
+        # писать на ней нечего. Слово FILLER было подписью к пустоте.
+        kind = '' if filler else spec_bay.get('kind', '')
+        size = '' if filler else f"{spec_bay.get('tb', 0)} TB"
+        # Накопитель нарисован на своём настоящем месте — справа от рамки, в
+        # глубине шасси, — и обрезан по устью отсека. Пока каддик на месте,
+        # диск целиком лежит правее среза и не виден; поехал наружу — и он
+        # выезжает из устья, как выезжает в жизни.
+        #
+        # Отсечение нарочно сидит на неподвижной обёртке между .pick и самим
+        # диском: сдвигается только внутренняя группа, а срез стоит на месте.
+        # Будь clip-path на движущемся узле, он ехал бы вместе с ним и не
+        # обрезал бы ничего. Раньше диск просто проявлялся прозрачностью —
+        # деталь не выезжала, а включалась.
+        drive = (f'<clipPath id="bay-out-{i}">'
+                 f'<rect x="-120" y="{y-8}" width="{x+w+120}" height="{h+16}"/></clipPath>'
+                 f'<g clip-path="url(#bay-out-{i})"><g class="drive-body">'
                  f'{drive_body(x + w, y + 2, h - 4, lit=not filler, model=spec_bay.get("model", ""), size=size)}'
-                 f'</g>')]
-        sled.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="1" fill="#28323a" '
-                    f'stroke="rgba(147,161,161,0.26)"/>')
+                 f'</g></g>')
+        sled = [(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="1" fill="#28323a" '
+                 f'stroke="rgba(147,161,161,0.26)"/>')]
         sled.append(caddy_head(x, y, w, lamps))
 
         # Ручка — отдельная деталь и главная на лицевой стороне: рычаг во всю
@@ -316,6 +330,7 @@ def render(cv):
         unit = f'blank{i}' if filler else f'hdd{i}'
         cv.add(f'''<g class="unit pick {kind_cls}" data-unit="{unit}" data-group="hdd"
           style="--seat:{seat('bay', i)}" data-href="https://github.com/cosmdandy">
+      {drive}
       <g class="pick-body">{''.join(sled)}<g class="bay-handle">{handle}</g></g>
     </g>''')
     # Выноска корзины — одна на все отсеки, и указывает она на диск, а не на

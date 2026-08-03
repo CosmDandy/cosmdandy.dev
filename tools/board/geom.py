@@ -33,9 +33,18 @@ FAN_STEP = (H - 52) / FAN_N
 FAN_H    = FAN_STEP - 8
 
 
+# Колодка на плате стоит не строго против середины модуля, а выше её. Причина
+# не в красоте: у самой колодки на плате сидит лампа отсека, и пока и разъём, и
+# лампа стояли на одной высоте, провод от вентилятора приходил ровно в лампу —
+# две разные вещи читались одной. Смещение выносим сюда, а не в блок: к этой же
+# точке разводка ведёт шину, и разъезжаться им нечем.
+FAN_FOOT_LIFT = 22
+FAN_LAMP_DY = 22          # лампа отсека — настолько же ниже колодки
+
+
 def fan_foot_y(i):
-    """Y of fan i's header on the board — opposite the middle of the module."""
-    return 26 + i * FAN_STEP + FAN_H / 2 - 8
+    """Y of fan i's header on the board — above the middle of the module."""
+    return 26 + i * FAN_STEP + FAN_H / 2 - 8 - FAN_FOOT_LIFT
 
 
 FRONT_W  = 156    # caddies plus a grille of the same width
@@ -51,8 +60,13 @@ Y_PANEL  = 196
 # with nothing to spare, and the banks ran into the sockets. Now every pair
 # of neighbours has exactly 28 between them — that is where the bank
 # silkscreen and the VRM marking go.
-PITCH = 17
-SLOT_H = 15
+# Шаг и высота плашки. Обе подросли на единицу: на модуле надо разместить
+# чипы двух ориентаций, пробор с обвязкой и наклейку, а на пятнадцати они
+# слипались в одну полосу. Больше нельзя — банк из восьми упирается в сокет
+# сверху и в кромку текстолита снизу: правый банк кончается на 844 при кромке
+# 845.
+PITCH = 18
+SLOT_H = 16
 Y_BANK_L, Y_CPU0, Y_BANK_C, Y_CPU1, Y_BANK_R = 34, 194, 368, 528, 702
 BANK_N = 8        # DIMMs in a bank; bank width = BANK_N * PITCH
 DIMM_SOCK_W = 292  # length of a memory socket along the board's depth

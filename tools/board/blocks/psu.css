@@ -1,4 +1,7 @@
-  .rig.service .psu.pulled .pick-body { transform: translateX(74px); }
+  .rig.service .psu.pulled .pick-body { transform: translateX(104px); }
+  /* Паз у блока такой же глубокий, как у райзера, и ход тот же: тянешь,
+     тянешь, потом поддаётся и идёт легко. */
+  .psu .pick-body { transition: transform var(--drag); }
 
   /* A pulled supply is dead: mains no longer reaches it. Both lamps go out —
      AC included, the one that burns even on a switched-off machine — and the
@@ -12,16 +15,16 @@
      travels further than the rest — its path to the connector is long, and the
      hand can tell. */
   .rig.assembly .psu {
-    animation: seatPsu var(--press-snap) var(--seat, 0s) backwards;
+    animation: seatPsu var(--press-two) var(--seat, 0s) backwards;
   }
-  /* The supply flies into the bay in one movement — the guides are long and
-     straight, and only the connector at the end slows it down. */
+  /* Садится он в два приёма. Контакт у блока длинный: сначала модуль входит в
+     направляющие и упирается, и только потом его проталкивают до конца — на
+     живой машине это два отдельных усилия руки, и полка посередине --press-two
+     ровно про них. Раньше он влетал в карман одним движением, и разъёма в этом
+     не читалось вовсе. */
   @keyframes seatPsu {
-    from { opacity: 0; transform: translateX(96px); }
+    from { opacity: 0; transform: translateX(118px); }
   }
-
-  /* The power supply is held by the orange latch — that very click. */
-  .psu .pick-body { transition: transform var(--click); }
 
   /* ── Оба блока вынуты: машина обесточена ───────────────────────────────
      Резервирование кончилось — кончилось и питание. Гаснет всё разом,
@@ -55,3 +58,17 @@
     opacity: 0.42 !important;
     pointer-events: none;
   }
+
+  /* Оранжевый лепесток. Его нажимают большим пальцем, и он уходит внутрь, к
+     ручке, — это первое из двух движений, которыми блок вынимают. Точка
+     вращения у дальней от ручки кромки: лепесток приклёпан к корпусу тем
+     краем и гнётся к скобе, а не отскакивает от неё.
+
+     Кривая та же короткая и линейная, что у ручки каддика: тонкий пластик
+     невесом, и инерции в нём нет. */
+  .psu-latch {
+    transform-box: fill-box;
+    transform-origin: 0% 50%;
+    transition: transform var(--lever);
+  }
+  .rig.service .psu.pulled .psu-latch { transform: translateY(16px) scaleY(0.62); }
