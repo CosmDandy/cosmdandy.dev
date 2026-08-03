@@ -621,9 +621,22 @@ const clickIn = (pg, sel) => pg.evaluate(s => document.querySelector(s)
 const acProbe = () => {
   const Real = window.AudioContext;
   window.__acs = [];
+  // Когда звук запланирован — в секундах от «сейчас». По этому списку
+  // проверяется, что сборка звучит в момент посадки, а не старта хода.
+  window.__at = [];
   window.AudioContext = function () {
     const c = new Real();
     window.__acs.push(c);
+    const bs = c.createBufferSource.bind(c);
+    c.createBufferSource = function () {
+      const n = bs();
+      const start = n.start.bind(n);
+      n.start = function (when, off) {
+        window.__at.push(when - c.currentTime);
+        return start(when, off);
+      };
+      return n;
+    };
     return c;
   };
 };
@@ -672,6 +685,13 @@ await clickIn(p4, '#sfx-btn');
 await p4.waitForTimeout(400);
 const acState = await p4.evaluate(() => window.__acs[0] && window.__acs[0].state);
 check('включённый звук поднимает контекст', acState === 'running', String(acState));
+// Ждём конца первой сборки. Пока она идёт, reassemble() сам себя блокирует, а
+// узлы закрыты для кликов — вся проверка ниже прошла бы вхолостую и покрасила
+// бы код, который на самом деле цел.
+await p4.waitForFunction(
+  () => !document.getElementById('rig').classList.contains('assembly'),
+  null, { timeout: 25000 }).catch(() => {});
+await p4.waitForTimeout(800);
 // Все голоса разом: тумблер, снятие и посадка узла, крышка, писк спикера и
 // целое расписание сборки. Падение внутри любого из них всплывёт в errors.
 await clickIn(p4, '#svc-switch');
@@ -684,7 +704,35 @@ await clickIn(p4, '#svc-switch');
 await clickIn(p4, '#power');
 await p4.waitForTimeout(700);
 await clickIn(p4, '#power');
+
+// Звук сборки обязан попадать в момент посадки, а не в момент старта хода.
+// Здесь и пряталась ошибка: --seat — это задержка начала движения, и у каддика
+// с его ходом в 1.2 с звук уходил вперёд настолько, что диск садился в полной
+// тишине. Сверяем последний запланированный звук с последней посадкой: сроки
+// берутся у самих анимаций, поэтому расходиться им больше чем на треть секунды
+// нечем — этот зазор и есть разгон трения перед ударом.
+await p4.evaluate(() => { window.__at = []; });
 await clickIn(p4, '#assemble-btn');
+await p4.waitForTimeout(500);
+const beat = await p4.evaluate(() => {
+  const land = document.querySelector('.chassis').getAnimations({ subtree: true })
+    .filter(a => String(a.animationName || '').startsWith('seat'))
+    .map(a => {
+      const t = a.effect.getComputedTiming();
+      return ((t.delay || 0) + (t.activeDuration || 0)) / 1000;
+    })
+    .filter(v => isFinite(v) && v > 0);
+  return {
+    n: window.__at.length,
+    sound: window.__at.length ? Math.max(...window.__at) : null,
+    land: land.length ? Math.max(...land) : null,
+  };
+});
+check('звук сборки попадает в посадку, а не в старт хода',
+      beat.n > 0 && beat.land !== null && Math.abs(beat.sound - beat.land) < 0.35,
+      `звуков ${beat.n}, последний ${beat.sound && beat.sound.toFixed(2)}с,` +
+      ` последняя посадка ${beat.land && beat.land.toFixed(2)}с`);
+
 await p4.waitForTimeout(2000);
 check('голоса строятся без ошибок', errors.length === errBefore,
       errors.slice(errBefore, errBefore + 2).join(' | '));

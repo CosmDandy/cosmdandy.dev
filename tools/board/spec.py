@@ -23,6 +23,7 @@ No literals are left in the commands: every number comes from one of the three.
 
 from board.geom import BANK_N, BAY_N, CHIPS, FAN_N, PSU_Y
 from board.revision import BOARD_REV, BOARD_SHA
+from board.rotor import BLADE_N
 
 BOARD = {'model': 'CD93-FS1', 'form': '1U', 'vendor': 'CodeKVT'}
 
@@ -58,7 +59,13 @@ BAYS = tuple(
     {'bay': i, 'model': 'INTEL OPTANE P5800X', 'kind': 'Optane', 'tb': 1.6, 'life': 100}
     for i in range(BAY_N))
 
-FAN = {'n': FAN_N, 'model': '40×56 dual-rotor', 'rpm_nom': 12100, 'rpm_max': 18000}
+# Лопастей столько же, сколько рисует rotor.py, и число это в паспорте не для
+# красоты: на нём держится звук машины. Тон вентилятора — лопаточная частота,
+# лопасти × об/мин ÷ 60, и синтезатор берёт её отсюда, а не из своей константы.
+# Иначе появилось бы второе место, знающее устройство вентилятора, и однажды
+# схема запела бы не на своей ноте.
+FAN = {'n': FAN_N, 'model': '40×56 dual-rotor', 'blades': BLADE_N,
+       'rpm_nom': 12100, 'rpm_max': 18000}
 PSU = {'n': len(PSU_Y), 'watt': 1300, 'model': 'CRPS 80 PLUS Titanium'}
 
 RISERS = (

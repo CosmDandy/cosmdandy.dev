@@ -622,19 +622,17 @@
       // off in two steps — handles itself.
       const kind = PICKS.find(function (k) { return k.test(pick); });
       if (kind && kind.pull) {
-        // Что именно прозвучало, спрашиваем у самого узла, а не у блока: если
-        // после хода узел так и остался на месте, это был первый шаг из двух —
-        // отжатая защёлка или поднятый рычаг. Так одна строка озвучивает и
-        // диски, и процессоры, и блоки питания, и каждому не нужен свой вызов.
-        const was = pick.classList.contains('pulled');
+        // Такой узел и звучит сам: только он знает, что это было — откинутая
+        // защёлка, ход по направляющим или возврат в корзину. Снаружи все три
+        // движения выглядят одинаково, а слышатся совершенно по-разному.
         kind.pull(pick, line);
-        const now = pick.classList.contains('pulled');
-        sfx(now === was ? 'latch' : (now ? 'pull' : 'seat'));
         updateFault();
         return;
       }
+      // Узел, который ходит в одно движение: планка памяти, вентилятор,
+      // райзер. Наружу — щелчок защёлки и ход, внутрь — ход и щелчок в конце.
       const pulled = pick.classList.toggle('pulled');
-      sfx(pulled ? 'pull' : 'seat');
+      sfxMove(pick, pulled ? 'out' : 'in');
       line((pulled ? 'removed: ' : 'inserted: ') + unitName(pick), pulled ? 'warn' : 'ok');
       updateFault();
       return;
