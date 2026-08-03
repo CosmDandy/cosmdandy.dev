@@ -21,6 +21,9 @@
     state.bootAt = Date.now();
     save();
     setPower('on');
+    // Вентиляторы пошли. Загудит машина, только если на неё сейчас смотрят, —
+    // решает это humCheck, здесь мы лишь сообщаем, что питание изменилось.
+    humCheck();
     // The order is exactly what you see in the flesh: first the network card
     // brings its link up, then the BMC starts beating, and only after that
     // does the host start.
@@ -48,6 +51,8 @@
     rig.classList.remove('net', 'bmc', 'tags-off');
     stopCheckpoint();
     setPower('standby');
+    // Вентиляторы встали — гул уходит, даже если указатель остался на машине.
+    humCheck();
     line('powering off', 'warn');
     line('standby · bmc only', 'muted');
     tick();

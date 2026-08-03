@@ -8,12 +8,18 @@
       const n = el.dataset.cpu;
       if (!el.classList.contains('pulled')) {
         el.classList.add('pulled');
+        sfxMove(el, 'out');
         line('removed: радиатор CPU' + n, 'warn');
       } else if (!el.classList.contains('opened')) {
         el.classList.add('opened');
+        // Рамку сокета держит рычаг, и это единственное движение здесь, у
+        // которого есть щелчок: радиатор снимают винтами, процессор просто
+        // вынимают из рамки, а рычаг срывается с зацепа.
+        sfx('chk');
         line('removed: процессор CPU' + n + ' · LGA 4677 socket open', 'warn');
       } else {
         el.classList.remove('pulled', 'opened');
+        sfxMove(el, 'in');
         line('inserted: CPU' + n + ' с радиатором', 'ok');
       }
     },
