@@ -17,7 +17,7 @@ from board.geom import PSU_H, PSU_W, PSU_Y, X_REAR, seat
 from board.ink import mono
 from board.lamps import fault_at, jitter, lamp
 from board.metal import finned_sink
-from board.palette import ROTOR_BLADE, ROTOR_EDGE, ROTOR_PAD
+from board.palette import METAL, METAL_DEEP, ROTOR_BLADE, ROTOR_EDGE, ROTOR_PAD
 from board.revision import stamp
 from board.rotor import HUB_R, blur_disc, impeller
 
@@ -37,7 +37,7 @@ def render(cv):
         # Карман — вырез в шасси, а не деталь: у выреза углы прямые. Скругление
         # положено корпусу машины и самим модулям, а посадочное место штампуют
         # по прямой.
-        bay = [(f'<rect x="{X_REAR-6}" y="{y-6}" width="312" height="157" fill="#0c1316" '
+        bay = [(f'<rect x="{X_REAR-6}" y="{y-6}" width="312" height="157" fill="{METAL_DEEP}" '
                 f'stroke="rgba(147,161,161,0.20)"/>')]
         for gy in (y - 2, y + 143):
             bay.append(f'<line x1="{X_REAR-2}" y1="{gy}" x2="{X_REAR+296}" y2="{gy}" '
@@ -55,7 +55,7 @@ def render(cv):
         bay.append(mono(X_REAR + PSU_W / 2, y + PSU_H / 2 + 3, name, 9, op=0.14))
         cv.add('<g class="decor psu-bay">' + ''.join(bay) + '</g>')
         psu = []
-        psu.append(f'<rect x="{X_REAR}" y="{y}" width="{PSU_W}" height="{PSU_H}" rx="5" fill="#121a1e" stroke="rgba(147,161,161,0.26)"/>')
+        psu.append(f'<rect x="{X_REAR}" y="{y}" width="{PSU_W}" height="{PSU_H}" rx="5" fill="{METAL}" stroke="rgba(147,161,161,0.26)"/>')
         # Жалюзи вдоль обеих длинных кромок корпуса: штампованные прорези,
         # через них уходит горячий воздух. Именно обеих: модуль дышит поперёк
         # себя, и один ряд читался не как охлаждение, а как крышка, которую у
@@ -95,7 +95,11 @@ def render(cv):
         #
         # Он ещё и гнётся. Нажатие уводит его внутрь, к ручке: класс на группе
         # ставит вытаскивание, а угол и точка вращения живут в css.
-        latch_y = mid - 48
+        # Между лепестком и верхней осью скобы должен остаться зазор: при
+        # нажатии лепесток складывается вниз, к ручке, и на прежних сорока
+        # восьми его остриё доходило до самой скобы — две детали читались
+        # одной, ровно то, на что и жаловались.
+        latch_y = mid - 58
         psu.append(f'<g class="psu-latch">'
                    f'<path d="M{X_REAR+282} {latch_y} h34 l8 8 -8 8 h-34 Z" '
                    f'fill="#cb4b16" stroke="rgba(238,232,213,0.55)" stroke-width="1.3"/>'

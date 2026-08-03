@@ -5,7 +5,23 @@ indication as a single language, and the moment one block takes a yellow of
 its own, the schematic falls apart into patches.
 """
 
-PCB_DARK = "#0a3037"      # laminate; the routing lies over it, lighter
+# ── Поверхности, которые меняются вместе с темой ──────────────────────────
+# Металл машины и текстолит платы — единственное, что перекрашивается при
+# смене темы. Всё остальное остаётся тёмным, потому что и в жизни остаётся:
+# передний лист крашен чёрным, вентиляторы чёрные, разъёмы чёрные.
+#
+# Записаны они переменными с запасным значением. Запасное нужно всерьёз:
+# кадры ревизий сохраняются отдельными SVG, без страницы и её стилей, и без
+# него лента ревизий вышла бы бесцветной.
+def themed(name, dark):
+    return f'var(--{name}, {dark})'
+
+
+PCB_DARK = themed('pcb', '#0a3037')       # laminate; the routing lies over it
+CHASSIS = themed('chassis', '#141c20')    # лист шасси
+METAL = themed('metal', '#121a1e')        # корпус съёмного модуля
+METAL_DEEP = themed('metal-deep', '#0c1316')   # карман, в который он входит
+STEEL = themed('steel', '#1b2429')        # борт, кронштейн, глухая планка
 
 # The replacement code is the language of the service label, and the language
 # of the machine itself. On live hardware this colour is painted on whatever

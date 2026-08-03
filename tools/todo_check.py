@@ -485,7 +485,7 @@ def g5():
 def h1():
     if re.search(r'\.drive-body \{\s*fill-opacity: 0', CSS):
         return 'диск всё ещё проявляется прозрачностью'
-    if '.drive-body { transition: transform var(--drag); }' not in CSS:
+    if '.drive-body { transition: transform var(--caddy); }' not in CSS:
         return 'у диска нет своего хода'
     return BOARD.count('clip-path="url(#bay-out-') == 8 or 'отсечений по устью не восемь'
 
@@ -763,9 +763,135 @@ def k7():
     return bool(m) or 'заголовок одним весом'
 
 
+# ── M. Сборка ────────────────────────────────────────────────────────────
+
+def _seats(pattern):
+    """Задержки посадки по атрибуту style у узлов, подходящих под шаблон."""
+    return [(m.group(1), float(m.group(2)))
+            for m in re.finditer(pattern, BOARD)]
+
+
+@check('M1', 'сборка идёт тремя группами, а не сплошной лентой')
+def m1():
+    from board.geom import SEAT
+    order = sorted(SEAT.items(), key=lambda kv: kv[1][0])
+    names = [k for k, _ in order]
+    if names[:2] != ['psu', 'fan']:
+        return f'первой идёт не пара «блоки и вентиляторы»: {names[:2]}'
+    if set(names[2:4]) != {'cpu', 'dimm'}:
+        return f'вторая группа не «память и процессоры»: {names[2:4]}'
+    if set(names[4:]) != {'riser', 'bay'}:
+        return f'третья группа не «райзеры и диски»: {names[4:]}'
+    # Между группами есть разрыв, внутри группы его нет.
+    starts = [v[0] for _, v in order]
+    return (starts[2] - starts[1] > 0.8 and starts[4] - starts[3] > 0.8) or f'группы слиты: {starts}'
+
+
+@check('M2', 'внутри групп свой порядок: блоки, вентиляторы, диски, райзеры')
+def m2():
+    from board.geom import BAY_ORDER, FAN_ORDER, SEAT, bay_seat, fan_seat, riser_seat
+    fans = [float(fan_seat(i)[:-1]) for i in range(4)]
+    if [i for i, _ in sorted(enumerate(fans), key=lambda kv: kv[1])] != [0, 2, 3, 1]:
+        return f'вентиляторы садятся не 1-3-4-2: {fans}'
+    if float(riser_seat(1)[:-1]) >= float(riser_seat(0)[:-1]):
+        return 'большой райзер идёт раньше малого'
+    from board.spec import FILLER_BAYS
+    live = [(i, float(bay_seat(i)[:-1])) for i in range(8) if i not in FILLER_BAYS]
+    order = [i for i, _ in sorted(live, key=lambda kv: kv[1])]
+    if order[:4] != [1, 0, 3, 2]:
+        return f'диски идут не парами с дальнего: {order}'
+    fillers = {round(float(bay_seat(i, True)[:-1]), 2) for i in FILLER_BAYS}
+    return len(fillers) == 1 or f'заглушки встают вразнобой: {fillers}'
+
+
+@check('M3', 'память заполняется через канал, а не подряд')
+def m3():
+    from board.geom import DIMM_ORDER, dimm_seat
+    letters = 'ABCDEFGH'
+    times = [float(dimm_seat(c)[:-1]) for c in letters]
+    order = [letters[i] for i, _ in sorted(enumerate(times), key=lambda kv: kv[1])]
+    want = [c for c in DIMM_ORDER if c in letters]
+    if order != want:
+        return f'порядок {order}, ожидался {want}'
+    return DIMM_ORDER[:2] == 'AC' or f'таблица каналов подряд: {DIMM_ORDER}'
+
+
+@check('M4', 'сборка укладывается заметно быстрее прежнего')
+def m4():
+    from board.geom import SEAT_DONE
+    return SEAT_DONE <= 7 or f'расписание на {SEAT_DONE} с'
+
+
+@check('E12в', 'при вставке лепестки сперва поддвигаются внутрь')
+def e12v():
+    m = re.search(r'@keyframes latchL \{([^}]*\}[^@]*?)\n  \}', CSS)
+    if not m:
+        return 'кадров закрытия лепестка нет'
+    steps = [(int(a), float(b)) for a, b in
+             re.findall(r'(\d+)%\s*\{ transform: rotate\((-?[\d.]+)deg\)', m.group(1))]
+    if len(steps) < 4:
+        return f'кадров всего {len(steps)}'
+    start = steps[0][1]
+    # Второй кадр обязан быть ближе к нулю, но совсем чуть-чуть: это и есть
+    # то самое «на пару миллиметров».
+    moved = abs(start) - abs(steps[1][1])
+    return 0 < moved <= abs(start) * 0.25 or f'первое движение на {moved:.1f}° при размахе {abs(start)}°'
+
+
+@check('H3б', 'каддик сперва выходит на сантиметр вслед за ручкой')
+def h3b():
+    m = re.search(r'--caddy: [\d.]+s linear\(([^)]*)\)', CSS)
+    if not m:
+        return 'своей кривой у каддика нет'
+    # Пары «доля хода — доля времени». Полка — это то, что происходит в первую
+    # треть времени: каддик обязан пройти около десятой части и встать.
+    pairs = [(float(v), int(t)) for v, t in
+             re.findall(r'(-?[\d.]+) (\d+)%', m.group(1))]
+    shelf = [v for v, t in pairs if t <= 40]
+    if not shelf:
+        return 'полки в начале кривой нет'
+    return (0.03 < max(shelf) < 0.12 and max(shelf) - min(shelf) < 0.05) \
+        or f'за первую треть каддик проходит {shelf}'
+
+
+@check('M6б', 'прозрачность набирается раньше хода')
+def m6b():
+    late = []
+    for name, body in re.findall(r'@keyframes (seat\w+) \{([^@]*?)\n  \}', CSS):
+        m = re.search(r'(\d+)%\s*\{ opacity: 1', body)
+        if 'opacity: 0' not in body:
+            continue
+        if not m or int(m.group(1)) > 25:
+            late.append(name)
+    return not late or f'фейд размазан по всему ходу: {late}'
+
+
+@check('M5', 'у посадки есть разнобой, а не ровный такт')
+def m5_seat():
+    from board.geom import wobble
+    vals = {round(wobble('fan', i), 4) for i in range(8)}
+    return len(vals) >= 6 or f'разнобой повторяется: {sorted(vals)}'
+
+
+@check('M6', 'узел приходит издалека, а не проявляется на месте')
+def m6():
+    moves = {n: int(m) for n, m in re.findall(
+        r'@keyframes seat(\w+) \{\s*from \{ opacity: 0; transform: translate[XY]\((-?\d+)px\)', CSS)}
+    short = {n: v for n, v in moves.items() if abs(v) < 45}
+    return not short or f'слишком короткий ход: {short}'
+
+
+@check('M7', 'самотест поднимается сразу после нажатия')
+def m7():
+    m = re.search(r'wait\((\d+), runPost\)', JS)
+    if not m:
+        return 'вызова самотеста не найдено'
+    return int(m.group(1)) <= 400 or f'задержка {m.group(1)} мс'
+
+
 # ── Физика ───────────────────────────────────────────────────────────────
 
-@check('M5', 'у узлов разные характеры движения, а не одна кривая')
+@check('M5b', 'у узлов разные характеры движения, а не одна кривая')
 def m5():
     want = ('--drag:', '--snap:', '--heave:', '--latch-throw:', '--lever:', '--press-two:')
     missing = [w for w in want if w not in CSS]

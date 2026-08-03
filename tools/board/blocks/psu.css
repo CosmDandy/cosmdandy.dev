@@ -23,7 +23,9 @@
      ровно про них. Раньше он влетал в карман одним движением, и разъёма в этом
      не читалось вовсе. */
   @keyframes seatPsu {
-    from { opacity: 0; transform: translateX(118px); }
+    0%   { opacity: 0;    transform: translateX(118px); }
+    14%  { opacity: 1; }
+    100% { opacity: 1;    transform: none; }
   }
 
   /* ── Оба блока вынуты: машина обесточена ───────────────────────────────
@@ -68,7 +70,10 @@
      невесом, и инерции в нём нет. */
   .psu-latch {
     transform-box: fill-box;
-    transform-origin: 0% 50%;
+    /* Ось у нижней кромки — той, что ближе к скобе. Лепесток на неё и
+       складывается: сверху видно, как он укорачивается в сторону ручки, а не
+       отъезжает целиком. С осью по левому краю он просто уползал вбок. */
+    transform-origin: 50% 100%;
     transition: transform var(--lever);
   }
-  .rig.service .psu.pulled .psu-latch { transform: translateY(16px) scaleY(0.62); }
+  .rig.service .psu.pulled .psu-latch { transform: translateY(11px) scaleY(0.42); }

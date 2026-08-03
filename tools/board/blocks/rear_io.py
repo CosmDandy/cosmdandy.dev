@@ -60,7 +60,7 @@ from board.spec import PORTS
 # Three lamps have to stand where two stood, hence the smaller bulb.
 JACK_W, LED_R = 52, 2.4
 
-STEEL = "#1b2429"
+from board.palette import METAL, STEEL  # noqa: E402
 
 
 def rj_leds(seed, jx, y, salt, aux=False):
@@ -279,7 +279,7 @@ def render(cv):
     LEDS_W = 60                       # две квадратные лампы через 44
     leds_x = X_IO + (86 - LEDS_W) / 2
     cv.add(f'''<g class="decor">
-  <rect x="{X_IO}" y="{AY}" width="86" height="{IO_AUX_H}" rx="4" fill="#121a1e"
+  <rect x="{X_IO}" y="{AY}" width="86" height="{IO_AUX_H}" rx="4" fill="{METAL}"
         stroke="rgba(147,161,161,0.22)"/>
   {usb_stack(X_IO + 12, AY + 7)}
   {dsub(X_IO + 56, AY + 10)}

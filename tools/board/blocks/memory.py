@@ -21,8 +21,6 @@ from board.geom import (
     BANK_N,
     DIMM_SOCK_W,
     PITCH,
-    SEAT,
-    SEAT_WAVE2,
     SLOT_H,
     X_CORE,
     X_TAG,
@@ -41,6 +39,7 @@ DIMM_W = SOCK_W - 6
 KEY_AT = 0.64
 CHIP_H = SLOT_H - 8          # чипы занимают всё, что осталось под кромкой
 
+from board.geom import dimm_seat
 from board.ink import hit, silk_inverse
 from board.palette import SILVER, SILVER_DIM
 from board.revision import stamp
@@ -142,12 +141,7 @@ def render(cv):
     # first slot of every channel on both processors, then the second. That is
     # why the middle bank is filled from both ends — its halves belong to
     # different processors.
-    start, step = SEAT['dimm']
-
-    def wave(base):
-        return lambda i: f'{base + i * step:.2f}s'
-
-    def bank(y0, n, code, letters, delay=None):
+    def bank(y0, n, code, letters, wave2):
         slots = []
         for i in range(n):
             y = y0 + i * PITCH
@@ -173,7 +167,7 @@ def render(cv):
             # the hover zone is wider than the module itself and covers the gap
             # to the next one: otherwise the cursor falls through between the
             # slots and the click goes nowhere
-            slots.append(f'''<g class="pick dimm" data-dimm="{code}{i}" style="--seat:{delay(i)}">
+            slots.append(f'''<g class="pick dimm" data-dimm="{code}{i}" style="--seat:{dimm_seat(letters[i], wave2(i))}">
           <rect class="hit" x="{X_CORE-8}" y="{y-1}" width="{SOCK_W+28}" height="{PITCH}" fill="#000" fill-opacity="0.001"/>
           {socket}
           <g class="pick-body">
@@ -200,13 +194,12 @@ def render(cv):
     # прошивка: у процессора двенадцать каналов A–L, по модулю на канал, и
     # «DIMM 17» не говорит ни о канале, ни о процессоре. Буквы берутся из
     # паспорта банка, где уже написано, какие каналы в нём лежат.
-    cv.add(bank(Y_BANK_L, BANK_N, "L", "ABCDEFGH", delay=wave(start)))
+    cv.add(bank(Y_BANK_L, BANK_N, "L", "ABCDEFGH", lambda i: False))
     # The upper half of the middle bank is CPU0's second slots, the lower one
     # is CPU1's first slots: the former go in the second wave, the latter in
     # the first.
-    cv.add(bank(Y_BANK_C, BANK_N, "C", "IJKLABCD",
-                delay=lambda i: (wave(SEAT_WAVE2)(i) if i < half else wave(start)(i - half))))
-    cv.add(bank(Y_BANK_R, BANK_N, "R", "EFGHIJKL", delay=wave(SEAT_WAVE2)))
+    cv.add(bank(Y_BANK_C, BANK_N, "C", "IJKLABCD", lambda i: i < half))
+    cv.add(bank(Y_BANK_R, BANK_N, "R", "EFGHIJKL", lambda i: True))
     # The middle bank is shared by both processors: half of its channels go to
     # one, half to the other. Twelve modules per processor is the usual layout
     # for 1U, where there is no board room left for all eight channels.

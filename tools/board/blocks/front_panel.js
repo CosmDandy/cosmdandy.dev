@@ -24,8 +24,8 @@
     // The order is exactly what you see in the flesh: first the network card
     // brings its link up, then the BMC starts beating, and only after that
     // does the host start.
-    wait(120, function () { rig.classList.add('net'); line('nic · link up 25G', 'ok'); });
-    wait(700, function () { rig.classList.add('bmc'); line('BMC 2.14 · heartbeat', 'ok'); });
+    wait(90, function () { rig.classList.add('net'); line('nic · link up 25G', 'ok'); });
+    wait(220, function () { rig.classList.add('bmc'); line('BMC 2.14 · heartbeat', 'ok'); });
     // Экран поднимется через секунду, и подписи ждут его с этой самой минуты:
     // иначе они успевали проступить в промежутке между концом сборки и
     // самотестом — и тут же прятались под приехавшим экраном.
@@ -33,7 +33,10 @@
     // Контрольный индикатор начинает считать вместе с хостом, а не вместе с
     // экраном: на живой машине коды бегут ещё до того, как появится картинка.
     runCheckpoint();
-    wait(1100, runPost);
+    // Экран поднимается почти сразу: между нажатием и картинкой у живой
+    // машины успевают только раскрутиться вентиляторы. Секунда с лишним
+    // читалась не выдержкой, а зависанием — гость успевал нажать ещё раз.
+    wait(320, runPost);
     tick();
   }
 

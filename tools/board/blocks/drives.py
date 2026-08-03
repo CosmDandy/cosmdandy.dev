@@ -28,7 +28,7 @@ from board.geom import (
     GROUP_H,
     X_FRONT,
     H,
-    seat,
+    bay_seat,
 )
 from board.ink import silk_frame
 from board.lamps import act_led, lamp
@@ -329,7 +329,7 @@ def render(cv):
         kind_cls = 'blank' if filler else 'bay'
         unit = f'blank{i}' if filler else f'hdd{i}'
         cv.add(f'''<g class="unit pick {kind_cls}" data-unit="{unit}" data-group="hdd"
-          style="--seat:{seat('bay', i)}" data-href="https://github.com/cosmdandy">
+          style="--seat:{bay_seat(i, filler)}" data-href="https://github.com/cosmdandy">
       {drive}
       <g class="pick-body">{''.join(sled)}<g class="bay-handle">{handle}</g></g>
     </g>''')

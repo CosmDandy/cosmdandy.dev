@@ -131,6 +131,27 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   --amber: #b58900;
   --red:   #dc322f;
   --edge: rgba(147, 161, 161, 0.22);
+  /* ── Поверхности машины ────────────────────────────────────────────────
+     Тёмная тема — то, как эта машина выглядит в стойке при выключенном свете:
+     чёрное шасси, чёрные модули. Светлая — та же машина при свете дня, и
+     тогда видно, что шасси у неё не чёрное, а из крашеной стали, а корпуса
+     модулей — из неё же.
+
+     Меняются ровно четыре поверхности плюс текстолит. Передний лист,
+     вентиляторы и разъёмы остаются тёмными в обеих темах — они и в жизни
+     чёрные, и перекрашивать их значило бы врать про машину, а не про
+     освещение.
+
+     Значения подставляются прямо в fill генерируемых фигур через var() с
+     запасным значением: кадры ленты ревизий сохраняются отдельными SVG, без
+     страницы и её стилей, и без запасного они вышли бы бесцветными. */
+  --chassis: #141c20;
+  --metal: #121a1e;
+  --metal-deep: #0c1316;
+  --steel: #1b2429;
+  --pcb: #0a3037;
+  --surface-fade: 0.45s cubic-bezier(0.32, 0.72, 0, 1);
+
   --fade: 0.45s cubic-bezier(0.32, 0.72, 0, 1);
   /* The spring is left for the small parts — latches and tabs. Anything big
      travels on --glide: a long ease-out with no bounce. The heatsink is the
@@ -196,6 +217,14 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   --latch-throw: 0.55s linear(
       0, -0.05 16%, -0.09 28%, -0.06 33%, 0.24 39%, 0.66 46%,
       0.95 54%, 1.06 62%, 1.01 74%, 1);
+
+  /* --caddy: сам каддик. Его вынимают за ручку, и первое, что происходит, —
+     он выходит на сантиметр вместе с ней: рычаг тянет его, ещё не отпустив.
+     Дальше пауза, пока рука перехватывает, и только потом каддик идёт наружу
+     целиком. Полка в начале кривой и есть этот сантиметр. */
+  --caddy: 1.05s linear(
+      0, 0.045 7%, 0.072 13%, 0.078 20%, 0.080 30%, 0.086 38%,
+      0.20 46%, 0.42 55%, 0.66 64%, 0.84 73%, 0.945 82%, 0.99 91%, 1);
 
   /* --lever: ручка каддика. Единственное движение на схеме, которому инерция
      противопоказана: пластиковый рычаг невесом, пружина отбрасывает его
@@ -816,13 +845,11 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   /* Два движения, а не одно: задержка — это те доли секунды, за которые
      ручка успевает дойти до упора. Диск трогается после неё, а не вместе с
      ней. */
+  .bay .pick-body, .blank .pick-body { transition: transform var(--caddy); }
   .rig.service .bay.pulled .pick-body,
   .rig.service .blank.pulled .pick-body,
   .rig.service .bay.pulled .drive-body,
-  .rig.service .blank.pulled .drive-body {
-    transform: translateX(-152px);
-    transition-delay: 0.16s;
-  }
+  .rig.service .blank.pulled .drive-body { transform: translateX(-152px); }
 
   /* The drive itself sits deep in the chassis and cannot be seen until the
      caddy comes out — in an assembled machine only the front frame shows. It
@@ -833,12 +860,17 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
      outline alone, and an invisible drive still drew its own edges straight
      through the cage grille — the one thing that gave away that something was
      hiding in there. */
-  /* Накопитель едет, а не проявляется. Он нарисован на своём месте в глубине
+  /* Ход каддика — своей кривой: сначала сантиметр вслед за ручкой, потом
+     пауза, потом вынимание целиком. Задержки при этом больше нет: два
+     движения теперь внутри самой кривой, а не разнесены по времени старта —
+     иначе первое движение принадлежало бы ручке, а не каддику.
+
+     Накопитель едет, а не проявляется. Он нарисован на своём месте в глубине
      шасси и обрезан по устью отсека (clip-path у неподвижной обёртки вокруг
      него), поэтому в собранной машине его не видно вовсе, а при вынимании он
      выезжает из устья — как и в жизни. Прежде он появлялся прозрачностью:
      деталь не выезжала, а включалась. */
-  .drive-body { transition: transform var(--drag); }
+  .drive-body { transition: transform var(--caddy); }
 
   /* Assembly: the drive is pushed in from the front, along the same path it
      takes coming out during teardown — only the other way round. */
@@ -854,7 +886,9 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   /* The caddy runs along its rails freely and meets resistance only right at
      the end: the last centimetre is the handle pressing it home to the click. */
   @keyframes seatBay {
-    from { opacity: 0; transform: translateX(-152px); }
+    0%   { opacity: 0;    transform: translateX(-152px); }
+    12%  { opacity: 1; }
+    100% { opacity: 1;    transform: none; }
   }
   /* ── fans ──────────────────────────────── */
   /* Rotation went back to smooth, and the steps are gone.
@@ -928,7 +962,9 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   /* It seats stiffly: the guides are long, the module travels along them under
      effort, and right at the bottom it is pressed home to the latch. */
   @keyframes seatFan {
-    from { opacity: 0; transform: translateY(-42px); }
+    0%   { opacity: 0;    transform: translateY(-78px); }
+    14%  { opacity: 1; }
+    100% { opacity: 1;    transform: none; }
   }
 
   /* Разъём вентилятора тугой и без середины: он либо защёлкнут, либо нет.
@@ -987,14 +1023,41 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
      that is exactly how an empty slot on a live machine looks, with its ears
      splayed aside. They close at the moment the module is pressed home — hence
      the same --seat delay. */
-  .rig.assembly .latch-l { animation: latchL var(--press-hard) var(--seat, 0s) backwards; }
-  .rig.assembly .latch-r { animation: latchR var(--press-hard) var(--seat, 0s) backwards; }
-  @keyframes latchL { from { transform: rotate(-38deg); } }
-  @keyframes latchR { from { transform: rotate(38deg); } }
+  .rig.assembly .latch-l { animation: latchL 0.95s linear var(--seat, 0s) backwards; }
+  .rig.assembly .latch-r { animation: latchR 0.95s linear var(--seat, 0s) backwards; }
+  /* Вставка — тот же ход, что и снятие, только наоборот, и первое движение в
+     нём микроскопическое: лепестки стоят в крайних положениях, модуль идёт
+     вниз и подаёт их внутрь на пару градусов. Дальше они держат, пока плашка
+     не сядет, и только тогда захлопываются с перебегом.
+
+     Кривая здесь линейная нарочно: форму задают сами кадры, а не смягчение
+     между ними. С --press-hard каждый промежуток получал бы собственный
+     разгон и торможение, и микродвижение читалось бы дрожью. */
+  @keyframes latchL {
+    0%   { transform: rotate(-38deg); }
+    20%  { transform: rotate(-33deg); }
+    58%  { transform: rotate(-32deg); }
+    78%  { transform: rotate(-4deg); }
+    88%  { transform: rotate(3deg); }
+    100% { transform: rotate(0); }
+  }
+  @keyframes latchR {
+    0%   { transform: rotate(38deg); }
+    20%  { transform: rotate(33deg); }
+    58%  { transform: rotate(32deg); }
+    78%  { transform: rotate(4deg); }
+    88%  { transform: rotate(-3deg); }
+    100% { transform: rotate(0); }
+  }
   /* A DIMM is not lowered but pressed in: it goes against resistance and
      seats when the latches at its ends click. */
+  /* Ход длиннее прежнего вдвое. На двадцати двух единицах плашка возникала
+     почти на месте, и видно было не движение, а появление; теперь видно,
+     откуда деталь приходит. */
   @keyframes seatDimm {
-    from { opacity: 0; transform: translateY(-22px); }
+    0%   { opacity: 0;    transform: translateY(-48px); }
+    16%  { opacity: 1; }
+    100% { opacity: 1;    transform: none; }
   }
 
   /* Плашку держат лепестки по краям, и пока они не отошли, она стоит
@@ -1028,7 +1091,9 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
   /* The riser seats along its whole connector at once, so it goes in stiff and
      needs a final push — that is exactly what the tab on it is held by. */
   @keyframes seatRiser {
-    from { opacity: 0; transform: translateY(-56px); }
+    0%   { opacity: 0;    transform: translateY(-104px); }
+    14%  { opacity: 1; }
+    100% { opacity: 1;    transform: none; }
   }
 
   /* Ножка длинная, и вся её длина — сопротивление: узел идёт медленно, по
@@ -1061,7 +1126,9 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
      ровно про них. Раньше он влетал в карман одним движением, и разъёма в этом
      не читалось вовсе. */
   @keyframes seatPsu {
-    from { opacity: 0; transform: translateX(118px); }
+    0%   { opacity: 0;    transform: translateX(118px); }
+    14%  { opacity: 1; }
+    100% { opacity: 1;    transform: none; }
   }
 
   /* ── Оба блока вынуты: машина обесточена ───────────────────────────────
@@ -1106,10 +1173,13 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
      невесом, и инерции в нём нет. */
   .psu-latch {
     transform-box: fill-box;
-    transform-origin: 0% 50%;
+    /* Ось у нижней кромки — той, что ближе к скобе. Лепесток на неё и
+       складывается: сверху видно, как он укорачивается в сторону ручки, а не
+       отъезжает целиком. С осью по левому краю он просто уползал вбок. */
+    transform-origin: 50% 100%;
     transition: transform var(--lever);
   }
-  .rig.service .psu.pulled .psu-latch { transform: translateY(16px) scaleY(0.62); }
+  .rig.service .psu.pulled .psu-latch { transform: translateY(11px) scaleY(0.42); }
   /* ── rear_io ──────────────────────────────── */
   /* Встроенные интерфейсы вынимаются назад, а не вверх. Гнёзда распаяны на
      системной плате у самой её кромки, и «вынуть» их значит вытянуть плату из
@@ -1184,13 +1254,18 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
      Seating them at once hid the die: it was covered at exactly the moment it
      appeared. */
   .rig.assembly .cpu-slot .cpu-lid {
-    animation: seatCpu 0.7s var(--seat, 0s) cubic-bezier(0.22, 1, 0.36, 1) backwards;
+    animation: seatCpu 0.62s var(--seat, 0s) cubic-bezier(0.22, 1, 0.36, 1) backwards;
   }
   .rig.assembly .cpu-slot .heatsink {
-    animation: seatCpu 0.7s calc(var(--seat, 0s) + 0.85s) cubic-bezier(0.22, 1, 0.36, 1) backwards;
+    animation: seatCpu 0.62s calc(var(--seat, 0s) + 0.52s) cubic-bezier(0.22, 1, 0.36, 1) backwards;
   }
+  /* Прозрачность набирается в первую шестую хода, а не размазана по всему.
+     Пока фейд шёл вровень с движением, деталь проступала уже на своём месте, и
+     видно было появление, а не путь. */
   @keyframes seatCpu {
-    from { opacity: 0; transform: translateY(-52px) scale(0.94); }
+    0%   { opacity: 0;    transform: translateY(-96px) scale(0.94); }
+    16%  { opacity: 1; }
+    100% { opacity: 1;    transform: none; }
   }
   /* The die travels along with its own processor instead of showing through in
      place: it lies on it. The first forty percent of the time is the same
@@ -1199,10 +1274,10 @@ body.view-rig .icon-card { opacity: 1; transform: none; }
      the heatsink it cannot be seen anyway — but so the sheen does not keep
      spinning under an opaque cover. */
   .rig.assembly .cpu-slot .die {
-    animation: dieSeat 1.75s var(--seat, 0s) cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation: dieSeat 1.2s var(--seat, 0s) cubic-bezier(0.22, 1, 0.36, 1) both;
   }
   @keyframes dieSeat {
-    from { visibility: visible; opacity: 0; transform: translateY(-52px) scale(0.94); }
+    from { visibility: visible; opacity: 0; transform: translateY(-96px) scale(0.94); }
     14%  { visibility: visible; opacity: 0.75; }
     40%  { visibility: visible; opacity: 1; transform: none; }
     72%  { visibility: visible; opacity: 1; transform: none; }
@@ -1486,11 +1561,22 @@ a.stamp:focus-visible text { fill-opacity: 1; }
  * непонятно, к чему относится ярлык.
  */
 /* Подсветка узла и его движение живут на одном элементе, поэтому переход
-   перечисляет оба свойства. Шорткат с одним filter затирал transform, и
-   всё, что лежит внутри .unit — диски, планки, радиатор, — прыгало в
-   конечное положение мгновенно. Вентиляторы при этом ехали плавно: они
-   единственные не обёрнуты в .unit, и правило до них не доставало. */
-.unit .pick-body, .unit .body { transition: transform var(--glide), filter var(--fade); }
+   перечисляет оба свойства. Шорткат с одним filter затирал transform, и всё,
+   что лежит внутри .unit, прыгало в конечное положение мгновенно.
+
+   Про .pick-body здесь больше ни слова, и это важно. Правило стоит в самом
+   конце файла, после всех блоков, а специфичность у него ровно та же, что у
+   `.bay .pick-body` или `.dimm .pick-body` — значит, спор решал порядок, и
+   выигрывало оно. Каддик и плашка памяти получали общий --glide вместо своих
+   --caddy и --heave: физику узлам раздали, а до экрана доезжала одна кривая
+   на всех. Мерилось это не на глаз — node phys.mjs печатает долю пути к доле
+   времени, и у каддика вместо пяти процентов за первую десятую выходило
+   пятьдесят девять.
+
+   Значение по умолчанию у всех .pick и так задано выше (`.pick .pick-body`),
+   поэтому терять здесь нечего. Остаётся только .body — торцы гнёзд задней
+   панели, у которых своей кривой нет. */
+.unit .body { transition: transform var(--glide), filter var(--fade); }
 .rig .unit.lit .pick-body,
 .rig .unit.lit .body { filter: brightness(1.35) saturate(1.15); }
 a.callout.lit .co-box { fill: #fff; stroke: var(--cyan); }
@@ -1882,4 +1968,27 @@ a.callout.lit .co-dot { fill: var(--head); }
 .rig.sb-off .fault-sys {
   fill-opacity: 1;
   animation: faultblink var(--beat) steps(1, end) infinite;
+}
+
+
+/* ── Светлая тема ──────────────────────────────────────────────────────────
+   Металл в ней средне-серый и заметно темнее фона страницы: машина обязана
+   читаться предметом на столе, а не пятном на нём. Текстолит светлеет вместе
+   с ней — на дневном свету зелёная маска бирюзовая, а не чернильная. */
+:root[data-theme="light"] .rig {
+    --chassis: #58636a;
+    --metal: #626d74;
+    --metal-deep: #49535a;
+    --steel: #6a747b;
+    --pcb: #0e4d59;
+}
+
+@media (prefers-color-scheme: light) {
+    :root:not([data-theme]) .rig {
+        --chassis: #58636a;
+        --metal: #626d74;
+        --metal-deep: #49535a;
+        --steel: #6a747b;
+        --pcb: #0e4d59;
+    }
 }
