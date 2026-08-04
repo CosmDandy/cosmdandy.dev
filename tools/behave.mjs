@@ -1021,6 +1021,17 @@ const slide = async i => {
   await p6.waitForTimeout(2200);
 };
 
+// Ряд кнопок отмерян от кнопки темы, крайней справа. Пока светлая тема
+// погашена, её место осталось бы пустым, и ряд висел бы в 54 пикселях от края.
+const rowGap = await p6.evaluate(() => {
+  const w = window.innerWidth;
+  const vis = ['.theme-switch', '.zoom-btn', '.assemble-btn', '.sfx-btn']
+    .map(s => document.querySelector(s))
+    .filter(el => el && getComputedStyle(el).display !== 'none');
+  return { сколько: vis.length, справа: Math.round(w - Math.max(...vis.map(el => el.getBoundingClientRect().right))) };
+});
+check('ряд кнопок прижат к правому краю', rowGap.справа === 24, JSON.stringify(rowGap));
+
 await tap6('#svc-switch');
 await p6.waitForTimeout(1600);
 check('лента поднимается вместе с сервисным режимом', await strip(), 'timeline');

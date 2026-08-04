@@ -134,6 +134,20 @@ body.view-rig .zoom-btn { display: grid; }
         transform    0.44s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 body.view-rig .assemble-btn { display: grid; }
+
+/* Кнопка темы стоит крайней справа, а весь ряд отмерян от неё: 24, 78, 132,
+   186. Пока светлая тема погашена (THEME_CHOICE в скрипте страницы), её место
+   осталось бы пустым, и ряд читался бы сдвинутым влево от края экрана. Сдвиг
+   на один шаг — ровно то же, что уже делает лупа, где кнопки темы тоже нет.
+
+   Лупа исключена явно, а не оставлена на волю порядка правил. Первая попытка
+   написать это через `:root.theme-locked` наехала на её расстановку: `:root` —
+   псевдокласс, он весит как класс, и селектор выходил (0,3,0) против (0,2,1) у
+   `body.zoom .zoom-btn`. Своя сила перебила чужую, плитки в лупе выросли до
+   56, а шаг остался 54 — и они налезли друг на друга на два пикселя. */
+html.theme-locked body:not(.zoom) .zoom-btn { right: 24px; }
+html.theme-locked body:not(.zoom) .assemble-btn { right: 78px; }
+
 .assemble-btn svg { width: 21px; height: 21px; display: block; }
 .assemble-btn:hover { transform: translate3d(0, -1px, 0); }
 /* While the assembly runs the button is released and does not fire again: a
@@ -181,6 +195,11 @@ body:has(.rig.assembly) .assemble-btn { filter: opacity(0.45); pointer-events: n
         border-radius 0.42s cubic-bezier(0.22, 1, 0.36, 1),
         transform    0.44s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
+
+/* Тот же сдвиг на шаг, что у соседей: ряд отмерян от кнопки темы, а пока она
+   погашена, её место осталось бы пустым. Лупа исключена явно — там свой шаг и
+   свои размеры плиток. */
+html.theme-locked body:not(.zoom) .sfx-btn { right: 132px; }
 
 /* Кнопка лежит вне .rig, и общий запрет анимаций внутри схемы её не касается —
    как и соседи по ряду, она отменяет своё появление сама. */
