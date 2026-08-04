@@ -312,7 +312,11 @@
     tlNext.disabled = revPos >= last;
     const v = revs[revPos];
     if (!v) return;
-    tlRev.textContent = 'REV ' + (revPos + 1) + ' · ' + v.sha.toUpperCase();
+    // Место в ленте, а не ревизия. Слово REV здесь было чужим: лента считает
+    // собранные схемы (их 78), а плата набита номером страницы (их 97), и две
+    // разные шкалы под одним словом читались как «интерфейс отстал». Ревизию
+    // называет сама плата — она набита на текстолите и звучит в самотесте.
+    tlRev.textContent = (revPos + 1) + '/' + revs.length + ' · ' + v.sha.toUpperCase();
     tlSubject.textContent = v.subject;
     tlMeta.href = REPO + '/commit/' + v.sha;
   }

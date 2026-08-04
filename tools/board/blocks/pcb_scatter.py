@@ -25,7 +25,7 @@ from board.ink import empty_pads, mono, silk_boxed
 from board.lamps import lamp
 from board.metal import pad, relief
 from board.palette import SILVER
-from board.revision import BOARD_REV, BOARD_SHA
+from board.revision import BOARD_REV, BOARD_SN
 from board.spec import CPU, MADE, ram_label
 
 
@@ -433,16 +433,19 @@ def render(cv):
     # Паспорт двумя строками, а не одной. Семьдесят знаков в строку ужимались
     # до кегля 3,6 — мельче на плате только гравировка на чипах памяти, и та
     # мелкая нарочно. Строку, продиктованную дословно, читать было нельзя.
-    rev = f'REV {BOARD_REV} · S/N {BOARD_SHA}'
+    rev = f'REV {BOARD_REV} · S/N {BOARD_SN}'
     made = f'ASSEMBLED IN A CONTAINER · {MADE}'
     # Разрядка в 0.10 em добавляется к продвижению знака, поэтому в fit()
     # уходит ширина поля, ужатая на ту же долю.
     avail = fw / 1.17
     name_size = fit('COSMDANDY', avail, fh * 0.42)
-    # Марка — ссылка на тот самый коммит, которым набрана её же ревизия.
+    # Марка — ссылка на историю самой платы, а не на один коммит. Коммитом
+    # она быть перестала вместе с тем, как серийный номер стал отпечатком
+    # чертежа: коммит, в котором эта плата уедет, на момент сборки ещё не
+    # существует, и ссылка вела на предыдущий — то есть на другую плату.
     # Открывается она только в сервисном режиме: вне его поверх марки лежат
     # бирки, и вести оттуда некуда.
-    cv.add(f'''<a class="silk-mark" href="https://github.com/CosmDandy/cosmdandy.dev/commit/{BOARD_SHA.lower()}"
+    cv.add(f'''<a class="silk-mark" href="https://github.com/CosmDandy/cosmdandy.dev/commits/master/index.html"
    target="_blank" rel="noopener" aria-label="Исходники платы">
   <rect class="silk-hit" x="{fx}" y="{fy}" width="{fw}" height="{fh}" fill="#000" fill-opacity="0.001"/>
   <text class="silk-line" x="{fx + fw / 2:.0f}" y="{fy + 11:.0f}" text-anchor="middle"

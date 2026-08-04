@@ -22,7 +22,7 @@ No literals are left in the commands: every number comes from one of the three.
 """
 
 from board.geom import BANK_N, BAY_N, CHIPS, FAN_N, PSU_Y
-from board.revision import BOARD_REV, BOARD_SHA
+from board.revision import BOARD_REV, BOARD_SN
 from board.rotor import BLADE_N
 
 BOARD = {'model': 'CD93-FS1', 'form': '1U', 'vendor': 'CodeKVT'}
@@ -123,13 +123,13 @@ def ram_label():
 def passport():
     """The whole passport — the same one the page receives as JSON.
 
-    The revision and the serial are taken from git the same way as the
-    silkscreen on the laminate: the build number is the commit count, the
-    serial is the HEAD hash. Which means the console and the board cannot
-    drift apart even in those.
+    Ревизия и серийный номер здесь ровно те же, что набиты на текстолите:
+    берутся из board.revision, а не считаются заново. Поэтому самотест и
+    плата разойтись не могут — а расходились они раньше именно тем, что
+    номер брался от HEAD, то есть от предыдущей сборки.
     """
     return {
-        'board': {**BOARD, 'rev': int(BOARD_REV), 'sha': BOARD_SHA},
+        'board': {**BOARD, 'rev': int(BOARD_REV), 'sha': BOARD_SN},
         'fw': FIRMWARE,
         'cpu': CPU,
         'dimm': {**DIMM, 'slots': dimm_slots(), 'total_gb': total_ram_gb()},

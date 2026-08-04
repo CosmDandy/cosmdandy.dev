@@ -154,10 +154,33 @@ const EXCEPTIONS = [
 async function snapshot(state) {
   return page.evaluate((state) => {
     const rect = el => { const r = el.getBoundingClientRect(); return [r.x, r.y, r.width, r.height]; };
+    // Видимость считается по всей цепочке предков, а не по самому узлу.
+    // Воздуховоды уходят прозрачностью на группе (baffle.css: «.rig.lid-off
+    // .baffle-c { opacity: 0 }»), и у надписи внутри неё computed opacity
+    // остаётся единицей — первая версия принимала за находку буквы слотов на
+    // давно растаявшем кожухе.
     const visible = el => {
-      const cs = getComputedStyle(el);
-      return cs.display !== 'none' && cs.visibility !== 'hidden' && parseFloat(cs.opacity) > 0.05;
+      for (let n = el; n && n.nodeType === 1; n = n.parentElement) {
+        const cs = getComputedStyle(n);
+        if (cs.display === 'none' || cs.visibility === 'hidden' || parseFloat(cs.opacity) <= 0.05) return false;
+      }
+      return true;
     };
+    // Порядок отрисовки. В SVG нет z-index: кто в документе ниже, тот и
+    // поверх. Один обход дерева даёт этот номер каждому узлу — и с ним
+    // пересечение двух рамок наконец делится надвое. Деталь легла на
+    // шелкографию (деталь ниже в документе — значит поверх неё) — это то же
+    // самое, что снятый радиатор, положенный на плату: он и должен закрывать
+    // то, подо что лёг. А вот подпись, оставшаяся видимой ПОВЕРХ снятой
+    // детали, — та самая жалоба про «номер болта поверх процессора»: у
+    // подписи нет своего слоя, она просто нарисована позже.
+    const paint = new Map();
+    {
+      const walker = document.createTreeWalker(document.getElementById('rig'), NodeFilter.SHOW_ELEMENT);
+      let i = 0;
+      while (walker.nextNode()) paint.set(walker.currentNode, i++);
+    }
+    const z = el => paint.get(el) ?? -1;
     // Имя детали для отчёта. Данные (data-fan, data-cpu…) висят на группе
     // узла, а геометрию мы берём не с самой группы, а с того, что внутри неё
     // и правда едет по transform, — атрибут приходится искать у предка.
@@ -199,16 +222,18 @@ async function snapshot(state) {
       ...document.querySelectorAll('.fan .pick-body, .dimm .pick-body, .riser .pick-body, ' +
         '.psu .pick-body, .bay .pick-body, .blank .pick-body'),
       ...document.querySelectorAll('.cpu-slot .heatsink, .cpu-slot .cpu-lid'),
-    ].map(el => ({ name: label(el), r: rect(el), vis: visible(el), moved: movedEls.has(el) }));
+    ].map(el => ({ name: label(el), r: rect(el), vis: visible(el), moved: movedEls.has(el), z: z(el) }));
 
     // Индекс в document order стабилен между снимками: классы туда-сюда
     // ходят, а сами узлы <text>/<a.callout> ни разу не добавляются и не
     // удаляются. Это и даёт ключ для сопоставления с точкой отсчёта.
     const texts = [...document.querySelectorAll('text')].map((el, i) => ({
       i, name: (el.textContent || '').trim().slice(0, 28) || '(пусто)', r: rect(el), vis: visible(el),
+      z: z(el), tag: !!el.closest('a.callout'),
     }));
     const callouts = [...document.querySelectorAll('a.callout')].map((el, i) => ({
       i, name: (el.textContent || '').trim().slice(0, 28) || '(бирка)', r: rect(el), vis: visible(el),
+      z: z(el), tag: true,
     }));
 
     return { state, parts, texts, callouts };
@@ -239,7 +264,8 @@ function compareSnapshots(before, after) {
       const bp = beforePart.get(p.name);
       const base = (bmp && bp) ? ratio(bmp.r, bp.r) : 0;
       if (r - base < GROWTH) continue;
-      out.push({ kind: 'узел', a: p.name, b: mp.name, ratio: r, base, state: after.state });
+      out.push({ kind: 'узел', a: p.name, b: mp.name, ratio: r, base, state: after.state,
+        over: p.z > mp.z, tag: false });
     }
     for (const t of after.texts) {
       if (!t.vis || t.r[2] < 1 || t.r[3] < 1) continue;
@@ -248,7 +274,8 @@ function compareSnapshots(before, after) {
       const bt = before.texts[t.i];
       const base = (bmp && bt) ? ratio(bmp.r, bt.r) : 0;
       if (r - base < GROWTH) continue;
-      out.push({ kind: 'надпись', a: t.name, b: mp.name, ratio: r, base, state: after.state });
+      out.push({ kind: 'надпись', a: t.name, b: mp.name, ratio: r, base, state: after.state,
+        over: t.z > mp.z, tag: t.tag });
     }
     for (const c of after.callouts) {
       if (!c.vis || c.r[2] < 1 || c.r[3] < 1) continue;
@@ -257,7 +284,8 @@ function compareSnapshots(before, after) {
       const bc = before.callouts[c.i];
       const base = (bmp && bc) ? ratio(bmp.r, bc.r) : 0;
       if (r - base < GROWTH) continue;
-      out.push({ kind: 'бирка', a: c.name, b: mp.name, ratio: r, base, state: after.state });
+      out.push({ kind: 'бирка', a: c.name, b: mp.name, ratio: r, base, state: after.state,
+        over: c.z > mp.z, tag: true });
     }
   }
   return out;
@@ -376,18 +404,32 @@ console.log(`Порог пересечения: ${Math.round(THRESHOLD * 100)}% 
   `прирост над покоем не меньше ${Math.round(GROWTH * 100)} п.п.`);
 console.log(`Состояний проверено: 3 + ${nodes.length} узлов по очереди.\n`);
 
+// Пересечение рамок само по себе ещё ни о чём не говорит: схема нарисована
+// сверху, а снятая деталь лежит НАД платой — она обязана закрывать собой то,
+// подо что легла. Разделяем по порядку отрисовки.
+const line = o => {
+  const pct = (o.ratio * 100).toFixed(0).padStart(3);
+  const basePct = (o.base * 100).toFixed(0);
+  const mark = o.exception ? '  [исключение]' : '';
+  return `  ${pct}% (в покое ${basePct}%)  ${o.kind}: «${o.a}» × «${o.b}»  —  ${o.state}${mark}`;
+};
+
+const covered = unique.filter(o => !o.over);              // деталь сверху — так и надо
+const floating = unique.filter(o => o.over && o.tag);     // бирка сверху — слой tags
+const defects = unique.filter(o => o.over && !o.tag);     // подпись сверху — вот это баг
+
 if (unique.length === 0) {
   console.log('Пересечений с приростом над покоем не найдено ни в одном состоянии.');
 } else {
-  for (const o of unique) {
-    const pct = (o.ratio * 100).toFixed(0).padStart(3);
-    const basePct = (o.base * 100).toFixed(0);
-    const mark = o.exception ? '  [исключение]' : '';
-    console.log(`  ${pct}% (в покое ${basePct}%)  ${o.kind}: «${o.a}» × «${o.b}»  —  ${o.state}${mark}`);
+  console.log(`Снятая деталь легла поверх — ${covered.length}: она выше платы, так и должно быть.`);
+  console.log(`Бирка со ссылкой поверх детали — ${floating.length}: слой tags над машиной по замыслу.`);
+  if (defects.length) {
+    console.log('\nОстались подписи, нарисованные ПОВЕРХ снятой детали:');
+    for (const o of defects) console.log(line(o));
   }
 }
 
-const excepted = unique.filter(o => o.exception);
+const excepted = defects.filter(o => o.exception);
 if (excepted.length) {
   console.log('\nИсключения, учтённые при подсчёте:');
   for (const e of EXCEPTIONS) {
@@ -396,7 +438,7 @@ if (excepted.length) {
   }
 }
 
-const reportable = unique.filter(o => !o.exception);
+const reportable = defects.filter(o => !o.exception);
 console.log();
 if (reportable.length === 0) {
   console.log('наложений нет');

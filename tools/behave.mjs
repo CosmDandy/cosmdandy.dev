@@ -325,6 +325,19 @@ await page.keyboard.press('Escape');
 await page.waitForTimeout(400);
 check('Esc closes setup', !(await crt()).open, JSON.stringify(await crt()));
 
+// 15b. Закрытый экран прячется от читалки — и прячется по-настоящему. Пока
+// фокус оставался на нём самом (openCrt переводит фокус туда руками), Chrome
+// отказывался ставить aria-hidden и писал об этом в панель Issues: «Blocked
+// aria-hidden on an element because its descendant retained focus». В консоль
+// это не попадает, поймать прогоном нельзя — поэтому проверяем не жалобу, а
+// то условие, из-за которого она возникает: экран спрятан, фокуса внутри нет.
+const shut = await page.evaluate(() => {
+  const el = document.getElementById('crt');
+  return { hidden: el.getAttribute('aria-hidden'), inside: el.contains(document.activeElement) };
+});
+check('закрытый экран спрятан от читалки, и фокус из него ушёл',
+  shut.hidden === 'true' && !shut.inside, JSON.stringify(shut));
+
 // 16. top shows the same metrics the gauges used to, and leaves on q.
 await page.evaluate(() => window.__rig.exec('top'));
 await page.waitForTimeout(600);

@@ -2534,6 +2534,62 @@ def ak3():
     return inner == plain or 'слои теряют или переставляют фрагменты'
 
 
+def _spec():
+    """Паспорт машины, вшитый в страницу генератором."""
+    import json
+
+    return json.loads(re.search(r'id="rig-spec">(.*?)</script>', HTML, re.DOTALL).group(1))
+
+
+@check('AM3', 'ревизия платы — номер той сборки, которой она станет, а не предыдущей')
+def am3():
+    import subprocess
+
+    from board.revision import BOARD_REV
+
+    done = subprocess.run(('git', '-C', str(ROOT), 'rev-list', '--count', 'HEAD', '--', 'index.html'),
+                          capture_output=True, text=True, check=False).stdout.strip()
+    if not done.isdigit():
+        return 'счётчик коммитов страницы не прочитался'
+    # Ровно на единицу вперёд: плата, которую собирают сейчас, уедет в
+    # следующем коммите. Совпадение с числом коммитов означало бы прежний
+    # сдвиг — в опубликованной странице стоял бы номер предыдущей сборки.
+    if int(BOARD_REV) != int(done) + 1:
+        return f'REV {BOARD_REV} при {done} коммитах страницы'
+    silk = re.search(r'REV (\d+) · S/N ([0-9A-F]+)', BOARD)
+    if not silk:
+        return 'на текстолите нет строки REV · S/N'
+    if silk.group(1) != BOARD_REV:
+        return f'на плате REV {silk.group(1)}, в сборке {BOARD_REV}'
+    return _spec()['board']['rev'] == int(BOARD_REV) or \
+        f'паспорт числит ревизию {_spec()["board"]["rev"]}'
+
+
+@check('AM4', 'серийный номер — отпечаток чертежа, а не хэш предыдущего коммита')
+def am4():
+    from board.revision import SN_SLOT
+
+    if SN_SLOT in BOARD or SN_SLOT in HTML:
+        return 'заполнитель серийного номера остался в разметке'
+    silk = re.search(r'REV \d+ · S/N ([0-9A-F]{7})\b', BOARD)
+    if not silk:
+        return 'серийный номер на текстолите не семизначный'
+    # Тот же номер и в паспорте: печатает его самотест, и разойтись с платой
+    # он не должен — раньше расходились именно тем, что оба брались от HEAD.
+    if _spec()['board']['sha'] != silk.group(1):
+        return f'паспорт числит S/N {_spec()["board"]["sha"]}, на плате {silk.group(1)}'
+    # Ссылка марки ведёт на историю страницы. На один коммит она вести не
+    # может: тот, в котором эта плата уедет, на момент сборки не существует.
+    return '/commits/master/index.html"' in BOARD or 'марка всё ещё ведёт на один коммит'
+
+
+@check('AM5', 'лента показывает место в ленте, а не чужую ревизию')
+def am5():
+    if "'REV '" in JS:
+        return 'подпись ленты снова называет себя ревизией'
+    return "+ '/' + revs.length" in JS or 'лента не показывает своё место'
+
+
 def main():
     only = sys.argv[1] if len(sys.argv) > 1 else ''
     rows = [c for c in CHECKS if c[0].startswith(only)]

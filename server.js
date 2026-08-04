@@ -946,7 +946,11 @@
     tlNext.disabled = revPos >= last;
     const v = revs[revPos];
     if (!v) return;
-    tlRev.textContent = 'REV ' + (revPos + 1) + ' · ' + v.sha.toUpperCase();
+    // Место в ленте, а не ревизия. Слово REV здесь было чужим: лента считает
+    // собранные схемы (их 78), а плата набита номером страницы (их 97), и две
+    // разные шкалы под одним словом читались как «интерфейс отстал». Ревизию
+    // называет сама плата — она набита на текстолите и звучит в самотесте.
+    tlRev.textContent = (revPos + 1) + '/' + revs.length + ' · ' + v.sha.toUpperCase();
     tlSubject.textContent = v.subject;
     tlMeta.href = REPO + '/commit/' + v.sha;
   }
@@ -3698,6 +3702,13 @@
   // to go into its condition (see the report).
   let crtOpen = false;
 
+  // Кому вернуть фокус, когда экран уедет. Нужно не ради удобства с
+  // клавиатуры, а потому что иначе фокус остаётся на самом экране, и
+  // aria-hidden на нём Chrome не ставит: «Blocked aria-hidden on an element
+  // because its descendant retained focus». То есть закрытый экран так и
+  // оставался бы видимым для читалки.
+  let crtReturn = null;
+
   // The base asks through a function instead of reading the variable: base.js
   // runs higher up the file, and a reference before the let declaration throws.
   function screenOpen() { return crtOpen; }
@@ -3709,6 +3720,9 @@
   }
 
   function openCrt(mode) {
+    // Запоминаем ДО shadow(true): та вешает inert на всё вокруг, и после неё
+    // activeElement уже не тот, кто экран вызвал.
+    if (!crtOpen) crtReturn = document.activeElement;
     crt.dataset.mode = mode;
     postPane.hidden = mode !== 'post';
     setupPane.hidden = mode !== 'setup';
@@ -3730,6 +3744,12 @@
     if (!crtOpen) return;
     closeOverlay();
     crt.classList.remove('on');
+    // Фокус уводим прежде, чем прятать экран от читалки. Пока он оставался на
+    // самом экране (openCrt переводит его туда руками), Chrome отказывался
+    // ставить aria-hidden и писал в Issues: «Blocked aria-hidden on an element
+    // because its descendant retained focus» — то есть уехавший с картинки
+    // экран для читалки так и оставался открытым диалогом.
+    crt.blur();
     crt.setAttribute('aria-hidden', 'true');
     // Экран уехал — вот теперь подписи проступают, одна за другой.
     rig.classList.remove('tags-off');
@@ -3783,6 +3803,14 @@
   // живой машине, и F12 рядом, потому что половина вендоров вешает его туда.
   document.addEventListener('keydown', function (e) {
     if (crtOpen) return;
+    // Клавишу, которой экран только что закрыли, второй раз не разбираем.
+    // Оба обработчика висят на document в фазе перехвата и получают ОДНО и то
+    // же нажатие: Enter на «Yes» в подтверждении закрывает Setup — и тут же
+    // приходит сюда, где экран уже закрыт, а фокус после blur() лежит на
+    // body, то есть «ни на чём». Setup открывался обратно в том же кадре.
+    // Раньше это не всплывало только потому, что фокус оставался на скрытом
+    // экране и условие idle не выполнялось.
+    if (e.defaultPrevented) return;
     // Enter — for those whose top row is given over to the system, but only
     // when the focus is on nothing: in the console field it sends the command,
     // on a button of the schematic it presses that button, and it must not be

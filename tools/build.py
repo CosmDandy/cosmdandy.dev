@@ -41,6 +41,7 @@ creates a composited layer, and those layers cover the whole scene — that
 is exactly what the "the entire background went black" bug looked like.
 """
 
+import hashlib
 import importlib
 import json
 import re
@@ -48,6 +49,7 @@ from pathlib import Path
 
 from board.canvas import Canvas
 from board.ink import callout_box
+from board.revision import SN_SLOT
 from board.spec import EXPECT, passport
 
 HERE = Path(__file__).parent
@@ -274,9 +276,23 @@ def tally(used):
     return out
 
 
+def serial(*parts):
+    """Серийный номер платы — отпечаток самого чертежа.
+
+    Из git его взять нельзя: сборка идёт до коммита, а коммит не может
+    содержать собственный хэш. Раньше здесь стоял хэш HEAD — то есть номер
+    ПРЕДЫДУЩЕЙ платы, и опубликованная страница всегда числилась ревизией
+    назад. Отпечаток берётся от готовой разметки с заполнителем на месте
+    номера, поэтому он устойчив: пересобрали без правок — номер тот же.
+    """
+    return hashlib.sha1(''.join(parts).encode()).hexdigest()[:7].upper()
+
+
 def main():
     board, lid, report = build()
     svg, lidart = board.svg(), lid.svg()
+    sn = serial(svg, lidart)
+    svg, lidart = svg.replace(SN_SLOT, sn), lidart.replace(SN_SLOT, sn)
     css_blocks = build_css()
     js_blocks = build_js()
 
@@ -304,6 +320,10 @@ def main():
                       lambda m: m.group(1) + '\n' + lidart + '\n' + m.group(2), html, flags=re.DOTALL)
         # We escape only "</": inside <script> it would close the tag early.
         spec = json.dumps(passport(), ensure_ascii=False, separators=(',', ':')).replace('</', '<\\/')
+        # Тот же серийный номер, что и на текстолите: паспорт берёт его из
+        # board.revision, а туда он попадает заполнителем — подставляем здесь,
+        # иначе самотест напечатал бы заполнитель.
+        spec = spec.replace(SN_SLOT, sn)
         html = re.sub(r'(<!-- SPEC:BEGIN -->).*?(<!-- SPEC:END -->)',
                       lambda m: m.group(1) + '\n<script type="application/json" id="rig-spec">'
                                 + spec + '</script>\n' + m.group(2), html, flags=re.DOTALL)
