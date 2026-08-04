@@ -101,6 +101,12 @@ jobs:
           name: site
           path: _site/
 
+      # На продакшене отметки нет — этим он и отличается от стендов. Но просто
+      # не ставить её нельзя: в закоммиченной странице лежит штамп локальной
+      # сборки, и без стирания на продакшен уехало бы «локально».
+      - name: Clear build stamp
+        run: python3 tools/stamp_build.py _site/index.html _site/404.html --clear
+
       # Secrets cannot be checked in if: — the secrets context is not available
       # there. Without this step a missing token looks like an inscrutable
       # error inside wrangler, and it is unclear whether the deploy broke or
@@ -151,6 +157,19 @@ jobs:
         with:
           name: site
           path: _site/
+
+      # Отметка о сборке ставится здесь, а не в сборке: артефакт один на оба
+      # стенда, и «где развёрнуто» знает только тот, кто развёртывает. Заодно
+      # это единственное место, где известен настоящий коммит: index.html лежит
+      # в репозитории уже собранным, и хэш от генератора был бы предыдущим.
+      - name: Stamp build
+        env:
+          SHA: ${{ github.event.pull_request.head.sha }}
+          REF: ${{ github.event.pull_request.head.ref }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          python3 tools/stamp_build.py _site/index.html _site/404.html \
+            --env cloudflare --sha "$SHA" --ref "$REF" --pr "$PR"
 
       # versions upload and not deploy: a new version of the worker is uploaded
       # with its own preview address, while production keeps serving the

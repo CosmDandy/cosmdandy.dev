@@ -10,6 +10,13 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 python3 build.py
+
+# Отметка о сборке — сразу после генератора: тот переписывает index.html между
+# метками, и штамп, поставленный раньше, он бы не тронул, но и не обновил.
+# Локально в отметке стоит состояние рабочего дерева, а не коммита: смотришь ты
+# именно на дерево. На стендах её переставляет пайплайн, который развёртывает.
+python3 stamp_build.py ../index.html ../404.html | tail -1
+
 python3 audit_text.py | tail -1
 
 # Pixels and behaviour are checked separately and take longer — run on demand:

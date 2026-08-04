@@ -55,6 +55,10 @@
              <meta name="color-scheme" content="dark light"> -->
     <meta name="theme-color" content="#000000">
     <meta name="color-scheme" content="dark">
+    <!-- Отметка о сборке: какой стенд, из чего собран и когда развёрнут.
+         Значение ставит тот пайплайн, который развёртывает (tools/stamp_build.py),
+         локально — sync.sh. Здесь стоит то, что видно, если не ставил никто. -->
+    <meta name="build" content="env=local;repo=CosmDandy/cosmdandy.dev;ref=server-card;sha=8ca79c5+;at=2026-08-04T15:25:28Z">
     <meta name="robots" content="noindex">
     <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
     <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
@@ -259,6 +263,60 @@
         }
 
         labelTheme(document.documentElement.getAttribute('data-theme') || 'dark');
+    </script>
+    <script>
+        // Отметка о сборке. Три стенда с виду неотличимы, и это регулярно
+        // сбивало: правка проверена — но на каком именно стенде? Строку в углу
+        // собираем из метки в шапке; кто её туда положил — дело пайплайна,
+        // здесь она только читается.
+        (function () {
+            var raw = (document.querySelector('meta[name="build"]') || {}).content || '';
+            var b = {};
+            raw.split(';').forEach(function (p) {
+                var i = p.indexOf('=');
+                if (i > 0) b[p.slice(0, i)] = p.slice(i + 1);
+            });
+            // Продакшен тем и отличается, что на нём отметки нет: там её стирает
+            // пайплайн выкатки. Пустая метка — нечего и рисовать.
+            var where = { local: 'локально', cloudflare: 'cloudflare' }[b.env];
+            if (!where) return;
+            var head = [where];
+            if (b.ref && b.ref !== '—') head.push(b.ref);
+            if (b.pr) head.push('PR #' + b.pr);
+
+            var el = document.createElement('div');
+            el.className = 'build-badge';
+            el.appendChild(document.createTextNode(head.join(' · ')));
+
+            // Хэш ведёт на pull request, если он есть, и на коммит, если нет:
+            // от «вижу поломку» до «вижу диф» одно нажатие. Плюс в конце хэша
+            // значит несохранённое в дереве — на коммит с ним не сошлёшься.
+            if (b.sha) {
+                // Разделитель здесь, а не в конце шапки: без штампа хэша нет
+                // вовсе, и точка повисала бы в воздухе — «локально · ».
+                el.appendChild(document.createTextNode(' · '));
+                var a = document.createElement('a');
+                a.textContent = b.sha;
+                a.href = 'https://github.com/' + (b.repo || 'CosmDandy/cosmdandy.dev')
+                    + (b.pr ? '/pull/' + b.pr : '/commit/' + b.sha.replace('+', ''));
+                a.target = '_blank';
+                a.rel = 'noopener';
+                el.appendChild(a);
+            }
+
+            // Дату разворачиваем в часовом поясе смотрящего: она отвечает на
+            // «насколько это свежее», а этот вопрос всегда про своё время.
+            if (b.at) {
+                var d = new Date(b.at);
+                if (!isNaN(d)) {
+                    var p2 = function (n) { return String(n).padStart(2, '0'); };
+                    el.appendChild(document.createTextNode(' · '
+                        + p2(d.getDate()) + '.' + p2(d.getMonth() + 1) + '.' + d.getFullYear()
+                        + ' ' + p2(d.getHours()) + ':' + p2(d.getMinutes())));
+                }
+            }
+            document.body.appendChild(el);
+        })();
     </script>
 </body>
 </html>
