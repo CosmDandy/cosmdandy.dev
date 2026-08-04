@@ -8,6 +8,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script>
+        // Светлая тема выключена. Не удалена: палитра, ручной выбор, его
+        // протухание через четыре часа и слежение за системой — всё на месте и
+        // работает. Погашена только сама возможность выбрать, и возвращается
+        // она одним true вот здесь. Почему — расписано в index.html.
+        var THEME_CHOICE = false;
+
         // Before the first paint, otherwise the wrong theme flashes for a
         // fraction of a second. An empty store means "follow the system", so
         // only what the user picked by hand is written here.
@@ -32,14 +38,23 @@
                 }
             } catch (e) {}
             if (saved !== 'light' && saved !== 'dark') saved = null;
-            document.documentElement.setAttribute('data-theme', saved || system);
+            // Атрибут ставится всегда, и этого довольно, чтобы светлые правила
+            // не сработали: `:root[data-theme="light"]` не совпадёт, а
+            // системное написано на `:root:not([data-theme])`.
+            document.documentElement.setAttribute('data-theme',
+                THEME_CHOICE ? (saved || system) : 'dark');
+            if (!THEME_CHOICE) document.documentElement.classList.add('theme-locked');
         })();
     </script>
     <title>404 · Timofey Kondrashin</title>
     <meta name="description" content="Page not found">
-    <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
-    <meta name="theme-color" content="#fdf6e3" media="(prefers-color-scheme: light)">
-    <meta name="color-scheme" content="dark light">
+    <!-- Пока светлая выключена, полоса браузера тоже держится тёмной: её
+         выбирает система, а не наша тема. Светлые значения возвращаются
+         вместе с темой:
+             <meta name="theme-color" content="#fdf6e3" media="(prefers-color-scheme: light)">
+             <meta name="color-scheme" content="dark light"> -->
+    <meta name="theme-color" content="#000000">
+    <meta name="color-scheme" content="dark">
     <meta name="robots" content="noindex">
     <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
     <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
@@ -221,22 +236,27 @@
             labelTheme(theme);
         }
 
-        themeSwitch.addEventListener('click', () => {
-            const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-            rememberTheme(next);
-            setTheme(next, true);
-        });
+        // Пока светлая выключена, слушать некого и незачем: и кнопка, и смена
+        // системной темы вели бы страницу туда, где её нет. Сам код остаётся
+        // написанным и рабочим — включается вместе с THEME_CHOICE.
+        if (THEME_CHOICE) {
+            themeSwitch.addEventListener('click', () => {
+                const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+                rememberTheme(next);
+                setTheme(next, true);
+            });
 
-        // While there is no choice we follow the system, including when it is
-        // switched right now without reloading the page.
-        //
-        // Система главнее выбора: сменила тему прямо сейчас — ручной выбор
-        // снимается. Ровно то же сделал бы скрипт в <head> при следующем
-        // заходе, только без перезагрузки.
-        systemLight.addEventListener('change', e => {
-            forgetTheme();
-            setTheme(e.matches ? 'light' : 'dark', true);
-        });
+            // While there is no choice we follow the system, including when it is
+            // switched right now without reloading the page.
+            //
+            // Система главнее выбора: сменила тему прямо сейчас — ручной выбор
+            // снимается. Ровно то же сделал бы скрипт в <head> при следующем
+            // заходе, только без перезагрузки.
+            systemLight.addEventListener('change', e => {
+                forgetTheme();
+                setTheme(e.matches ? 'light' : 'dark', true);
+            });
+        }
 
         labelTheme(document.documentElement.getAttribute('data-theme') || 'dark');
     </script>

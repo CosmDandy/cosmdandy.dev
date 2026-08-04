@@ -566,7 +566,13 @@ h1     { animation-delay: 0ms; }
    interface, even though it is there in behaviour.
 
    The icon shows the theme in force, not the one to come: the button answers
-   the question "what is it now", not "what will it be". */
+   the question "what is it now", not "what will it be".
+
+   Пока светлая тема выключена (THEME_CHOICE в скрипте страницы), кнопки нет:
+   переключатель, который ничего не переключает, хуже отсутствующего. Класс
+   ставит тот же скрипт, и снимается он вместе с ним. */
+:root.theme-locked .theme-switch { display: none; }
+
 .theme-switch {
     position: fixed;
     top: 24px;
