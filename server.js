@@ -970,6 +970,13 @@
       }
       board.innerHTML = markup;
       board.setAttribute('viewBox', v.viewBox);
+      // Архивная схема — снимок, а не машина. Сегодняшние стили писались под
+      // сегодняшнюю разметку, и к чужой они местами не подходят: до шестидесятой
+      // ревизии лопасти висели на <path> без своей точки вращения, а
+      // transform-box у SVG по умолчанию view-box — анимация крутила их вокруг
+      // нуля холста, и лопасти улетали в левый верхний угол. Снимку движение не
+      // нужно вовсе, а нажимать на нём нечего: это уже не та машина.
+      rig.classList.toggle('archive', i !== revs.length - 1);
       revPos = i;
       tlRange.value = String(i);
       paintTimeline();
@@ -989,7 +996,11 @@
       if (!res.ok) throw new Error(res.status);
       revs = await res.json();
     } catch (err) {
-      return;                       // no history — no strip either, silently
+      // Молча — только когда никто не просил: на сайте без истории лента и не
+      // должна о себе напоминать. А если её позвали командой, молчание было бы
+      // враньём: человек ждёт ленту и не понимает, куда она делась.
+      if (revsAsked) line('историю схемы не отдали — на этом сайте её нет', 'err');
+      return;
     }
     if (revs.length < 2) return;
     // The current board is already in the page: we put it into the cache as
@@ -1380,7 +1391,24 @@
   }
 
   // ── Service mode ───────────────────────────────────────────────────────
-  const svcSwitch = document.getElementById('svc-switch');
+
+  // Органы управления нарисованы на самой плате, а лента ревизий переписывает
+  // её разметку целиком (showRev: board.innerHTML = markup). Обработчик,
+  // повешенный прямо на кнопку, уезжает вместе со старым узлом — и после
+  // первого же движения ползунка «Сервис» и «надеть крышку» переставали
+  // нажиматься совсем. Слушаем на самой плате: она подмену переживает,
+  // потому что меняются только её дети.
+  function onBoard(id, run) {
+    board.addEventListener('click', function (e) {
+      if (e.target.closest('#' + id)) run();
+    });
+    board.addEventListener('keydown', function (e) {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      if (!e.target.closest('#' + id)) return;
+      e.preventDefault();
+      run();
+    });
+  }
 
   function toggleService() {
     const on = rig.classList.toggle('service');
@@ -1409,10 +1437,7 @@
       updateFault();
     }
   }
-  svcSwitch.addEventListener('click', toggleService);
-  svcSwitch.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleService(); }
-  });
+  onBoard('svc-switch', toggleService);
 
   // Выйти из сервисного режима нужно уметь всегда, а выключатель нарисован на
   // плате — то есть ровно там, где схемы может и не оказаться. Два запасных
@@ -1816,10 +1841,10 @@
     },
   });
 
-  // Лента ревизий. На живом сайте она не поднимается сама: это шестьдесят с
-  // лишним схем по мегабайту, и качать их, зайдя посмотреть визитку, незачем.
-  // Кто хочет посмотреть, как машина росла, — просит об этом сам. Локально
-  // лента была и есть, там просить нечего.
+  // Лента ревизий. На живом сайте она не поднимается сама: это восемьдесят
+  // схем, и качать их, зайдя посмотреть визитку, незачем. Кто хочет увидеть,
+  // как машина росла, — просит об этом сам, и тогда качается по одной схеме за
+  // ход ползунка. Локально лента была и есть, там просить нечего.
   //
   // Имя не history: так зовётся история команд оболочки, и вторая команда с
   // тем же именем в реестр не встаёт — он её отвергает, а страница падает на
@@ -1827,20 +1852,38 @@
   cmd({
     name: 'revisions',
     group: 'МАШИНА',
-    brief: 'поднять ленту ревизий схемы',
-    usage: 'revisions',
+    brief: 'лента ревизий схемы',
+    usage: 'revisions on|off',
+    complete: function (argv, i) { return i === 1 ? ['on', 'off'] : []; },
     help: ['Схема собирается генератором, и каждая её сборка сохранена.',
-           'Команда поднимает ленту под машиной: ползунком по ней видно,',
-           'как плата менялась от первой ревизии до сегодняшней.',
-           'На живом сайте лента не грузится сама — это десятки мегабайт.'],
-    run: function () {
-      if (!timeline.hidden) return [{ t: 'лента уже поднята', c: 'muted' }];
-      revsAsked = true;
-      initTimeline();
-      // initTimeline асинхронна: сообщать об успехе сейчас нельзя, поэтому
-      // говорим только то, что уже правда, — что за лентой пошли.
-      return [{ t: 'загружаю историю схемы…', c: 'muted' },
-              { t: 'лента появится под машиной, если история собрана', c: 'muted' }];
+           'on поднимает ленту под машиной: ползунком по ней видно, как плата',
+           'менялась от первой ревизии до сегодняшней. off убирает ленту и',
+           'возвращает машину на текущую сборку.',
+           'Схемы качаются по одной и только пока лента поднята.'],
+    run: function (ctx) {
+      const arg = String(ctx.args[0] || '').toLowerCase();
+      if (arg === 'off') {
+        if (timeline.hidden) return [{ t: 'лента и так убрана', c: 'muted' }];
+        // Сначала вернуть машину на сегодняшнюю сборку, и только потом убирать
+        // ленту. Наоборот нельзя: на экране осталась бы схема полугодовой
+        // давности, а ползунка, которым её меняли, уже не будет.
+        showRev(revs.length - 1);
+        timeline.hidden = true;
+        return [{ t: 'лента убрана · схема вернулась на текущую сборку', c: 'muted' }];
+      }
+      if (arg === 'on') {
+        if (!timeline.hidden) return [{ t: 'лента уже поднята', c: 'muted' }];
+        // Второй заход качать нечего: список ревизий уже в памяти, а схемы — в
+        // кэше по мере того, как их листали.
+        if (revs.length) { timeline.hidden = false; return [{ t: 'лента поднята', c: 'ok' }]; }
+        revsAsked = true;
+        initTimeline();
+        // initTimeline асинхронна: сообщать об успехе сейчас нельзя. Об отказе
+        // она скажет сама, отдельной строкой, когда станет ясно.
+        return [{ t: 'загружаю историю схемы…', c: 'muted' }];
+      }
+      return [{ t: 'revisions on|off', c: 'warn' },
+              { t: 'сейчас: ' + (timeline.hidden ? 'убрана' : 'поднята'), c: 'muted' }];
     },
   });
 
@@ -5483,9 +5526,6 @@
   // The cover. A visitor should not have to guess that it needs taking off:
   // on the first visit it comes off by itself. Putting it back is done by a
   // button on the board, next to the service mode switch.
-  const lidRemove = document.getElementById('lid-remove');
-  const lidOn = document.getElementById('lid-on');
-
   function setLid(off) {
     // Тишина, если крышка уже в этом положении: setLid зовут и при
     // восстановлении состояния из localStorage, где хода нет и звучать нечему.
@@ -5493,12 +5533,10 @@
     rig.classList.toggle('lid-off', off);
     state.lid = off; save();
   }
-  function bindLid(el, off, msg) {
-    if (!el) return;
-    el.addEventListener('click', function () { setLid(off); line(msg, 'muted'); });
-    el.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setLid(off); line(msg, 'muted'); }
-    });
+  // Обе кнопки крышки нарисованы на плате, значит слушаем их так же, как
+  // выключатель сервисного режима, — через саму плату.
+  function bindLid(id, off, msg) {
+    onBoard(id, function () { setLid(off); line(msg, 'muted'); });
   }
   const assembleBtn = document.getElementById('assemble-btn');
   if (assembleBtn) {
@@ -5508,8 +5546,8 @@
     });
   }
 
-  bindLid(lidRemove, true, 'cover removed');
-  bindLid(lidOn, false, 'cover in place');
+  bindLid('lid-remove', true, 'cover removed');
+  bindLid('lid-on', false, 'cover in place');
 
   setLid(!!state.lid);
   wait(260, function () { rig.classList.add('ready'); });

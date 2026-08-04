@@ -15,8 +15,8 @@
   Cache-Control: public, max-age=31536000, immutable
 
 # Board revisions: the file name carries the commit hash, so the contents never
-# change — a new revision arrives under a new name. These files are not
-# deployed at present (the revision strip is a development tool), but the rule
-# stays: if they ever go out, this is how they should be cached.
+# change — a new revision arrives under a new name. Отсюда immutable: однажды
+# скачанную схему перепроверять незачем, а ленту листают вперёд-назад по одним
+# и тем же файлам, и на второй проход каждая должна браться из кэша.
 /history/*.svg
   Cache-Control: public, max-age=31536000, immutable

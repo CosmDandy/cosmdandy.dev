@@ -987,6 +987,79 @@ check('и он пускает', (await p5.evaluate(() => document.getElementById
 
 await p5.close();
 
+// 32. Лента ревизий. Три поломки одного корня: showRev переписывает разметку
+// платы целиком (board.innerHTML = markup), и всё, что было к ней привязано,
+// уезжает вместе со старыми узлами.
+//
+//   · органы управления нарисованы на плате — прямой обработчик умирал, и
+//     после первого же движения ползунка «Сервис» и крышка переставали
+//     нажиматься; теперь слушаем на самой плате, она подмену переживает;
+//   · архивная схема — снимок, а не машина: до шестидесятой ревизии лопасти
+//     висели на <path> без своей точки вращения, и сегодняшняя анимация
+//     уносила их в левый верхний угол холста;
+//   · сама команда стала on|off.
+const p6 = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
+p6.on('pageerror', e => errors.push(String(e)));
+// #tl-range оставляем: без ползунка эту проверку нечем двигать.
+await p6.addInitScript(() => document.addEventListener('DOMContentLoaded',
+  () => document.querySelectorAll('input:not(#tl-range)').forEach(el => el.remove())));
+await p6.goto(url, { waitUntil: 'load' });
+await p6.evaluate(() => document.body.classList.add('view-rig'));
+await p6.waitForFunction(() => !document.getElementById('rig').classList.contains('assembly'),
+                         null, { timeout: 30000 }).catch(() => {});
+await p6.waitForFunction(() => !document.getElementById('crt').classList.contains('on'),
+                         null, { timeout: 30000 }).catch(() => {});
+await p6.waitForTimeout(500);
+
+const tap6 = sel => p6.evaluate(s => document.querySelector(s)
+  ?.dispatchEvent(new MouseEvent('click', { bubbles: true })), sel);
+const rigHas = c => p6.evaluate(k => document.getElementById('rig').classList.contains(k), c);
+const strip = () => p6.evaluate(() => !document.getElementById('timeline').hidden);
+const slide = async i => {
+  await p6.evaluate(n => { const r = document.getElementById('tl-range');
+    r.value = String(n); r.dispatchEvent(new Event('input', { bubbles: true })); }, i);
+  await p6.waitForTimeout(2200);
+};
+
+await tap6('#svc-switch');
+await p6.waitForTimeout(1600);
+check('лента поднимается вместе с сервисным режимом', await strip(), 'timeline');
+
+await p6.evaluate(() => window.__rig.exec('revisions off'));
+await p6.waitForTimeout(400);
+check('revisions off убирает ленту', !(await strip()), 'timeline');
+await p6.evaluate(() => window.__rig.exec('revisions on'));
+await p6.waitForTimeout(900);
+check('revisions on поднимает её обратно', await strip(), 'timeline');
+
+// Ревизия 58 (в ленте — 59-я) — последняя, где лопасти были на <path>.
+await slide(58);
+const arch = await p6.evaluate(() => {
+  const el = document.querySelector('#board .fan-blades');
+  if (!el) return null;
+  const b = el.getBoundingClientRect();
+  const board = document.getElementById('board').getBoundingClientRect();
+  return { anim: getComputedStyle(el).animationName,
+           inside: b.left >= board.left - 2 && b.top >= board.top - 2 && b.right <= board.right + 2 };
+});
+check('архивная схема не анимируется', arch && arch.anim === 'none', JSON.stringify(arch));
+check('лопасти архивной схемы остаются на месте', arch && arch.inside, JSON.stringify(arch));
+check('архивная схема помечена снимком', await rigHas('archive'), 'archive');
+
+// И назад на сегодняшнюю: она снова живая машина, и её кнопки работают.
+await slide(await p6.evaluate(() => Number(document.getElementById('tl-range').max)));
+check('сегодняшняя схема снова машина, а не снимок', !(await rigHas('archive')), 'archive');
+const svcWas = await rigHas('service');
+await tap6('#svc-switch');
+await p6.waitForTimeout(700);
+check('после ползунка выключатель сервиса жив', (await rigHas('service')) !== svcWas, 'service');
+const lidWas = await rigHas('lid-off');
+await tap6('#lid-on');
+await tap6('#lid-remove');
+await p6.waitForTimeout(700);
+check('после ползунка кнопки крышки живы', (await rigHas('lid-off')) !== lidWas, 'lid');
+await p6.close();
+
 const failed = results.filter(r => !r[1]);
 for (const [name, ok, got] of results) console.log(`  ${ok ? '·' : 'BROKEN'} ${name}${ok ? '' : ` → ${got}`}`);
 if (errors.length) console.log(`  ERRORS: ${errors.slice(0, 2).join(' | ')}`);

@@ -336,6 +336,13 @@
       }
       board.innerHTML = markup;
       board.setAttribute('viewBox', v.viewBox);
+      // Архивная схема — снимок, а не машина. Сегодняшние стили писались под
+      // сегодняшнюю разметку, и к чужой они местами не подходят: до шестидесятой
+      // ревизии лопасти висели на <path> без своей точки вращения, а
+      // transform-box у SVG по умолчанию view-box — анимация крутила их вокруг
+      // нуля холста, и лопасти улетали в левый верхний угол. Снимку движение не
+      // нужно вовсе, а нажимать на нём нечего: это уже не та машина.
+      rig.classList.toggle('archive', i !== revs.length - 1);
       revPos = i;
       tlRange.value = String(i);
       paintTimeline();
@@ -355,7 +362,11 @@
       if (!res.ok) throw new Error(res.status);
       revs = await res.json();
     } catch (err) {
-      return;                       // no history — no strip either, silently
+      // Молча — только когда никто не просил: на сайте без истории лента и не
+      // должна о себе напоминать. А если её позвали командой, молчание было бы
+      // враньём: человек ждёт ленту и не понимает, куда она делась.
+      if (revsAsked) line('историю схемы не отдали — на этом сайте её нет', 'err');
+      return;
     }
     if (revs.length < 2) return;
     // The current board is already in the page: we put it into the cache as
@@ -547,7 +558,24 @@
   }
 
   // ── Service mode ───────────────────────────────────────────────────────
-  const svcSwitch = document.getElementById('svc-switch');
+
+  // Органы управления нарисованы на самой плате, а лента ревизий переписывает
+  // её разметку целиком (showRev: board.innerHTML = markup). Обработчик,
+  // повешенный прямо на кнопку, уезжает вместе со старым узлом — и после
+  // первого же движения ползунка «Сервис» и «надеть крышку» переставали
+  // нажиматься совсем. Слушаем на самой плате: она подмену переживает,
+  // потому что меняются только её дети.
+  function onBoard(id, run) {
+    board.addEventListener('click', function (e) {
+      if (e.target.closest('#' + id)) run();
+    });
+    board.addEventListener('keydown', function (e) {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      if (!e.target.closest('#' + id)) return;
+      e.preventDefault();
+      run();
+    });
+  }
 
   function toggleService() {
     const on = rig.classList.toggle('service');
@@ -576,10 +604,7 @@
       updateFault();
     }
   }
-  svcSwitch.addEventListener('click', toggleService);
-  svcSwitch.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleService(); }
-  });
+  onBoard('svc-switch', toggleService);
 
   // Выйти из сервисного режима нужно уметь всегда, а выключатель нарисован на
   // плате — то есть ровно там, где схемы может и не оказаться. Два запасных
@@ -1046,9 +1071,6 @@
   // The cover. A visitor should not have to guess that it needs taking off:
   // on the first visit it comes off by itself. Putting it back is done by a
   // button on the board, next to the service mode switch.
-  const lidRemove = document.getElementById('lid-remove');
-  const lidOn = document.getElementById('lid-on');
-
   function setLid(off) {
     // Тишина, если крышка уже в этом положении: setLid зовут и при
     // восстановлении состояния из localStorage, где хода нет и звучать нечему.
@@ -1056,12 +1078,10 @@
     rig.classList.toggle('lid-off', off);
     state.lid = off; save();
   }
-  function bindLid(el, off, msg) {
-    if (!el) return;
-    el.addEventListener('click', function () { setLid(off); line(msg, 'muted'); });
-    el.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setLid(off); line(msg, 'muted'); }
-    });
+  // Обе кнопки крышки нарисованы на плате, значит слушаем их так же, как
+  // выключатель сервисного режима, — через саму плату.
+  function bindLid(id, off, msg) {
+    onBoard(id, function () { setLid(off); line(msg, 'muted'); });
   }
   const assembleBtn = document.getElementById('assemble-btn');
   if (assembleBtn) {
@@ -1071,8 +1091,8 @@
     });
   }
 
-  bindLid(lidRemove, true, 'cover removed');
-  bindLid(lidOn, false, 'cover in place');
+  bindLid('lid-remove', true, 'cover removed');
+  bindLid('lid-on', false, 'cover in place');
 
   setLid(!!state.lid);
   wait(260, function () { rig.classList.add('ready'); });

@@ -2583,6 +2583,69 @@ def am4():
     return '/commits/master/index.html"' in BOARD or 'марка всё ещё ведёт на один коммит'
 
 
+@check('AN1', 'история схемы уезжает в деплой, а не остаётся на машине разработчика')
+def an1():
+    wf = (ROOT / '.github/workflows/deploy.yaml').read_text(encoding='utf-8')
+    # Мелкий клон истории страницы не содержит — ленту из него не собрать.
+    if 'fetch-depth: 0' not in wf:
+        return 'checkout мелкий, историю страницы не достать'
+    if 'python3 tools/history.py' not in wf:
+        return 'history.py в сборке не запускается'
+    if 'cp -r history _site/' not in wf:
+        return 'история не попадает в _site'
+    # Имя файла несёт хэш коммита, поэтому кэш вечный.
+    heads = (ROOT / '_headers').read_text(encoding='utf-8')
+    return ('/history/*.svg' in heads and 'immutable' in heads) or 'нет вечного кэша для схем'
+
+
+@check('AN2', 'history.py не привязан к одной машине')
+def an2():
+    src = (ROOT / 'tools/history.py').read_text(encoding='utf-8')
+    if 'Path("/workspaces' in src:
+        return 'путь к репозиторию записан руками — в CI такого каталога нет'
+    return 'Path(__file__).resolve().parents[1]' in src or 'корень репозитория считается не от скрипта'
+
+
+@check('AN3', 'лента включается и выключается командой')
+def an3():
+    term = (ROOT / 'tools/board/parts/term.js').read_text(encoding='utf-8')
+    zone = term[term.find("name: 'revisions'"):]
+    zone = zone[:zone.find('});')]
+    if "usage: 'revisions on|off'" not in zone:
+        return 'команда не объявляет on|off'
+    if "'on'" not in zone or "'off'" not in zone:
+        return 'разбора on/off нет'
+    # Выйти из ленты, оставшись на старой схеме, нельзя: ползунка уже не будет.
+    if 'showRev(revs.length - 1)' not in zone:
+        return 'off не возвращает машину на текущую сборку'
+    return "complete: function" in zone or 'нет дополнения по Tab'
+
+
+@check('AN4', 'схема с ленты — снимок: не движется и не нажимается')
+def an4():
+    if '.rig.archive #board * { animation: none; }' not in CSS:
+        return 'архивная схема продолжает анимироваться'
+    if '.rig.archive #board { pointer-events: none; }' not in CSS:
+        return 'на архивной схеме остались нажимаемые органы'
+    return "rig.classList.toggle('archive'" in JS or 'снимок ничем не помечается'
+
+
+@check('AN5', 'органы управления на плате переживают подмену разметки')
+def an5():
+    # Прямой обработчик уезжает вместе со старым узлом: showRev переписывает
+    # board.innerHTML целиком, и кнопки переставали нажиматься.
+    if re.search(r'(svcSwitch|lidOn|lidRemove)\.addEventListener', JS):
+        return 'обработчик снова висит прямо на кнопке платы'
+    if 'function onBoard(' not in JS:
+        return 'делегирования на плату нет'
+    # Крышка ходит через свою обёртку bindLid, она же зовёт onBoard.
+    if 'onBoard(id, function' not in JS:
+        return 'кнопки крышки мимо делегирования'
+    missing = [i for i in ("onBoard('svc-switch'", "bindLid('lid-remove'", "bindLid('lid-on'")
+               if i not in JS]
+    return not missing or f'не через плату: {missing}'
+
+
 @check('AM5', 'лента показывает место в ленте, а не чужую ревизию')
 def am5():
     if "'REV '" in JS:
