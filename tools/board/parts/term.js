@@ -217,19 +217,19 @@
     run: function (ctx) {
       const arg = String(ctx.args[0] || '').toLowerCase();
       if (arg === 'off') {
-        if (timeline.hidden) return [{ t: 'лента и так убрана', c: 'muted' }];
+        if (!stripUp()) return [{ t: 'лента и так убрана', c: 'muted' }];
         // Сначала вернуть машину на сегодняшнюю сборку, и только потом убирать
         // ленту. Наоборот нельзя: на экране осталась бы схема полугодовой
         // давности, а ползунка, которым её меняли, уже не будет.
         showRev(revs.length - 1);
-        timeline.hidden = true;
+        setStrip(false);
         return [{ t: 'лента убрана · схема вернулась на текущую сборку', c: 'muted' }];
       }
       if (arg === 'on') {
-        if (!timeline.hidden) return [{ t: 'лента уже поднята', c: 'muted' }];
+        if (stripUp()) return [{ t: 'лента уже поднята', c: 'muted' }];
         // Второй заход качать нечего: список ревизий уже в памяти, а схемы — в
         // кэше по мере того, как их листали.
-        if (revs.length) { timeline.hidden = false; return [{ t: 'лента поднята', c: 'ok' }]; }
+        if (revs.length) { setStrip(true); return [{ t: 'лента поднята', c: 'ok' }]; }
         revsAsked = true;
         initTimeline();
         // initTimeline асинхронна: сообщать об успехе сейчас нельзя. Об отказе
@@ -237,7 +237,7 @@
         return [{ t: 'загружаю историю схемы…', c: 'muted' }];
       }
       return [{ t: 'revisions on|off', c: 'warn' },
-              { t: 'сейчас: ' + (timeline.hidden ? 'убрана' : 'поднята'), c: 'muted' }];
+              { t: 'сейчас: ' + (stripUp() ? 'поднята' : 'убрана'), c: 'muted' }];
     },
   });
 

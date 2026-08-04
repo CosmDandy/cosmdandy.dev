@@ -376,8 +376,31 @@
     revPos = revs.length - 1;
     tlRange.max = String(revs.length - 1);
     tlRange.value = String(revPos);
-    timeline.hidden = false;
+    setStrip(true);
     paintTimeline();
+  }
+
+  // Лента ездит переходом, а не появляется скачком. Всё для этого в стилях уже
+  // написано: сама .timeline схлопнута в ноль, а .rig.service её разворачивает.
+  // Сводил это на нет атрибут hidden — он ставит display: none, а display не
+  // анимируется: первый кадр после его снятия берёт конечные значения как есть,
+  // и лента возникала разом. Поэтому hidden оставлен только за «истории нет
+  // вовсе», а показ и уборка идут классом, который в переход попадает.
+  function setStrip(on) {
+    if (!on) { rig.classList.add('revs-off'); return; }
+    if (timeline.hidden) {
+      // Между снятием display: none и снятием класса нужен замер раскладки:
+      // иначе браузер сольёт оба изменения в один кадр, и перехода снова не
+      // будет — это тот же случай, только на первом показе.
+      rig.classList.add('revs-off');
+      timeline.hidden = false;
+      void timeline.offsetHeight;
+    }
+    rig.classList.remove('revs-off');
+  }
+
+  function stripUp() {
+    return !timeline.hidden && !rig.classList.contains('revs-off');
   }
 
   tlRange.addEventListener('input', function () { showRev(Number(tlRange.value)); });
@@ -385,7 +408,7 @@
   tlNext.addEventListener('click', function () { showRev(revPos + 1); });
   // Arrows are handier than the mouse, but only while the strip is on screen
   document.addEventListener('keydown', function (e) {
-    if (timeline.hidden || !rig.classList.contains('service')) return;
+    if (!stripUp() || !rig.classList.contains('service')) return;
     if (e.target.closest('input, textarea')) return;
     if (e.key === 'ArrowLeft') { e.preventDefault(); showRev(revPos - 1); }
     if (e.key === 'ArrowRight') { e.preventDefault(); showRev(revPos + 1); }

@@ -1014,7 +1014,12 @@ await p6.waitForTimeout(500);
 const tap6 = sel => p6.evaluate(s => document.querySelector(s)
   ?.dispatchEvent(new MouseEvent('click', { bubbles: true })), sel);
 const rigHas = c => p6.evaluate(k => document.getElementById('rig').classList.contains(k), c);
-const strip = () => p6.evaluate(() => !document.getElementById('timeline').hidden);
+// Лента теперь не прячется display'ем, а схлопывается переходом: hidden
+// остаётся только за «истории нет вовсе». Спрашиваем то же, что и страница.
+const strip = () => p6.evaluate(() => {
+  const t = document.getElementById('timeline');
+  return !t.hidden && !document.getElementById('rig').classList.contains('revs-off');
+});
 const slide = async i => {
   await p6.evaluate(n => { const r = document.getElementById('tl-range');
     r.value = String(n); r.dispatchEvent(new Event('input', { bubbles: true })); }, i);

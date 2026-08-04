@@ -2354,7 +2354,11 @@ a.callout.lit .co-dot { fill: var(--head); }
   font-size: 0.78rem;
 }
 
-.rig.service .timeline {
+/* Развёрнута она не всегда в сервисном режиме, а пока её не убрали командой:
+   revisions off ставит .revs-off, и лента уезжает тем же переходом, каким
+   приехала. Раньше команда снимала и ставила hidden, то есть display, — а он
+   не анимируется, и лента возникала и пропадала скачком. */
+.rig.service:not(.revs-off) .timeline {
   opacity: 1; transform: none; margin-top: 14px;
   max-height: 60px; padding: 8px 12px; border-width: 1px;
 }
