@@ -909,6 +909,21 @@
     }, 170);
   }
 
+  // Регистр здесь не косметика. На семисегментном индикаторе B неотличима от 8,
+  // а D от 0, и живые платы пишут их строчными — 'b' и 'd'. Верхний регистр
+  // остаётся тем буквам, которые индикатор различает.
+  function hexCode(code) {
+    return code.toString(16).padStart(2, '0')
+      .replace(/[acef]/g, function (ch) { return ch.toUpperCase(); });
+  }
+
+  /** Контрольная точка от прошивки — то же число, что показывает экран. */
+  function setBoardPostCode(code) {
+    // Пришли настоящие коды — заготовленная лента больше не нужна.
+    if (postTimer) { clearInterval(postTimer); postTimer = null; }
+    showCode(code === null || code === undefined ? '  ' : hexCode(code));
+  }
+
   function stopCheckpoint() {
     if (postTimer) { clearInterval(postTimer); postTimer = null; }
     // Выключенная машина не показывает ничего: контрольный индикатор питается
