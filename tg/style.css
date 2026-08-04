@@ -1,0 +1,620 @@
+/* Страница /tg — свой вход в Telegram вместо стандартной страницы t.me.
+   Палитра, стеклянные карточки и тайминги повторяют style.css визитки: это
+   один сайт, и переход между ними не должен читаться как смена оформления.
+   Файл держится отдельно намеренно — общий style.css несёт схему платы и
+   терминал, здесь не нужные, а править его ради трёх правил значило бы
+   тянуть в страницу всю их историю.
+*/
+@font-face {
+    font-family: 'Inter';
+    font-weight: 400;
+    font-display: swap;
+    src: url('/fonts/Inter-Regular.woff2') format('woff2');
+}
+@font-face {
+    font-family: 'Inter';
+    font-weight: 600;
+    font-display: swap;
+    src: url('/fonts/Inter-SemiBold.woff2') format('woff2');
+}
+
+/* Палитра и правила — те же, что в style.css визитки: Solarized, тёмная по
+   умолчанию, светлая по data-theme или по системной схеме. */
+:root,
+:root[data-theme="dark"] {
+    --theme-fade: 0.45s cubic-bezier(0.32, 0.72, 0, 1);
+
+    --base01: #586e75;
+    --base1:  #93a1a1;
+    --green:  #859900;
+    --accent: #2aa198;   /* тот же бирюзовый, которым Telegram помечен на плате */
+
+    --bg:            #000;
+    --text:          var(--base1);
+    --heading:       #ededed;
+    --bio:           #70757e;
+    --now:           #5a6068;
+    --hover-text:    #eee8d5;
+    --meta:          var(--base01);
+
+    --dots:          rgba(147, 161, 161, 0.25);
+    --cursor-glow-1: rgba(237, 237, 237, 0.035);
+    --cursor-glow-2: rgba(237, 237, 237, 0.012);
+
+    --card-from:        rgba(7, 54, 66, 0.25);
+    --card-to:          rgba(7, 54, 66, 0.10);
+    --card-hover-from:  rgba(7, 54, 66, 0.40);
+    --card-hover-to:    rgba(7, 54, 66, 0.20);
+    --card-active-from: rgba(7, 54, 66, 0.50);
+    --card-active-to:   rgba(7, 54, 66, 0.30);
+
+    --card-border:            rgba(147, 161, 161, 0.08);
+    --card-border-top:        rgba(147, 161, 161, 0.14);
+    --card-border-hover:      rgba(147, 161, 161, 0.18);
+    --card-border-top-hover:  rgba(147, 161, 161, 0.25);
+
+    --card-ring:        rgba(147, 161, 161, 0.04);
+    --card-ring-hover:  rgba(147, 161, 161, 0.06);
+    --card-shadow:      0 4px 24px -4px rgba(0, 0, 0, 0.7);
+    --card-shadow-hover: 0 8px 32px -4px rgba(0, 0, 0, 0.8),
+                         0 0 80px -20px rgba(42, 161, 152, 0.06);
+
+    --badge-border:     rgba(147, 161, 161, 0.12);
+    --badge-shine-low:  rgba(147, 161, 161, 0.04);
+    --badge-shine-high: rgba(147, 161, 161, 0.18);
+
+    /* Код всегда тёмный на светлой подложке, в обеих темах: инвертированный QR
+       читают не все сканеры, и экономия на контрасте тут стоит дороже
+       единообразия. Заодно он честно выглядит наклеенной бумажкой. */
+    --qr-ink:   #073642;
+    --qr-paper: #eee8d5;
+
+    --selection-bg: rgba(120, 40, 220, 0.4);
+    --selection-fg: #ededed;
+    --focus:        rgba(0, 220, 255, 0.5);
+
+    --inv-surface:  rgba(238, 232, 213, 0.94);
+    --inv-node:     #657b83;
+    --inv-ray:      rgba(88, 110, 117, 0.38);
+    --inv-shadow:   0 6px 24px -6px rgba(0, 0, 0, 0.85);
+}
+
+:root[data-theme="light"] {
+    --bg:            #fdf6e3;
+    --text:          #586e75;
+    --heading:       #073642;
+    --bio:           #839496;
+    --now:           #93a1a1;
+    --hover-text:    #073642;
+    --meta:          #93a1a1;
+
+    --dots:          rgba(88, 110, 117, 0.18);
+    --cursor-glow-1: rgba(7, 54, 66, 0.05);
+    --cursor-glow-2: rgba(7, 54, 66, 0.018);
+
+    --card-from:        rgba(238, 232, 213, 0.55);
+    --card-to:          rgba(238, 232, 213, 0.30);
+    --card-hover-from:  rgba(238, 232, 213, 0.75);
+    --card-hover-to:    rgba(238, 232, 213, 0.50);
+    --card-active-from: rgba(238, 232, 213, 0.85);
+    --card-active-to:   rgba(238, 232, 213, 0.60);
+
+    --card-border:            rgba(88, 110, 117, 0.14);
+    --card-border-top:        rgba(88, 110, 117, 0.20);
+    --card-border-hover:      rgba(88, 110, 117, 0.25);
+    --card-border-top-hover:  rgba(88, 110, 117, 0.32);
+
+    --card-ring:        rgba(88, 110, 117, 0.05);
+    --card-ring-hover:  rgba(88, 110, 117, 0.08);
+    --card-shadow:      0 4px 24px -4px rgba(88, 110, 117, 0.18);
+    --card-shadow-hover: 0 8px 32px -4px rgba(88, 110, 117, 0.24),
+                         0 0 80px -20px rgba(42, 161, 152, 0.10);
+
+    --badge-border:     rgba(88, 110, 117, 0.18);
+    --badge-shine-low:  rgba(88, 110, 117, 0.04);
+    --badge-shine-high: rgba(88, 110, 117, 0.16);
+
+    --selection-fg: #073642;
+    --focus:        rgba(38, 139, 210, 0.6);
+
+    --inv-surface:  rgba(7, 54, 66, 0.94);
+    --inv-node:     #93a1a1;
+    --inv-ray:      rgba(147, 161, 161, 0.40);
+    --inv-shadow:   0 6px 24px -6px rgba(88, 110, 117, 0.35);
+}
+
+@media (prefers-color-scheme: light) {
+    :root:not([data-theme]) {
+        --bg:            #fdf6e3;
+        --text:          #586e75;
+        --heading:       #073642;
+        --bio:           #839496;
+        --now:           #93a1a1;
+        --hover-text:    #073642;
+        --meta:          #93a1a1;
+
+        --dots:          rgba(88, 110, 117, 0.18);
+        --cursor-glow-1: rgba(7, 54, 66, 0.05);
+        --cursor-glow-2: rgba(7, 54, 66, 0.018);
+
+        --card-from:        rgba(238, 232, 213, 0.55);
+        --card-to:          rgba(238, 232, 213, 0.30);
+        --card-hover-from:  rgba(238, 232, 213, 0.75);
+        --card-hover-to:    rgba(238, 232, 213, 0.50);
+        --card-active-from: rgba(238, 232, 213, 0.85);
+        --card-active-to:   rgba(238, 232, 213, 0.60);
+
+        --card-border:            rgba(88, 110, 117, 0.14);
+        --card-border-top:        rgba(88, 110, 117, 0.20);
+        --card-border-hover:      rgba(88, 110, 117, 0.25);
+        --card-border-top-hover:  rgba(88, 110, 117, 0.32);
+
+        --card-ring:        rgba(88, 110, 117, 0.05);
+        --card-ring-hover:  rgba(88, 110, 117, 0.08);
+        --card-shadow:      0 4px 24px -4px rgba(88, 110, 117, 0.18);
+        --card-shadow-hover: 0 8px 32px -4px rgba(88, 110, 117, 0.24),
+                             0 0 80px -20px rgba(42, 161, 152, 0.10);
+
+        --badge-border:     rgba(88, 110, 117, 0.18);
+        --badge-shine-low:  rgba(88, 110, 117, 0.04);
+        --badge-shine-high: rgba(88, 110, 117, 0.16);
+
+        --selection-fg: #073642;
+        --focus:        rgba(38, 139, 210, 0.6);
+
+        --inv-surface:  rgba(7, 54, 66, 0.94);
+        --inv-node:     #93a1a1;
+        --inv-ray:      rgba(147, 161, 161, 0.40);
+        --inv-shadow:   0 6px 24px -6px rgba(88, 110, 117, 0.35);
+    }
+}
+
+*, *::before, *::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-variant-numeric: tabular-nums;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    transition: background var(--theme-fade), color var(--theme-fade);
+}
+
+::selection {
+    background: var(--selection-bg);
+    color: var(--selection-fg);
+}
+
+.dots {
+    position: fixed;
+    inset: 0;
+    background-image: radial-gradient(circle, var(--dots) 1px, transparent 1px);
+    background-size: 24px 24px;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.glow {
+    position: absolute;
+    inset: -160px;
+    border-radius: 80px;
+    background: linear-gradient(45deg,
+        rgba(255, 50, 100, 0.45) 0%,
+        rgba(255, 80, 150, 0.30) 25%,
+        rgba(120, 40, 220, 0.18) 50%,
+        rgba(0, 220, 255, 0.30) 75%,
+        rgba(0, 255, 255, 0.45) 100%);
+    filter: blur(160px);
+    pointer-events: none;
+    z-index: 0;
+}
+
+.cursor-glow {
+    position: fixed;
+    width: 600px;
+    height: 600px;
+    border-radius: 50%;
+    background: radial-gradient(circle at center,
+        var(--cursor-glow-1) 0%,
+        var(--cursor-glow-2) 35%,
+        transparent 60%);
+    pointer-events: none;
+    z-index: 10;
+    transform: translate(-50%, -50%);
+    transition: opacity 0.4s;
+    opacity: 0;
+}
+
+.cursor-glow.visible { opacity: 1; }
+
+main {
+    position: relative;
+    z-index: 2;
+    padding: 24px;
+    width: 100%;
+    max-width: 420px;
+}
+
+.card {
+    position: relative;
+    text-align: center;
+}
+
+/* Значок в стеклянном круге — тот же материал, что у карточек-ссылок, только
+   свёрнутый в окружность. Он же держит бирюзовый акцент Telegram. */
+.mark {
+    position: relative;
+    width: 76px;
+    height: 76px;
+    margin: 0 auto 20px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    color: var(--accent);
+    background: linear-gradient(180deg, var(--card-from) 0%, var(--card-to) 100%);
+    border: 1px solid var(--card-border-top);
+    backdrop-filter: blur(25px);
+    box-shadow:
+        0 0 0 1px var(--card-ring),
+        var(--card-shadow),
+        0 0 60px -18px rgba(42, 161, 152, 0.55);
+}
+
+.mark svg {
+    width: 34px;
+    height: 34px;
+    transform: translateX(-1px);
+}
+
+/* Оболочка вокруг значка — раз в несколько секунд по ней проходит волна,
+   как по маячку. Один из немногих движущихся элементов на странице. */
+.mark::after {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: 50%;
+    border: 1px solid rgba(42, 161, 152, 0.45);
+    animation: markPing 3.6s cubic-bezier(0.32, 0.72, 0, 1) infinite;
+    pointer-events: none;
+}
+
+@keyframes markPing {
+    0%        { transform: scale(1);    opacity: 0.55; }
+    55%, 100% { transform: scale(1.35); opacity: 0; }
+}
+
+h1 {
+    font-size: 1.4rem;
+    font-weight: 600;
+    letter-spacing: -0.025em;
+    color: var(--heading);
+    margin-bottom: 8px;
+}
+
+.bio {
+    font-size: 0.82rem;
+    color: var(--bio);
+    margin-bottom: 4px;
+}
+
+.now {
+    font-size: 0.78rem;
+    color: var(--now);
+    letter-spacing: 0.01em;
+    margin-bottom: 32px;
+}
+
+.live-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+    margin-right: 6px;
+    vertical-align: 1px;
+    box-shadow: 0 0 6px rgba(133, 153, 0, 0.6);
+    animation: livePulse 2.5s ease-in-out infinite;
+}
+
+@keyframes livePulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.4; }
+}
+
+.links {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.link-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    border-radius: 12px;
+    text-decoration: none;
+    color: var(--text);
+    font-size: 0.85rem;
+    font-weight: 400;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    background: linear-gradient(180deg, var(--card-from) 0%, var(--card-to) 100%);
+    border: 1px solid var(--card-border);
+    border-top-color: var(--card-border-top);
+    backdrop-filter: blur(25px);
+    box-shadow:
+        0 0 0 1px var(--card-ring),
+        var(--card-shadow);
+    transform: translateZ(0);
+    transition:
+        transform      0.48s cubic-bezier(0.34, 1.56, 0.64, 1),
+        box-shadow     0.44s cubic-bezier(0.34, 1.56, 0.64, 1),
+        color          0.40s cubic-bezier(0.34, 1.56, 0.64, 1),
+        background     0.40s cubic-bezier(0.34, 1.56, 0.64, 1),
+        border-color   0.40s cubic-bezier(0.34, 1.56, 0.64, 1);
+    overflow: hidden;
+}
+
+.link-item:hover {
+    color: var(--hover-text);
+    background: linear-gradient(180deg, var(--card-hover-from) 0%, var(--card-hover-to) 100%);
+    border-color: var(--card-border-hover);
+    border-top-color: var(--card-border-top-hover);
+    box-shadow:
+        0 0 0 1px var(--card-ring-hover),
+        var(--card-shadow-hover);
+    transform: translate3d(0, -1px, 0);
+}
+
+.link-item:active {
+    background: linear-gradient(180deg, var(--card-active-from) 0%, var(--card-active-to) 100%);
+    transform: translate3d(0, 0, 0);
+}
+
+.link-item:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+}
+
+.link-item svg { flex-shrink: 0; color: inherit; }
+.link-item span { flex-grow: 1; }
+
+/* Главное действие. Отличается не размером, а тем, что бирюзовый в нём есть
+   всегда, а не только на наведении: на странице ровно одна кнопка, ради
+   которой на неё заходят. */
+.link-item.primary {
+    color: var(--hover-text);
+    border-color: rgba(42, 161, 152, 0.30);
+    border-top-color: rgba(42, 161, 152, 0.45);
+    box-shadow:
+        0 0 0 1px var(--card-ring),
+        var(--card-shadow),
+        0 0 40px -22px rgba(42, 161, 152, 0.9);
+}
+
+.link-item.primary svg { color: var(--accent); }
+
+.link-item.primary:hover {
+    border-color: rgba(42, 161, 152, 0.50);
+    border-top-color: rgba(42, 161, 152, 0.70);
+}
+
+.hint {
+    flex-grow: 0 !important;
+    font-size: 0.72rem;
+    color: var(--meta);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Подтверждение копирования: строка и рамка зеленеют, а иконка листов
+   сменяется галочкой. Обе иконки лежат в одной ячейке сетки, поэтому подмена
+   не сдвигает текст рядом. */
+.link-item.copied {
+    color: var(--green);
+    border-color: rgba(133, 153, 0, 0.35);
+    border-top-color: rgba(133, 153, 0, 0.50);
+}
+
+.link-item.copied .hint { color: var(--green); }
+
+#copy-btn .ic-copy,
+#copy-btn .ic-done {
+    grid-area: 1 / 1;
+    transition: opacity 0.25s ease, transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* flex-grow гасится намеренно: обёртка иконки — тоже span, и общее правило
+   «.link-item span растягивается» захватывает её, уводя подпись к середине
+   строки. Ширина здесь фиксированная, тянуться должна только подпись. */
+#copy-btn .icon-slot {
+    display: grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    flex-grow: 0;
+    flex-shrink: 0;
+}
+
+#copy-btn .ic-done {
+    opacity: 0;
+    transform: scale(0.6);
+}
+
+#copy-btn.copied .ic-copy {
+    opacity: 0;
+    transform: scale(0.6);
+}
+
+#copy-btn.copied .ic-done {
+    opacity: 1;
+    transform: scale(1);
+}
+
+/* Панель с кодом раскрывается вниз: сетка с нулевой строкой — единственный
+   способ анимировать «до содержимого» без замера высоты скриптом.
+   Прозрачность тут не анимируется намеренно: вместе с высотой она даёт
+   полупрозрачную плашку, сквозь которую на пол-секунды видно фон, и раскрытие
+   читается как дефект. Едет только высота, само содержимое всегда плотное. */
+.qr-wrap {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.5s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.qr-wrap.open {
+    grid-template-rows: 1fr;
+}
+
+.qr-inner { overflow: hidden; }
+
+.qr-panel {
+    margin-top: 8px;
+    padding: 20px;
+    border-radius: 12px;
+    background: linear-gradient(180deg, var(--card-from) 0%, var(--card-to) 100%);
+    border: 1px solid var(--card-border);
+    border-top-color: var(--card-border-top);
+    backdrop-filter: blur(25px);
+    box-shadow: 0 0 0 1px var(--card-ring), var(--card-shadow);
+}
+
+.qr-paper {
+    width: 168px;
+    height: 168px;
+    margin: 0 auto 12px;
+    padding: 10px;
+    border-radius: 10px;
+    background: var(--qr-paper);
+    border: 1px solid var(--card-border-top);
+}
+
+.qr-paper svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+    shape-rendering: crispEdges;
+}
+
+.qr-caption {
+    font-size: 0.72rem;
+    color: var(--meta);
+    letter-spacing: 0.02em;
+}
+
+.meta {
+    position: fixed;
+    bottom: 24px;
+    left: 0;
+    right: 0;
+    z-index: 3;
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    align-items: center;
+    font-size: 0.72rem;
+    letter-spacing: 0.02em;
+    color: var(--meta);
+    pointer-events: none;
+    animation: contentEnter 0.65s cubic-bezier(0.32, 0.72, 0, 1) 780ms backwards;
+}
+
+.meta a {
+    pointer-events: auto;
+    color: inherit;
+    text-decoration: none;
+    transition: color 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.meta a:hover { color: var(--text); }
+.meta .sep { opacity: 0.5; }
+
+/* Переключатель темы — та же плита, что на визитке: всегда контрастная фону,
+   чтобы читаться отдельным предметом, а не растворяться в нём. */
+.theme-btn {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    z-index: 20;
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    border: none;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    background: var(--inv-surface);
+    color: var(--inv-node);
+    box-shadow: var(--inv-shadow);
+    transition: transform 0.48s cubic-bezier(0.34, 1.56, 0.64, 1),
+                background var(--theme-fade),
+                color var(--theme-fade);
+}
+
+.theme-btn:hover { transform: translate3d(0, -1px, 0); }
+.theme-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+.theme-btn svg { width: 20px; height: 20px; }
+.theme-btn .sun { display: none; }
+:root[data-theme="light"] .theme-btn .sun { display: block; }
+:root[data-theme="light"] .theme-btn .moon { display: none; }
+
+@keyframes contentEnter {
+    from { opacity: 0; transform: translate3d(0, 8px, 0); }
+    to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes linkEnter {
+    from { opacity: 0; transform: translate3d(0, 6px, 0) scale(0.96); }
+    to   { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+
+.mark, h1, .bio, .now {
+    transform: translateZ(0);
+    animation: contentEnter 0.65s cubic-bezier(0.32, 0.72, 0, 1) backwards;
+}
+
+.mark { animation-delay: 0ms; }
+h1    { animation-delay: 60ms; }
+.bio  { animation-delay: 120ms; }
+.now  { animation-delay: 180ms; }
+
+.link-item {
+    animation: linkEnter 0.55s cubic-bezier(0.32, 0.72, 0, 1) backwards;
+}
+
+.links > .link-item:nth-child(1) { animation-delay: 260ms; }
+.links > .link-item:nth-child(2) { animation-delay: 320ms; }
+.links > .link-item:nth-child(3) { animation-delay: 380ms; }
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* На узком экране подпись уходит из fixed в поток — иначе на невысоких
+   экранах она ложится на кнопки. Вместе с ней body обязан стать колонкой:
+   он flex, и в строке main и подпись встают рядом, а не друг под другом. */
+@media (max-width: 460px) {
+    body {
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+        padding: 56px 0 32px;
+    }
+    .meta { position: static; margin-top: 28px; }
+}

@@ -69,6 +69,8 @@ jobs:
           cp robots.txt sitemap.xml site.webmanifest _headers _site/
           cp -r assets fonts _site/
           cp -r history _site/
+          # Страница /tg целиком лежит в своей директории и копируется как есть.
+          cp -r tg _site/
           echo "Contents of _site:"
           find _site -type f -not -path '_site/history/*' | sort
           echo "Revisions: $(find _site/history -name '*.svg' | wc -l) files," \
