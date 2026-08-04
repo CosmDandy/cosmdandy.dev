@@ -100,25 +100,18 @@
                 <span id="copy-label">Скопировать хендл</span>
                 <span class="hint" id="copy-hint">@cosmdandy</span>
             </button>
-
-            <button class="link-item" id="qr-btn" type="button" aria-expanded="false" aria-controls="qr-wrap">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14h1M14 20h3M20 17v4"/></svg>
-                <span id="qr-label">Показать QR</span>
-                <span class="hint">для телефона</span>
-            </button>
         </nav>
 
-        <div class="qr-wrap" id="qr-wrap">
-            <div class="qr-inner">
-                <div class="qr-panel">
-                    <div class="qr-paper">
-                        <svg viewBox="0 0 29 29" aria-label="QR-код на t.me/cosmdandy">
-                            <path d="M2 2.5h7m1 0h3m1 0h3m3 0h7m-25 1h1m5 0h1m3 0h1m1 0h1m1 0h1m1 0h1m1 0h1m5 0h1m-25 1h1m1 0h3m1 0h1m1 0h2m3 0h3m2 0h1m1 0h3m1 0h1m-25 1h1m1 0h3m1 0h1m3 0h1m1 0h4m2 0h1m1 0h3m1 0h1m-25 1h1m1 0h3m1 0h1m2 0h2m2 0h2m3 0h1m1 0h3m1 0h1m-25 1h1m5 0h1m1 0h1m2 0h2m3 0h1m1 0h1m5 0h1m-25 1h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7m-16 1h1m4 0h2m-16 1h1m1 0h1m3 0h2m1 0h1m2 0h1m2 0h1m3 0h1m2 0h1m1 0h1m-22 1h1m4 0h2m2 0h2m1 0h2m1 0h1m2 0h1m1 0h2m-24 1h2m3 0h1m2 0h2m4 0h1m3 0h4m1 0h1m-25 1h1m1 0h1m1 0h1m6 0h2m2 0h2m1 0h2m1 0h1m-22 1h1m2 0h1m1 0h3m2 0h3m3 0h1m1 0h1m5 0h1m-23 1h3m2 0h2m3 0h1m2 0h2m1 0h2m3 0h2m-25 1h2m1 0h1m2 0h1m1 0h1m3 0h2m1 0h1m5 0h2m1 0h1m-22 1h1m3 0h2m1 0h3m2 0h1m1 0h1m1 0h3m-22 1h9m1 0h1m4 0h6m2 0h1m-16 1h2m3 0h2m1 0h1m3 0h1m3 0h1m-25 1h7m1 0h4m1 0h2m1 0h1m1 0h1m1 0h1m3 0h1m-25 1h1m5 0h1m3 0h1m3 0h3m3 0h1m3 0h1m-25 1h1m1 0h3m1 0h1m2 0h1m1 0h10m3 0h1m-25 1h1m1 0h3m1 0h1m5 0h1m2 0h3m2 0h1m1 0h2m-24 1h1m1 0h3m1 0h1m1 0h1m1 0h1m1 0h3m2 0h1m1 0h3m1 0h2m-25 1h1m5 0h1m3 0h3m3 0h2m1 0h2m-21 1h7m1 0h1m3 0h5m1 0h1m2 0h1m2 0h1" stroke="var(--qr-ink)" stroke-width="1" fill="none"/>
-                        </svg>
-                    </div>
-                    <p class="qr-caption">наведите камеру телефона</p>
-                </div>
+        <!-- Код виден сразу, без кнопки: страницу открывают с одной мыслью —
+             написать, — и код это второй способ сделать то же самое, а не
+             дополнительный материал, ради которого стоит куда-то нажимать. -->
+        <div class="qr-panel">
+            <div class="qr-paper">
+                <svg viewBox="0 0 29 29" aria-label="QR-код на t.me/cosmdandy">
+                    <path d="M2 2.5h7m1 0h3m1 0h3m3 0h7m-25 1h1m5 0h1m3 0h1m1 0h1m1 0h1m1 0h1m1 0h1m5 0h1m-25 1h1m1 0h3m1 0h1m1 0h2m3 0h3m2 0h1m1 0h3m1 0h1m-25 1h1m1 0h3m1 0h1m3 0h1m1 0h4m2 0h1m1 0h3m1 0h1m-25 1h1m1 0h3m1 0h1m2 0h2m2 0h2m3 0h1m1 0h3m1 0h1m-25 1h1m5 0h1m1 0h1m2 0h2m3 0h1m1 0h1m5 0h1m-25 1h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7m-16 1h1m4 0h2m-16 1h1m1 0h1m3 0h2m1 0h1m2 0h1m2 0h1m3 0h1m2 0h1m1 0h1m-22 1h1m4 0h2m2 0h2m1 0h2m1 0h1m2 0h1m1 0h2m-24 1h2m3 0h1m2 0h2m4 0h1m3 0h4m1 0h1m-25 1h1m1 0h1m1 0h1m6 0h2m2 0h2m1 0h2m1 0h1m-22 1h1m2 0h1m1 0h3m2 0h3m3 0h1m1 0h1m5 0h1m-23 1h3m2 0h2m3 0h1m2 0h2m1 0h2m3 0h2m-25 1h2m1 0h1m2 0h1m1 0h1m3 0h2m1 0h1m5 0h2m1 0h1m-22 1h1m3 0h2m1 0h3m2 0h1m1 0h1m1 0h3m-22 1h9m1 0h1m4 0h6m2 0h1m-16 1h2m3 0h2m1 0h1m3 0h1m3 0h1m-25 1h7m1 0h4m1 0h2m1 0h1m1 0h1m1 0h1m3 0h1m-25 1h1m5 0h1m3 0h1m3 0h3m3 0h1m3 0h1m-25 1h1m1 0h3m1 0h1m2 0h1m1 0h10m3 0h1m-25 1h1m1 0h3m1 0h1m5 0h1m2 0h3m2 0h1m1 0h2m-24 1h1m1 0h3m1 0h1m1 0h1m1 0h1m1 0h3m2 0h1m1 0h3m1 0h2m-25 1h1m5 0h1m3 0h3m3 0h2m1 0h2m-21 1h7m1 0h1m3 0h5m1 0h1m2 0h1m2 0h1" stroke="var(--qr-ink)" stroke-width="1" fill="none"/>
+                </svg>
             </div>
+            <p class="qr-caption">наведите камеру телефона</p>
         </div>
     </div>
 </main>
@@ -194,15 +187,6 @@
         } else {
             showCopied(legacyCopy(text));
         }
-    });
-
-    var qrBtn = document.getElementById('qr-btn');
-    var qrWrap = document.getElementById('qr-wrap');
-    var qrLabel = document.getElementById('qr-label');
-    qrBtn.addEventListener('click', function () {
-        var open = qrWrap.classList.toggle('open');
-        qrBtn.setAttribute('aria-expanded', String(open));
-        qrLabel.textContent = open ? 'Скрыть QR' : 'Показать QR';
     });
 </script>
 </body>
