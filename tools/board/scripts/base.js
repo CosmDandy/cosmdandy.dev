@@ -411,8 +411,14 @@
 
   function updateFault() {
     let any = false;
+    // Единственная лампа, которую зажигает не вынутый узел, а строка в
+    // прошивке: без окна выше четырёх гигабайт карте в райзере некуда лечь
+    // своим окном памяти, и слот остаётся ненастроенным. Живая машина ставит
+    // на него ровно эту лампу.
+    const no4g = rig.classList.contains('nv-no4g')
+                 && HW.riser.some(r => !r.empty);
     for (const key in LP_MAP) {
-      const on = !!chassis.querySelector(LP_MAP[key]);
+      const on = !!chassis.querySelector(LP_MAP[key]) || (key === 'rsr' && no4g);
       rig.classList.toggle('fault-' + key, on);
       any = any || on;
     }
@@ -466,6 +472,10 @@
   // питания, поэтому и записывается отдельно — и в журнал событий тоже:
   // на живой машине наутро ищут именно эту строку.
   let mainsDown = false;
+  // Что машина делала до пропажи питания — единственное, чего не восстановить
+  // задним числом: к моменту возврата state.powered уже сброшен. Запоминаем
+  // на входе в темноту, спрашивает это Restore on AC Power Loss.
+  let poweredBeforeLoss = false;
 
   function updateMains() {
     const total = chassis.querySelectorAll('.psu').length;
@@ -480,13 +490,18 @@
     if (down) {
       if (screenOpen()) closeCrt();
       rig.classList.remove('net', 'bmc', 'identify');
+      poweredBeforeLoss = state.powered;
       state.powered = false; save();
       setPower('standby');
       line('all psu removed · ac lost, system down hard', 'err');
       selAdd('Power Unit · power lost — оба ввода обесточены разом', 'err');
     } else {
-      line('ac restored · standby, press power', 'warn');
+      line('ac restored · standby', 'warn');
       selAdd('Power Unit · ac restored — дежурное питание есть', 'ok');
+      // Дальше решает не схема, а прошивка: Restore on AC Power Loss. Это та
+      // самая настройка, которую можно потрогать руками — вынуть оба блока и
+      // вставить обратно, — и по машине сразу видно, что в ней стоит.
+      acRestorePolicy(poweredBeforeLoss);
     }
   }
 

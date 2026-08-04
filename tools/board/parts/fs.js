@@ -100,11 +100,23 @@
     };
   }
 
+  // Сколько памяти прошивка оставила системе. Считает это memPlan в screen.js,
+  // и второй такой же арифметики здесь заводить нельзя — она бы разошлась с
+  // экраном на первой же правке. Осторожность та же, что у nvBag: сборка без
+  // экрана обязана работать.
+  function fsMemUsableGb(ctx, installedGb) {
+    try { return memPlan(ctx.nv).gb; } catch (e) { return installedGb; }
+  }
+
   function fsProcMeminfo(ctx) {
     return function () {
       const dimm = ctx.HW.dimm || {};
       const present = Math.max(0, (dimm.slots || 0) - fsDimmsOut());
-      const totalKB = present * (dimm.size_gb || 0) * 1024 * 1024;
+      // Система видит не то, что вставлено, а то, что ей оставила прошивка:
+      // зеркало и резервный ранг забирают половину, и MemTotal падает вдвое —
+      // ровно там же, где падает Usable Memory на экране Main.
+      const gb = fsMemUsableGb(ctx, present * (dimm.size_gb || 0));
+      const totalKB = gb * 1024 * 1024;
       const freeKB = Math.round(totalKB * 0.13);
       const buffKB = Math.round(totalKB * 0.02);
       const cacheKB = Math.round(totalKB * 0.22);
@@ -149,10 +161,15 @@
   function fsProcCmdline(ctx) {
     return function () {
       const nv = ctx.nv || {};
+      // Скорость консоли в строке ядра — та же, что стоит в перенаправлении
+      // консоли: их выставляют вместе, и разъехавшись, они дают ровно ту немую
+      // консоль, из-за которой к стойке идут с тележкой и монитором.
+      const baud = nv.sol === 'Enabled' && nv.solBaud ? nv.solBaud : '115200';
       let s = 'BOOT_IMAGE=/vmlinuz-6.9.12-cd93 root=UUID=93cd0000-0000-0000-0000-000000000001 '
-            + 'ro quiet console=ttyS0,115200n8';
+            + 'ro quiet console=ttyS0,' + baud + 'n8';
       if (nv.cores && nv.cores !== 'All') s += ' nr_cpus=' + fsTotalLogical(ctx);
       if (nv.numa === 'Disabled') s += ' numa=off';
+      if (nv.iommu === 'Disabled') s += ' amd_iommu=off';
       return [{ t: s }];
     };
   }
@@ -192,6 +209,22 @@
         }),
       });
     });
+    return kids;
+  }
+
+  // По группе на процессор, как их и заводит AMD-Vi: сокет вынули — группа
+  // пропала вместе с ним. Выключенная в прошивке трансляция не оставляет ни
+  // одной, и каталог оказывается пустым.
+  function fsIommuEntries(ctx) {
+    const kids = {};
+    if ((ctx.nv || {}).iommu === 'Disabled') return kids;
+    const cpu = ctx.HW.cpu || {};
+    const present = Math.max(0, (cpu.n || 0) - chassis.querySelectorAll('.cpu-slot.pulled').length);
+    for (let i = 0; i < present; i++) {
+      kids['ivhd' + i] = fsDir({
+        type: fsFile(function () { return [{ t: 'AMD-Vi' }]; }),
+      });
+    }
     return kids;
   }
 
@@ -430,6 +463,10 @@
       sys: fsDir({
         class: fsDir({
           hwmon: fsDir(fsHwmonEntries()),
+          // Каталога iommu нет вовсе, если трансляция адресов выключена в
+          // прошивке: ядро не создаёт его пустым, а просто не создаёт. Так это
+          // и проверяют — ls, а не grep по логу.
+          iommu: fsDir(fsIommuEntries(ctx)),
           net: fsDir(fsNetEntries(ctx)),
           power_supply: fsDir(fsPowerSupplyEntries()),
         }),

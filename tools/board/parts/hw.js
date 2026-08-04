@@ -33,7 +33,14 @@
         return { v: v, text: Math.round(v) + 'k', warn: drivesOut > 0 };
       }
       case 'power': {
-        const v = 318 + fansOut * 26 - dimmsOut * 3 + Math.random() * 30;
+        // Считается от того, сколько машина сейчас может взять, а не от одного
+        // выдуманного числа: предел мощности пакета из прошивки — это потолок
+        // для процессоров, и заниженный виден здесь тем же вечером. Остальное —
+        // всё, что не процессоры: платы, накопители, вентиляторы.
+        const nvv = nvBag();
+        const cap = Number(nvv.powerLimit) || (HW.cpu ? HW.cpu.tdp : 0);
+        const load = 0.18 + Math.random() * 0.06;
+        const v = 96 + cpuState(nvv).sockets * cap * load + fansOut * 26 - dimmsOut * 3;
         return { v: v, text: Math.round(v) + ' W', warn: false };
       }
     }
@@ -48,6 +55,17 @@
 
   function counts(sel) {
     return chassis.querySelectorAll(sel).length;
+  }
+
+  // Обороты спрашиваются у прошивки: политика охлаждения стоит в меню
+  // контроллера управления, и заводить здесь вторую таблицу оборотов нельзя —
+  // разъедутся рисунок, звук и эта самая команда. Осторожность та же, что у
+  // nvBag в term.js: сборка без экрана обязана работать и без него.
+  function fanRpmNow(nv) {
+    try { return fanTargetRpm(nv); } catch (e) { return HW.fan ? HW.fan.rpm_nom : 0; }
+  }
+  function fanPolicyNow(nv) {
+    try { return fanPolicyEffective(nv); } catch (e) { return 'Balanced'; }
   }
 
   function pulledNums(sel, attr) {
@@ -143,9 +161,13 @@
         { t: 'CPU0 Temp      ' + Math.round(metric('temp').v) + ' °C', c: out ? 'warn' : 'ok' },
         { t: 'CPU1 Temp      ' + Math.round(metric('temp').v - 2) + ' °C', c: out ? 'warn' : 'ok' },
         { t: 'Inlet Temp     ' + (21 + Math.round(Math.random() * 2)) + ' °C', c: 'ok' },
-        { t: 'Fan Speed      ' + (HW.fan.rpm_nom + out * 1800) + ' RPM', c: out ? 'warn' : 'ok' },
+        { t: 'Fan Speed      ' + (fanRpmNow(ctx.nv) + out * 1800) + ' RPM', c: out ? 'warn' : 'ok' },
+        { t: 'Fan Policy     ' + fanPolicyNow(ctx.nv), c: 'muted' },
         { t: 'PSU Input      ' + Math.round(metric('power').v) + ' W',
           c: counts('.psu.pulled') ? 'warn' : 'ok' },
+        { t: 'Pkg Power Cap  ' + (ctx.nv && ctx.nv.powerLimit
+             ? ctx.nv.powerLimit + ' W' : HW.cpu.tdp + ' W (auto)'),
+          c: ctx.nv && ctx.nv.powerLimit ? 'warn' : 'ok' },
         { t: 'PSU Redundancy ' + (HW.psu.n - counts('.psu.pulled')) + ' of ' + HW.psu.n,
           c: counts('.psu.pulled') ? 'warn' : 'ok' },
         { t: 'DIMM Populated ' + dimm.in + ' of ' + dimm.total, c: dimm.out ? 'warn' : 'ok' },
@@ -157,16 +179,20 @@
 
   cmd({
     name: 'fans', group: 'ЖЕЛЕЗО', brief: 'обороты по модулям', usage: 'fans',
-    run: function () {
+    run: function (ctx) {
       // There are no empty spots in the wall: eight modules, all alive. The
       // old output reported an empty FAN6 bay that never existed.
       const pulled = pulledNums('.fan.pulled', 'fan');
+      const base = fanRpmNow(ctx.nv);
       const rows = [];
       for (let n = 0; n < HW.fan.n; n++) {
         if (pulled.has(n)) { rows.push({ t: 'FAN' + (n + 1) + '  —      removed', c: 'warn' }); continue; }
-        const rpm = HW.fan.rpm_nom + pulled.size * 1800 + Math.round(Math.random() * 400);
+        const rpm = base + pulled.size * 1800 + Math.round(Math.random() * 400);
         rows.push({ t: 'FAN' + (n + 1) + '  ' + rpm + '  RPM  ok', c: 'ok' });
       }
+      // Сводной строки здесь нет намеренно: строка на модуль — это контракт,
+      // на который опирается `fans | wc -l`, и политика в него не влезает, не
+      // сломав счёт. Её место в sensors, рядом с оборотами.
       return rows;
     },
   });
@@ -241,7 +267,12 @@
 
   cmd({
     name: 'lspci', group: 'ЖЕЛЕЗО', brief: 'устройства на шине', usage: 'lspci',
-    run: function () {
+    run: function (ctx) {
+      const nv = ctx.nv || {};
+      // Скорость линка и разрядность окна — не украшение строки, а то, из-за
+      // чего в неё вообще смотрят: карта, которой не досталось окна выше
+      // четырёх гигабайт, тут и видна.
+      const speed = nv.pcieSpeed && nv.pcieSpeed !== 'Auto' ? nv.pcieSpeed : 'Gen5';
       // We list what is drawn: chips from the spec, drives from the cage,
       // risers with their cards. An empty riser is marked as exactly that.
       const rows = [];
@@ -253,8 +284,15 @@
         rows.push({ t: '17:0' + b.bay + '.0  NVMe  ' + b.model + ' ' + b.tb + ' TB' });
       });
       HW.riser.forEach(function (r) {
-        rows.push({ t: 'b' + r.slot + ':00.0  PCI bridge · Riser ' + r.slot + ' · ' + r.link
+        const link = r.link.replace(/Gen\d/, speed);
+        rows.push({ t: 'b' + r.slot + ':00.0  PCI bridge · Riser ' + r.slot + ' · ' + link
                        + (r.empty ? ' · пуст' : ' · ' + r.card), c: r.empty ? 'muted' : '' });
+        if (r.empty) return;
+        if (nv.above4g === 'Disabled') {
+          rows.push({ t: '            Region 0: <unassigned> · 64-bit BAR needs Above 4G', c: 'err' });
+        } else if (nv.sriov === 'Enabled') {
+          rows.push({ t: '            Capabilities: [160] SR-IOV, 64 VFs', c: 'muted' });
+        }
       });
       return rows;
     },
