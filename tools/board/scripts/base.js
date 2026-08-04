@@ -588,11 +588,16 @@
   // первого же движения ползунка «Сервис» и «надеть крышку» переставали
   // нажиматься совсем. Слушаем на самой плате: она подмену переживает,
   // потому что меняются только её дети.
+  // Слушаем на .rig, а не на #board. Кнопка «снять крышку» нарисована на самой
+  // крышке, а крышка — отдельный svg рядом с платой, не внутри неё: клик по
+  // кнопке до платы не всплывал, и снять крышку мышью было нельзя вовсе.
+  // Вернуть — можно: кнопка возврата лежит на плате. Общий предок у обеих
+  // один — .rig, на нём и слушаем.
   function onBoard(id, run) {
-    board.addEventListener('click', function (e) {
+    rig.addEventListener('click', function (e) {
       if (e.target.closest('#' + id)) run();
     });
-    board.addEventListener('keydown', function (e) {
+    rig.addEventListener('keydown', function (e) {
       if (e.key !== 'Enter' && e.key !== ' ') return;
       if (!e.target.closest('#' + id)) return;
       e.preventDefault();
@@ -706,6 +711,12 @@
     }
     const unit = e.target.closest('.unit[data-href]');
     if (!unit) return;
+    // Узлы открывают ссылки только у машины со снятой крышкой и только вне
+    // лупы. Под крышкой на живой машине не нажимают ничего — её для того и
+    // снимают; лупа же разглядывание, а не работа со ссылками. В обоих
+    // состояниях подсказка с адресом уже не показывается, а сам переход
+    // оставался: узел под закрытой крышкой молча уводил на другой сайт.
+    if (!rig.classList.contains('lid-off') || rig.classList.contains('zoom')) return;
     const href = unit.dataset.href;
     if (href.startsWith('mailto:')) { window.location.href = href; return; }
     window.open(href, '_blank', 'noopener');
@@ -1066,6 +1077,11 @@
   }
 
   function lit(group, on) {
+    // Под крышкой не зажигаем ничего: подсветка осталась бы под листом, и
+    // получалось бы взаимодействие вслепую — курсор узел находит, а показать
+    // это некуда. Гасить наоборот можно всегда: крышку могли вернуть, пока
+    // узел был подсвечен.
+    if (on && !rig.classList.contains('lid-off')) return;
     chassis.querySelectorAll('[data-group="' + group + '"]').forEach(function (n) {
       n.classList.toggle('lit', on);
     });
