@@ -2534,6 +2534,12 @@ def ak3():
     return inner == plain or 'слои теряют или переставляют фрагменты'
 
 
+def silk_rev(markup):
+    """Номер ревизии, набитый на текстолите."""
+    m = re.search(r'REV (\d+) · S/N [0-9A-F]+', markup)
+    return m.group(1) if m else '—'
+
+
 def _spec():
     """Паспорт машины, вшитый в страницу генератором."""
     import json
@@ -2551,18 +2557,28 @@ def am3():
                           capture_output=True, text=True, check=False).stdout.strip()
     if not done.isdigit():
         return 'счётчик коммитов страницы не прочитался'
-    # Ровно на единицу вперёд: плата, которую собирают сейчас, уедет в
-    # следующем коммите. Совпадение с числом коммитов означало бы прежний
-    # сдвиг — в опубликованной странице стоял бы номер предыдущей сборки.
+    # Номер смотрит вперёд, поэтому сверять его с числом коммитов надо с
+    # оглядкой на то, лежит ли страница уже в коммите.
+    #
+    #   страница правлена, но не закоммичена — она станет коммитом N+1,
+    #     и генератор обязан набить N+1;
+    #   страница закоммичена — тем самым коммитом она и стала, счётчик уже
+    #     учёл её, и набитое N совпадает со счётчиком.
+    #
+    # Первая версия требовала N+1 всегда — и краснела сразу после каждого
+    # коммита пересобранной страницы, требуя пересобрать её снова. Это была
+    # не поломка ревизии, а качели в самой проверке.
+    dirty = bool(subprocess.run(('git', '-C', str(ROOT), 'status', '--porcelain', '--', 'index.html'),
+                                capture_output=True, text=True, check=False).stdout.strip())
+    want = int(done) + 1 if dirty else int(done)
     if int(BOARD_REV) != int(done) + 1:
-        return f'REV {BOARD_REV} при {done} коммитах страницы'
-    silk = re.search(r'REV (\d+) · S/N ([0-9A-F]+)', BOARD)
-    if not silk:
-        return 'на текстолите нет строки REV · S/N'
-    if silk.group(1) != BOARD_REV:
-        return f'на плате REV {silk.group(1)}, в сборке {BOARD_REV}'
-    return _spec()['board']['rev'] == int(BOARD_REV) or \
-        f'паспорт числит ревизию {_spec()["board"]["rev"]}'
+        return f'сборка числит REV {BOARD_REV} при {done} коммитах страницы'
+    if int(silk_rev(BOARD)) != want:
+        return (f'на плате REV {silk_rev(BOARD)}, а страница '
+                f'{"правлена" if dirty else "закоммичена"} при {done} коммитах — ждали {want}')
+    # Паспорт и текстолит — из одного места, разойтись не должны.
+    return _spec()['board']['rev'] == int(silk_rev(BOARD)) or \
+        f'паспорт числит ревизию {_spec()["board"]["rev"]}, плата — {silk_rev(BOARD)}'
 
 
 @check('AM4', 'серийный номер — отпечаток чертежа, а не хэш предыдущего коммита')
