@@ -99,7 +99,7 @@ const stat = await page.evaluate(() => {
   const box = document.querySelector('.chassis')?.getBoundingClientRect();
   const q = s => document.querySelectorAll(s).length;
   return { nodes: q('*'), board: box ? `${box.width | 0}×${box.height | 0}` : 'not visible',
-    partNumbers: q('a.stamp'), callouts: q('a.callout'), fans: q('.fan'),
+    partNumbers: q('g.stamp'), callouts: q('a.callout'), fans: q('.fan'),
     dimms: q('.dimm'), drives: q('.bay'), lamps: q('.led-act'), lightpath: q('.lp') };
 });
 

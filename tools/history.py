@@ -15,7 +15,9 @@ import re
 import subprocess
 from pathlib import Path
 
-REPO = Path("/workspaces/cosmdandy.dev")
+# Путь считается от самого скрипта, а не записан руками: историю теперь
+# собирает и CI, а там репозиторий лежит совсем в другом месте.
+REPO = Path(__file__).resolve().parents[1]
 OUT = REPO / "history"
 BOARD = re.compile(r"<!-- BOARD:BEGIN -->(.*?)<!-- BOARD:END -->", re.DOTALL)
 VIEWBOX = re.compile(r'<svg viewBox="([^"]+)"[^>]*>\s*<!-- BOARD:BEGIN -->')

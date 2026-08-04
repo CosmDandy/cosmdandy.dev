@@ -1,66 +1,122 @@
 """Light Path Diagnostics.
 
-Light Path Diagnostics
+Панель, ради которой в машину и лезут: она называет отказавший узел, не
+включая её. Ламп на ней ровно столько, сколько у этой машины есть поводов
+зажечься, — шестнадцать было списком с живой панели IBM, где половина
+относилась к железу, которого здесь нет.
+
+Слева стоят две вещи, за которые панель и берут в руки: кнопка сброса и
+контрольный индикатор. Индикатор — семисегментный, зелёный, и во время
+самотеста он крутит коды инициализации; замирает на том, на котором машина
+остановилась. Кнопка гасит защёлкнувшуюся ошибку — но только на собранной
+машине: пока узел вынут, гасить нечего.
 """
 
 # Own rectangle: the build checks that the block did not leave it.
 BOUNDS = (-320, 8, 306, 168)
 
 from board.ink import mono
+from board.lamps import lamp
+
+# Сколько своих ламп у панели и за что каждая отвечает. Ключ — это класс,
+# который ставит скрипт; подпись — то, что напечатано на пластике.
+#
+# Список короче прежнего вдвое, и это не упрощение. Панель обязана называть
+# причину, а причин у этой машины ровно столько: узел вынут, конфигурация
+# невозможна, питание не в допуске. Лампы PCI, SP, NMI и RAID гореть не могли
+# ни от чего — на живой панели они относятся к железу, которого здесь нет, и
+# на схеме были подписями к пустоте.
+LAMPS = (
+    ("OVER SPEC", "over-spec"),   # потребление вышло за паспорт блоков
+    ("PS", "ps"),                 # блок питания вынут или отказал
+    ("VRM", "vrm"),               # питание ядра
+    ("TEMP", "temp"),             # перегрев
+    ("FAN", "fan"),               # модуль вентилятора вынут
+    ("CPU", "cpu"),               # процессор вынут
+    ("MEM", "mem"),               # плашка памяти вынута
+    ("DASD", "dasd"),             # накопитель вынут
+    ("BRD", "brd"),               # райзер вынут: плата расширения потеряна
+    ("LINK", "link"),             # встроенный интерфейс потерян
+    ("CNFG", "cnfg"),             # конфигурация невозможна
+    ("LOG", "log"),               # в журнале событий есть запись
+)
+
+# Панель: левый край, ширина, верх, высота.
+PX, PW, PY, PH = -312, 300, 20, 150
+COLS, ROWS = 3, 4
+CELL_W, CELL_H = 70, 27
+# Сетка начинается правее контрольного индикатора, а не над ним: левая колонка
+# панели отдана кнопке и индикатору целиком, и лампе там места нет.
+GRID_X, GRID_Y = -214, 44
+
+# Сегменты цифры в порядке a b c d e f g — как их и нумеруют в справочниках.
+# Каждый сегмент своя фигура с классом: скрипт зажигает нужные, а не
+# перерисовывает индикатор.
+SEG_NAMES = ('a', 'b', 'c', 'd', 'e', 'f', 'g')
+
+
+def digit(x, y, idx, w=16, h=26, t=3):
+    """Один разряд семисегментного индикатора."""
+    bars = {
+        'a': (x + t, y, w - 2 * t, t),
+        'b': (x + w - t, y + t, t, h / 2 - 1.5 * t),
+        'c': (x + w - t, y + h / 2 + 0.5 * t, t, h / 2 - 1.5 * t),
+        'd': (x + t, y + h - t, w - 2 * t, t),
+        'e': (x, y + h / 2 + 0.5 * t, t, h / 2 - 1.5 * t),
+        'f': (x, y + t, t, h / 2 - 1.5 * t),
+        'g': (x + t, y + h / 2 - t / 2, w - 2 * t, t),
+    }
+    return ''.join(
+        f'<rect class="seg seg-{idx}{n}" x="{bars[n][0]:.1f}" y="{bars[n][1]:.1f}" '
+        f'width="{bars[n][2]:.1f}" height="{bars[n][3]:.1f}" rx="0.6"/>'
+        for n in SEG_NAMES)
 
 
 def render(cv):
-    def lightpath_panel():
-        """The Light Path Diagnostics panel, full set.
+    p = [(f'<rect x="{PX}" y="{PY}" width="{PW}" height="{PH}" rx="4" fill="#10171a" '
+          f'stroke="rgba(147,161,161,0.34)"/>')]
 
-    It grew from 140×118 to 300×150: sixteen lamps in three stepped rows, the
-    checkpoint indicator and three buttons did not fit into the old size. The
-    right edge is left where it was — the panel grows only to the left, the
-    same way the CSS transform slides it out.
-    """
-        def digit(x, y):
-            """A seven-segment eight: every segment lit, as during self-test."""
-            w, h, t = 14, 22, 2.6
-            c = '#b58900'
-            bars = [(x, y, w, t), (x, y + h / 2 - t / 2, w, t), (x, y + h - t, w, t),
-                    (x, y + t, t, h / 2 - t * 1.4), (x + w - t, y + t, t, h / 2 - t * 1.4),
-                    (x, y + h / 2 + t / 2, t, h / 2 - t * 1.4),
-                    (x + w - t, y + h / 2 + t / 2, t, h / 2 - t * 1.4)]
-            # Класс на сегментах — чтобы гасли вместе со всей индикацией:
-            # на обесточенной машине светиться нечему и здесь.
-            return ''.join(f'<rect class="seg" x="{bx:.1f}" y="{by:.1f}" '
-                           f'width="{bw:.1f}" height="{bh:.1f}" fill="{c}"/>'
-                           for bx, by, bw, bh in bars)
+    # Заголовок вдоль левой кромки, как на живой панели: «Light Path» тонким,
+    # «Diagnostics» жирным. Разный вес — это не украшение, а то, чем панель
+    # называет себя: тонкое — что она такое, жирное — чем занимается.
+    tx, ty = PX + 13, PY + PH / 2
+    p.append(f'<text x="{tx}" y="{ty}" transform="rotate(-90 {tx} {ty})" text-anchor="middle" '
+             f'fill="rgba(147,161,161,0.5)" font-family="ui-monospace, Menlo, monospace" '
+             f'font-size="9" font-weight="300" letter-spacing="0.06em">'
+             f'Light Path <tspan font-weight="700" fill="rgba(147,161,161,0.72)">'
+             f'DIAGNOSTICS</tspan></text>')
 
-        ROWS = [
-            (84, 0, [("OVER SPEC", "over-spec"), ("LOG", "log"), ("LINK", "link"),
-                     ("PS", "ps"), ("PCI", "pci"), ("SP", "sp")]),
-            (107, 63, [("FAN", "fan"), ("TEMP", "temp"), ("MEM", "mem"), ("NMI", "nmi")]),
-            (130, 21, [("CNFG", "cnfg"), ("CPU", "cpu"), ("VRM", "vrm"),
-                       ("DASD", "dasd"), ("RAID", "raid"), ("BRD", "brd")]),
-        ]
-        X0, P = -267, 42
+    # Левая колонка панели: кнопка сброса, под ней контрольный индикатор.
+    # Обе координаты заданы прямо, а не смещениями друг от друга: колонка
+    # набита плотно, и «на столько-то ниже» означало подпись под чужой рамкой
+    # при первом же изменении размера.
+    BTN_CY, LBL_Y, DSP_Y = 46, 70, 84
+    rx = PX + 52
+    p.append(f'''<g class="lp-reset" id="lp-reset" role="button" tabindex="0" aria-label="Сброс ошибок">
+  <rect x="{rx-26}" y="{BTN_CY-16}" width="52" height="32" fill="#000" fill-opacity="0.001"/>
+  <circle cx="{rx}" cy="{BTN_CY}" r="13" fill="#171f23" stroke="#dc322f" stroke-width="2.2"/>
+  <circle cx="{rx}" cy="{BTN_CY}" r="6" fill="rgba(147,161,161,0.85)"/>
+  {mono(rx, LBL_Y, "RESET", 7, op=0.5)}
+</g>''')
 
-        p = ['<rect x="-312" y="20" width="300" height="150" rx="4" fill="#10171a" stroke="rgba(147,161,161,0.34)"/>']
-        p.append('<rect x="-300" y="26" width="40" height="30" rx="2" fill="#0b1013" stroke="rgba(147,161,161,0.3)"/>')
-        p.append(digit(-296, 30))
-        p.append(digit(-278, 30))
-        p.append('<circle cx="-136" cy="41" r="10" fill="none" stroke="rgba(147,161,161,0.4)" stroke-width="1.3"/>')
-        p.append('<circle cx="-136" cy="41" r="6" fill="#20282d"/>')
-        p.append(mono(-136, 59, "REMIND", 6.5, op=0.42))
-        p.append('<line x1="-300" y1="68" x2="-24" y2="68" stroke="rgba(147,161,161,0.18)" stroke-width="1"/>')
-        for y, shift, items in ROWS:
-            for i, (label, key) in enumerate(items):
-                x = X0 + shift + i * P
-                p.append(f'<circle class="lp lp-{key}" cx="{x}" cy="{y}" r="3.2" fill="#b58900"/>')
-                p.append(mono(x, y + 9, label, 6, op=0.42))
-        p.append('<line x1="-300" y1="148" x2="-24" y2="148" stroke="rgba(147,161,161,0.18)" stroke-width="1"/>')
-        p.append('<circle cx="-292" cy="156" r="6" fill="none" stroke="#dc322f" stroke-width="1.8"/>')
-        p.append('<circle cx="-292" cy="156" r="3" fill="rgba(147,161,161,0.85)"/>')
-        p.append(mono(-283, 159, "RESET", 6.5, anchor="start", op=0.42))
-        p.append('<circle cx="-230" cy="156" r="3.5" fill="#0b1013" stroke="rgba(147,161,161,0.3)"/>')
-        p.append(mono(-222, 159, "NMI", 6.5, anchor="start", op=0.42))
-        p.append(mono(-162, 166, "LIGHT PATH DIAGNOSTICS", 7, op=0.4))
-        return ''.join(p)
+    # Контрольный индикатор: два разряда, зелёный. Во время самотеста на нём
+    # бегут коды инициализации, и остановился он на том, до которого машина
+    # дошла, — этим индикатор и отличается от лампы.
+    dx = PX + 30
+    p.append(f'<rect x="{dx-8}" y="{DSP_Y-6}" width="56" height="38" rx="2" fill="#080d0f" '
+             f'stroke="rgba(147,161,161,0.3)"/>')
+    p.append(digit(dx, DSP_Y, 0))
+    p.append(digit(dx + 22, DSP_Y, 1))
+    p.append(mono(dx + 20, DSP_Y + 44, "CHECKPOINT", 6, op=0.34))
 
-    cv.add(f'''<g class="lightpath" aria-hidden="true">{lightpath_panel()}</g>''')
+    # Лампы — строгой сеткой, три колонки по четыре. Подпись справа от лампы,
+    # а не под ней: колонка читается сверху вниз одним движением глаза, и
+    # разной длины подписи не расталкивают сетку.
+    for i, (label, key) in enumerate(LAMPS):
+        col, row = i % COLS, i // COLS
+        x = GRID_X + col * CELL_W
+        y = GRID_Y + row * CELL_H
+        p.append(lamp(f'lp lp-{key}', x, y, 4, '#b58900'))
+        p.append(mono(x + 11, y + 3, label, 6, anchor="start", op=0.46))
+
+    cv.add(f'''<g class="lightpath" aria-hidden="true">{''.join(p)}</g>''')

@@ -1,4 +1,23 @@
-  .rig.service .psu.pulled .pick-body { transform: translateX(74px); }
+  /* Наружу — тугой ход райзера, внутрь — посадка в два приёма. Это и есть
+     «одинаковая физика в обе стороны»: одинаковая тяжесть, а не одна кривая,
+     пущенная задом наперёд. Разворот пробовали — он переносит сопротивление в
+     конец хода, и обратное движение начинается рывком: то же самое по числам,
+     но противоположное на глаз.
+
+     Паз у блока короткий — ход всего сорок четыре единицы, чуть больше самого
+     контакта. Тяжесть при этом никуда не девается: она в кривой, а не в
+     расстоянии. */
+  .rig.service .psu.pulled .pick-body {
+    transform: translateX(44px);
+    transition: transform var(--drag);
+  }
+  .psu .pick-body { transition: transform var(--press-two); }
+
+  /* Наводка блок не приподнимает. Общий подъём на три точки задуман для узлов,
+     которые и вынимаются вверх; блок питания ходит строго вбок, и вертикаль —
+     единственное движение, которого у настоящего блока нет вовсе. Отзыв на
+     курсор остаётся яркостью, её то же общее правило и даёт. */
+  .pick.psu:hover .pick-body { transform: none; }
 
   /* A pulled supply is dead: mains no longer reaches it. Both lamps go out —
      AC included, the one that burns even on a switched-off machine — and the
@@ -11,17 +30,24 @@
   /* Assembly: the power supply goes in from the back, out of its own bay. It
      travels further than the rest — its path to the connector is long, and the
      hand can tell. */
-  .rig.assembly .psu {
-    animation: seatPsu var(--press-snap) var(--seat, 0s) backwards;
+  /* Едет модуль, а не гнездо. Лампа неисправности нарисована на плате и лежит
+     рядом с телом узла, за пределами .pick-body: вынимают модуль — она остаётся
+     светить в пустое гнездо. На сборке правило висело на всей группе, и лампа
+     приезжала вместе с модулем и проявлялась вместе с ним — гнездо собиралось
+     из воздуха наравне с тем, что в него ставят. */
+  .rig.assembly .psu .pick-body {
+    animation: seatPsu var(--press-two) var(--seat, 0s) backwards;
   }
-  /* The supply flies into the bay in one movement — the guides are long and
-     straight, and only the connector at the end slows it down. */
+  /* Садится он в два приёма. Контакт у блока длинный: сначала модуль входит в
+     направляющие и упирается, и только потом его проталкивают до конца — на
+     живой машине это два отдельных усилия руки, и полка посередине --press-two
+     ровно про них. Раньше он влетал в карман одним движением, и разъёма в этом
+     не читалось вовсе. */
   @keyframes seatPsu {
-    from { opacity: 0; transform: translateX(96px); }
+    0%   { opacity: 0;    transform: translateX(118px); }
+    14%  { opacity: 1; }
+    100% { opacity: 1;    transform: none; }
   }
-
-  /* The power supply is held by the orange latch — that very click. */
-  .psu .pick-body { transition: transform var(--click); }
 
   /* ── Оба блока вынуты: машина обесточена ───────────────────────────────
      Резервирование кончилось — кончилось и питание. Гаснет всё разом,
@@ -55,3 +81,20 @@
     opacity: 0.42 !important;
     pointer-events: none;
   }
+
+  /* Оранжевый лепесток. Его нажимают большим пальцем, и он уходит внутрь, к
+     ручке, — это первое из двух движений, которыми блок вынимают. Точка
+     вращения у дальней от ручки кромки: лепесток приклёпан к корпусу тем
+     краем и гнётся к скобе, а не отскакивает от неё.
+
+     Кривая та же короткая и линейная, что у ручки каддика: тонкий пластик
+     невесом, и инерции в нём нет. */
+  .psu-latch {
+    transform-box: fill-box;
+    /* Ось у нижней кромки — той, что ближе к скобе. Лепесток на неё и
+       складывается: сверху видно, как он укорачивается в сторону ручки, а не
+       отъезжает целиком. С осью по левому краю он просто уползал вбок. */
+    transform-origin: 50% 100%;
+    transition: transform var(--lever);
+  }
+  .rig.service .psu.pulled .psu-latch { transform: translateY(11px) scaleY(0.42); }

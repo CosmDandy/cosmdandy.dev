@@ -25,27 +25,47 @@ def relief(x, y, w, h, rx=1):
             f'<path d="M{x + rx:.1f} {y + h:.1f} H{x + w - rx:.1f}" stroke="rgba(0,0,0,0.38)" '
             f'stroke-width="1.1" fill="none"/>')
 
-def ihs_path(x, y):
-    """Outline of the processor lid: keys on the sides, a cut at pin one.
+IHS_INSET = 11        # насколько крышка уже поля контактов, на сторону
 
-    It lives in a function of its own because the die sheen is clipped by
-    this same outline: a rectangular clip turned the lid back into a plain
-    slab and ate the keys the whole thing was done for.
+
+def ihs_path(x, y):
+    """Контур крышки процессора: прямоугольник со срезанным углом ключа.
+
+    Полукруглых вырезов по бокам здесь больше нет. Они изображали ключи
+    сокета, но ключи — это выступы держателя, а не дырки в металле: на живой
+    крышке их нет ни одного. Остался единственный настоящий признак — срез
+    угла у первого вывода, и срез этот на текстолите подложки, а не на самом
+    металле, поэтому подложка рисуется по своему контуру (см. substrate_path).
+
+    Функция отдельная потому, что этим же контуром обрезается перелив по
+    кристаллу: прямоугольный clip превращал крышку обратно в плиту.
     """
-    ix, iy = x + 40, y + 34
-    iw, ih = SOCKET_W - 80, SOCKET_H - 68
-    notch, cut = 9, 12
-    return (f'M{ix + cut} {iy} '
-            f'H{ix + iw / 2 - notch} '
-            f'a{notch} {notch} 0 0 0 {notch * 2} 0 '
-            f'H{ix + iw} '
-            f'V{iy + ih / 2 - notch} '
-            f'a{notch} {notch} 0 0 0 0 {notch * 2} '
-            f'V{iy + ih} '
-            f'H{ix + iw / 2 + notch} '
-            f'a{notch} {notch} 0 0 0 -{notch * 2} 0 '
-            f'H{ix} '
-            f'V{iy + cut} Z')
+    # Крышка меньше поля контактов под ней, и это не вкус: кристалл под
+    # теплораспределителем всегда меньше площадки, на которой сидят ножки, —
+    # иначе он свисал бы с неё. Подложка при этом прежнего размера, её габарит
+    # задаёт держатель.
+    ix, iy = x + 40 + IHS_INSET, y + 34 + IHS_INSET
+    iw, ih = SOCKET_W - 80 - 2 * IHS_INSET, SOCKET_H - 68 - 2 * IHS_INSET
+    # Среза здесь нет вовсе. Он — признак подложки, её и режут по углу первого
+    # вывода; металл крышки лежит на подложке ровным прямоугольником, и
+    # повторённый на нём срез читался вторым ключом, которого у процессора нет.
+    return (f'M{ix} {iy} H{ix + iw} V{iy + ih} H{ix} Z')
+
+
+def substrate_path(x, y, m=5):
+    """Контур текстолита процессора: он шире крышки на кайму m.
+
+    Срез угла — здесь: подложку режут по углу первого вывода, чтобы модуль
+    нельзя было посадить в держатель наоборот. Металл крышки просто
+    повторяет срез сверху.
+    """
+    ix, iy = x + 40 - m, y + 34 - m
+    iw, ih = SOCKET_W - 80 + 2 * m, SOCKET_H - 68 + 2 * m
+    # Срез мельче прежних восемнадцати: он и на живой подложке скромный, а
+    # главное — под большим срезом из-под текстолита вылезало поле контактов,
+    # и снятый процессор открывал ножки там, где их быть не может.
+    cut = 10
+    return (f'M{ix + cut} {iy} H{ix + iw} V{iy + ih} H{ix} V{iy + cut} Z')
 
 def idc_header(x, y, pins, label, vertical=False):
     """Ribbon header: two rows of contacts inside a plastic shroud.
@@ -89,8 +109,8 @@ def power_header(x, y, label="P12V_BP"):
     not a signal.
     """
     w, h = 30, 20
-    out = [f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="2" fill="#161f24" '
-           f'stroke="rgba(147,161,161,0.40)" stroke-width="1.3"/>']
+    out = [(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="2" fill="#161f24" '
+            f'stroke="rgba(147,161,161,0.40)" stroke-width="1.3"/>')]
     for r in range(2):
         for c in range(4):
             out.append(pad(x + 3.6 + c * 6.2, y + 4 + r * 7, 4, 4.6, 0.8))
@@ -102,21 +122,103 @@ def power_header(x, y, label="P12V_BP"):
     return ''.join(out)
 
 
-def hexgrid(x, y, w, h, s=7, gap=5.5):
-    """Hexagonal perforation: it lightens the wide part of the bracket."""
-    out, dx, dy = [], s * 1.5 + gap, (s + gap / 2) * 1.732
-    row = 0
-    cy = y + s
-    while cy < y + h - s * 0.6:
+def hs_screw(x, y, r=5.4):
+    """Винт радиатора: шляпка с крестовым шлицем.
+
+    Без пружины — она нужна только процессорному, где усилие прижима задаёт
+    именно она. Здесь радиатор притянут к своей плате, и прижим держит
+    плоскость основания.
+    """
+    return (f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r:.1f}" fill="#162025" '
+            f'stroke="rgba(147,161,161,0.46)" stroke-width="1.3"/>'
+            f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r*0.48:.1f}" fill="#0c1418" '
+            f'stroke="rgba(147,161,161,0.34)"/>'
+            f'<line x1="{x-r*0.44:.1f}" y1="{y:.1f}" x2="{x+r*0.44:.1f}" y2="{y:.1f}" '
+            f'stroke="rgba(147,161,161,0.5)" stroke-width="1.2"/>'
+            f'<line x1="{x:.1f}" y1="{y-r*0.44:.1f}" x2="{x:.1f}" y2="{y+r*0.44:.1f}" '
+            f'stroke="rgba(147,161,161,0.5)" stroke-width="1.2"/>')
+
+
+def finned_sink(x, y, w, h, r=5.4, inset=10, pitch=3.4):
+    """Пассивный радиатор: рёбра вдоль потока и винты по углам.
+
+    Один вид на всю машину. Раньше их было три разных — процессорный,
+    силовой в блоке питания и какой-то свой у сетевой карты, — и последний
+    читался просто заштрихованным прямоугольником: ни рёбер по потоку, ни
+    крепежа. Радиатор узнают по двум вещам, и обе теперь общие.
+
+    Поток в этой машине идёт спереди назад, то есть по X, — рёбра лежат вдоль
+    него.
+    """
+    fins = ''.join(f'<line x1="{x+inset-1:.1f}" y1="{y+inset-1+i*pitch:.1f}" '
+                   f'x2="{x+w-inset+1:.1f}" y2="{y+inset-1+i*pitch:.1f}" '
+                   f'stroke="rgba(147,161,161,0.22)" stroke-width="1.2"/>'
+                   for i in range(int((h - inset * 2 + 2) // pitch)))
+    screws = ''.join(hs_screw(sx, sy, r)
+                     for sx in (x + inset, x + w - inset)
+                     for sy in (y + inset, y + h - inset))
+    return (f'<rect x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="{h:.1f}" rx="4" '
+            f'fill="#26333a" stroke="rgba(147,161,161,0.38)"/>' + fins + screws)
+
+
+def hexgrid(x, y, w, h, s=6, gap=4.4, fill='rgba(2,7,9,0.42)',
+            stroke='rgba(147,161,161,0.16)'):
+    """Перфорация сотами: это дырки в стали, а не рисунок на ней.
+
+    Отсюда две вещи, которых раньше не было.
+
+    Шаг. Соту рисуем остриём вверх: ширина у неё 1.72·s, высота 2·s. Значит
+    столбцы стоят через 1.72·s + gap, а соседние ряды — через 1.5·s +
+    0.866·gap со сдвигом на полшага вбок; так соты и укладываются в решётку,
+    не наезжая друг на друга. Прежние формулы брали 1.5·s + gap по горизонтали
+    и вдвое меньше нужного по вертикали, и ряды слипались в сплошное поле.
+
+    Просвет. Дырка заливалась глухим #0a1216 — тем же тоном, каким закрашена
+    сталь вокруг. Получалось пятно на листе, а не отверстие. Теперь заливка
+    полупрозрачная: сквозь неё виден текстолит, а лист поверх него читается
+    именно листом с дырками.
+
+    fill и stroke вынесены наружу ради крышки. Она лежит поверх всей машины, и
+    полупрозрачной заливки ей мало: под крышкой не текстолит, а мигающие лампы
+    гнёзд, и владелец просил, чтобы сквозь соты было видно именно их. Поэтому
+    крышка зовёт эту же решётку дважды — сплошным чёрным в маску, которой лист
+    пробивается насквозь, и одним контуром поверх, чтобы у дырки осталась
+    кромка.
+    """
+    # Одна фигура на всё поле, а не отдельная на каждую дырку. Соты у решётки
+    # одинаковые, и различаются только местом: у пути от каждой остаётся
+    # «доехать сюда», а сама сота — общий хвост из относительных команд. По
+    # разметке это 36 символов вместо 133, но дело не в байтах: полторы тысячи
+    # узлов DOM браузер разбирает, хранит и обходит при каждой перерисовке, а
+    # один путь — нет. На схеме таких дырок было 1632 — пятая часть страницы.
+    #
+    # Пиксель при этом тот же: подпути не пересекаются, и любое правило
+    # заливки закрашивает их одинаково. Обводка тоже своя у каждой соты —
+    # контур идёт по каждому подпути отдельно.
+    # Вершины абсолютные и округлены той же десятой, что и раньше у полигонов.
+    # Относительные смещения вышли бы короче, но они копят ошибку округления:
+    # сота уезжала на сотые доли единицы, и края дырок ложились на другие
+    # пиксели. Померено — до пяти единиц из 255 на кромке; глазу не видно, но
+    # доказать, что картинка не изменилась, тогда уже нельзя.
+    def n(v):
+        return f'{v:.1f}'.removesuffix('.0')
+
+    corners = ((0, -1), (1, -0.5), (1, 0.5), (0, 1), (-1, 0.5), (-1, -0.5))
+    d = []
+    dx = s * 1.72 + gap
+    dy = s * 1.5 + gap * 0.866
+    row, cy = 0, y + s
+    while cy < y + h - s:
         cx = x + s + (dx / 2 if row % 2 else 0)
         while cx < x + w - s * 0.9:
-            pts = ' '.join(f'{cx + s*0.86*dxx:.1f},{cy + s*dyy:.1f}' for dxx, dyy in
-                           ((0, -1), (1, -0.5), (1, 0.5), (0, 1), (-1, 0.5), (-1, -0.5)))
-            out.append(f'<polygon points="{pts}" fill="#0a1216" stroke="rgba(147,161,161,0.16)"/>')
+            pts = [f'{n(cx + s * 0.86 * ddx)} {n(cy + s * ddy)}' for ddx, ddy in corners]
+            d.append('M' + pts[0] + 'L' + 'L'.join(pts[1:]) + 'z')
             cx += dx
-        cy += dy / 2
+        cy += dy
         row += 1
-    return ''.join(out)
+    if not d:
+        return ''
+    return f'<path class="perf" d="{"".join(d)}" fill="{fill}" stroke="{stroke}"/>'
 
 
 def service_label(x, y, w, h, title, lines, head=HOT, arrow=None):
@@ -145,10 +247,10 @@ def service_label(x, y, w, h, title, lines, head=HOT, arrow=None):
     body_y = y + head_h
     body_h = h - head_h
     parts = [
-        f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="3" fill="#e8e3d5" fill-opacity="0.78" '
-        f'stroke="rgba(147,161,161,0.35)" stroke-width="1.2"/>',
-        f'<path d="M{x} {y+head_h:.1f} V{y+3} Q{x} {y} {x+3} {y} H{x+w-3} Q{x+w} {y} {x+w} {y+3} '
-        f'V{y+head_h:.1f} Z" fill="{head}"/>',
+        (f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="3" fill="#e8e3d5" fill-opacity="0.78" '
+         f'stroke="rgba(147,161,161,0.35)" stroke-width="1.2"/>'),
+        (f'<path d="M{x} {y+head_h:.1f} V{y+3} Q{x} {y} {x+3} {y} H{x+w-3} Q{x+w} {y} {x+w} {y+3} '
+         f'V{y+head_h:.1f} Z" fill="{head}"/>'),
     ]
     icon_r = head_h * 0.34
     icx, icy = x + head_h * 0.6, y + head_h / 2
@@ -189,11 +291,11 @@ def service_legend(x, y, w, h):
     eight times in a row.
     """
     parts = [
-        f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="3" fill="#e8e3d5" fill-opacity="0.78" '
-        f'stroke="rgba(147,161,161,0.35)" stroke-width="1.2"/>',
-        f'<text x="{x+10}" y="{y+h*0.22:.1f}" text-anchor="start" fill="#161005" fill-opacity="0.85" '
-        f'font-family="ui-monospace, Menlo, monospace" font-size="8" font-weight="700" '
-        f'letter-spacing="0.04em">КОД ЗАМЕНЫ</text>',
+        (f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="3" fill="#e8e3d5" fill-opacity="0.78" '
+         f'stroke="rgba(147,161,161,0.35)" stroke-width="1.2"/>'),
+        (f'<text x="{x+10}" y="{y+h*0.22:.1f}" text-anchor="start" fill="#161005" fill-opacity="0.85" '
+         f'font-family="ui-monospace, Menlo, monospace" font-size="8" font-weight="700" '
+         f'letter-spacing="0.04em">КОД ЗАМЕНЫ</text>'),
     ]
     rows = ((HOT, "горячая замена"), (COLD, "обесточить машину"))
     sw = h * 0.16

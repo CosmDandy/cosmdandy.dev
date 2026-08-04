@@ -1,0 +1,74 @@
+/* Кнопка звука: четвёртая плитка того же ряда, что тема, вид и пересборка.
+   Показывается только на схеме — в карточке озвучивать нечего, там нет ни
+   узлов, ни сборки. */
+.sfx-btn {
+    position: fixed;
+    top: 24px;
+    right: 186px;
+    z-index: 4;
+    display: none;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    padding: 0;
+    border-radius: 14px;
+    border: 1px solid var(--inv-line);
+    background: var(--inv-surface);
+    box-shadow: var(--inv-shadow);
+    color: var(--inv-node);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    /* Четвёртая в ряду — и появляется четвёртой, следом за темой (620), лупой
+       (680) и пересборкой (740). Без этого она одна стояла бы на месте с
+       первого кадра, пока трое соседей ещё выплывают. */
+    animation: contentEnter 0.65s cubic-bezier(0.32, 0.72, 0, 1) 800ms backwards;
+    transition:
+        background   var(--theme-fade),
+        border-color var(--theme-fade),
+        box-shadow   var(--theme-fade),
+        /* Как у лупы и пересборки: в режиме лупы плитка растёт и переезжает,
+           и без перехода по размеру и месту она перескакивала. */
+        width        0.42s cubic-bezier(0.22, 1, 0.36, 1),
+        height       0.42s cubic-bezier(0.22, 1, 0.36, 1),
+        right        0.42s cubic-bezier(0.22, 1, 0.36, 1),
+        border-radius 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+        transform    0.44s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Тот же сдвиг на шаг, что у соседей: ряд отмерян от кнопки темы, а пока она
+   погашена, её место осталось бы пустым. Лупа исключена явно — там свой шаг и
+   свои размеры плиток. */
+html.theme-locked body:not(.zoom) .sfx-btn { right: 132px; }
+
+/* Кнопка лежит вне .rig, и общий запрет анимаций внутри схемы её не касается —
+   как и соседи по ряду, она отменяет своё появление сама. */
+@media (prefers-reduced-motion: reduce) {
+    .sfx-btn { animation: none; }
+}
+
+/* В режиме лупы звук остаётся, в отличие от переключателя темы: тема — это про
+   страницу, которой там больше нет, а звук — про сам предмет на столе. Значит,
+   и растёт он вместе с остальными органами управления, иначе выросшая вдвое
+   пересборка наезжала бы на плитку прежнего размера. */
+body.zoom .sfx-btn {
+    width: 56px;
+    height: 56px;
+    border-radius: 18px;
+    right: 168px;
+}
+body.zoom .sfx-btn svg { width: 27px; height: 27px; }
+
+body.view-rig .sfx-btn { display: grid; }
+.sfx-btn svg { width: 21px; height: 21px; display: block; }
+.sfx-btn:hover { transform: translate3d(0, -1px, 0); }
+.sfx-btn:active { transform: translate3d(0, 0, 0) scale(0.96); }
+.sfx-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+
+/* Молчит — динамик перечёркнут; звучит — идут волны. Обе части лежат в одной
+   иконке друг на друге и меняются прозрачностью: перерисовывать svg целиком
+   ради двух штрихов незачем. */
+.sfx-btn .sfx-wave,
+.sfx-btn .sfx-mute { transition: opacity 0.28s ease; }
+.sfx-btn .sfx-wave { opacity: 0; }
+.sfx-btn[aria-pressed="true"] .sfx-wave { opacity: 1; }
+.sfx-btn[aria-pressed="true"] .sfx-mute { opacity: 0; }

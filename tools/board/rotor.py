@@ -78,6 +78,42 @@ def blur_defs():
     return f'<defs><radialGradient id="rotor-blur">{stops}</radialGradient></defs>'
 
 
+def rotor_disc(cx, cy, r):
+    """Один диск — та часть работающего вентилятора, которую поворот не меняет.
+
+    Измерено, а не на глаз: шестнадцать вентиляторов на полных оборотах несли
+    шестнадцать копий этого круга внутри слоя will-change, который
+    компоновщик пересобирал каждый кадр, вечно, — и каждая пересборка уходила
+    на фигуру, одинаковую при любом угле: обычный радиальный градиент вокруг
+    собственной оси. `fans.py` держит его вне вращающейся группы целиком, но
+    появление-исчезание оставляет тем же классом `rotor-blur` — крутится
+    только то, чему есть от этого польза.
+    """
+    outer = r * 0.94
+    return f'<circle class="rotor-blur" cx="{cx}" cy="{cy}" r="{outer:.1f}" fill="url(#rotor-blur)"/>'
+
+
+def rotor_streaks(cx, cy, r):
+    """Три дуги и кольцо ступицы, которое лежит внутри них.
+
+    Дуги — единственная часть размытого диска, не симметричная относительно
+    оси: весь эффект «стена не читается замершей» держится на них одних, и
+    только их вращение того стоит. Кольцо тоже осесимметрично и могло бы
+    уйти вместе с диском в `rotor_disc`, но это одна тонкая линия обводки, а
+    не залитая фигура — заводить ради неё вторую точку вызова было не за что.
+    Контраст у дуг нарочно низкий: ступенчатый поворот виден именно на
+    контрасте, а показывать здесь нечему.
+    """
+    inner = r * HUB_R
+    streaks = ''.join(
+        f'<path d="M{_pt(cx, cy, r * 0.72, a)} A{r * 0.72:.1f} {r * 0.72:.1f} 0 0 1 '
+        f'{_pt(cx, cy, r * 0.72, a + 84)}" fill="none" stroke="{ROTOR_EDGE}" '
+        f'stroke-opacity="0.16" stroke-width="{r * 0.30:.1f}"/>'
+        for a in (0, 120, 240))
+    return streaks + (f'<circle cx="{cx}" cy="{cy}" r="{inner:.1f}" fill="none" '
+                       f'stroke="{ROTOR_EDGE}" stroke-opacity="0.10" stroke-width="1"/>')
+
+
 def blur_disc(cx, cy, r):
     """What a running fan actually looks like: a disc, not blades.
 
@@ -87,20 +123,9 @@ def blur_disc(cx, cy, r):
     stylisation, and this is the honest view; it is simply the one we cannot
     show at rest, when the machine is off and the impeller stands still.
 
-    Two parts. The disc is axially symmetric and therefore costs nothing to
-    turn — it looks identical in every position. The streaks are three faint
-    arcs that do turn, and they are the only reason the wall does not read as
-    frozen when the fans are at full speed. Their contrast is deliberately low:
-    a stepped rotation shows through on contrast, and there is none here to
-    show through on.
+    Здесь функция оставлена целиком ради `psu.py` — там один-единственный
+    вентилятор, дробить его ради этого не за чем, и он по-прежнему заворачивает
+    результат в одну вращающуюся группу, как раньше делала стена. `fans.py`
+    вызывает `rotor_disc` и `rotor_streaks` порознь — почему, см. там.
     """
-    inner, outer = r * HUB_R, r * 0.94
-    streaks = ''.join(
-        f'<path d="M{_pt(cx, cy, r * 0.72, a)} A{r * 0.72:.1f} {r * 0.72:.1f} 0 0 1 '
-        f'{_pt(cx, cy, r * 0.72, a + 84)}" fill="none" stroke="{ROTOR_EDGE}" '
-        f'stroke-opacity="0.16" stroke-width="{r * 0.30:.1f}"/>'
-        for a in (0, 120, 240))
-    return (f'<circle cx="{cx}" cy="{cy}" r="{outer:.1f}" fill="url(#rotor-blur)"/>'
-            + streaks
-            + f'<circle cx="{cx}" cy="{cy}" r="{inner:.1f}" fill="none" '
-              f'stroke="{ROTOR_EDGE}" stroke-opacity="0.10" stroke-width="1"/>')
+    return rotor_disc(cx, cy, r) + rotor_streaks(cx, cy, r)

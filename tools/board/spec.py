@@ -22,7 +22,8 @@ No literals are left in the commands: every number comes from one of the three.
 """
 
 from board.geom import BANK_N, BAY_N, CHIPS, FAN_N, PSU_Y
-from board.revision import BOARD_REV, BOARD_SHA
+from board.revision import BOARD_REV, BOARD_SN
+from board.rotor import BLADE_N
 
 BOARD = {'model': 'CD93-FS1', 'form': '1U', 'vendor': 'CodeKVT'}
 
@@ -58,7 +59,26 @@ BAYS = tuple(
     {'bay': i, 'model': 'INTEL OPTANE P5800X', 'kind': 'Optane', 'tb': 1.6, 'life': 100}
     for i in range(BAY_N))
 
-FAN = {'n': FAN_N, 'model': '40×56 dual-rotor', 'rpm_nom': 12100, 'rpm_max': 18000}
+# Лопастей столько же, сколько рисует rotor.py, и число это в паспорте не для
+# красоты: на нём держится звук машины. Тон вентилятора — лопаточная частота,
+# лопасти × об/мин ÷ 60, и синтезатор берёт её отсюда, а не из своей константы.
+# Иначе появилось бы второе место, знающее устройство вентилятора, и однажды
+# схема запела бы не на своей ноте.
+FAN = {'n': FAN_N, 'model': '40×56 dual-rotor', 'blades': BLADE_N,
+       'rpm_nom': 12100, 'rpm_max': 18000,
+       # Политика оборотов живёт не в BIOS, а в контроллере управления — там же,
+       # где она стоит на живой машине: Cooling в меню IMM, а не Advanced в
+       # Setup. Обороты каждого режима здесь, потому что их спрашивают трое
+       # сразу — рисунок (период оборота крыльчатки), звук (лопаточная частота)
+       # и команда fans. Разъедься они, и машина завертелась бы на одной ноте,
+       # а отчиталась о другой.
+       'policy': (
+           {'id': 'Acoustic', 'rpm': 3025},
+           {'id': 'Efficiency', 'rpm': 6050},
+           {'id': 'Balanced', 'rpm': 12100},
+           {'id': 'Performance', 'rpm': 18000},
+       ),
+       'policy_default': 'Balanced'}
 PSU = {'n': len(PSU_Y), 'watt': 1300, 'model': 'CRPS 80 PLUS Titanium'}
 
 RISERS = (
@@ -66,11 +86,24 @@ RISERS = (
     {'slot': 2, 'link': 'PCIe Gen5 ×16', 'card': None, 'empty': True},
 )
 
+# Клеймо изготовителя. Одна строка на всю машину: она набита и на шелкографии
+# платы, и на шильдике радиатора, и менять её надо в одном месте — иначе на
+# одной детали написано одно, на соседней другое.
+MADE = 'FROM RUSSIA WITH LOVE'
+
 PORTS = {'sfp': '2× 10G SFP+', 'sfp_degraded': '1× 1G · degraded',
          'eth': '2× 1GbE', 'mgmt': 'SYSTEM MGMT'}
 
+# Прошивок на машине не одна. BIOS — только та, что показывает экран; под ней
+# лежит контроллер управления со своей версией и своей датой, а внутри
+# процессора — микрокод и опорный код платформы. AGESA спрашивают первым делом,
+# когда машина на EPYC ведёт себя странно с памятью: у AMD именно он отвечает за
+# обучение каналов, и его версию читают с экрана Main, а не из документации.
 FIRMWARE = {'bios_vendor': 'AMI Aptio V', 'bios': '2.6.1', 'bios_date': '2026-05-14',
-            'bmc': '2.14.3', 'bmc_chip': 'AST2600',
+            'bmc': '2.14.3', 'bmc_chip': 'AST2600', 'bmc_date': '2026-04-02',
+            'agesa': 'TurinPI-SP5 1.0.0.7', 'psp': '1.5.0.28', 'smu': '92.15.0',
+            'ucode': '0x0b002116',
+            'uuid': '4c4f5645-cd93-11f0-b42e-990cd93f0001',
             'mac': 'b4:2e:99:0c:d9:3f', 'ip': '192.168.10.42'}
 
 
@@ -90,13 +123,13 @@ def ram_label():
 def passport():
     """The whole passport — the same one the page receives as JSON.
 
-    The revision and the serial are taken from git the same way as the
-    silkscreen on the laminate: the build number is the commit count, the
-    serial is the HEAD hash. Which means the console and the board cannot
-    drift apart even in those.
+    Ревизия и серийный номер здесь ровно те же, что набиты на текстолите:
+    берутся из board.revision, а не считаются заново. Поэтому самотест и
+    плата разойтись не могут — а расходились они раньше именно тем, что
+    номер брался от HEAD, то есть от предыдущей сборки.
     """
     return {
-        'board': {**BOARD, 'rev': int(BOARD_REV), 'sha': BOARD_SHA},
+        'board': {**BOARD, 'rev': int(BOARD_REV), 'sha': BOARD_SN},
         'fw': FIRMWARE,
         'cpu': CPU,
         'dimm': {**DIMM, 'slots': dimm_slots(), 'total_gb': total_ram_gb()},

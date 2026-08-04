@@ -56,22 +56,42 @@
   .fan.pulled .fan-blades { animation-play-state: paused; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  .rig.service .fan.pulled .pick-body { transform: translateY(-30px) scale(1.03); }
+  .rig.service .fan.pulled .pick-body {
+    transform: translateY(-16px) scale(1.02);
+    /* Прямая кривая — здесь, обратная на правиле «на месте». Одна на оба
+       состояния означала бы, что обратный ход повторяет прямой. */
+    transition: transform var(--snap);
+  }
 
   /* Assembly: the fan is lowered into the wall from above — in 1U it goes in
      vertically, between the cage upright and the board there is no room for any
      other movement. The moment of seating is set by --seat, which the generator
      writes: the schedule for the whole assembly lives in geom, and only "from
      where and how" lives here. */
-  .rig.assembly .fan {
-    animation: seatFan var(--press-hard) var(--seat, 0s) backwards;
+  /* Садится он своим же щелчком: разъём у вентилятора либо защёлкнулся, либо
+     нет, и вставка ничем не отличается от вытаскивания. Общий --press-hard
+     описывает прижим плашки памяти — совсем другое движение, и на нём модуль
+     входил мягко, будто его укладывают. */
+  /* Едет модуль, а не гнездо. Лампа неисправности нарисована на плате и лежит
+     рядом с телом узла, за пределами .pick-body: вынимают модуль — она остаётся
+     светить в пустое гнездо. На сборке правило висело на всей группе, и лампа
+     приезжала вместе с модулем и проявлялась вместе с ним — гнездо собиралось
+     из воздуха наравне с тем, что в него ставят. */
+  .rig.assembly .fan .pick-body {
+    animation: seatFan var(--press-snap) var(--seat, 0s) backwards;
   }
   /* It seats stiffly: the guides are long, the module travels along them under
      effort, and right at the bottom it is pressed home to the latch. */
   @keyframes seatFan {
-    from { opacity: 0; transform: translateY(-42px); }
+    0%   { opacity: 0;    transform: translateY(-78px); }
+    14%  { opacity: 1; }
+    100% { opacity: 1;    transform: none; }
   }
 
-  /* A latch holds the fan in the wall: you pull, it does not move, then it
-     breaks free. Exactly the same curve carries it when seating too. */
-  .fan .pick-body { transition: transform var(--click); }
+  /* Разъём вентилятора тугой и без середины: он либо защёлкнут, либо нет.
+     Тянешь — движения нет, потом оп, и вытянулся; обратно так же. Общий
+     --click для этого слишком мягок, у него после срыва есть длинная
+     доводка, а здесь доводить нечего. */
+  /* Щелчок в обе стороны, но развёрнутый: мёртвая зона разъёма одна и та же,
+     и на обратном ходе она приходится на конец. */
+  .fan .pick-body { transition: transform var(--press-snap); }

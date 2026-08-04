@@ -14,21 +14,31 @@ barcode.
 BOUNDS = (982, 0, 356, 862)
 
 from board.geom import PSU_H, PSU_W, PSU_Y, X_REAR, seat
-from board.ink import mono
+from board.ink import barcode, mono
+from board.spec import PSU
 from board.lamps import fault_at, jitter, lamp
-from board.palette import ROTOR_BLADE, ROTOR_EDGE, ROTOR_PAD
-from board.revision import stamp
+from board.metal import finned_sink
+from board.palette import METAL, METAL_DEEP, ROTOR_BLADE, ROTOR_EDGE, ROTOR_PAD
+from board.revision import BOARD_SHA, stamp
 from board.rotor import HUB_R, blur_disc, impeller
 
 
 def render(cv):
-    for k, (y, flip) in enumerate(zip(PSU_Y, (False, True))):
+    for k, y in enumerate(PSU_Y):
         name = f"PSU-{k+1}"
-        fan_y = y + (8 if flip else 83)      # fan in the corner away from centre
+        # Оба блока одинаковые, и это не придирка к симметрии. Модуль — одна и
+        # та же деталь, вставленная в два кармана: вентилятор у него всегда с
+        # одной стороны, скоба с ручкой — с другой. Пока второй блок рисовался
+        # зеркально, его оранжевый лепесток оказывался под вентилятором, то
+        # есть там, где на живом блоке ухватиться не за что.
+        fan_y = y + 83
         # The bay pocket: the module is inserted into it, not glued to the
         # wall. Without the pocket the two modules read as a single panel on
         # the rear edge.
-        bay = [(f'<rect x="{X_REAR-6}" y="{y-6}" width="312" height="157" rx="6" fill="#0c1316" '
+        # Карман — вырез в шасси, а не деталь: у выреза углы прямые. Скругление
+        # положено корпусу машины и самим модулям, а посадочное место штампуют
+        # по прямой.
+        bay = [(f'<rect x="{X_REAR}" y="{y-6}" width="306" height="157" fill="{METAL_DEEP}" '
                 f'stroke="rgba(147,161,161,0.20)"/>')]
         for gy in (y - 2, y + 143):
             bay.append(f'<line x1="{X_REAR-2}" y1="{gy}" x2="{X_REAR+296}" y2="{gy}" '
@@ -46,7 +56,7 @@ def render(cv):
         bay.append(mono(X_REAR + PSU_W / 2, y + PSU_H / 2 + 3, name, 9, op=0.14))
         cv.add('<g class="decor psu-bay">' + ''.join(bay) + '</g>')
         psu = []
-        psu.append(f'<rect x="{X_REAR}" y="{y}" width="{PSU_W}" height="{PSU_H}" rx="5" fill="#121a1e" stroke="rgba(147,161,161,0.26)"/>')
+        psu.append(f'<rect x="{X_REAR}" y="{y}" width="{PSU_W}" height="{PSU_H}" rx="5" fill="{METAL}" stroke="rgba(147,161,161,0.26)"/>')
         # Жалюзи вдоль обеих длинных кромок корпуса: штампованные прорези,
         # через них уходит горячий воздух. Именно обеих: модуль дышит поперёк
         # себя, и один ряд читался не как охлаждение, а как крышка, которую у
@@ -79,11 +89,26 @@ def render(cv):
         # the drive latches: the colour means "this one is touched by hand
         # while live". It reaches past the end face further than the handle,
         # otherwise you cannot get to it.
-        psu.append(f'<path d="M{X_REAR+286} {mid-32} h34 l8 11 -8 11 h-34 Z" '
-                   f'fill="#cb4b16" stroke="rgba(238,232,213,0.55)" stroke-width="1.3"/>')
-        for g in range(2):
-            psu.append(f'<line x1="{X_REAR+294}" y1="{mid-26+g*8}" x2="{X_REAR+316}" y2="{mid-26+g*8}" '
-                       f'stroke="rgba(20,20,10,0.34)" stroke-width="1.6"/>')
+        # Лепесток стоит выше скобы, а не на ней. Раньше он начинался на
+        # шестой единице от оси скобы и ложился прямо поперёк неё: на схеме это
+        # читалось одной деталью, а на живом блоке это две разные вещи, и
+        # нажимают на них по очереди — сперва лепесток, потом тянут за скобу.
+        #
+        # Он ещё и гнётся. Нажатие уводит его внутрь, к ручке: класс на группе
+        # ставит вытаскивание, а угол и точка вращения живут в css.
+        # Между лепестком и верхней осью скобы должен остаться зазор: при
+        # нажатии лепесток складывается вниз, к ручке, и на прежних сорока
+        # восьми его остриё доходило до самой скобы — две детали читались
+        # одной, ровно то, на что и жаловались.
+        latch_y = mid - 58
+        psu.append(f'<g class="psu-latch">'
+                   f'<path d="M{X_REAR+282} {latch_y} h34 l8 8 -8 8 h-34 Z" '
+                   f'fill="#cb4b16" stroke="rgba(238,232,213,0.55)" stroke-width="1.3"/>'
+                   + ''.join(f'<line x1="{X_REAR+290}" y1="{latch_y+5+g*6}" '
+                             f'x2="{X_REAR+312}" y2="{latch_y+5+g*6}" '
+                             f'stroke="rgba(20,20,10,0.34)" stroke-width="1.6"/>'
+                             for g in range(2))
+                   + '</g>')
         # fan
         psu.append(f'<rect x="{X_REAR+238}" y="{fan_y-4}" width="58" height="58" rx="4" fill="#0b1215" stroke="rgba(147,161,161,0.22)"/>')
         # The same impeller as the wall: seven backswept blades, the barrel it
@@ -110,27 +135,14 @@ def render(cv):
         # Рёбра вдоль потока и винты по углам — как на процессорном.
         sink_x, sink_w = X_REAR + 62, 173
         sink_y, sink_h = y + 24, 76
-        psu.append(f'<rect x="{sink_x}" y="{sink_y}" width="{sink_w}" height="{sink_h}" rx="4" '
-                   f'fill="#26333a" stroke="rgba(147,161,161,0.38)"/>')
-        psu.extend(f'<line x1="{sink_x+9}" y1="{sink_y+9+r*3.4:.1f}" x2="{sink_x+sink_w-9}" '
-                   f'y2="{sink_y+9+r*3.4:.1f}" stroke="rgba(147,161,161,0.22)" stroke-width="1.2"/>'
-                   for r in range(int((sink_h - 18) // 3.4)))
-        # Радиатор привинчен к шасси блока — винт обычный, без пружины: прижим
-        # тут держит не он, а плоскость основания.
-        for sx in (sink_x + 10, sink_x + sink_w - 10):
-            for sy in (sink_y + 10, sink_y + sink_h - 10):
-                psu.append(f'<circle cx="{sx}" cy="{sy}" r="5.4" fill="#162025" '
-                           f'stroke="rgba(147,161,161,0.46)" stroke-width="1.3"/>'
-                           f'<circle cx="{sx}" cy="{sy}" r="2.6" fill="#0c1418" '
-                           f'stroke="rgba(147,161,161,0.34)"/>'
-                           f'<line x1="{sx-2.4}" y1="{sy}" x2="{sx+2.4}" y2="{sy}" '
-                           f'stroke="rgba(147,161,161,0.5)" stroke-width="1.2"/>'
-                           f'<line x1="{sx}" y1="{sy-2.4}" x2="{sx}" y2="{sy+2.4}" '
-                           f'stroke="rgba(147,161,161,0.5)" stroke-width="1.2"/>')
-        # barcode along the inner end face
-        for b in range(20):
-            w = 1.4 if b % 3 else 2.8
-            psu.append(f'<rect x="{X_REAR+16}" y="{y+34+b*4}" width="24" height="{w}" fill="rgba(147,161,161,0.22)"/>')
+        psu.append(finned_sink(sink_x, sink_y, sink_w, sink_h))
+        # Штрих-код вдоль внутреннего торца. Разряды сосчитаны из партномера
+        # блока — тем же генератором, что и на наклейке памяти. Прежде штрихи
+        # шли через один по остатку от номера позиции: узор, который не менялся
+        # ни от чего и ни с чем рядом не сходился.
+        psu.append(barcode(X_REAR + 16, y + 34, BOARD_SHA + name, 24, bars=20,
+                           pitch=4, thin=1.4, thick=2.8,
+                           fill='rgba(147,161,161,0.22)', vertical=True))
         # The module name runs along the module, not across it: on a real
         # machine the label is stuck to the long side, and you read it by
         # turning your head. The label on the cover is turned the same way.
@@ -156,5 +168,5 @@ def render(cv):
             psu.append(mono(lx + 11, ly + 3, nm, 7, anchor="start", op=0.44))
         cv.add(f'''<g class="pick psu" data-psu="{k+1}" style="--seat:{seat('psu', k)}">
       <g class="pick-body">{''.join(psu)}</g>
-      {fault_at(cv, X_REAR-18, y + (118 if flip else 26), 5)}
+      {fault_at(cv, X_REAR-18, y + 26, 5)}
     </g>''')

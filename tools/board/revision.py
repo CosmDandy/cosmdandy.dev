@@ -27,12 +27,28 @@ def git(*args, default=""):
         return default
 
 
-# The board revision is the repository revision: the build number equals the
-# number of commits, and the serial number is the HEAD hash. With every commit
-# the silkscreen changes, the way a board's part number changes with a
-# revision.
-BOARD_REV = git("rev-list", "--count", "HEAD", default="0")
+# Ревизия платы — номер той сборки, которой эта плата СТАНЕТ, а не той, от
+# которой её собирают. Раньше здесь стоял счётчик коммитов на HEAD, и это
+# давало сдвиг на единицу в каждой опубликованной странице: сборка идёт до
+# коммита, поэтому в коммит № N уезжала плата, набитая номером N−1. В
+# сервисном режиме это и читалось как «интерфейс откатывает на ревизию
+# назад» — лента показывала коммит, а плата в нём числилась предыдущим.
+# Считаем по коммитам, тронувшим саму страницу: перебрать всю историю
+# репозитория плата не может, её ревизия меняется вместе с index.html.
+BOARD_REV = str(int(git("rev-list", "--count", "HEAD", "--", "index.html", default="0")) + 1)
+
+# Хэш сборки, от которой набраны штрих-коды на модулях и блоках питания. Он
+# и должен смотреть назад: штрихи — это не серийный номер платы, а отметка
+# партии, и меняться каждым коммитом им незачем.
 BOARD_SHA = git("rev-parse", "--short=7", "HEAD", default="0000000").upper()
+
+# Серийный номер самой платы. Взять его из git нельзя в принципе:
+# содержимое коммита не может содержать собственный хэш. Поэтому в разметку
+# уходит заполнитель, а build.py по готовому чертежу считает его отпечаток и
+# ставит вместо заполнителя. Номер получается свойством самой платы —
+# меняется ровно тогда, когда меняется чертёж, и проверяется без git.
+SN_SLOT = "SNSNSNS"
+BOARD_SN = SN_SLOT
 
 _cache = {}
 
@@ -46,14 +62,29 @@ def file_sha(path):
     return _cache[rel]
 
 
-def stamp(x, y, label=None, anchor="start", op=0.3):
-    """Part number of a unit, as a link to the commit that last changed it.
+def file_date(path):
+    """Дата последнего коммита, тронувшего файл: её и показывает партномер."""
+    rel = str(Path(path).resolve().relative_to(ROOT))
+    key = 'date:' + rel
+    if key not in _cache:
+        _cache[key] = git("log", "-1", "--format=%ad", "--date=short", "--", rel) or "—"
+    return _cache[key]
 
-    label affects nothing and stays for the readability of the call: a unit is
-    defined by its file, not by its caption.
+
+def stamp(x, y, label=None, anchor="start", op=0.3):
+    """Партномер узла — набивка на детали, а не ссылка.
+
+    Ссылкой он был, и это оказалось лишним: партномеров на схеме много, они
+    мелкие, и каждый уводил со страницы. Теперь он просто меняется под
+    курсором — показывает дату той сборки, номер которой набит рядом. Узнать
+    по нему что-то можно, уйти по нему никуда нельзя.
+
+    label ни на что не влияет и оставлен для читаемости вызова: узел
+    определяется своим файлом, а не подписью.
     """
-    sha = file_sha(inspect.stack()[1].filename)
-    return (f'<a class="stamp" href="{REPO}/commit/{sha}" target="_blank" rel="noopener" '
-            f'data-sha="{sha}">'
+    src = inspect.stack()[1].filename
+    sha = file_sha(src)
+    return (f'<g class="stamp" data-sha="{sha}">'
             + mono(x, y, f"P/N {sha.upper()}", 6, anchor=anchor, op=op)
-            + '</a>')
+            + f'<g class="stamp-alt">{mono(x, y, file_date(src), 6, anchor=anchor, op=op)}</g>'
+            + '</g>')

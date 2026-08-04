@@ -6,6 +6,9 @@
     // is switched off.
     pull: function (el, line) {
       const out = el.classList.toggle('pulled');
+      // Блок ходит в одно движение, за оранжевую скобу: она и щёлкает — на
+      // выходе отпуская, на входе запирая.
+      sfxMove(el, out ? 'out' : 'in');
       const name = 'psu-' + el.dataset.psu;
       // Первый вынутый блок — потеря резерва, второй — потеря питания. Про
       // саму потерю пишет updateMains(), здесь только судьба нагрузки: обещать

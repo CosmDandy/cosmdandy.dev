@@ -4,6 +4,7 @@ chassis
 """
 
 from board.geom import X_FRONT, H, W
+from board.palette import CHASSIS, STEEL
 from board.lamps import glow_defs
 from board.rotor import blur_defs
 
@@ -25,14 +26,19 @@ def rack_ears():
     def one(top):
         s = -1 if top else 1                 # which way the ear grows
         y_edge = 4 if top else H - 4         # chassis side wall
-        y_out = y_edge + s * EAR_OUT         # far face of the ear
-        y_lo, y_hi = sorted((y_out, y_edge + s * -18))
+        # Плита заходит под корпус и высовывается наружу. Заходит по-настоящему,
+        # на восемнадцать единиц: ухо привинчено к боковине изнутри, и снаружи
+        # видна только вылетающая часть. Раньше внутренний край считался с
+        # ошибкой в знаке — получалась полоска в восемь единиц целиком снаружи,
+        # с отрицательной высотой выемки внутри.
+        y_lo = min(y_edge - s * 18, y_edge + s * EAR_OUT)
+        y_hi = y_lo + 18 + EAR_OUT
         # Inset is equal on all four sides: with the latch and the screw slot
         # gone there is nothing left to make room for, and an even border reads
         # as a milled recess instead of an empty frame.
         return f'''<g class="decor rack-ear">
   <rect x="{X_FRONT - 2}" y="{y_lo}" width="{EAR_D}" height="{y_hi - y_lo}" rx="3"
-        fill="#1b2429" stroke="rgba(147,161,161,0.30)"/>
+        fill="{STEEL}" stroke="rgba(147,161,161,0.30)"/>
   <rect x="{X_FRONT + 4}" y="{y_lo + 6}" width="{EAR_D - 12}" height="{y_hi - y_lo - 12}" rx="2"
         fill="#0f1619" stroke="rgba(147,161,161,0.20)"/>
 </g>'''
@@ -54,8 +60,8 @@ def rails():
             s = -1 if top else 1
             y_edge = 4 if top else H - 4
             studs.append(
-                f'<rect x="{x - 9}" y="{y_edge + (-11 if top else -2)}" width="18" height="13" '
-                f'rx="3" fill="#222d33" stroke="rgba(147,161,161,0.34)"/>'
+                f'<rect x="{x - 9}" y="{y_edge + (-14 if top else -6)}" width="18" height="20" '
+                f'rx="3" fill="{STEEL}" stroke="rgba(147,161,161,0.34)"/>'
                 f'<circle cx="{x}" cy="{y_edge + s * 5}" r="2.6" fill="#0a1417" '
                 f'stroke="rgba(147,161,161,0.30)"/>')
     return '<g class="decor rack-rail">' + ''.join(studs) + '</g>'
@@ -67,6 +73,12 @@ def render(cv):
     # them afterwards.
     cv.add(glow_defs())
     cv.add(blur_defs())
-    cv.add(f'<rect x="4" y="4" width="{W-8}" height="{H-8}" rx="14" fill="#141c20" stroke="rgba(147,161,161,0.30)"/>')
+    # Уши и штыри — под корпусом, и потому рисуются раньше него. Крепёж
+    # привинчен к боковине снаружи; сверху машины видно только то, что за
+    # габарит вылетает, а верхняя кромка плиты уходит под лист шасси. Пока они
+    # шли последними, обе плиты лежали поверх корпуса вместе со своей
+    # схемотехникой.
     cv.add(rails())
     cv.add(rack_ears())
+    cv.add(f'<rect x="4" y="4" width="{W-8}" height="{H-8}" rx="14" fill="{CHASSIS}" '
+           f'stroke="rgba(147,161,161,0.30)"/>')

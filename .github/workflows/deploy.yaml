@@ -39,6 +39,22 @@ jobs:
           # By default checkout leaves the token in .git/config, where any
           # following step can read it.
           persist-credentials: false
+          # Лента ревизий собирается из истории самой страницы, коммит за
+          # коммитом, — мелкого клона для этого не хватает.
+          fetch-depth: 0
+
+      # Лента ревизий раскладывается по файлам здесь же, из git. В репозитории
+      # их нет и быть не должно: это второй экземпляр того, что уже лежит в
+      # коммитах, — поэтому history/ в .gitignore, а собирается он на каждой
+      # сборке заново.
+      #
+      # Раньше лента была инструментом разработки и наружу не ездила. Теперь
+      # ездит: посмотреть, как машина росла, — часть того, ради чего визитка и
+      # сделана. Гость за это не платит ничем, пока не попросит: автозагрузка
+      # включена только на localhost, на живом сайте ленту поднимают командой
+      # `revisions on`, и тогда качается по одной схеме — около 77 КБ gzip.
+      - name: Build board history
+        run: python3 tools/history.py
 
       # We copy an explicit list rather than "everything except the internals":
       # the list is short and springs no surprises when a new file shows up in
@@ -46,26 +62,17 @@ jobs:
       #
       # CNAME is deliberately not copied — it was needed by GitHub Pages, while
       # on Cloudflare the domain is bound to the worker in the dashboard.
-      #
-      # history/ is missing here on purpose. The revision strip is a
-      # development tool: it is used to compare how the board looked before,
-      # and a visitor of the card has no need for it. It used to be uploaded by
-      # a separate step, and thirty megabytes of SVG went out into the
-      # deployment — one copy of the board per commit. The strip needs no
-      # switch: the script looks for history/index.json, does not find it and
-      # quietly stays hidden. Locally the files are made by tools/history.py,
-      # and there it works just as it did.
-      #
-      # Hence also checkout without fetch-depth: the full history was only ever
-      # needed by the revision upload.
       - name: Build _site
         run: |
           mkdir -p _site
           cp index.html 404.html style.css server.css server.js _site/
           cp robots.txt sitemap.xml site.webmanifest _headers _site/
           cp -r assets fonts _site/
+          cp -r history _site/
           echo "Contents of _site:"
-          find _site -type f | sort
+          find _site -type f -not -path '_site/history/*' | sort
+          echo "Revisions: $(find _site/history -name '*.svg' | wc -l) files," \
+               "$(du -sh _site/history | cut -f1)"
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -93,6 +100,12 @@ jobs:
         with:
           name: site
           path: _site/
+
+      # На продакшене отметки нет — этим он и отличается от стендов. Но просто
+      # не ставить её нельзя: в закоммиченной странице лежит штамп локальной
+      # сборки, и без стирания на продакшен уехало бы «локально».
+      - name: Clear build stamp
+        run: python3 tools/stamp_build.py _site/index.html _site/404.html --clear
 
       # Secrets cannot be checked in if: — the secrets context is not available
       # there. Without this step a missing token looks like an inscrutable
@@ -144,6 +157,19 @@ jobs:
         with:
           name: site
           path: _site/
+
+      # Отметка о сборке ставится здесь, а не в сборке: артефакт один на оба
+      # стенда, и «где развёрнуто» знает только тот, кто развёртывает. Заодно
+      # это единственное место, где известен настоящий коммит: index.html лежит
+      # в репозитории уже собранным, и хэш от генератора был бы предыдущим.
+      - name: Stamp build
+        env:
+          SHA: ${{ github.event.pull_request.head.sha }}
+          REF: ${{ github.event.pull_request.head.ref }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          python3 tools/stamp_build.py _site/index.html _site/404.html \
+            --env cloudflare --sha "$SHA" --ref "$REF" --pr "$PR"
 
       # versions upload and not deploy: a new version of the worker is uploaded
       # with its own preview address, while production keeps serving the

@@ -41,6 +41,7 @@ creates a composited layer, and those layers cover the whole scene — that
 is exactly what the "the entire background went black" bug looked like.
 """
 
+import hashlib
 import importlib
 import json
 import re
@@ -48,6 +49,7 @@ from pathlib import Path
 
 from board.canvas import Canvas
 from board.ink import callout_box
+from board.revision import SN_SLOT
 from board.spec import EXPECT, passport
 
 HERE = Path(__file__).parent
@@ -64,19 +66,31 @@ ORDER = [
     'pcb_traces',    # traces: publishes the nodes for the vias
     'pcb_vias',      # vias — placed on the trace nodes
     'pcb_scatter',   # passives: sit in whatever is left, hence late
+    # Рамки блоков — это краска на текстолите, и лежать они обязаны под
+    # деталями, а не поверх. Пока они рисовались последними, пунктирная линия
+    # банка проходила по поднятой плашке памяти: узел уезжал вверх, а обводка
+    # оставалась нарисованной сверху.
+    'frames',        # outline frames of the functional blocks
     'vrm',           # core power, right up against the sockets
     'front_panel',   # control panel on the front
     'drives',        # 2.5″ cage
     'backplane',
     'fans',
     'memory',
-    'cpu',
     'service',       # battery, microSD, toggle switch, jumper table
     'psu',
     'risers',
     'rear_io',       # SFP+, RJ45, management port
     'marks',         # unit designations on the laminate
-    'frames',        # outline frames of the functional blocks
+    # Воздуховоды памяти лежат поверх всего, что накрывают: под ними и сокеты,
+    # и шелкография банков. Поэтому и стоят после marks — кожух непрозрачный,
+    # и краска, нарисованная сверху него, висела бы в воздухе.
+    'baffle',        # чёрные кожухи над банками памяти
+    # Процессор идёт после всего, что лежит на текстолите. Снятые радиатор и
+    # крышка уезжают с гнезда на соседнюю территорию, и пока блок стоял раньше
+    # марок, кожухов и сервисной зоны, их накрывало нарисованным поверх: деталь
+    # в руке оказывалась под платой.
+    'cpu',
     'callouts',      # link labels — on top of everything
     'lightpath',     # pull-out diagnostics panel
 ]
@@ -138,7 +152,53 @@ def build():
 
     if board.lost:
         print('DID NOT FIT:', ', '.join(board.lost))
+
+    board.parts = layered(board.parts, report)
     return board, lid, report
+
+
+# ── Слои ──────────────────────────────────────────────────────────────────
+# Схема была плоской: тысяча с лишним фигур лежала прямо в корне, и «что выше
+# чего» задавалось единственной ручкой — местом блока в ORDER. Отсюда и
+# наложения, и невозможность сказать «приглуши железо, но не подписи».
+#
+# Слой — это непрерывный отрезок ORDER, и это не уступка, а условие: порядок
+# рисования уже выверен по блокам, и любая перетасовка ради красивого деления
+# сломала бы его. Поэтому границы слоёв проходят там, где меняется роль, и
+# только там.
+#
+# Что обязан соблюдать тот, кто будет это править:
+#   · на группе слоя нет transform. Кольца прожектора меряют узлы через
+#     getBBox() и кладут прямоугольники в координатах корня; своя система
+#     координат у слоя увела бы их вбок;
+#   · .spot-rings и бирки лежат в самом верхнем слое, поверх всех остальных;
+#   · BOUNDS от обёрток не зависит: габариты считаются по фрагментам блока,
+#     а у <g> своих координат нет.
+LAYERS = [
+    # Основание: рама, текстолит, дорожки, пассивы, рамки блоков, питание
+    # ядра. Не меняется никогда — ни при разборке, ни при наведении.
+    ('deck', 'vrm'),
+    # Железо: всё, что вынимается, плюс набивка и кожухи над ним. Приглушается
+    # при наведении и ездит при разборке.
+    ('parts', 'cpu'),
+    # Накладка: подписи-ссылки и обводки наведения. Живёт своей жизнью и
+    # обязана оставаться читаемой, когда железо приглушено.
+    ('tags', 'callouts'),
+    # Приборы: выдвижная панель диагностики.
+    ('probe', 'lightpath'),
+]
+
+
+def layered(parts, report):
+    """Разложить фрагменты по слоям, не меняя порядка рисования."""
+    drawn = {name: n for name, n, _ in report}
+    out, i = [], 0
+    for cls, last in LAYERS:
+        n = sum(drawn[name] for name in ORDER[:ORDER.index(last) + 1])
+        out += [f'<g class="lyr-{cls}">'] + parts[i:n] + ['</g>']
+        i = n
+    assert i == len(parts), f'мимо слоёв прошло {len(parts) - i} фрагментов'
+    return out
 
 
 # Two kinds of inserts. @block — a board unit: it has geometry, and the rule
@@ -216,9 +276,23 @@ def tally(used):
     return out
 
 
+def serial(*parts):
+    """Серийный номер платы — отпечаток самого чертежа.
+
+    Из git его взять нельзя: сборка идёт до коммита, а коммит не может
+    содержать собственный хэш. Раньше здесь стоял хэш HEAD — то есть номер
+    ПРЕДЫДУЩЕЙ платы, и опубликованная страница всегда числилась ревизией
+    назад. Отпечаток берётся от готовой разметки с заполнителем на месте
+    номера, поэтому он устойчив: пересобрали без правок — номер тот же.
+    """
+    return hashlib.sha1(''.join(parts).encode()).hexdigest()[:7].upper()
+
+
 def main():
     board, lid, report = build()
     svg, lidart = board.svg(), lid.svg()
+    sn = serial(svg, lidart)
+    svg, lidart = svg.replace(SN_SLOT, sn), lidart.replace(SN_SLOT, sn)
     css_blocks = build_css()
     js_blocks = build_js()
 
@@ -246,6 +320,10 @@ def main():
                       lambda m: m.group(1) + '\n' + lidart + '\n' + m.group(2), html, flags=re.DOTALL)
         # We escape only "</": inside <script> it would close the tag early.
         spec = json.dumps(passport(), ensure_ascii=False, separators=(',', ':')).replace('</', '<\\/')
+        # Тот же серийный номер, что и на текстолите: паспорт берёт его из
+        # board.revision, а туда он попадает заполнителем — подставляем здесь,
+        # иначе самотест напечатал бы заполнитель.
+        spec = spec.replace(SN_SLOT, sn)
         html = re.sub(r'(<!-- SPEC:BEGIN -->).*?(<!-- SPEC:END -->)',
                       lambda m: m.group(1) + '\n<script type="application/json" id="rig-spec">'
                                 + spec + '</script>\n' + m.group(2), html, flags=re.DOTALL)

@@ -38,6 +38,15 @@ const SCENES = {
   dimm:     { watch: '.dimm .pick-body',    click: '.dimm',     shots: 1, span: 900 },
   fan:      { watch: '.fan .pick-body',     click: '.fan',      shots: 1, span: 900 },
   handle:   { watch: '.bay .bay-handle',    click: '.bay',      shots: 3, span: 900 },
+  // Вынимание: у каждого узла свой характер, и проверять его надо по числам,
+  // а не по ощущению. Кадр показывает, где деталь оказалась, а таблица — как
+  // она туда шла: у щелчка треть времени на месте, у тугого хода равномерное
+  // сопротивление, у лепестка — заход в минус перед отбросом.
+  latch:     { watch: '.dimm .latch-l',     click: '.dimm',     shots: 1, span: 900 },
+  psu:       { watch: '.psu .pick-body',    click: '.psu',      shots: 2, span: 1400 },
+  'psu-latch': { watch: '.psu .psu-latch',  click: '.psu',      shots: 1, span: 900 },
+  riser:     { watch: '.riser .pick-body',  click: '.riser',    shots: 2, span: 1400 },
+  'drive-in': { watch: '.bay .drive-body',  click: '.bay',      shots: 2, span: 1400 },
   service:  { watch: '.stage',              click: '#svc-switch', shots: 0, span: 1100, plain: true },
   // Assembly runs by itself on the first visit: nothing to click, we watch the
   // whole timeline.

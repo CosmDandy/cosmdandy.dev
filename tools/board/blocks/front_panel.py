@@ -24,7 +24,10 @@ from board.metal import hexgrid
 # one piece, you simply see its end face. The width is taken from the cage —
 # the panel is exactly two bays wide, as on a real machine, and it stands right
 # above them.
-TAB_X, TAB_Y, TAB_W, TAB_H = X_FRONT + 4, 20, BAY_DEPTH - 2, 150
+# Панель отступает от кромки листа так же, как модуль питания отступает от
+# правой: слева у неё был нулевой зазор, и она читалась не прибором на листе, а
+# краем самого листа.
+TAB_X, TAB_Y, TAB_W, TAB_H = X_FRONT + 8, 20, BAY_DEPTH - 12, 150
 
 # Лист фронта — одна штампованная деталь буквой Г: широкая часть под приборами
 # и узкая полоса, уходящая вдоль корзины за каддиками. Раньше это были две
@@ -111,14 +114,17 @@ def render(cv):
 </g>
 <g class="decor">{mono(VGA_CX, VGA_CY + 42, "VGA", 7, op=0.4)}</g>''')
 
-    PWR_X = TAB_X + TAB_W + 38
+    # Кнопка — по середине своей плашки, и слегка мельче прежней: на 1U фронте
+    # круг в двадцать одну единицу забирал полплашки и спорил с панелью
+    # диагностики за внимание.
+    PWR_X = MOD_X + MOD_W / 2
     cv.add(f'''<g class="power-btn" id="power" role="button" tabindex="0" aria-label="Питание">
-  {hit(PWR_X-32, 16, 64, 76)}
-  <circle cx="{PWR_X}" cy="50" r="21" fill="#0f1619" stroke="rgba(147,161,161,0.34)"/>
-  <circle class="pwr-ring" cx="{PWR_X}" cy="50" r="12" fill="none" stroke="#586e75" stroke-width="2.2"/>
-  <line x1="{PWR_X}" y1="38" x2="{PWR_X}" y2="48" stroke="#586e75" stroke-width="2.2" stroke-linecap="round"/>
-  <circle class="pwr-led" cx="{PWR_X}" cy="50" r="25" fill="none" stroke="#859900" stroke-width="2.2"/>
-  {mono(PWR_X, 86, "POWER", 7, op=0.42)}
+  {hit(PWR_X-28, 18, 56, 72)}
+  <circle cx="{PWR_X}" cy="50" r="18" fill="#0f1619" stroke="rgba(147,161,161,0.34)"/>
+  <circle class="pwr-ring" cx="{PWR_X}" cy="50" r="10" fill="none" stroke="#586e75" stroke-width="2"/>
+  <line x1="{PWR_X}" y1="40" x2="{PWR_X}" y2="48" stroke="#586e75" stroke-width="2" stroke-linecap="round"/>
+  <circle class="pwr-led" cx="{PWR_X}" cy="50" r="22" fill="none" stroke="#859900" stroke-width="2.2"/>
+  {mono(PWR_X, 84, "POWER", 7, op=0.42)}
 </g>''')
 
     # ── diagnostics panel face ──────────────────────────────────────────

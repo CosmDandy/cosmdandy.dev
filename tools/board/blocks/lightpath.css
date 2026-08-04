@@ -14,14 +14,29 @@
     visibility: visible;
     fill-opacity: 1; stroke-opacity: 1;
   }
+  .rig.lp-open .lp-reset { pointer-events: auto; cursor: pointer; }
+  .lp-reset:hover circle:first-of-type { fill: #1e282d; }
+  .lp-reset:active circle:last-of-type { fill: rgba(147,161,161,0.55); }
+  .lp-reset:focus-visible { outline: none; }
+
+  /* Лампа гаснет, но не исчезает: у неё есть гнездо, и погашенную видно на
+     своём месте — как на живой панели. Ореол гаснет вместе с ядром. */
   .lp { fill-opacity: 0.07; transition: fill-opacity 0.15s steps(1, end); }
-  /* A full-set panel: sixteen lamps, as on a live machine. The units the
-     machine can diagnose light their own; the network card lights LINK, the
-     riser lights PCI. The remaining lamps exist, but in this build there is
-     nothing to light them — same as on a real panel. */
+  /* Каждая лампа отвечает за свою причину, и причина у каждой есть. BRD — это
+     вынутый райзер: потеряна плата расширения, и на живой машине горит именно
+     она. LOG говорит только одно — в журнале что-то есть. */
   .rig.fault-mem .lp-mem, .rig.fault-cpu .lp-cpu, .rig.fault-fan .lp-fan,
-  .rig.fault-nic .lp-link, .rig.fault-rsr .lp-pci, .rig.fault-ps .lp-ps,
-  .rig.has-fault .lp-log, .rig.has-fault .lp-brd { fill-opacity: 1; }
+  .rig.fault-nic .lp-link, .rig.fault-rsr .lp-brd, .rig.fault-ps .lp-ps,
+  .rig.fault-dasd .lp-dasd, .rig.fault-cnfg .lp-cnfg,
+  .rig.has-fault .lp-log { fill-opacity: 1; }
+
+  /* Контрольный индикатор. Зелёный, а не янтарный: он не про неисправность,
+     а про то, где машина находится — как строка прогресса, только в две
+     цифры. Погашенный сегмент остаётся виден слабой тенью: на живом
+     индикаторе он тоже никуда не девается. */
+  .seg { fill: #859900; fill-opacity: 0.07; transition: fill-opacity 0.06s steps(1, end); }
+  .seg.on { fill-opacity: 1; }
+
   .lp-tab { cursor: pointer; }
   /* Highlight the body of the tab, not everything standing on it:
      the lamps are rectangles too, and a general selector outlined them. */

@@ -4,7 +4,7 @@ The fill is darker than it used to be: the traces are laid over it in a light
 tone, and if the background stayed as it was, they would not show up on it.
 """
 
-from board.geom import H, X_PCB, X_PCB_END, X_REAR, Y_PSU_BOT, Y_PSU_TOP
+from board.geom import X_PCB, X_PCB_END, X_REAR, Y_PSU_BOT, Y_PSU_TOP, H
 from board.palette import PCB_DARK
 
 

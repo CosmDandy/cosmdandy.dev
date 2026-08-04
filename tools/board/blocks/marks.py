@@ -17,7 +17,11 @@ def render(cv):
     # almost as much — across, it ran into the sockets. Along the wall there is
     # as much room as you like.
     CANDIDATES = [
-        (X_PCB + 60, Y_BANK_L - 16, "DIMM_CPU0_A0"),
+        # Обозначения верхнего банка тут нет нарочно. Оно стояло на y = 18,
+        # то есть ровно на кромке текстолита, и половина букв оказывалась за
+        # платой. Места между кромкой и первым гнездом нет: банк начинается на
+        # 34, а строка занимает одиннадцать с полями. Соседние два банка
+        # подписаны, и по ним верхний читается без своей строки.
         (X_PCB + 60, Y_BANK_C - 16, "DIMM_CPU0_A1 / CPU1_A0"),
         (X_PCB + 60, Y_BANK_R - 16, "DIMM_CPU1_A1"),
         (X_SVC + 8, 96, "PWR_CONN"),

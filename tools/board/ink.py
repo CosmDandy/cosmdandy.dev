@@ -18,8 +18,12 @@ def tag(x_center, y, text):
             f'<text x="{x_center}" y="{y+6}" text-anchor="middle">{text}</text></g>')
 
 
-CALLOUT_H = 62
-ICON_BOX = 26          # сторона квадрата, в который вписан значок сервиса
+# Бирка выросла ещё раз. Сцена наклонена, и всё на ней теряет по высоте
+# треть; на собранной машине бирка тонула среди деталей даже в прежнем
+# размере. Это единственное, что гость обязан прочесть с первого взгляда, —
+# значит, оно и должно быть крупнее всего остального.
+CALLOUT_H = 74
+ICON_BOX = 32          # сторона квадрата, в который вписан значок сервиса
 
 # Значки те же, что в карточке ссылок: узнаваемость важнее рисовки, а
 # гость видит один и тот же знак в обоих видах визитки. Пути — из карточки,
@@ -52,8 +56,8 @@ ACCENT = {
 
 def callout_box(tx, ty, text, anchor="start", sub=""):
     """Габарит бирки: сборка проверяет, что они не наезжают друг на друга."""
-    body = max(len(text) * 15, len(sub) * 8.4)
-    w = ICON_BOX + 22 + body + 40
+    body = max(len(text) * 18, len(sub) * 10)
+    w = ICON_BOX + 24 + body + 44
     x0 = tx if anchor == "start" else tx - w
     return (x0, ty - CALLOUT_H / 2, w, CALLOUT_H)
 
@@ -76,8 +80,8 @@ def callout(tx, ty, ax, ay, text, anchor="start", href=None, unit=None,
     x0, y0, w, h = callout_box(tx, ty, text, anchor, sub)
     accent = ACCENT.get(icon, 'var(--cyan)')
     edge_x = x0 if anchor == "start" else x0 + w - 6
-    ix, iy = x0 + 20, y0 + (h - ICON_BOX) / 2
-    tx0 = ix + ICON_BOX + 12
+    ix, iy = x0 + 22, y0 + (h - ICON_BOX) / 2
+    tx0 = ix + ICON_BOX + 14
     # Блик проходит по бирке один раз, поэтому его надо обрезать её же
     # контуром — иначе светлая полоса уезжает на плату.
     cid = f'co-clip-{unit or order}'
@@ -88,10 +92,10 @@ def callout(tx, ty, ax, ay, text, anchor="start", href=None, unit=None,
              f'<rect class="co-edge" x="{edge_x}" y="{y0}" width="6" height="{h}" rx="2.5" fill="{accent}"/>'
              f'<g class="co-icon" transform="translate({ix} {iy}) scale({ICON_BOX / 24:.3f})" '
              f'stroke="{accent}">{ICONS.get(icon, "")}</g>'
-             f'<text class="co-text" x="{tx0}" y="{y0 + 27}">{text}</text>'
-             f'<text class="co-sub" x="{tx0}" y="{y0 + 46}">{sub}</text>'
+             f'<text class="co-text" x="{tx0}" y="{y0 + 32}">{text}</text>'
+             f'<text class="co-sub" x="{tx0}" y="{y0 + 55}">{sub}</text>'
              # стрелка «наружу»: та же, что помечает внешние ссылки в вебе
-             f'<g class="co-ext" transform="translate({x0 + w - 26} {y0 + 12})">'
+             f'<g class="co-ext" transform="translate({x0 + w - 28} {y0 + 14})">'
              f'<path d="M2 10 L10 2 M4 2 H10 V8" fill="none"/></g>'
              f'<clipPath id="{cid}"><rect x="{x0}" y="{y0}" width="{w}" height="{h}" rx="6"/></clipPath>'
              f'<g clip-path="url(#{cid})"><rect class="co-shine" x="{x0 - 40}" y="{y0}" '
@@ -145,7 +149,16 @@ def silk_boxed(cx, cy, text, size=7, op=0.5):
     """
     w = len(text) * size * 0.62 + 8
     h = size + 6
-    return (f'<rect x="{cx-w/2:.1f}" y="{cy-h/2:.1f}" width="{w:.1f}" height="{h}" rx="1" fill="none" '
+    # Подложка под текстом, а не пустая рамка. Обозначения попадают на разводку,
+    # и светлая краска по светлым дорожкам не читается.
+    #
+    # Заливка глухая, не полупрозрачная. Полупрозрачная приглушала фон лишь
+    # наполовину: под «CPU0 · SP5» читались дорожки, под «CPU0» — медные
+    # пятачки, и подпись выходила не набитой на плату, а наклеенной на стекло.
+    # На живой плате обозначение печатают краской по маске, и под краской не
+    # видно ничего.
+    return (f'<rect x="{cx-w/2:.1f}" y="{cy-h/2:.1f}" width="{w:.1f}" height="{h}" rx="1" '
+            f'fill="var(--pcb-ink, #071a1f)" '
             f'stroke="rgba(232,227,213,{op * 0.55:.2f})" stroke-width="0.7"/>'
             f'<text x="{cx:.1f}" y="{cy+size/2-0.5:.1f}" text-anchor="middle" '
             f'fill="rgba(232,227,213,{op:.2f})" '
@@ -166,7 +179,8 @@ def silk_frame(x, y, text, size=7, op=0.6, turn=False):
     w = len(text) * size * 0.62 + 8
     h = size + 6
     spin = f' transform="rotate(-90 {x} {y})"' if turn else ''
-    return (f'<g{spin}><rect x="{x}" y="{y}" width="{w:.1f}" height="{h}" rx="1" fill="none" '
+    return (f'<g{spin}><rect x="{x}" y="{y}" width="{w:.1f}" height="{h}" rx="1" '
+            f'fill="rgba(5,20,24,0.55)" '
             f'stroke="rgba(232,227,213,{op * 0.62:.2f})" stroke-width="0.7"/>'
             f'<text x="{x+4}" y="{y+h-4.5:.1f}" fill="rgba(232,227,213,{op})" '
             f'font-family="ui-monospace, Menlo, monospace" font-size="{size}">{text}</text></g>')
@@ -190,8 +204,11 @@ def block_frame(x, y, w, h, title, refs, title_dx=6):
     return (f'<g class="decor block-frame">'
             f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="2" fill="none" '
             f'stroke="rgba(232,227,213,0.16)" stroke-width="1" stroke-dasharray="7 4"/>'
+            # Заголовок стоит прямо на пунктирной линии рамки, и линия должна под
+            # ним прерываться: заливка плашки её и прерывает. Полупрозрачная —
+            # чтобы плашка не читалась наклейкой поверх текстолита.
             f'<rect x="{x + title_dx}" y="{y - 5}" width="{tw:.1f}" height="10" rx="1" '
-            f'fill="none" stroke="rgba(232,227,213,0.24)" stroke-width="0.7"/>'
+            f'fill="rgba(5,20,24,0.62)" stroke="rgba(232,227,213,0.24)" stroke-width="0.7"/>'
             + mono(x + title_dx + 3.5, y + 3, title, 6, anchor="start", op=0.5)
             + mono(x + 10, y + h - 4, refs, 5, anchor="start", op=0.26)
             + '</g>')
@@ -214,3 +231,28 @@ def empty_pads(x, y, cols, rows, pitch=8, pad_w=3.5, pad_h=2):
     outline = (f'<path d="M{x0+6} {y0} H{x1} V{y1} H{x0} V{y0+6} Z" fill="none" '
                f'stroke="rgba(147,161,161,0.24)" stroke-width="1" stroke-dasharray="3 2"/>')
     return f'<g class="decor empty-footprint">{outline}{"".join(cells)}</g>'
+
+
+def barcode(x, y, text, height, bars=14, pitch=1.7, thin=0.6, thick=1.1,
+            fill='rgba(10,20,23,0.72)', vertical=False):
+    """Штрих-код, разряды которого сосчитаны из текста.
+
+    Появился на наклейке памяти и остаётся один на всю схему нарочно. Штрихи,
+    выдуманные отдельно от надписи, — это узор: он не меняется, когда меняется
+    паспорт, и рано или поздно расходится с тем, что написано рядом. Здесь
+    толщина каждого штриха берётся из кода символа, так что код держится за
+    свой текст и переписать его мимо надписи нельзя.
+
+    vertical — штрихи лежат поперёк, как на торце блока питания: там наклейка
+    наклеена вдоль модуля, и код читают, повернув голову.
+    """
+    out = []
+    for k in range(bars):
+        w = thick if (ord(text[k % len(text)]) % 3) else thin
+        if vertical:
+            out.append(f'<rect x="{x:.1f}" y="{y + k * pitch:.1f}" width="{height:.1f}" '
+                       f'height="{w}" fill="{fill}"/>')
+        else:
+            out.append(f'<rect x="{x + k * pitch:.1f}" y="{y:.1f}" width="{w}" '
+                       f'height="{height:.1f}" fill="{fill}"/>')
+    return ''.join(out)

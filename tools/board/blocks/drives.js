@@ -15,15 +15,44 @@
     pull: function (el, line) {
       const blank = el.dataset.unit.startsWith('blank');
       const n = el.dataset.unit.replace(blank ? 'blank' : 'hdd', '');
+      // Звучит каддик ровно теми четырьмя движениями, которыми и ходит.
+      // Щелчок здесь только на границах: откинули защёлку и захлопнули её. Всё,
+      // что между, — свободный ход по направляющим, и добавлять туда щелчок
+      // значило бы придумать машине лишнюю железку.
       if (!el.classList.contains('unlatched')) {
+        el.classList.remove('back');
         el.classList.add('unlatched');
+        sfx('chk');
         line('unlatched: ' + el.dataset.unit + ' · защёлка каддика ' + n, 'muted');
-      } else if (!el.classList.contains('pulled')) {
+      } else if (!el.classList.contains('pulled') && !el.dataset.stowing) {
         el.classList.add('pulled');
+        sfxSlide(el);
         line(blank ? 'removed: заглушка отсека ' + n : 'removed: ' + el.dataset.unit, 'warn');
+      } else if (el.classList.contains('pulled')) {
+        // Ставится каддик теми же двумя движениями, только в обратном порядке:
+        // сперва он заходит в корзину, а ручка остаётся откинутой — за неё и
+        // держат, — и лишь отдельным движением её захлопывают. Прежде оба
+        // класса снимались разом: каддик въезжал, ручка на полпути складывалась
+        // сама, и второго движения не было вовсе.
+        // Признак обратного хода. Без него «откинута защёлка, каддик снаружи»
+        // и «каддик уже в корзине, защёлка ещё откинута» — это одно и то же
+        // сочетание классов, и четвёртый щелчок вместо того, чтобы захлопнуть
+        // ручку, вынимал диск заново.
+        el.classList.remove('pulled');
+        // Класс, а не только признак в датасете: по нему css отличает
+        // «откинули защёлку и потянули» от «каддик уже вернулся в корзину».
+        // Сочетание классов у этих двух состояний одно и то же, а кривые
+        // должны быть разные: наружу — короткий рывок за ручкой, внутрь —
+        // весь ход по направляющим.
+        el.classList.add('back');
+        el.dataset.stowing = '1';
+        sfxSlide(el);
+        line('inserted: ' + el.dataset.unit + ' · каддик в корзине', 'ok');
       } else {
-        el.classList.remove('unlatched', 'pulled');
-        line('inserted: ' + el.dataset.unit, 'ok');
+        el.classList.remove('unlatched', 'back');
+        delete el.dataset.stowing;
+        sfx('chk');
+        line('latched: ' + el.dataset.unit + ' · защёлка закрыта', 'ok');
       }
     },
   });

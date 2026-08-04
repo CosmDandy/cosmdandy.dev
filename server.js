@@ -15,6 +15,9 @@
   const rig = document.getElementById('rig');
   const log = document.getElementById('log');
   const chassis = document.getElementById('chassis');
+  // Поле, по которому машину возят в режиме лупы: прокрутка своя, и
+  // приближение считает координаты от него.
+  const rigBody = document.getElementById('rig-body');
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   // The machine's passport: what hardware is standing here. The generator
@@ -47,6 +50,639 @@
 
   const save = () => { try { localStorage.setItem('rig-state', JSON.stringify(state)); } catch (e) {} };
   const wait = (ms, fn) => window.setTimeout(fn, reduced ? 0 : ms);
+
+  // ── Звук ───────────────────────────────────────────────────────────────
+  // Звук машины синтезируется здесь, а не лежит рядом файлами. Дело не в
+  // экономии байт: щелчок защёлки, трение по направляющим и гул вентилятора —
+  // это шум под огибающей и пара синусов, то есть три-четыре узла Web Audio.
+  // Пачка mp3 к странице, которая вся умещается в один самодостаточный файл,
+  // добавила бы запросы и вопрос о лицензии на каждый чих.
+  //
+  // Голоса собраны не по принципу «на слух приятно», а по тому, что в машине
+  // действительно звучит. Вентилятор даёт лопаточную частоту — лопасти,
+  // помноженные на обороты в секунду, — её гармоники и широкополосный шум
+  // потока. Оба числа приходят из паспорта, поэтому схема гудит на своей ноте:
+  // семь лопастей на 12 100 об/мин — это около 1.4 кГц. Нечётное число
+  // лопастей в rotor.py выбрано затем, чтобы тон не выпирал, — поэтому
+  // тональная часть здесь заметно тише шумовой.
+  //
+  // Молчит по умолчанию, и это не осторожность, а единственный способ вообще
+  // иметь здесь звук: визитка, которая начинает щёлкать без спроса,
+  // закрывается вкладкой.
+  //
+  // На prefers-reduced-motion сознательно не смотрим, хотя всё остальное в
+  // этом файле его слушает. Тот флаг про вестибулярный аппарат, а не про уши;
+  // согласие на звук уже дано явным нажатием кнопки, и глушить после него
+  // значило бы ломать то, что человек только что включил.
+  const sfxBtn = document.getElementById('sfx-btn');
+  let audible = false;
+  try { audible = localStorage.getItem('sound') === 'on'; } catch (e) {}
+
+  // Контекст, шина и шумовой буфер заводятся при включении, а не при загрузке:
+  // до первого жеста браузер всё равно держит контекст в suspended, и заранее
+  // созданный был бы просто висящим узлом.
+  let ac = null;
+  let bus = null;
+  let noise = null;
+  let grain = null;
+
+  function audio() {
+    if (!ac) {
+      ac = new (window.AudioContext || window.webkitAudioContext)();
+      bus = ac.createGain();
+      bus.gain.value = 0.5;
+      bus.connect(ac.destination);
+      // Полсекунды белого шума по кругу: из него сделаны все удары, щелчки,
+      // трение и воздушная часть гула. Второго такого буфера не нужно никому.
+      const n = Math.floor(ac.sampleRate * 0.5);
+      noise = ac.createBuffer(1, n, ac.sampleRate);
+      const d = noise.getChannelData(0);
+      for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+      // Зерно трения: та же случайность, но ступеньками по восемьдесят в
+      // секунду. Скольжение по направляющим — это не ровное шипение, а частая
+      // дробь мелких срывов, и ровное колебание на её месте слышно гудением.
+      grain = ac.createBuffer(1, n, ac.sampleRate);
+      const g = grain.getChannelData(0);
+      const step = Math.max(1, Math.round(ac.sampleRate / 80));
+      for (let i = 0; i < n; i += step) {
+        const v = Math.random() - 0.5;
+        for (let k = i; k < Math.min(n, i + step); k++) g[k] = v;
+      }
+    }
+    return ac.state === 'running' ? Promise.resolve() : ac.resume();
+  }
+
+  const live = () => audible && ac && ac.state === 'running';
+
+  // Гул проходит через отдельную ручку, и на время удара она приседает. Так это
+  // и слышно в стойке: щелчок не перекрикивает шум, а пробивает его — шум на
+  // мгновение уходит и возвращается. Ручка нужна своя, отдельно от той, что
+  // поднимает и опускает сам гул: та переписывается при каждом заходе курсора
+  // на машину вместе со всем, что на ней было запланировано.
+  //
+  // Ручка живёт ровно столько же, сколько контекст: выключение звука его
+  // закрывает, и узел от закрытого контекста в новый не подключить. Забыть
+  // обнулить её здесь значило бы, что после выключения и включения звука гул
+  // не возвращается вовсе — проверено на себе.
+  let humDuck = null;
+  function duckNode() {
+    if (!humDuck) {
+      humDuck = ac.createGain();
+      humDuck.gain.value = 1;
+      humDuck.connect(bus);
+    }
+    return humDuck;
+  }
+
+  function duck(t) {
+    if (!humDuck) return;
+    const p = humDuck.gain;
+    p.cancelScheduledValues(t);
+    p.setValueAtTime(p.value, t);
+    p.linearRampToValueAtTime(0.62, t + 0.012);
+    p.linearRampToValueAtTime(1, t + 0.09);
+  }
+
+  // Кусок шума, зажатый полосовым фильтром и огибающей. Частота фильтра — это
+  // «из чего сделано»: сталь звенит выше, пластик глуше. Съезд частоты (to)
+  // превращает удар в шорох.
+  function burst(t, freq, dur, gain, q, to) {
+    const src = ac.createBufferSource();
+    src.buffer = noise;
+    src.loop = true;
+    const flt = ac.createBiquadFilter();
+    flt.type = 'bandpass';
+    flt.Q.value = q;
+    flt.frequency.setValueAtTime(freq, t);
+    if (to) flt.frequency.exponentialRampToValueAtTime(to, t + dur);
+    const env = ac.createGain();
+    env.gain.setValueAtTime(0.0001, t);
+    env.gain.exponentialRampToValueAtTime(gain, t + 0.0012);
+    env.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(flt);
+    flt.connect(env);
+    env.connect(bus);
+    // Каждый раз с другого места буфера: иначе два щелчка подряд слышны как
+    // один и тот же сэмпл, и машина звучит механической игрушкой.
+    src.start(t, Math.random() * 0.4);
+    src.stop(t + dur);
+  }
+
+  // Затухающая мода — то, чем железка звенит после удара. Синус с мгновенным
+  // фронтом и коротким спадом: высота говорит о размере детали, спад — из чего
+  // она сделана.
+  function mode(t, freq, dur, gain) {
+    const o = ac.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(freq, t);
+    const e = ac.createGain();
+    e.gain.setValueAtTime(0.0001, t);
+    e.gain.exponentialRampToValueAtTime(gain, t + 0.0006);
+    e.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(e);
+    e.connect(bus);
+    o.start(t);
+    o.stop(t + dur + 0.005);
+  }
+
+  // Фронт удара: полторы миллисекунды шума, срезанного снизу. Именно срезанного,
+  // а не зажатого полосой — у настоящего щелчка энергия размазана по всему
+  // верху, полоса же оставляет от неё узкий призвук.
+  function front(t, gain, hp) {
+    const src = ac.createBufferSource();
+    src.buffer = noise;
+    src.loop = true;
+    const flt = ac.createBiquadFilter();
+    flt.type = 'highpass';
+    flt.frequency.value = hp;
+    flt.Q.value = 0.7;
+    const env = ac.createGain();
+    env.gain.setValueAtTime(0.0001, t);
+    env.gain.exponentialRampToValueAtTime(gain, t + 0.0003);
+    env.gain.exponentialRampToValueAtTime(0.0001, t + 0.0010);
+    src.connect(flt);
+    flt.connect(env);
+    env.connect(bus);
+    src.start(t, Math.random() * 0.4);
+    src.stop(t + 0.006);
+  }
+
+  // Щелчок защёлки — то самое «чк»: фронт, две моды стали и отзвук корпуса, в
+  // который отдало.
+  //
+  // Собран он был иначе, куском шума в полосе Q=6 на 3400 Гц, — и не звучал
+  // вовсе. Померено офлайновым рендером: при заявленном усилении 0.46 на выходе
+  // выходило −29.5 дБ по пику и −63.3 по энергии, то есть на двадцать три
+  // децибела ниже гула вентиляторов. Узкая полоса выбрасывает почти всё, что в
+  // шум положили, и остаётся призвук того же тембра, что и сам гул: щелчка не
+  // слышно — слышен шум на его месте.
+  function chk(t, v, freq) {
+    // Разброс высоты на щелчок. Две одинаковые железки не звенят одинаково, а
+    // без разброса пять щелчков подряд слышны как один сэмпл, проигранный пять
+    // раз, — та же беда, ради которой шум берётся с разного места буфера.
+    const j = 1 + (Math.random() - 0.5) * 0.08;
+    const hi = (freq || 3600) * j;
+    // Чёткость щелчка — это доля фронта. Моды говорят, из чего сделана деталь,
+    // но «чк» слышно именно во фронте: он громче их и короче вдвое.
+    front(t, 0.85 * v, 3000);
+    mode(t + 0.0003, hi, 0.007, 0.26 * v);
+    // Вторая мода не в октаву, а в 1.63 от первой: у пластины моды не
+    // гармоничны, и ровная октава читается музыкальным интервалом, а не сталью.
+    mode(t + 0.0005, hi * 1.63, 0.004, 0.14 * v);
+    // Отзвук корпуса держим сухим: чем он длиннее, тем ближе «тук» вместо «чк».
+    mode(t + 0.003, 780 * j, 0.020, 0.06 * v);
+    duck(t);
+  }
+
+  // Ход по направляющим. Ни удара, ни щелчка: деталь едет по рельсам.
+  //
+  // Было это широкой полосой на 480–1240 Гц с треугольной дрожью в тридцать
+  // герц — то есть ровным шипением в самой заметной для уха середине, поверх
+  // которого ровно гудела дрожь. Отсюда и «шорканье»: тембр шипящего баллона,
+  // а не металла по металлу.
+  //
+  // Стало два слоя. Тело — низ, срезанный сверху: массу двигают, и слышно
+  // прежде всего её. Зерно — редкая яркая дробь поверх, и амплитуду ей задаёт
+  // не колебание, а ступенчатый случайный буфер: срывы у трения не попадают в
+  // такт, любая периодичность здесь читается механическим гудением.
+  function slide(t, dur, v) {
+    if (dur <= 0.02) return;
+    const peak = 0.075 * v;
+    const env = ac.createGain();
+    env.gain.setValueAtTime(0.0001, t);
+    env.gain.exponentialRampToValueAtTime(peak, t + Math.min(0.05, dur * 0.16));
+    env.gain.setValueAtTime(peak, t + dur * 0.7);
+    env.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    env.connect(bus);
+
+    const body = ac.createBufferSource();
+    body.buffer = noise;
+    body.loop = true;
+    const lp = ac.createBiquadFilter();
+    lp.type = 'lowpass';
+    // Полоса едет вверх вместе со скоростью и падает к концу — деталь
+    // разгоняется и тормозит.
+    lp.frequency.setValueAtTime(340, t);
+    lp.frequency.linearRampToValueAtTime(620, t + dur * 0.45);
+    lp.frequency.linearRampToValueAtTime(380, t + dur);
+    lp.Q.value = 0.6;
+    body.connect(lp);
+    lp.connect(env);
+    body.start(t, Math.random() * 0.4);
+    body.stop(t + dur + 0.02);
+
+    const rasp = ac.createBufferSource();
+    rasp.buffer = noise;
+    rasp.loop = true;
+    const bp = ac.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 2400;
+    bp.Q.value = 1.1;
+    const raspGain = ac.createGain();
+    raspGain.gain.value = 0.34;
+    rasp.connect(bp);
+    bp.connect(raspGain);
+    raspGain.connect(env);
+    rasp.start(t, Math.random() * 0.4);
+    rasp.stop(t + dur + 0.02);
+
+    const stick = ac.createBufferSource();
+    stick.buffer = grain;
+    stick.loop = true;
+    // Скорость дроби растёт со скоростью хода: зерно того же буфера, только
+    // читаемого быстрее.
+    stick.playbackRate.setValueAtTime(0.8, t);
+    stick.playbackRate.linearRampToValueAtTime(1.5, t + dur * 0.45);
+    stick.playbackRate.linearRampToValueAtTime(0.9, t + dur);
+    const stickGain = ac.createGain();
+    stickGain.gain.value = peak * 0.55;
+    stick.connect(stickGain);
+    stickGain.connect(env.gain);
+    stick.start(t, Math.random() * 0.4);
+    stick.stop(t + dur + 0.02);
+  }
+
+  // Узел дошёл до разъёма. Масса, остановившаяся о упор: две низкие моды —
+  // корпус и шасси под ним, — короткий фронт и чуть шума на теле удара.
+  // Собран так же, как щелчок, и по той же причине: полоса шума на 235 Гц
+  // отдавала −31.6 дБ по пику при заявленных 0.30.
+  function thud(t, v) {
+    mode(t, 132, 0.10, 0.34 * v);
+    mode(t, 198, 0.055, 0.14 * v);
+    front(t, 0.20 * v, 1400);
+    burst(t, 320, 0.05, 0.10 * v, 1.2);
+    duck(t);
+  }
+
+  // Спикер на плате и есть генератор прямоугольника — ничего сложнее там нет.
+  function tone(t, freq, dur, gain) {
+    const osc = ac.createOscillator();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(freq, t);
+    const env = ac.createGain();
+    env.gain.setValueAtTime(0.0001, t);
+    env.gain.exponentialRampToValueAtTime(gain, t + 0.004);
+    env.gain.setValueAtTime(gain, t + dur - 0.02);
+    env.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    osc.connect(env);
+    env.connect(bus);
+    osc.start(t);
+    osc.stop(t + dur);
+  }
+
+  const VOICE = {
+    // Тумблер: пружина отпускает, следом смыкается контакт.
+    click: function (t, v) {
+      chk(t, 0.8 * v, 2500);
+      // Возврат пружины — второй, глуше и тише: контакт уже сомкнулся.
+      front(t + 0.028, 0.22 * v, 1200);
+      mode(t + 0.0284, 1450, 0.012, 0.10 * v);
+    },
+    chk: function (t, v) { chk(t, v); },
+    // Крышка: длинный ход стали по стали и удар в упор.
+    lid: function (t, v) {
+      burst(t, 900, 0.30, 0.10 * v, 0.5, 260);
+      mode(t + 0.28, 176, 0.11, 0.26 * v);
+      front(t + 0.28, 0.16 * v, 1200);
+      duck(t + 0.28);
+    },
+    // Момент посадки при сборке. t — это когда узел ДОШЁЛ, а не когда тронулся,
+    // поэтому трение звучит перед ним, а удар и защёлка ровно в t.
+    seat: function (t, v) {
+      slide(t - 0.32, 0.32, 0.75 * v);
+      thud(t, v);
+      chk(t + 0.014, 0.55 * v, 3000);
+    },
+    // Тот самый POST-beep: один короткий писк, когда машина пошла. Тихая
+    // загрузка его глушит — за тем её в BIOS и включают.
+    beep: function (t, v) {
+      if (rig.classList.contains('nv-quiet')) return;
+      tone(t, 1000, 0.13, 0.10 * v);
+    },
+  };
+
+  // Единственная дверь наружу для разовых голосов. Контекст, которого ещё нет
+  // или который стоит, — это не ошибка, а нормальное состояние до первого
+  // жеста: молчим. Планировать в остановленный контекст нельзя, его часы
+  // стоят, и всё запланированное вывалилось бы разом при возобновлении.
+  function sfx(name, v) {
+    if (!live()) return;
+    const voice = VOICE[name];
+    if (voice) voice(ac.currentTime + 0.002, v === undefined ? 1 : v);
+  }
+
+  // Сколько на самом деле длится ход узла — спрашиваем у самого узла. Классы
+  // к этому моменту уже переставлены, но переходы браузер заводит только к
+  // следующему кадру, поэтому раньше измерять нечего.
+  //
+  // Бесконечные анимации пропускаем: внутри вентилятора крутится ротор, и его
+  // длительность — Infinity.
+  function travel(el) {
+    let dur = 0;
+    el.getAnimations({ subtree: true }).forEach(function (a) {
+      const t = a.effect && a.effect.getComputedTiming();
+      if (!t) return;
+      const d = ((t.delay || 0) + (t.activeDuration || 0)) / 1000;
+      if (isFinite(d) && d > 0 && d < 4) dur = Math.max(dur, d);
+    });
+    return dur;
+  }
+
+  // Узел поехал. Наружу — защёлка отпускает первой, потом ход; внутрь — ход, и
+  // только в конце, у самого разъёма, защёлка закрывается. Щелчок стоит на
+  // границах движения, а не в середине: в середине узел просто едет.
+  function sfxMove(el, dir) {
+    if (!live()) return;
+    window.requestAnimationFrame(function () {
+      if (!live()) return;
+      const dur = travel(el) || 0.9;
+      const t = ac.currentTime + 0.004;
+      if (dir === 'out') {
+        chk(t, 0.9, 3600);
+        slide(t + 0.03, dur - 0.03, 1);
+      } else {
+        slide(t, dur, 1);
+        thud(t + dur, 0.75);
+        chk(t + dur + 0.012, 0.85, 3200);
+      }
+    });
+  }
+
+  // Ход без защёлки: узел просто едет. Так вынимают каддик, у которого ручку
+  // откинули отдельным движением, — щелчку здесь взяться неоткуда.
+  function sfxSlide(el) {
+    if (!live()) return;
+    window.requestAnimationFrame(function () {
+      if (!live()) return;
+      slide(ac.currentTime + 0.004, travel(el) || 0.9, 1);
+    });
+  }
+
+  // ── Гул машины ─────────────────────────────────────────────────────────
+  // Поднимается, когда указатель заходит на машину, и стихает, когда уходит.
+  // На выключенной машине его нет вовсе: вентиляторы стоят, и гудеть нечему —
+  // это и есть разница между «страницей со звуком» и машиной.
+  let fan = null;
+  let overRig = false;
+
+  // Сколько сейчас оборотов — спрашиваем у самой крыльчатки, а не у паспорта.
+  // Период вращения задан на схеме и меняется от двух вещей: профиля питания в
+  // BIOS (Efficiency растягивает его вчетверо) и вынутого вентилятора (тогда
+  // остальные разгоняются). Обе перемены обязаны быть слышны — ради них весь
+  // этот тон и заводился.
+  // Номинальный период берётся из SPIN_NOM в screen.js: он читает его из
+  // стилей, где период и задан. Литерал здесь дублировал бы --spin из base.css
+  // и разошёлся бы с ним при первой же правке.
+  function fanRpm() {
+    const spec = HW.fan || {};
+    const nom = spec.rpm_nom || 0;
+    const blade = chassis.querySelector('.fan-blades:not(.aux)');
+    if (!blade) return nom;
+    const d = parseFloat(getComputedStyle(blade).animationDuration);
+    if (!isFinite(d) || d <= 0) return nom;
+    return nom * (SPIN_NOM / d);
+  }
+
+  function bladePass() {
+    const spec = HW.fan || {};
+    return (spec.blades || 0) * fanRpm() / 60;
+  }
+
+  function fanNodes() {
+    const g = ac.createGain();
+    g.gain.value = 0;
+    g.connect(duckNode());
+
+    // Шум раскладывается надвое. Прежде это была одна полоса Q=0.5 на 640 Гц —
+    // сплошная середина, от которой ухо устаёт за полминуты. Настоящая машина в
+    // стойке звучит рокотом корпуса внизу и потоком выше, и верх у неё завален:
+    // высокие частоты гасит всё, через что они идут, — решётка, стенка, воздух.
+    const src = ac.createBufferSource();
+    src.buffer = noise;
+    src.loop = true;
+
+    const low = ac.createBiquadFilter();
+    low.type = 'lowpass';
+    low.frequency.value = 190;
+    low.Q.value = 0.7;
+    const lowGain = ac.createGain();
+    // Рокоту нужно больше, чем кажется по числу: фильтр на 190 Гц пропускает
+    // от белого шума очень узкую полосу, и то, что на глаз выглядит громким,
+    // на слух почти не слышно.
+    lowGain.gain.value = 0.135;
+    src.connect(low);
+    low.connect(lowGain);
+    lowGain.connect(g);
+
+    const air = ac.createBiquadFilter();
+    air.type = 'bandpass';
+    air.frequency.value = 520;
+    air.Q.value = 0.4;
+    const tilt = ac.createBiquadFilter();
+    tilt.type = 'lowpass';
+    tilt.frequency.value = 1500;
+    tilt.Q.value = 0.5;
+    const airGain = ac.createGain();
+    airGain.gain.value = 0.075;
+    src.connect(air);
+    air.connect(tilt);
+    tilt.connect(airGain);
+    airGain.connect(g);
+    src.start();
+
+    // Лопаточная частота и вторая гармоника — но не одной парой, а четырьмя
+    // слегка расстроенными. Восемь крыльчаток никогда не крутятся синхронно, и
+    // биения между ними — это и есть разница между живой стеной вентиляторов и
+    // синтезатором. Выше второй гармоники не берём: третья уходит за четыре
+    // килогерца и читается писком.
+    const bpf = bladePass();
+    const tones = [];
+    if (bpf > 0 && bpf < 8000) {
+      [-0.014, -0.005, 0.006, 0.015].forEach(function (detune, i) {
+        [[1, 0.012], [2, 0.005]].forEach(function (h) {
+          const o = ac.createOscillator();
+          o.type = 'sine';
+          o.frequency.value = bpf * h[0] * (1 + detune);
+          const og = ac.createGain();
+          og.gain.value = h[1];
+          o.connect(og);
+          og.connect(g);
+          o.start(ac.currentTime + i * 0.01);
+          tones.push({ osc: o, mul: h[0] * (1 + detune) });
+        });
+      });
+    }
+
+    // Писк дросселей. Слышен у машины, которой не дают спать: при запрещённых
+    // C-States ядра не уходят в простой, ток через дроссели не падает, и они
+    // поют. На профиле Efficiency его нет — там машина как раз спит.
+    const coil = [];
+    [[9500, 0.0016], [11300, 0.0009]].forEach(function (h) {
+      const o = ac.createOscillator();
+      o.type = 'sine';
+      o.frequency.value = h[0];
+      const og = ac.createGain();
+      og.gain.value = 0;
+      o.connect(og);
+      og.connect(g);
+      o.start();
+      coil.push({ osc: o, gain: og, peak: h[1] });
+    });
+
+    return { gain: g, src: src, tones: tones, coil: coil };
+  }
+
+  // Обороты изменились — тон едет за ними, и едет плавно: вентилятор не
+  // переключает скорость скачком, ему нужна пара секунд.
+  function humTune() {
+    if (!fan) return;
+    const bpf = bladePass();
+    if (!(bpf > 0 && bpf < 8000)) return;
+    const t = ac.currentTime;
+    fan.tones.forEach(function (v) {
+      const p = v.osc.frequency;
+      p.cancelScheduledValues(t);
+      p.setValueAtTime(Math.max(1, p.value), t);
+      p.exponentialRampToValueAtTime(Math.max(1, bpf * v.mul), t + 1.6);
+    });
+    const whine = rig.classList.contains('nv-cst-off') && !rig.classList.contains('nv-eff');
+    fan.coil.forEach(function (v) {
+      const p = v.gain.gain;
+      p.cancelScheduledValues(t);
+      p.setValueAtTime(p.value, t);
+      p.linearRampToValueAtTime(whine ? v.peak : 0, t + 1.2);
+    });
+  }
+
+  // Громкость гула одним числом на весь голос: баланс между рокотом, потоком и
+  // тоном выставлен внутри графа, а это ручка «насколько машина далеко». Гул —
+  // фон, а не событие: он звучит всё время, пока курсор на машине, и ошибка в
+  // громкости здесь утомляет сильнее, чем где-либо ещё.
+  const HUM_LEVEL = 0.65;
+
+  function humLevel(on) {
+    if (!live()) return;
+    if (!fan) fan = fanNodes();
+    const t = ac.currentTime;
+    const p = fan.gain.gain;
+    p.cancelScheduledValues(t);
+    p.setValueAtTime(p.value, t);
+    // Вход медленнее выхода: так слышно, что машина набирает, а не включается.
+    p.linearRampToValueAtTime(on ? HUM_LEVEL : 0, t + (on ? 0.55 : 0.32));
+  }
+
+  // Состояние решается в одном месте: гудит, только если указатель на машине И
+  // машина под питанием. Иначе выключение при наведённой мыши оставляло бы гул
+  // висеть, а включение при ней же — молчать до следующего движения.
+  function humCheck() {
+    humLevel(overRig && rig.classList.contains('on'));
+    humTune();
+  }
+
+  function dropFan() {
+    if (!fan) return;
+    try {
+      fan.src.stop();
+      fan.tones.forEach(function (v) { v.osc.stop(); });
+      fan.coil.forEach(function (v) { v.osc.stop(); });
+    } catch (e) { /* контекст уже закрыт */ }
+    fan = null;
+  }
+
+  chassis.addEventListener('mouseenter', function () { overRig = true; humCheck(); });
+  chassis.addEventListener('mouseleave', function () { overRig = false; humCheck(); });
+
+  // Настройки BIOS и вынутые узлы меняют обороты через классы на схеме, а не
+  // зовут звук напрямую: прошивка про звук не знает и знать не должна. Поэтому
+  // слушаем сами классы — так же, как их слушают стили.
+  new MutationObserver(humTune).observe(rig, { attributes: true, attributeFilter: ['class'] });
+  chassis.addEventListener('click', function () { window.setTimeout(humTune, 60); });
+
+  // Сборка звучит по тем же анимациям, по которым идёт, — и звучит в момент
+  // посадки, а не в момент старта. Прежде здесь брался --seat, то есть
+  // задержка начала хода, и звук уходил вперёд ровно на длительность движения:
+  // у каддика она 1.2 с, и диск успевал сесть в полной тишине.
+  //
+  // Сроки не переписываются сюда числами: у каждой анимации спрашиваются её
+  // собственные задержка и длительность. Узлы, садящиеся в один момент,
+  // сливаются в один удар погромче — иначе это слышно как треск, а не сборка.
+  function sfxAssembly() {
+    if (!live()) return;
+    window.requestAnimationFrame(function () {
+      if (!live()) return;
+      const at = new Map();
+      chassis.getAnimations({ subtree: true }).forEach(function (a) {
+        if (String(a.animationName || '').indexOf('seat') !== 0) return;
+        const t = a.effect && a.effect.getComputedTiming();
+        if (!t) return;
+        const land = ((t.delay || 0) + (t.activeDuration || 0)) / 1000;
+        if (!isFinite(land)) return;
+        const key = Math.round(land * 20) / 20;
+        at.set(key, (at.get(key) || 0) + 1);
+      });
+      const t0 = ac.currentTime + 0.02;
+      at.forEach(function (n, land) {
+        VOICE.seat(t0 + land, Math.min(1, 0.5 + n * 0.1));
+      });
+    });
+  }
+
+  // Ушли со вкладки — замолкаем вместе с анимациями. Расписание сборки к тому
+  // моменту уже роздано планировщику, и без этого оно доигрывало бы в фоне,
+  // где сама машина стоит на паузе (.dormant).
+  document.addEventListener('visibilitychange', function () {
+    if (!ac) return;
+    if (document.hidden) ac.suspend().catch(function () {});
+    else if (audible) ac.resume().catch(function () {});
+  });
+
+  // Иконка и подпись говорят, что сейчас, а не что будет по нажатию — так же
+  // ведёт себя переключатель темы, и разнобой здесь читался бы как ошибка.
+  function labelSound(on) {
+    const text = on ? 'Звук включён, выключить' : 'Звук выключен, включить';
+    sfxBtn.setAttribute('aria-pressed', String(on));
+    sfxBtn.setAttribute('aria-label', text);
+    sfxBtn.setAttribute('title', text);
+  }
+
+  function setSound(on) {
+    audible = on;
+    try { localStorage.setItem('sound', on ? 'on' : 'off'); } catch (e) {}
+    labelSound(on);
+    // Выключили — контекст закрываем, а не просто останавливаем. Остановленный
+    // держит звуковое устройство и значок звука на вкладке молчащей страницы, а
+    // главное — сохраняет всё, что уже роздано планировщику: выключить звук
+    // посреди сборки и включить через минуту значило бы услышать её хвост.
+    if (!on) {
+      dropFan();
+      // Вместе с контекстом уходят и его узлы: и шина, и ручка приглушения
+      // гула. Оставить ссылки значит на следующем включении подключать новый
+      // граф к узлам закрытого контекста — гул после этого не возвращается.
+      if (ac) { ac.close().catch(function () {}); ac = null; }
+      bus = null;
+      humDuck = null;
+      noise = null;
+      grain = null;
+      return;
+    }
+    // Щелчок самой кнопки и есть подтверждение, что звук поехал: нажатие,
+    // после которого ничего не слышно, ничем не отличается от сломанного.
+    audio().then(function () {
+      VOICE.click(ac.currentTime + 0.01, 1);
+      humCheck();
+    }).catch(function () {});
+  }
+
+  sfxBtn.addEventListener('click', function () { setSound(!audible); });
+  labelSound(audible);
+
+  // Гость, у которого звук остался включённым с прошлого раза: контекст всё
+  // равно нельзя завести до жеста, поэтому ждём любого первого.
+  if (audible) {
+    const wake = function () { audio().then(humCheck).catch(function () {}); };
+    document.addEventListener('pointerdown', wake, { once: true });
+    document.addEventListener('keydown', wake, { once: true });
+  }
 
   // ── Assembly ───────────────────────────────────────────────────────────
   // The assembly class sits in the markup, so the machine starts assembling
@@ -148,6 +784,9 @@
     rig.classList.remove('assembly');
     void chassis.offsetWidth;
     rig.classList.add('assembly');
+    // Только здесь, а не в первой сборке при загрузке: та идёт до любого
+    // жеста, и звука браузер для неё всё равно не даст.
+    sfxAssembly();
     whenSeated(function () {
       finishAssembly();
       line('all units seated · power on', 'ok');
@@ -161,13 +800,20 @@
   // schematic's colour, the path in the ordinary tone.
   const linkHint = document.getElementById('link-hint');
 
-  function showLinkHint(href, x, y) {
+  // Хвост адреса обрезаем. Ссылки с хэшем бывают в полсотни знаков, и
+  // подсказка из тихой строчки у курсора превращалась в баннер во всю ширину
+  // окна — при том, что читают в ней только имя хоста и начало пути.
+  const HINT_TAIL = 28;
+
+  function trimTail(tail) {
+    return tail.length > HINT_TAIL ? tail.slice(0, HINT_TAIL - 1) + '…' : tail;
+  }
+
+  // Место у курсора одно, а сказать в нём можно разное: под ссылкой — адрес,
+  // в лупе — чем приближают. Поэтому размещение отделено от содержания.
+  function placeHint(html, x, y) {
     if (!linkHint) return;
-    const m = /^(https?:\/\/|mailto:)([^/]*)(.*)$/.exec(href) || [];
-    linkHint.innerHTML = m.length
-      ? '<span class="lh-scheme">' + m[1] + '</span>'
-        + '<span class="lh-host">' + m[2] + '</span>' + m[3]
-      : href;
+    linkHint.innerHTML = html;
     linkHint.classList.add('on');
     // Keep the hint inside the window: near the right edge it would run off
     // the screen.
@@ -177,12 +823,40 @@
     linkHint.style.transform = 'translate3d(' + left + 'px,' + top + 'px,0)';
   }
 
+  function showLinkHint(href, x, y) {
+    const m = /^(https?:\/\/|mailto:)([^/]*)(.*)$/.exec(href) || [];
+    placeHint(m.length
+      ? '<span class="lh-scheme">' + m[1] + '</span>'
+        + '<span class="lh-host">' + m[2] + '</span>' + trimTail(m[3])
+      : trimTail(href), x, y);
+  }
+
   function hideLinkHint() {
     if (linkHint) linkHint.classList.remove('on');
   }
 
   if (linkHint) {
+    // Карточка — такой же набор ссылок, и адрес там нужен ровно затем же.
+    // Раньше подсказка жила только на схеме, и на узком экране, где схемы нет,
+    // её не было вовсе.
+    document.addEventListener('mousemove', function (e) {
+      if (e.target.closest('.rig')) return;
+      const a = e.target.closest('a[href]');
+      const href = a && a.getAttribute('href');
+      if (href && !href.startsWith('#')) showLinkHint(href, e.clientX, e.clientY);
+      else hideLinkHint();
+    });
     rig.addEventListener('mousemove', function (e) {
+      // В лупе у курсора стоит не адрес, а способ приблизить. Про shift
+      // догадаться нельзя, а сказать о нём больше негде: консоли в этом режиме
+      // нет, и подпись на экране была бы баннером. Зато место у курсора гость
+      // к этому времени уже знает — там он читал адреса ссылок.
+      if (rig.classList.contains('zoom')) {
+        // Наведение на узел — работа с узлом, приближение тут ни при чём.
+        if (e.target.closest('.pick, .unit, a')) hideLinkHint();
+        else placeHint(zoomHint(), e.clientX, e.clientY);
+        return;
+      }
       // In service mode units are taken apart, not opened: the hint there
       // would promise a navigation that is not going to happen.
       const target = rig.classList.contains('service')
@@ -192,6 +866,35 @@
     });
     rig.addEventListener('mouseleave', hideLinkHint);
   }
+
+  // ── Почта ──────────────────────────────────────────────────────────────
+  // Клик по адресу делает две вещи сразу: открывает почтовую программу и
+  // кладёт адрес в буфер. Порядок именно такой — mailto может и не открыться,
+  // если почтовой программы нет, и тогда скопированный адрес остаётся
+  // единственным, что от нажатия осталось.
+  //
+  // Подпись бирки на секунду становится словом «скопировано» и зеленеет: без
+  // этого копирование происходит молча, и гость нажимает второй раз.
+  function flashCopied(el) {
+    const sub = el.querySelector('.co-sub');
+    if (!sub) return;
+    if (sub.dataset.was === undefined) sub.dataset.was = sub.textContent;
+    sub.textContent = 'скопировано';
+    el.classList.add('copied');
+    wait(1600, function () {
+      sub.textContent = sub.dataset.was;
+      el.classList.remove('copied');
+    });
+  }
+
+  document.addEventListener('click', function (e) {
+    const a = e.target.closest('a[href^="mailto:"]');
+    if (!a) return;
+    const addr = a.getAttribute('href').slice(7);
+    if (navigator.clipboard) navigator.clipboard.writeText(addr).catch(function () {});
+    flashCopied(a);
+    line('mail: ' + addr + ' скопирован', 'ok');
+  });
 
   // ── Console ────────────────────────────────────────────────────────────
   function line(text, cls) {
@@ -216,6 +919,11 @@
   // even reach for them — the request would return 404 and leave a red line
   // in the console for no reason at all.
   const LOCAL = ['localhost', '127.0.0.1', '::1', '[::1]'].indexOf(location.hostname) >= 0;
+  // На живом сайте лента ревизий не поднимается сама: шестьдесят восемь схем
+  // по мегабайту — это не то, что гость должен качать, зайдя посмотреть
+  // визитку. Её включают командой в консоли, и включённой она остаётся до
+  // перезагрузки страницы. Локально включать нечего: там она была и есть.
+  let revsAsked = false;
   const timeline = document.getElementById('timeline');
   const board = document.getElementById('board');
   const tlRange = document.getElementById('tl-range');
@@ -238,7 +946,11 @@
     tlNext.disabled = revPos >= last;
     const v = revs[revPos];
     if (!v) return;
-    tlRev.textContent = 'REV ' + (revPos + 1) + ' · ' + v.sha.toUpperCase();
+    // Место в ленте, а не ревизия. Слово REV здесь было чужим: лента считает
+    // собранные схемы (их 78), а плата набита номером страницы (их 97), и две
+    // разные шкалы под одним словом читались как «интерфейс отстал». Ревизию
+    // называет сама плата — она набита на текстолите и звучит в самотесте.
+    tlRev.textContent = (revPos + 1) + '/' + revs.length + ' · ' + v.sha.toUpperCase();
     tlSubject.textContent = v.subject;
     tlMeta.href = REPO + '/commit/' + v.sha;
   }
@@ -258,6 +970,13 @@
       }
       board.innerHTML = markup;
       board.setAttribute('viewBox', v.viewBox);
+      // Архивная схема — снимок, а не машина. Сегодняшние стили писались под
+      // сегодняшнюю разметку, и к чужой они местами не подходят: до шестидесятой
+      // ревизии лопасти висели на <path> без своей точки вращения, а
+      // transform-box у SVG по умолчанию view-box — анимация крутила их вокруг
+      // нуля холста, и лопасти улетали в левый верхний угол. Снимку движение не
+      // нужно вовсе, а нажимать на нём нечего: это уже не та машина.
+      rig.classList.toggle('archive', i !== revs.length - 1);
       revPos = i;
       tlRange.value = String(i);
       paintTimeline();
@@ -271,13 +990,17 @@
   }
 
   async function initTimeline() {
-    if (revs.length || !LOCAL) return;
+    if (revs.length || !(LOCAL || revsAsked)) return;
     try {
       const res = await fetch('history/index.json');
       if (!res.ok) throw new Error(res.status);
       revs = await res.json();
     } catch (err) {
-      return;                       // no history — no strip either, silently
+      // Молча — только когда никто не просил: на сайте без истории лента и не
+      // должна о себе напоминать. А если её позвали командой, молчание было бы
+      // враньём: человек ждёт ленту и не понимает, куда она делась.
+      if (revsAsked) line('историю схемы не отдали — на этом сайте её нет', 'err');
+      return;
     }
     if (revs.length < 2) return;
     // The current board is already in the page: we put it into the cache as
@@ -287,8 +1010,31 @@
     revPos = revs.length - 1;
     tlRange.max = String(revs.length - 1);
     tlRange.value = String(revPos);
-    timeline.hidden = false;
+    setStrip(true);
     paintTimeline();
+  }
+
+  // Лента ездит переходом, а не появляется скачком. Всё для этого в стилях уже
+  // написано: сама .timeline схлопнута в ноль, а .rig.service её разворачивает.
+  // Сводил это на нет атрибут hidden — он ставит display: none, а display не
+  // анимируется: первый кадр после его снятия берёт конечные значения как есть,
+  // и лента возникала разом. Поэтому hidden оставлен только за «истории нет
+  // вовсе», а показ и уборка идут классом, который в переход попадает.
+  function setStrip(on) {
+    if (!on) { rig.classList.add('revs-off'); return; }
+    if (timeline.hidden) {
+      // Между снятием display: none и снятием класса нужен замер раскладки:
+      // иначе браузер сольёт оба изменения в один кадр, и перехода снова не
+      // будет — это тот же случай, только на первом показе.
+      rig.classList.add('revs-off');
+      timeline.hidden = false;
+      void timeline.offsetHeight;
+    }
+    rig.classList.remove('revs-off');
+  }
+
+  function stripUp() {
+    return !timeline.hidden && !rig.classList.contains('revs-off');
   }
 
   tlRange.addEventListener('input', function () { showRev(Number(tlRange.value)); });
@@ -296,7 +1042,7 @@
   tlNext.addEventListener('click', function () { showRev(revPos + 1); });
   // Arrows are handier than the mouse, but only while the strip is on screen
   document.addEventListener('keydown', function (e) {
-    if (timeline.hidden || !rig.classList.contains('service')) return;
+    if (!stripUp() || !rig.classList.contains('service')) return;
     if (e.target.closest('input, textarea')) return;
     if (e.key === 'ArrowLeft') { e.preventDefault(); showRev(revPos - 1); }
     if (e.key === 'ArrowRight') { e.preventDefault(); showRev(revPos + 1); }
@@ -327,6 +1073,10 @@
       line('power inhibited · no ac', 'warn');
       return;
     }
+    // Пароль включения спрашивает прошивка, а не система, — то есть до старта,
+    // а не после него. Пока его не ввели, машина не трогается с места: экран
+    // поднимается пустым и ждёт, как живая.
+    if (!powerOnAllowed(powerOn)) return;
     state.powered = true;
     // Uptime is how long the host has been running, not the tab: without this
     // mark uptime counted from the page load and survived a power off without
@@ -334,16 +1084,27 @@
     state.bootAt = Date.now();
     save();
     setPower('on');
+    // Вентиляторы пошли. Загудит машина, только если на неё сейчас смотрят, —
+    // решает это humCheck, здесь мы лишь сообщаем, что питание изменилось.
+    humCheck();
     // The order is exactly what you see in the flesh: first the network card
     // brings its link up, then the BMC starts beating, and only after that
     // does the host start.
-    wait(120, function () { rig.classList.add('net'); line('nic · link up 25G', 'ok'); });
-    wait(700, function () { rig.classList.add('bmc'); line('BMC 2.14 · heartbeat', 'ok'); });
+    wait(90, function () { rig.classList.add('net'); line('nic · link up 25G', 'ok'); });
+    wait(220, function () { rig.classList.add('bmc'); line('BMC 2.14 · heartbeat', 'ok'); });
     // Экран поднимется через секунду, и подписи ждут его с этой самой минуты:
     // иначе они успевали проступить в промежутке между концом сборки и
     // самотестом — и тут же прятались под приехавшим экраном.
     if (!reduced) rig.classList.add('tags-off');
-    wait(1100, runPost);
+    // Контрольный индикатор начинает считать вместе с хостом, а не вместе с
+    // экраном: на живой машине коды бегут ещё до того, как появится картинка.
+    runCheckpoint();
+    // Экран поднимается почти сразу: между нажатием и картинкой у живой
+    // машины успевают только раскрутиться вентиляторы. Секунда с лишним
+    // читалась не выдержкой, а зависанием — гость успевал нажать ещё раз.
+    // Писк спикера идёт вместе с картинкой самотеста, а не с нажатием кнопки:
+    // на живой машине он и означает, что POST прошёл.
+    wait(320, function () { sfx('beep'); runPost(); });
     tick();
   }
 
@@ -351,13 +1112,17 @@
     state.powered = false; save();
     // Выключенной машине экран уже не поднимется — ждать подписям нечего.
     rig.classList.remove('net', 'bmc', 'tags-off');
+    stopCheckpoint();
     setPower('standby');
+    // Вентиляторы встали — гул уходит, даже если указатель остался на машине.
+    humCheck();
     line('powering off', 'warn');
     line('standby · bmc only', 'muted');
     tick();
   }
 
   document.getElementById('power').addEventListener('click', function () {
+    sfx('click');
     if (rig.classList.contains('init')) {
       line('power inhibited · bmc init', 'warn');
       return;
@@ -372,6 +1137,7 @@
   const idBtn = document.getElementById('id-btn');
   function toggleIdentify() {
     const on = rig.classList.toggle('identify');
+    sfx('click');
     line(on ? 'identify: on · blue' : 'identify: off', 'muted');
   }
   idBtn.addEventListener('click', toggleIdentify);
@@ -390,6 +1156,110 @@
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleLp(); }
   });
 
+  // ── Контрольный индикатор ──────────────────────────────────────────────
+  // Две цифры, и на них видно, где машина находится: пока идёт самотест, коды
+  // сменяются, а на последнем индикатор замирает. Это и отличает контрольный
+  // индикатор от лампы: лампа говорит «сломано», он — «дошли досюда».
+  //
+  // Сегменты зажигает таблица, а не отдельная фигура на каждый символ: на
+  // живом индикаторе горят те же семь полосок, и из них складывается всё, что
+  // он умеет показать.
+  const SEG_OF = {
+    '0': 'abcdef', '1': 'bc', '2': 'abdeg', '3': 'abcdg', '4': 'bcfg',
+    '5': 'acdfg', '6': 'acdefg', '7': 'abc', '8': 'abcdefg', '9': 'abcdfg',
+    'A': 'abcefg', 'b': 'cdefg', 'C': 'adef', 'd': 'bcdeg', 'E': 'adefg',
+    'F': 'aefg', 'H': 'bcefg', 'L': 'def', 'P': 'abefg', 'U': 'bcdef',
+    '-': 'g', ' ': '',
+  };
+
+  function showCode(code) {
+    const text = String(code).padStart(2, ' ').slice(-2);
+    for (let d = 0; d < 2; d++) {
+      const lit = SEG_OF[text[d]] || '';
+      for (const seg of 'abcdefg') {
+        const el = chassis.querySelector('.seg-' + d + seg);
+        if (el) el.classList.toggle('on', lit.indexOf(seg) >= 0);
+      }
+    }
+  }
+
+  // Коды взяты по смыслу, а не с потолка: это те же вехи, что печатает
+  // самотест на экране. Последний — тот, на котором машина отдаёт управление
+  // загрузчику, и именно на нём индикатор стоит у работающей машины.
+  //
+  // Здесь остались только самые ранние — те, что успевают пробежать до
+  // картинки. Дальше индикатор ведёт сама прошивка: коды приходят из screenPost
+  // вместе со строками самотеста, и на плате горит ровно то, что в эту секунду
+  // стоит в углу экрана. Пока лента была заготовленной, эти двое расходились —
+  // а знающий человек первым делом сверяет именно их.
+  const POST_CODES = ['01', '0d', '19'];
+  let postTimer = null;
+
+  function runCheckpoint() {
+    if (postTimer) clearInterval(postTimer);
+    let i = 0;
+    showCode(POST_CODES[0]);
+    postTimer = setInterval(function () {
+      i += 1;
+      if (i >= POST_CODES.length) { clearInterval(postTimer); postTimer = null; return; }
+      showCode(POST_CODES[i]);
+    }, 110);
+  }
+
+  // Регистр здесь не косметика. На семисегментном индикаторе B неотличима от 8,
+  // а D от 0, и живые платы пишут их строчными — 'b' и 'd'. Верхний регистр
+  // остаётся тем буквам, которые индикатор различает.
+  function hexCode(code) {
+    return code.toString(16).padStart(2, '0')
+      .replace(/[acef]/g, function (ch) { return ch.toUpperCase(); });
+  }
+
+  /** Контрольная точка от прошивки — то же число, что показывает экран. */
+  function setBoardPostCode(code) {
+    // Пришли настоящие коды — заготовленная лента больше не нужна.
+    if (postTimer) { clearInterval(postTimer); postTimer = null; }
+    showCode(code === null || code === undefined ? '  ' : hexCode(code));
+  }
+
+  function stopCheckpoint() {
+    if (postTimer) { clearInterval(postTimer); postTimer = null; }
+    // Выключенная машина не показывает ничего: контрольный индикатор питается
+    // от того же, от чего и хост.
+    showCode('  ');
+  }
+
+  // ── Сброс ──────────────────────────────────────────────────────────────
+  // Ошибка защёлкивается: узел вернули на место, а лампа неисправности горит
+  // дальше — так и на живой машине, иначе о ночном отказе наутро никто бы не
+  // узнал. Гасит её эта кнопка, и гасит только на собранной машине: пока
+  // что-то вынуто, сбрасывать нечего.
+  const lpReset = document.getElementById('lp-reset');
+  function resetFaults() {
+    if (chassis.querySelector('.pulled')) {
+      line('reset refused · unit still removed', 'warn');
+      return;
+    }
+    if (!rig.classList.contains('fault-latched')) {
+      line('reset · nothing to clear', 'muted');
+      return;
+    }
+    rig.classList.remove('fault-latched');
+    line('reset · fault indication cleared', 'ok');
+    tick();
+  }
+  lpReset.addEventListener('click', resetFaults);
+  lpReset.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); resetFaults(); }
+  });
+
+  // Контрольный индикатор показывает код готовности всегда, когда машина
+  // работает. Заводит его powerOn(), а на повторном заходе питание
+  // восстанавливается из сохранённого состояния, минуя её: обновил страницу —
+  // и семисегментник тёмный, хотя машина работает. Значение появлялось только
+  // после выключения и включения вручную. На живой машине этот индикатор
+  // показывает последний код всегда, пока есть питание.
+  if (state.powered) showCode(POST_CODES[POST_CODES.length - 1]);
+
   // Which lamp on the panel answers for which unit.
   const LP_MAP = {
     mem: '.dimm.pulled',
@@ -398,18 +1268,72 @@
     nic: '.unit[data-unit="ocp"].pulled, .unit[data-unit="eth"].pulled',
     rsr: '.riser.pulled',
     ps: '.psu.pulled',
+    dasd: '.bay.pulled',
   };
+
+  // Конфигурация, при которой машине нечем работать. Это не отказ узла, а
+  // именно невозможная сборка, и на живой панели у неё своя лампа: ни одной
+  // плашки памяти или ни одного процессора — стартовать не с чего.
+  function badConfig() {
+    const gone = sel => chassis.querySelectorAll(sel + '.pulled').length
+      && chassis.querySelectorAll(sel + '.pulled').length === chassis.querySelectorAll(sel).length;
+    return !!(gone('.dimm') || gone('.cpu-slot'));
+  }
 
   function updateFault() {
     let any = false;
+    // Единственная лампа, которую зажигает не вынутый узел, а строка в
+    // прошивке: без окна выше четырёх гигабайт карте в райзере некуда лечь
+    // своим окном памяти, и слот остаётся ненастроенным. Живая машина ставит
+    // на него ровно эту лампу.
+    const no4g = rig.classList.contains('nv-no4g')
+                 && HW.riser.some(r => !r.empty);
     for (const key in LP_MAP) {
-      const on = !!chassis.querySelector(LP_MAP[key]);
+      const on = !!chassis.querySelector(LP_MAP[key]) || (key === 'rsr' && no4g);
       rig.classList.toggle('fault-' + key, on);
       any = any || on;
     }
+    const cnfg = badConfig();
+    rig.classList.toggle('fault-cnfg', cnfg);
+    any = any || cnfg;
+    const wasAny = rig.classList.contains('has-fault');
     rig.classList.toggle('has-fault', any);
+    // Ошибка защёлкивается. Узел вернули на место — лампа неисправности горит
+    // дальше, пока её не сбросят кнопкой на панели диагностики: иначе о
+    // ночном отказе наутро не узнал бы никто. Так и на живой машине.
+    //
+    // И об этом надо сказать вслух ровно один раз — в тот момент, когда
+    // причина ушла, а лампа осталась. Молча горящая лампа на собранной машине
+    // читается не защёлкой, а поломкой схемы.
+    if (any) rig.classList.add('fault-latched');
+    else if (wasAny && rig.classList.contains('fault-latched')) {
+      line('fault latched · sel — прочитать журнал и снять', 'muted');
+    }
     updateMains();
     tick();
+  }
+
+  // Журнал ошибок. Защёлка снимается чтением, а не только кнопкой: живая
+  // машина узнаёт, что всё исправлено, когда её об этом спрашивают. Пока
+  // журнал не прочитан, лампа горит — именно затем она и защёлкивается.
+  // Кнопка RESET на панели остаётся: ей гасят индикацию, не читая, и это
+  // разные действия. Гость, который не знает про кнопку на плате, теперь
+  // выходит из горящей лампы обычной командой.
+  function faultLog() {
+    const rows = [];
+    for (const key in LP_MAP) {
+      if (chassis.querySelector(LP_MAP[key])) rows.push({ t: 'ACTIVE   · ' + key, c: 'err' });
+    }
+    if (badConfig()) rows.push({ t: 'ACTIVE   · cnfg', c: 'err' });
+    const latched = rig.classList.contains('fault-latched');
+    if (!rows.length && !latched) return [];
+    if (rows.length) {
+      rows.unshift({ t: 'неисправности на месте — защёлка не снята', c: 'warn' });
+      return rows;
+    }
+    rig.classList.remove('fault-latched');
+    tick();
+    return [{ t: 'чинить нечего · индикация снята чтением журнала', c: 'ok' }];
   }
 
   // ── Входное питание ────────────────────────────────────────────────────
@@ -419,6 +1343,10 @@
   // питания, поэтому и записывается отдельно — и в журнал событий тоже:
   // на живой машине наутро ищут именно эту строку.
   let mainsDown = false;
+  // Что машина делала до пропажи питания — единственное, чего не восстановить
+  // задним числом: к моменту возврата state.powered уже сброшен. Запоминаем
+  // на входе в темноту, спрашивает это Restore on AC Power Loss.
+  let poweredBeforeLoss = false;
 
   function updateMains() {
     const total = chassis.querySelectorAll('.psu').length;
@@ -433,13 +1361,18 @@
     if (down) {
       if (screenOpen()) closeCrt();
       rig.classList.remove('net', 'bmc', 'identify');
+      poweredBeforeLoss = state.powered;
       state.powered = false; save();
       setPower('standby');
       line('all psu removed · ac lost, system down hard', 'err');
       selAdd('Power Unit · power lost — оба ввода обесточены разом', 'err');
     } else {
-      line('ac restored · standby, press power', 'warn');
+      line('ac restored · standby', 'warn');
       selAdd('Power Unit · ac restored — дежурное питание есть', 'ok');
+      // Дальше решает не схема, а прошивка: Restore on AC Power Loss. Это та
+      // самая настройка, которую можно потрогать руками — вынуть оба блока и
+      // вставить обратно, — и по машине сразу видно, что в ней стоит.
+      acRestorePolicy(poweredBeforeLoss);
     }
   }
 
@@ -481,10 +1414,28 @@
   }
 
   // ── Service mode ───────────────────────────────────────────────────────
-  const svcSwitch = document.getElementById('svc-switch');
+
+  // Органы управления нарисованы на самой плате, а лента ревизий переписывает
+  // её разметку целиком (showRev: board.innerHTML = markup). Обработчик,
+  // повешенный прямо на кнопку, уезжает вместе со старым узлом — и после
+  // первого же движения ползунка «Сервис» и «надеть крышку» переставали
+  // нажиматься совсем. Слушаем на самой плате: она подмену переживает,
+  // потому что меняются только её дети.
+  function onBoard(id, run) {
+    board.addEventListener('click', function (e) {
+      if (e.target.closest('#' + id)) run();
+    });
+    board.addEventListener('keydown', function (e) {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      if (!e.target.closest('#' + id)) return;
+      e.preventDefault();
+      run();
+    });
+  }
 
   function toggleService() {
     const on = rig.classList.toggle('service');
+    sfx('click');
     line(on ? 'service mode engaged · терминал и диагностика' : 'service mode released',
          on ? 'warn' : 'muted');
     if (on) initTimeline();     // the strip is only for a stripped-down machine
@@ -509,10 +1460,7 @@
       updateFault();
     }
   }
-  svcSwitch.addEventListener('click', toggleService);
-  svcSwitch.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleService(); }
-  });
+  onBoard('svc-switch', toggleService);
 
   // Выйти из сервисного режима нужно уметь всегда, а выключатель нарисован на
   // плате — то есть ровно там, где схемы может и не оказаться. Два запасных
@@ -526,10 +1474,11 @@
   // Esc, закрывающий BIOS Setup, к нашему обработчику доходил бы уже с
   // закрытым экраном и заодно выбрасывал из сервисного режима.
   document.addEventListener('keydown', function (e) {
-    if (e.key !== 'Escape' || !rig.classList.contains('service')) return;
+    if (e.key !== 'Escape') return;
+    if (!rig.classList.contains('service') && !rig.classList.contains('zoom')) return;
     if (screenOpen()) return;
     if (e.target && e.target.closest && e.target.closest('input, textarea')) return;
-    toggleService();
+    if (rig.classList.contains('zoom')) setZoom(false); else toggleService();
   }, true);
 
   // Второй — узкое окно. При 820 точках схема прячется целиком и уносит с
@@ -576,15 +1525,44 @@
     pull: function (el, line) {
       const blank = el.dataset.unit.startsWith('blank');
       const n = el.dataset.unit.replace(blank ? 'blank' : 'hdd', '');
+      // Звучит каддик ровно теми четырьмя движениями, которыми и ходит.
+      // Щелчок здесь только на границах: откинули защёлку и захлопнули её. Всё,
+      // что между, — свободный ход по направляющим, и добавлять туда щелчок
+      // значило бы придумать машине лишнюю железку.
       if (!el.classList.contains('unlatched')) {
+        el.classList.remove('back');
         el.classList.add('unlatched');
+        sfx('chk');
         line('unlatched: ' + el.dataset.unit + ' · защёлка каддика ' + n, 'muted');
-      } else if (!el.classList.contains('pulled')) {
+      } else if (!el.classList.contains('pulled') && !el.dataset.stowing) {
         el.classList.add('pulled');
+        sfxSlide(el);
         line(blank ? 'removed: заглушка отсека ' + n : 'removed: ' + el.dataset.unit, 'warn');
+      } else if (el.classList.contains('pulled')) {
+        // Ставится каддик теми же двумя движениями, только в обратном порядке:
+        // сперва он заходит в корзину, а ручка остаётся откинутой — за неё и
+        // держат, — и лишь отдельным движением её захлопывают. Прежде оба
+        // класса снимались разом: каддик въезжал, ручка на полпути складывалась
+        // сама, и второго движения не было вовсе.
+        // Признак обратного хода. Без него «откинута защёлка, каддик снаружи»
+        // и «каддик уже в корзине, защёлка ещё откинута» — это одно и то же
+        // сочетание классов, и четвёртый щелчок вместо того, чтобы захлопнуть
+        // ручку, вынимал диск заново.
+        el.classList.remove('pulled');
+        // Класс, а не только признак в датасете: по нему css отличает
+        // «откинули защёлку и потянули» от «каддик уже вернулся в корзину».
+        // Сочетание классов у этих двух состояний одно и то же, а кривые
+        // должны быть разные: наружу — короткий рывок за ручкой, внутрь —
+        // весь ход по направляющим.
+        el.classList.add('back');
+        el.dataset.stowing = '1';
+        sfxSlide(el);
+        line('inserted: ' + el.dataset.unit + ' · каддик в корзине', 'ok');
       } else {
-        el.classList.remove('unlatched', 'pulled');
-        line('inserted: ' + el.dataset.unit, 'ok');
+        el.classList.remove('unlatched', 'back');
+        delete el.dataset.stowing;
+        sfx('chk');
+        line('latched: ' + el.dataset.unit + ' · защёлка закрыта', 'ok');
       }
     },
   });
@@ -598,12 +1576,18 @@
       const n = el.dataset.cpu;
       if (!el.classList.contains('pulled')) {
         el.classList.add('pulled');
+        sfxMove(el, 'out');
         line('removed: радиатор CPU' + n, 'warn');
       } else if (!el.classList.contains('opened')) {
         el.classList.add('opened');
+        // Рамку сокета держит рычаг, и это единственное движение здесь, у
+        // которого есть щелчок: радиатор снимают винтами, процессор просто
+        // вынимают из рамки, а рычаг срывается с зацепа.
+        sfx('chk');
         line('removed: процессор CPU' + n + ' · LGA 4677 socket open', 'warn');
       } else {
         el.classList.remove('pulled', 'opened');
+        sfxMove(el, 'in');
         line('inserted: CPU' + n + ' с радиатором', 'ok');
       }
     },
@@ -620,6 +1604,9 @@
     // is switched off.
     pull: function (el, line) {
       const out = el.classList.toggle('pulled');
+      // Блок ходит в одно движение, за оранжевую скобу: она и щёлкает — на
+      // выходе отпуская, на входе запирая.
+      sfxMove(el, out ? 'out' : 'in');
       const name = 'psu-' + el.dataset.psu;
       // Первый вынутый блок — потеря резерва, второй — потеря питания. Про
       // саму потерю пишет updateMains(), здесь только судьба нагрузки: обещать
@@ -648,11 +1635,17 @@
       // off in two steps — handles itself.
       const kind = PICKS.find(function (k) { return k.test(pick); });
       if (kind && kind.pull) {
+        // Такой узел и звучит сам: только он знает, что это было — откинутая
+        // защёлка, ход по направляющим или возврат в корзину. Снаружи все три
+        // движения выглядят одинаково, а слышатся совершенно по-разному.
         kind.pull(pick, line);
         updateFault();
         return;
       }
+      // Узел, который ходит в одно движение: планка памяти, вентилятор,
+      // райзер. Наружу — щелчок защёлки и ход, внутрь — ход и щелчок в конце.
       const pulled = pick.classList.toggle('pulled');
+      sfxMove(pick, pulled ? 'out' : 'in');
       line((pulled ? 'removed: ' : 'inserted: ') + unitName(pick), pulled ? 'warn' : 'ok');
       updateFault();
       return;
@@ -871,6 +1864,52 @@
     },
   });
 
+  // Лента ревизий. На живом сайте она не поднимается сама: это восемьдесят
+  // схем, и качать их, зайдя посмотреть визитку, незачем. Кто хочет увидеть,
+  // как машина росла, — просит об этом сам, и тогда качается по одной схеме за
+  // ход ползунка. Локально лента была и есть, там просить нечего.
+  //
+  // Имя не history: так зовётся история команд оболочки, и вторая команда с
+  // тем же именем в реестр не встаёт — он её отвергает, а страница падает на
+  // этом ещё до того, как соберётся консоль.
+  cmd({
+    name: 'revisions',
+    group: 'МАШИНА',
+    brief: 'лента ревизий схемы',
+    usage: 'revisions on|off',
+    complete: function (argv, i) { return i === 1 ? ['on', 'off'] : []; },
+    help: ['Схема собирается генератором, и каждая её сборка сохранена.',
+           'on поднимает ленту под машиной: ползунком по ней видно, как плата',
+           'менялась от первой ревизии до сегодняшней. off убирает ленту и',
+           'возвращает машину на текущую сборку.',
+           'Схемы качаются по одной и только пока лента поднята.'],
+    run: function (ctx) {
+      const arg = String(ctx.args[0] || '').toLowerCase();
+      if (arg === 'off') {
+        if (!stripUp()) return [{ t: 'лента и так убрана', c: 'muted' }];
+        // Сначала вернуть машину на сегодняшнюю сборку, и только потом убирать
+        // ленту. Наоборот нельзя: на экране осталась бы схема полугодовой
+        // давности, а ползунка, которым её меняли, уже не будет.
+        showRev(revs.length - 1);
+        setStrip(false);
+        return [{ t: 'лента убрана · схема вернулась на текущую сборку', c: 'muted' }];
+      }
+      if (arg === 'on') {
+        if (stripUp()) return [{ t: 'лента уже поднята', c: 'muted' }];
+        // Второй заход качать нечего: список ревизий уже в памяти, а схемы — в
+        // кэше по мере того, как их листали.
+        if (revs.length) { setStrip(true); return [{ t: 'лента поднята', c: 'ok' }]; }
+        revsAsked = true;
+        initTimeline();
+        // initTimeline асинхронна: сообщать об успехе сейчас нельзя. Об отказе
+        // она скажет сама, отдельной строкой, когда станет ясно.
+        return [{ t: 'загружаю историю схемы…', c: 'muted' }];
+      }
+      return [{ t: 'revisions on|off', c: 'warn' },
+              { t: 'сейчас: ' + (stripUp() ? 'поднята' : 'убрана'), c: 'muted' }];
+    },
+  });
+
   cmd({
     name: 'clear', group: 'ОБОЛОЧКА', brief: 'очистить лог', usage: 'clear',
     run: function () { log.innerHTML = ''; return []; },
@@ -933,6 +1972,22 @@
 
   // ── The input field ────────────────────────────────────────────────────
   const promptInput = document.getElementById('prompt');
+
+  // Курсор всегда возвращается в строку. Гость щёлкает по узлу, по
+  // переключателю, по кнопке панели — и после каждого такого действия фокус
+  // оставался на нажатом, а набрать команду было некуда, пока не ткнёшь в
+  // строку отдельно. Возвращаем его сами.
+  //
+  // Только когда консоли есть куда возвращать: вне сервисного режима строки
+  // нет вовсе, в лупе она спрятана, а под поднятым экраном машины ввод и так
+  // запрещён. И не отнимаем фокус у того, кому он нужен самому, — у ссылок и
+  // у полей ввода.
+  rig.addEventListener('click', function (e) {
+    if (!rig.classList.contains('service') || rig.classList.contains('zoom')) return;
+    if (screenOpen()) return;
+    if (e.target.closest('input, textarea, a[href], [contenteditable]')) return;
+    promptInput.focus({ preventScroll: true });
+  });
   const ghostTyped = document.querySelector('.ghost-typed');
   const ghostRest = document.querySelector('.ghost-rest');
   const ps1Cwd = document.getElementById('ps1-cwd');
@@ -1052,37 +2107,270 @@
     names: names,
   };
 
-  // ── View switch ────────────────────────────────────────────────────────
-  // The business card and the schematic are two ways of showing the same
-  // thing. The choice is remembered, so a returning visitor lands where they
-  // left off.
-  const viewBtn = document.getElementById('view-switch');
+  // ── Какой из двух видов показывать ─────────────────────────────────────
+  // Кнопки переключения больше нет, и это не упрощение. Схема и карточка — не
+  // два варианта на вкус, а одно и то же для разных экранов: на телефоне
+  // машину не рассмотреть, там и открывать нечего, а на компьютере машина и
+  // есть визитка, и прятать её за кнопкой значит показывать гостю список
+  // ссылок вместо того, ради чего всё делалось.
+  //
+  // Порог тот же, на котором схема и так спрятана целиком в css (@media
+  // 820px): держать два разных порога — верный способ получить пустую
+  // страницу между ними.
+  const wide = window.matchMedia('(min-width: 821px)');
+
   function setView(v) {
     document.body.classList.toggle('view-rig', v === 'rig');
     document.body.classList.toggle('view-card', v !== 'rig');
-    viewBtn.setAttribute('aria-pressed', String(v === 'rig'));
-    try { localStorage.setItem('view', v); } catch (e) {}
     // Схему показали — вот теперь и собираем, если сборка ждала своего часа.
     if (v === 'rig') onRigShown();
   }
-  // На компьютере визитка открывается схемой: машина и есть визитка, и
-  // прятать её за кнопкой незачем — гость видит её, не догадываясь нажать.
-  // Исключение — узкое окно: там схема спрятана целиком (@media 820px), и
-  // открывать нечего, так что остаётся карточка.
+
+  function pickView() {
+    setView(wide.matches ? 'rig' : 'card');
+  }
+
+  pickView();
+  // Окно можно растянуть и сузить, и вид обязан пойти за ним: иначе на
+  // повёрнутом планшете остаётся то, что для этой ширины не годится.
+  wide.addEventListener('change', pickView);
+
+
+
+  // ── Лупа ───────────────────────────────────────────────────────────────
+  // Тот же сервисный режим, но без консоли: узлы разобраны и подписаны, а
+  // место приборов отдано машине. Смотреть — не то же, что работать.
   //
-  // Выбор гостя старше умолчания в обе стороны: ушёл на карточку — открываем
-  // карточку, и наоборот.
-  let view = window.matchMedia('(max-width: 820px)').matches ? 'card' : 'rig';
-  try {
-    const saved = localStorage.getItem('view');
-    if (saved === 'rig' || saved === 'card') view = saved;
-  } catch (e) {}
-  setView(view);
-  viewBtn.addEventListener('click', function () {
-    setView(document.body.classList.contains('view-rig') ? 'card' : 'rig');
+  // Отдельного «режима зума» со своей логикой разбора здесь нет нарочно:
+  // разбирает узлы сервисный режим, и делать это второй раз означало бы
+  // держать две копии одного поведения.
+  const zoomBtn = document.getElementById('zoom-btn');
+  const ZOOM_STEPS = [1, 1.6, 2.4];
+  let zoomStep = 0;
+
+  function applyZoom() {
+    rig.style.setProperty('--zoom', ZOOM_STEPS[zoomStep]);
+    rig.classList.toggle('zoom-max', zoomStep === ZOOM_STEPS.length - 1);
+  }
+
+  // ── Перелёт ────────────────────────────────────────────────────────────
+  // Раскладка в лупе другая целиком: машина уходит из грида в поле во весь
+  // экран, шапка — в левый верхний угол, и разницу между этими местами
+  // переходом не взять, position и display не интерполируются. Поэтому
+  // положение меряется до и после, разница выдаётся трансформацией, а
+  // снимается она уже переходом: узел не перепрыгивает на новое место, а
+  // доезжает до него.
+  //
+  // Летят вместе — сцена, имя и должность. Порознь это три отдельных переезда
+  // в одном кадре, и глаз читает их не как смену режима, а как сбой раскладки.
+  //
+  // Саму раскладку при этом меняем без перехода. Колонка приборов в этот
+  // момент погашена, и её отъезд всё равно никто не увидит, а мерить конечное
+  // положение надо по готовой раскладке — иначе перелёт целится туда, откуда
+  // колонка ещё только уезжает, и машина в конце дёргается вбок.
+  const FLY = 550;
+  const FLY_SEL = '.stage, .rig-id h2, .rig-id .bio';
+
+  function flyParts(mutate) {
+    if (reduced) { mutate(); return; }
+    const parts = [];
+    rig.querySelectorAll(FLY_SEL).forEach(function (el) {
+      parts.push({ el: el, a: el.getBoundingClientRect() });
+    });
+    // Переходы глушим у всех, кто летит, и у поля под ними — до смены
+    // раскладки, а не после. У сцены в лупе свой переход по width, и она
+    // трогается с места сразу; замер, взятый в эту секунду, показывает ширину,
+    // с которой переход только начался, разница выходит нулевой, и сцена
+    // никуда не летит — просто прыгает. Имя летело, потому что своего перехода
+    // по размеру у него нет, и на нём поломка не видна.
+    parts.forEach(function (p) { p.el.style.transition = 'none'; });
+    rigBody.style.transition = 'none';
+    mutate();
+    // Замер конечных мест обязан идти по готовой раскладке — чтение rect её
+    // и заставляет пересчитаться, пока переходы выключены.
+    parts.forEach(function (p) { p.b = p.el.getBoundingClientRect(); });
+    rigBody.style.transition = '';
+    parts.forEach(function (p) {
+      if (!p.a.width || !p.b.width) return;
+      p.el.style.transformOrigin = '0 0';
+      p.el.style.transform =
+        'translate(' + (p.a.left - p.b.left) + 'px,' + (p.a.top - p.b.top) + 'px)'
+        + ' scale(' + (p.a.width / p.b.width) + ')';
+      p.el.getBoundingClientRect();  // забрать начальное положение до перехода
+      p.el.style.transition = 'transform ' + (FLY / 1000) + 's cubic-bezier(0.22, 1, 0.36, 1)';
+      p.el.style.transform = '';
+    });
+  }
+
+  function landParts() {
+    rig.querySelectorAll(FLY_SEL).forEach(function (el) {
+      el.style.transition = '';
+      el.style.transform = '';
+      el.style.transformOrigin = '';
+    });
+  }
+
+  // Пока идёт перелёт, второе нажатие кнопки только собьёт замеры.
+  let flying = false;
+
+  function setZoom(on) {
+    if (flying || on === rig.classList.contains('zoom')) return;
+    flying = true;
+    zoomBtn.setAttribute('aria-pressed', String(on));
+    line(on ? 'inspect: on · shift + клик — приблизить · esc — выход'
+            : 'inspect: off', 'muted');
+    // Сначала уходят приборы, и только потом трогается машина. Одновременно
+    // это читается рябью: колонка ещё едет, схема уже летит поверх неё.
+    rig.classList.add('zoom-shift');
+    wait(190, function () {
+      rig.classList.add('zooming');
+      flyParts(function () {
+        rig.classList.toggle('zoom', on);
+        document.body.classList.toggle('zoom', on);
+        if (on) {
+          zoomStep = 0;
+          applyZoom();
+        } else {
+          rig.style.removeProperty('--zoom');
+          rig.classList.remove('zoom-max', 'shifted');
+        }
+        // Сервисный режим включаем его же переключателем, а не классом: у него
+        // на себе висит и раскладка, и запись в журнал, и разбор узлов.
+        if (rig.classList.contains('service') !== on) toggleService();
+      });
+      wait(FLY + 20, function () {
+        landParts();
+        rig.classList.remove('zooming', 'zoom-shift');
+        flying = false;
+      });
+    });
+  }
+
+  zoomBtn.addEventListener('click', function () {
+    setZoom(!rig.classList.contains('zoom'));
   });
 
+  // ── shift ──────────────────────────────────────────────────────────────
+  // Приближает не всякий щелчок, а щелчок с shift. Простой щелчок в этом
+  // режиме занят: им машину возят, и приближение на него садилось поверх —
+  // рука дрогнула, отпустила, и схема прыгнула на ступень вместо того, чтобы
+  // остаться там, куда её привезли.
+  //
+  // Клавишу видно на трёх приборах сразу: курсор становится лупой, рамка
+  // вокруг слова shift в подсказке загорается, и щелчок начинает работать.
+  function zoomHint() {
+    const last = zoomStep === ZOOM_STEPS.length - 1;
+    return '<span class="lh-key">shift</span> + клик — '
+      + (last ? 'к общему виду' : 'приблизить')
+      + ' <span class="lh-scheme">· ×' + ZOOM_STEPS[zoomStep] + '</span>';
+  }
 
+  function armZoom(on) {
+    rig.classList.toggle('shifted', on && rig.classList.contains('zoom'));
+    if (linkHint) linkHint.classList.toggle('armed', on);
+  }
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Shift') armZoom(true);
+  });
+  document.addEventListener('keyup', function (e) {
+    if (e.key === 'Shift') armZoom(false);
+  });
+  // Отпустить клавишу можно и в другом окне — тогда keyup сюда не придёт, и
+  // курсор остался бы лупой над полем, которое уже не приближает.
+  window.addEventListener('blur', function () { armZoom(false); });
+
+  // Щелчок по полю приближает ещё на ступень, а с последней возвращает к
+  // первой. Точка под курсором при этом остаётся на месте: без этого
+  // приближение уводит взгляд с того, на что смотрели.
+  // ── Приближение ────────────────────────────────────────────────────────
+  // Ведём его сами, кадр за кадром, а не переходом по ширине. Переход менял
+  // размер, а прокрутку доводили после него — всё это время схема ехала вокруг
+  // прежней точки, и в конце прыгала на новую. Отсюда и «дёргается», и «зумит
+  // в левый верхний угол»: до конца перехода точка под курсором никого не
+  // держала. Чтобы она стояла на месте, ширину и прокрутку надо менять в одном
+  // кадре — а значит вести обе руками.
+  const ZOOM_MS = 340;
+  let zoomAnim = null;
+
+  // Границы возят по самой схеме, а не по прокручиваемой области. Область
+  // шире машины: перспектива и подписи рисуются за габарит сцены, и браузер
+  // считает это содержимым — замерено, при машине в 2337 точек область выходила
+  // 3892, то есть полторы тысячи точек пустоты справа. По ней-то и уезжало
+  // «вправо бесконечно».
+  function scrollMax() {
+    const st = rigBody.querySelector('.stage');
+    if (!st) return [0, 0];
+    return [Math.max(0, st.offsetLeft + st.offsetWidth - rigBody.clientWidth),
+            Math.max(0, st.offsetTop + st.offsetHeight - rigBody.clientHeight)];
+  }
+
+  function panTo(x, y) {
+    const [mx, my] = scrollMax();
+    rigBody.scrollLeft = Math.max(0, Math.min(mx, x));
+    rigBody.scrollTop = Math.max(0, Math.min(my, y));
+  }
+
+  function zoomTo(step, cx, cy) {
+    const from = ZOOM_STEPS[zoomStep], to = ZOOM_STEPS[step];
+    zoomStep = step;
+    rig.classList.toggle('zoom-max', step === ZOOM_STEPS.length - 1);
+    const r = rigBody.getBoundingClientRect();
+    // Точка под курсором в координатах самой схемы: она и обязана остаться
+    // неподвижной, как бы ни менялся масштаб.
+    const ax = cx - r.left, ay = cy - r.top;
+    const px = (rigBody.scrollLeft + ax) / from, py = (rigBody.scrollTop + ay) / from;
+    if (zoomAnim) cancelAnimationFrame(zoomAnim);
+    const t0 = performance.now();
+    (function tick(now) {
+      const p = reduced ? 1 : Math.min(1, (now - t0) / ZOOM_MS);
+      // Кубическое торможение: масштаб набирается сразу и мягко доводится.
+      // Линейный ход читался рывком ровно в конце, когда движение обрывалось.
+      const k = from + (to - from) * (1 - Math.pow(1 - p, 3));
+      rig.style.setProperty('--zoom', k);
+      panTo(px * k - ax, py * k - ay);
+      zoomAnim = p < 1 ? requestAnimationFrame(tick) : null;
+    })(t0);
+  }
+
+  rigBody.addEventListener('click', function (e) {
+    if (!rig.classList.contains('zoom') || !e.shiftKey) return;
+    // Щелчок по самой машине — это работа с узлом, а не приближение.
+    if (e.target.closest('.pick, .unit, a')) return;
+    zoomTo((zoomStep + 1) % ZOOM_STEPS.length, e.clientX, e.clientY);
+  });
+
+  // Возят машину курсором, как фотографию. Порог в три пикселя отделяет
+  // перетаскивание от щелчка: без него всякая попытка приблизить уезжала бы
+  // вбок на дрожание руки.
+  let drag = null;
+  rigBody.addEventListener('pointerdown', function (e) {
+    if (!rig.classList.contains('zoom') || e.button) return;
+    drag = { x: e.clientX, y: e.clientY,
+             left: rigBody.scrollLeft, top: rigBody.scrollTop, moved: false };
+  });
+  rigBody.addEventListener('pointermove', function (e) {
+    if (!drag) return;
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (!drag.moved && Math.abs(dx) + Math.abs(dy) < 3) return;
+    drag.moved = true;
+    rig.classList.add('dragging');
+    // Возят машину в границах поля: без ограничения прокрутка уходила вправо
+    // сколько ни тяни, и схема пропадала за кромкой.
+    panTo(drag.left - dx, drag.top - dy);
+  });
+  function endDrag() {
+    if (drag && drag.moved) {
+      // Щелчок, родившийся из перетаскивания, приближать не должен.
+      const eat = function (ev) { ev.stopPropagation(); };
+      rigBody.addEventListener('click', eat, { capture: true, once: true });
+    }
+    drag = null;
+    rig.classList.remove('dragging');
+  }
+  rigBody.addEventListener('pointerup', endDrag);
+  rigBody.addEventListener('pointercancel', endDrag);
+  rigBody.addEventListener('pointerleave', endDrag);
 
   // ── Part numbers of the units ──────────────────────────────────────────
   // Clicking the hash copies it and opens the commit: on a real board a part
@@ -1101,6 +2389,66 @@
   // ── Tying a unit to its label ──────────────────────────────────────────
   // The highlight goes both ways: unit ↔ its callout. A class instead of
   // :hover, because the elements sit in different branches of the tree.
+  // Кольцо наведения переезжает к узлу и берёт габарит у него самого: своей
+  // геометрии у него нет и быть не должно — блоки двигают детали, и второй
+  // экземпляр координат промахивался бы на первой же правке. Корзина дисков
+  // при этом обводится одним кольцом на восемь отсеков: узлов там восемь, а
+  // ссылка одна, и рамка обводит то, куда она ведёт.
+  const spotRings = chassis.querySelector('.spot-rings');
+  const RING_PAD = 7;
+  // Порог слияния соседних рамок. Между отсеками корзины тридцать единиц,
+  // между банками памяти сто восемьдесят, между сокетами сто шестьдесят: шаг
+  // в шестьдесят отделяет «стоит вплотную» от «стоит в другом конце платы».
+  const RING_GAP = 60;
+
+  function ringBoxes(group) {
+    const out = [];
+    chassis.querySelectorAll('#board [data-group="' + group + '"]').forEach(function (n) {
+      const b = n.getBBox();
+      out.push([b.x, b.y, b.x + b.width, b.y + b.height]);
+    });
+    // Рамки, стоящие вплотную, сливаются в одну: восемь отсеков корзины — это
+    // одна корзина, и ссылка у них одна. Восемь колец на ней читались бы
+    // решёткой, а не обводкой того, куда ведёт бирка. Банки памяти и сокеты
+    // стоят порознь и своими кольцами и остаются.
+    for (let merged = true; merged;) {
+      merged = false;
+      for (let i = 0; i < out.length && !merged; i++) {
+        for (let j = i + 1; j < out.length && !merged; j++) {
+          const a = out[i], b = out[j];
+          if (a[0] < b[2] + RING_GAP && b[0] < a[2] + RING_GAP &&
+              a[1] < b[3] + RING_GAP && b[1] < a[3] + RING_GAP) {
+            out[i] = [Math.min(a[0], b[0]), Math.min(a[1], b[1]),
+                      Math.max(a[2], b[2]), Math.max(a[3], b[3])];
+            out.splice(j, 1);
+            merged = true;
+          }
+        }
+      }
+    }
+    return out;
+  }
+
+  function ringTo(group) {
+    if (!spotRings) return;
+    // Цвет берём у бирки этого же узла: там он уже объявлен переменной, и
+    // таблица «узел — цвет сервиса» остаётся в одном месте, в ink.py.
+    const tag = chassis.querySelector('[data-for="' + group + '"]');
+    spotRings.style.setProperty('--accent',
+      tag ? tag.style.getPropertyValue('--accent') : '');
+    spotRings.textContent = '';
+    ringBoxes(group).forEach(function (b) {
+      const r = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      r.setAttribute('class', 'spot-ring');
+      r.setAttribute('x', b[0] - RING_PAD);
+      r.setAttribute('y', b[1] - RING_PAD);
+      r.setAttribute('width', b[2] - b[0] + RING_PAD * 2);
+      r.setAttribute('height', b[3] - b[1] + RING_PAD * 2);
+      r.setAttribute('rx', 9);
+      spotRings.appendChild(r);
+    });
+  }
+
   function lit(group, on) {
     chassis.querySelectorAll('[data-group="' + group + '"]').forEach(function (n) {
       n.classList.toggle('lit', on);
@@ -1108,6 +2456,8 @@
     chassis.querySelectorAll('[data-for="' + group + '"]').forEach(function (n) {
       n.classList.toggle('lit', on);
     });
+    if (on) ringTo(group);
+    rig.classList.toggle('spot', on);
   }
   chassis.querySelectorAll('[data-group], [data-for]').forEach(function (n) {
     const g = n.dataset.group || n.dataset.for;
@@ -1150,7 +2500,14 @@
         return { v: v, text: Math.round(v) + 'k', warn: drivesOut > 0 };
       }
       case 'power': {
-        const v = 318 + fansOut * 26 - dimmsOut * 3 + Math.random() * 30;
+        // Считается от того, сколько машина сейчас может взять, а не от одного
+        // выдуманного числа: предел мощности пакета из прошивки — это потолок
+        // для процессоров, и заниженный виден здесь тем же вечером. Остальное —
+        // всё, что не процессоры: платы, накопители, вентиляторы.
+        const nvv = nvBag();
+        const cap = Number(nvv.powerLimit) || (HW.cpu ? HW.cpu.tdp : 0);
+        const load = 0.18 + Math.random() * 0.06;
+        const v = 96 + cpuState(nvv).sockets * cap * load + fansOut * 26 - dimmsOut * 3;
         return { v: v, text: Math.round(v) + ' W', warn: false };
       }
     }
@@ -1165,6 +2522,17 @@
 
   function counts(sel) {
     return chassis.querySelectorAll(sel).length;
+  }
+
+  // Обороты спрашиваются у прошивки: политика охлаждения стоит в меню
+  // контроллера управления, и заводить здесь вторую таблицу оборотов нельзя —
+  // разъедутся рисунок, звук и эта самая команда. Осторожность та же, что у
+  // nvBag в term.js: сборка без экрана обязана работать и без него.
+  function fanRpmNow(nv) {
+    try { return fanTargetRpm(nv); } catch (e) { return HW.fan ? HW.fan.rpm_nom : 0; }
+  }
+  function fanPolicyNow(nv) {
+    try { return fanPolicyEffective(nv); } catch (e) { return 'Balanced'; }
   }
 
   function pulledNums(sel, attr) {
@@ -1208,12 +2576,20 @@
   }
 
   cmd({
-    name: 'sel', group: 'СОСТОЯНИЕ', brief: 'журнал системных событий', usage: 'sel',
+    name: 'sel', group: 'СОСТОЯНИЕ', brief: 'журнал событий; чтение снимает защёлку',
+    usage: 'sel',
+    help: ['Лампа неисправности защёлкивается: узел вернули на место, а она',
+           'горит, потому что об отказе никто ещё не узнал. Чтение журнала и',
+           'есть это «узнал» — если чинить больше нечего, индикация снимается',
+           'сама. Кнопка RESET на панели диагностики гасит её, не читая.'],
     run: function () {
-      if (!SEL_LOG.length) return [{ t: 'журнал пуст', c: 'muted' }];
-      return [{ t: 'ID      EVENT', c: 'muted' }].concat(SEL_LOG.map(function (e) {
-        return { t: '0x' + e.id.toString(16).padStart(4, '0') + '  ' + e.t, c: e.c };
-      }));
+      const cleared = faultLog();
+      const head = SEL_LOG.length
+        ? [{ t: 'ID      EVENT', c: 'muted' }].concat(SEL_LOG.map(function (e) {
+            return { t: '0x' + e.id.toString(16).padStart(4, '0') + '  ' + e.t, c: e.c };
+          }))
+        : [{ t: 'журнал пуст', c: 'muted' }];
+      return head.concat(cleared);
     },
   });
 
@@ -1252,9 +2628,13 @@
         { t: 'CPU0 Temp      ' + Math.round(metric('temp').v) + ' °C', c: out ? 'warn' : 'ok' },
         { t: 'CPU1 Temp      ' + Math.round(metric('temp').v - 2) + ' °C', c: out ? 'warn' : 'ok' },
         { t: 'Inlet Temp     ' + (21 + Math.round(Math.random() * 2)) + ' °C', c: 'ok' },
-        { t: 'Fan Speed      ' + (HW.fan.rpm_nom + out * 1800) + ' RPM', c: out ? 'warn' : 'ok' },
+        { t: 'Fan Speed      ' + (fanRpmNow(ctx.nv) + out * 1800) + ' RPM', c: out ? 'warn' : 'ok' },
+        { t: 'Fan Policy     ' + fanPolicyNow(ctx.nv), c: 'muted' },
         { t: 'PSU Input      ' + Math.round(metric('power').v) + ' W',
           c: counts('.psu.pulled') ? 'warn' : 'ok' },
+        { t: 'Pkg Power Cap  ' + (ctx.nv && ctx.nv.powerLimit
+             ? ctx.nv.powerLimit + ' W' : HW.cpu.tdp + ' W (auto)'),
+          c: ctx.nv && ctx.nv.powerLimit ? 'warn' : 'ok' },
         { t: 'PSU Redundancy ' + (HW.psu.n - counts('.psu.pulled')) + ' of ' + HW.psu.n,
           c: counts('.psu.pulled') ? 'warn' : 'ok' },
         { t: 'DIMM Populated ' + dimm.in + ' of ' + dimm.total, c: dimm.out ? 'warn' : 'ok' },
@@ -1266,16 +2646,20 @@
 
   cmd({
     name: 'fans', group: 'ЖЕЛЕЗО', brief: 'обороты по модулям', usage: 'fans',
-    run: function () {
+    run: function (ctx) {
       // There are no empty spots in the wall: eight modules, all alive. The
       // old output reported an empty FAN6 bay that never existed.
       const pulled = pulledNums('.fan.pulled', 'fan');
+      const base = fanRpmNow(ctx.nv);
       const rows = [];
       for (let n = 0; n < HW.fan.n; n++) {
         if (pulled.has(n)) { rows.push({ t: 'FAN' + (n + 1) + '  —      removed', c: 'warn' }); continue; }
-        const rpm = HW.fan.rpm_nom + pulled.size * 1800 + Math.round(Math.random() * 400);
+        const rpm = base + pulled.size * 1800 + Math.round(Math.random() * 400);
         rows.push({ t: 'FAN' + (n + 1) + '  ' + rpm + '  RPM  ok', c: 'ok' });
       }
+      // Сводной строки здесь нет намеренно: строка на модуль — это контракт,
+      // на который опирается `fans | wc -l`, и политика в него не влезает, не
+      // сломав счёт. Её место в sensors, рядом с оборотами.
       return rows;
     },
   });
@@ -1350,7 +2734,12 @@
 
   cmd({
     name: 'lspci', group: 'ЖЕЛЕЗО', brief: 'устройства на шине', usage: 'lspci',
-    run: function () {
+    run: function (ctx) {
+      const nv = ctx.nv || {};
+      // Скорость линка и разрядность окна — не украшение строки, а то, из-за
+      // чего в неё вообще смотрят: карта, которой не досталось окна выше
+      // четырёх гигабайт, тут и видна.
+      const speed = nv.pcieSpeed && nv.pcieSpeed !== 'Auto' ? nv.pcieSpeed : 'Gen5';
       // We list what is drawn: chips from the spec, drives from the cage,
       // risers with their cards. An empty riser is marked as exactly that.
       const rows = [];
@@ -1362,8 +2751,15 @@
         rows.push({ t: '17:0' + b.bay + '.0  NVMe  ' + b.model + ' ' + b.tb + ' TB' });
       });
       HW.riser.forEach(function (r) {
-        rows.push({ t: 'b' + r.slot + ':00.0  PCI bridge · Riser ' + r.slot + ' · ' + r.link
+        const link = r.link.replace(/Gen\d/, speed);
+        rows.push({ t: 'b' + r.slot + ':00.0  PCI bridge · Riser ' + r.slot + ' · ' + link
                        + (r.empty ? ' · пуст' : ' · ' + r.card), c: r.empty ? 'muted' : '' });
+        if (r.empty) return;
+        if (nv.above4g === 'Disabled') {
+          rows.push({ t: '            Region 0: <unassigned> · 64-bit BAR needs Above 4G', c: 'err' });
+        } else if (nv.sriov === 'Enabled') {
+          rows.push({ t: '            Capabilities: [160] SR-IOV, 64 VFs', c: 'muted' });
+        }
       });
       return rows;
     },
@@ -1608,11 +3004,23 @@
     };
   }
 
+  // Сколько памяти прошивка оставила системе. Считает это memPlan в screen.js,
+  // и второй такой же арифметики здесь заводить нельзя — она бы разошлась с
+  // экраном на первой же правке. Осторожность та же, что у nvBag: сборка без
+  // экрана обязана работать.
+  function fsMemUsableGb(ctx, installedGb) {
+    try { return memPlan(ctx.nv).gb; } catch (e) { return installedGb; }
+  }
+
   function fsProcMeminfo(ctx) {
     return function () {
       const dimm = ctx.HW.dimm || {};
       const present = Math.max(0, (dimm.slots || 0) - fsDimmsOut());
-      const totalKB = present * (dimm.size_gb || 0) * 1024 * 1024;
+      // Система видит не то, что вставлено, а то, что ей оставила прошивка:
+      // зеркало и резервный ранг забирают половину, и MemTotal падает вдвое —
+      // ровно там же, где падает Usable Memory на экране Main.
+      const gb = fsMemUsableGb(ctx, present * (dimm.size_gb || 0));
+      const totalKB = gb * 1024 * 1024;
       const freeKB = Math.round(totalKB * 0.13);
       const buffKB = Math.round(totalKB * 0.02);
       const cacheKB = Math.round(totalKB * 0.22);
@@ -1657,10 +3065,15 @@
   function fsProcCmdline(ctx) {
     return function () {
       const nv = ctx.nv || {};
+      // Скорость консоли в строке ядра — та же, что стоит в перенаправлении
+      // консоли: их выставляют вместе, и разъехавшись, они дают ровно ту немую
+      // консоль, из-за которой к стойке идут с тележкой и монитором.
+      const baud = nv.sol === 'Enabled' && nv.solBaud ? nv.solBaud : '115200';
       let s = 'BOOT_IMAGE=/vmlinuz-6.9.12-cd93 root=UUID=93cd0000-0000-0000-0000-000000000001 '
-            + 'ro quiet console=ttyS0,115200n8';
+            + 'ro quiet console=ttyS0,' + baud + 'n8';
       if (nv.cores && nv.cores !== 'All') s += ' nr_cpus=' + fsTotalLogical(ctx);
       if (nv.numa === 'Disabled') s += ' numa=off';
+      if (nv.iommu === 'Disabled') s += ' amd_iommu=off';
       return [{ t: s }];
     };
   }
@@ -1700,6 +3113,22 @@
         }),
       });
     });
+    return kids;
+  }
+
+  // По группе на процессор, как их и заводит AMD-Vi: сокет вынули — группа
+  // пропала вместе с ним. Выключенная в прошивке трансляция не оставляет ни
+  // одной, и каталог оказывается пустым.
+  function fsIommuEntries(ctx) {
+    const kids = {};
+    if ((ctx.nv || {}).iommu === 'Disabled') return kids;
+    const cpu = ctx.HW.cpu || {};
+    const present = Math.max(0, (cpu.n || 0) - chassis.querySelectorAll('.cpu-slot.pulled').length);
+    for (let i = 0; i < present; i++) {
+      kids['ivhd' + i] = fsDir({
+        type: fsFile(function () { return [{ t: 'AMD-Vi' }]; }),
+      });
+    }
     return kids;
   }
 
@@ -1938,6 +3367,10 @@
       sys: fsDir({
         class: fsDir({
           hwmon: fsDir(fsHwmonEntries()),
+          // Каталога iommu нет вовсе, если трансляция адресов выключена в
+          // прошивке: ядро не создаёт его пустым, а просто не создаёт. Так это
+          // и проверяют — ls, а не grep по логу.
+          iommu: fsDir(fsIommuEntries(ctx)),
           net: fsDir(fsNetEntries(ctx)),
           power_supply: fsDir(fsPowerSupplyEntries()),
         }),
@@ -2297,23 +3730,34 @@
   // document below, which catches anything that still tries to get through.
   //
   // Three modes share one piece of markup, the panes hide behind each other
-  // with the hidden attribute.
+  // with the hidden attribute. Поверх любого из них поднимается накладка —
+  // рамка подтверждения, меню загрузки, окно помощи, запрос пароля. Накладка
+  // одна на всех, и разбирается по overlay.kind: заведи мы флаг на каждую, к
+  // четвёртой уже нельзя было бы сказать, сколько их открыто разом.
   const crt = document.getElementById('crt');
   // Everything that must stop answering mouse and keyboard while the screen is
   // up. The screen sits next to .chassis rather than inside it precisely so
   // that inert on the schematic does not swallow the screen along with it.
   const SHADOWED = '.chassis, .rig-side, .timeline, .rig-id, main,' +
-                   ' .theme-switch, .assemble-btn, .view-switch';
+                   ' .theme-switch, .assemble-btn, .zoom-btn, .sfx-btn';
   const postPane = document.getElementById('crt-post');
   const postLog = document.getElementById('crt-post-log');
+  const postLogo = document.getElementById('crt-post-logo');
+  const postCodeEl = document.getElementById('crt-post-code');
   const setupPane = document.getElementById('crt-setup');
   const setupTabsEl = document.getElementById('crt-setup-tabs');
+  const setupPathEl = document.getElementById('crt-setup-path');
   const setupRowsEl = document.getElementById('crt-setup-rows');
   const setupHelpEl = document.getElementById('crt-setup-help');
   const setupNoteEl = document.getElementById('crt-setup-note');
+  const setupKeysEl = document.getElementById('crt-setup-keys');
   const topPane = document.getElementById('crt-top');
   const topHeadEl = document.getElementById('crt-top-head');
   const topGridEl = document.getElementById('crt-top-grid');
+  const overlayEl = document.getElementById('crt-overlay');
+  const overlayTitleEl = document.getElementById('crt-overlay-title');
+  const overlayBodyEl = document.getElementById('crt-overlay-body');
+  const overlayKeysEl = document.getElementById('crt-overlay-keys');
 
   // dormancy() in base.js puts the schematic on pause when the tab has been
   // minimised or taken off the edge of the screen — the same reason to stop it
@@ -2323,6 +3767,13 @@
   // nowhere to change its body from — this is that very flag, the one that has
   // to go into its condition (see the report).
   let crtOpen = false;
+
+  // Кому вернуть фокус, когда экран уедет. Нужно не ради удобства с
+  // клавиатуры, а потому что иначе фокус остаётся на самом экране, и
+  // aria-hidden на нём Chrome не ставит: «Blocked aria-hidden on an element
+  // because its descendant retained focus». То есть закрытый экран так и
+  // оставался бы видимым для читалки.
+  let crtReturn = null;
 
   // The base asks through a function instead of reading the variable: base.js
   // runs higher up the file, and a reference before the let declaration throws.
@@ -2335,6 +3786,9 @@
   }
 
   function openCrt(mode) {
+    // Запоминаем ДО shadow(true): та вешает inert на всё вокруг, и после неё
+    // activeElement уже не тот, кто экран вызвал.
+    if (!crtOpen) crtReturn = document.activeElement;
     crt.dataset.mode = mode;
     postPane.hidden = mode !== 'post';
     setupPane.hidden = mode !== 'setup';
@@ -2354,7 +3808,14 @@
 
   function closeCrt() {
     if (!crtOpen) return;
+    closeOverlay();
     crt.classList.remove('on');
+    // Фокус уводим прежде, чем прятать экран от читалки. Пока он оставался на
+    // самом экране (openCrt переводит его туда руками), Chrome отказывался
+    // ставить aria-hidden и писал в Issues: «Blocked aria-hidden on an element
+    // because its descendant retained focus» — то есть уехавший с картинки
+    // экран для читалки так и оставался открытым диалогом.
+    crt.blur();
     crt.setAttribute('aria-hidden', 'true');
     // Экран уехал — вот теперь подписи проступают, одна за другой.
     rig.classList.remove('tags-off');
@@ -2373,15 +3834,21 @@
   // from: there the screen belongs on until you enter setup and change the
   // boot order.
   crt.addEventListener('click', function () {
-    if (crt.dataset.mode === 'post' && postCtl && postCtl.done) { postCtl = null; closeCrt(); }
+    if (overlay) return;             // накладка ловит клавиши сама, экран под ней не трогаем
+    if (crt.dataset.mode === 'post' && postCtl && postCtl.done && !postCtl.hung) {
+      postCtl = null;
+      closeCrt();
+    }
   });
 
   // One handler for all three modes: the dispatcher looks at dataset.mode
   // instead of breeding a listener per openXxx() — that way, on a switch from
   // post to setup inside one already open dialog, there is no guessing how
-  // many old handlers have been hung on it by now.
+  // many old handlers have been hung on it by now. Накладка идёт первой: пока
+  // она поднята, клавиши принадлежат ей одной.
   document.addEventListener('keydown', function (e) {
     if (!crtOpen) return;
+    if (overlay) { handleOverlayKey(e); return; }
     const mode = crt.dataset.mode;
     if (mode === 'post') handlePostKey(e);
     else if (mode === 'setup') handleSetupKey(e);
@@ -2393,16 +3860,36 @@
   // POST runs five seconds at most — waiting for it to get into setup would be
   // a mockery. Hence: screen closed — F2 opens setup, screen open — the key is
   // taken apart by the mode dispatcher above.
+  //
+  // F1 здесь же, и это не прихоть. IMM и панель световой диагностики машина
+  // унаследовала от IBM System x, а туда в Setup входят по F1; синее поле с
+  // жёлтой строкой — это AMI Aptio, и там F1 внутри Setup открывает окно
+  // помощи. Обе школы уживаются: снаружи F1 и F2 открывают Setup одинаково,
+  // внутри F1 показывает помощь. F11 — выбор устройства загрузки, как на
+  // живой машине, и F12 рядом, потому что половина вендоров вешает его туда.
   document.addEventListener('keydown', function (e) {
     if (crtOpen) return;
-    // F2 — as on a real machine. Enter — for those whose top row is given
-    // over to the system, but only when the focus is on nothing: in the
-    // console field it sends the command, on a button of the schematic it
-    // presses that button, and it must not be taken away there.
+    // Клавишу, которой экран только что закрыли, второй раз не разбираем.
+    // Оба обработчика висят на document в фазе перехвата и получают ОДНО и то
+    // же нажатие: Enter на «Yes» в подтверждении закрывает Setup — и тут же
+    // приходит сюда, где экран уже закрыт, а фокус после blur() лежит на
+    // body, то есть «ни на чём». Setup открывался обратно в том же кадре.
+    // Раньше это не всплывало только потому, что фокус оставался на скрытом
+    // экране и условие idle не выполнялось.
+    if (e.defaultPrevented) return;
+    // Enter — for those whose top row is given over to the system, but only
+    // when the focus is on nothing: in the console field it sends the command,
+    // on a button of the schematic it presses that button, and it must not be
+    // taken away there.
     const idle = document.activeElement === document.body || document.activeElement === null;
-    if (e.key !== 'F2' && !(e.key === 'Enter' && idle)) return;
+    if (e.key === 'F11' || e.key === 'F12') {
+      e.preventDefault();
+      openBootMenuStandalone();
+      return;
+    }
+    if (e.key !== 'F2' && e.key !== 'F1' && !(e.key === 'Enter' && idle)) return;
     e.preventDefault();
-    openSetup();
+    requestSetup();
   }, true);
 
   // ── NVRAM ────────────────────────────────────────────────────────────────
@@ -2420,8 +3907,26 @@
   const NV_DEFAULT = {
     ht: 'Enabled', cores: 'All', numa: 'Enabled', memfreq: 'Auto',
     power: 'Maximum Performance', cstates: 'Enabled',
-    mode: 'UEFI', secureBoot: 'Enabled', quietBoot: 'Enabled',
+    determinism: 'Performance', powerLimit: 0,
+    memMode: 'Independent', patrol: 'Enabled',
+    above4g: 'Enabled', sriov: 'Enabled', iommu: 'Enabled', pcieSpeed: 'Auto',
+    // Quiet Boot по умолчанию выключен, и это не произвол: машина показывает
+    // полный журнал самотеста и пищит спикером на старте — то есть ведёт себя
+    // ровно как машина с выключенной тихой загрузкой. Включите его в BIOS, и
+    // старт пройдёт молча.
+    mode: 'UEFI', secureBoot: 'Enabled', quietBoot: 'Disabled',
     bootOrder: ['nvme', 'pxe', 'bmc'],
+    netStack: 'Enabled', pxe: 'Enabled',
+    sbKeys: 'User Mode', tpm: 'Enabled',
+    // Пустая строка — пароль не задан. Лежит он тут открытым, и это честнее,
+    // чем изображать хэш: настоящая прошивка держит его в отдельной области
+    // NVRAM, а стирается он перемычкой на плате, которой у нас нет.
+    adminPw: '', powerOnPw: '',
+    acRestore: 'Last State', wol: 'Enabled',
+    watchdog: 'Disabled', watchdogMin: 5,
+    sol: 'Disabled', solBaud: '115200',
+    fanPolicy: (HW.fan && HW.fan.policy_default) || 'Balanced',
+    immNic: 'Dedicated', vmedia: 'Detached',
     ipMode: 'DHCP', ip: HW.fw.ip, mask: '255.255.255.0', gw: '192.168.10.1',
   };
 
@@ -2441,22 +3946,115 @@
 
   let nv = loadNv();
 
+  // Однократная загрузка живёт вне NVRAM намеренно: в том и весь смысл выбора
+  // из всплывающего меню, что он не переживает перезагрузку и не трогает
+  // сохранённый порядок. Настоящая прошивка держит это в переменной BootNext и
+  // стирает её сама, как только загрузилась.
+  let bootNext = null;
+
   function saveNv() {
     try { localStorage.setItem('rig-nv', JSON.stringify(nv)); } catch (e) {}
   }
 
-  // Two effects of the firmware on the schematic — and only two, deliberately
-  // written down as the permitted ones: the rotation period has to stay a
-  // multiple of a second, otherwise the twenty positions of the fan blade
-  // drift off the common 0.05 s beat.
-  function applyNvEffects() {
-    rig.classList.toggle('nv-eff', nv.power === 'Efficiency');
-    // has-fault is already taken by someone else's logic (the lamps of the
-    // missing units) — here we have a flag of our own, so as not to override
-    // that condition.
-    rig.classList.toggle('sb-off', nv.mode === 'UEFI' && nv.secureBoot === 'Disabled');
+  // ── Обороты крыльчаток ───────────────────────────────────────────────────
+  // Политика оборотов стоит в меню контроллера управления, а не в Advanced, и
+  // это не придирка: охлаждением на живой машине распоряжается BMC, прошивка к
+  // нему только обращается. Обороты каждого режима лежат в паспорте.
+  //
+  // Период оборота на рисунке не выдумывается заново: номинальный стоит в
+  // стилях (--spin), остальные получаются из него отношением оборотов. Один
+  // источник на троих — рисунок, звук и команда fans. Звук про политику при
+  // этом не спрашивает вовсе: он читает период у самой крыльчатки.
+  const SPIN_NOM = (function () {
+    const raw = getComputedStyle(rig).getPropertyValue('--spin').trim();
+    const v = parseFloat(raw);
+    if (!isFinite(v) || v <= 0) return 0.5;
+    return raw.indexOf('ms') > 0 ? v / 1000 : v;
+  })();
+
+  function fanPolicyList() {
+    return (HW.fan && HW.fan.policy) || [{ id: 'Balanced', rpm: HW.fan ? HW.fan.rpm_nom : 0 }];
   }
-  applyNvEffects();   // apply what already lay in rig-nv, before setup is ever opened
+  function fanPolicyIds() {
+    return fanPolicyList().map(function (p) { return p.id; });
+  }
+
+  // Профиль питания Efficiency прижимает охлаждение к самому тихому режиму —
+  // ровно так ведёт себя машина, у которой в Operating Modes выбрана экономия:
+  // обороты падают вслед за частотой, а не живут отдельной жизнью.
+  function fanPolicyEffective(src) {
+    const s = src || nv;
+    return s.power === 'Efficiency' ? fanPolicyIds()[0] : s.fanPolicy;
+  }
+
+  // Целевые обороты по политике — не путать с fanRpm в sfx.js: та снимает
+  // обороты с самой крыльчатки и знает про разгон при вынутом вентиляторе.
+  function fanTargetRpm(src) {
+    const want = fanPolicyEffective(src);
+    const found = fanPolicyList().filter(function (p) { return p.id === want; })[0];
+    return found ? found.rpm : (HW.fan ? HW.fan.rpm_nom : 0);
+  }
+
+  function fanSpin(src) {
+    const nom = HW.fan ? HW.fan.rpm_nom : 0;
+    const rpm = fanTargetRpm(src);
+    if (!nom || !rpm) return SPIN_NOM;
+    return SPIN_NOM * nom / rpm;
+  }
+
+  // ── Память: сколько её видит система ─────────────────────────────────────
+  // Зеркалирование требует симметрично набитых каналов. Вынули планку — пара
+  // распалась, и прошивка откатывается на Independent, честно назвав причину.
+  // Это не выдумка ради связи с рисунком: живая машина ведёт себя так же и
+  // пишет в журнал ровно это.
+  function memPlan(src) {
+    const s = src || nv;
+    const d = dimmState();
+    const mode = s.memMode || 'Independent';
+    if (mode === 'Mirroring' && d.out > 0) {
+      return { mode: 'Independent', want: 'Mirroring', gb: d.gb, fell: true,
+               why: 'channel population mismatch' };
+    }
+    // И зеркало, и резервный ранг стоят половины, но считаем мы это от рангов,
+    // а не от половины наугад: поставь одноранговые модули — и цифра поедет
+    // сама, без правки здесь.
+    const ranks = parseInt(String((HW.dimm && HW.dimm.ranks) || '2R'), 10) || 2;
+    if (mode === 'Mirroring') return { mode: mode, gb: Math.round(d.gb / 2), fell: false };
+    if (mode === 'Sparing') return { mode: mode, gb: Math.round(d.gb * (ranks - 1) / ranks), fell: false };
+    return { mode: 'Independent', gb: d.gb, fell: false };
+  }
+
+  // ── Устройства загрузки ──────────────────────────────────────────────────
+  // Список не выдуман: сеть исчезает вместе с выключенным сетевым стеком, а
+  // накопитель — вместе с последним вынутым каддиком. Прошивка не может
+  // грузиться с того, чего в машине нет, и всплывающее меню показывает то же.
+  function drivesIn() {
+    const total = HW.bay.filter(function (b) { return !b.filler; }).length;
+    return total - counts('.bay.pulled');
+  }
+
+  function bootAvailable(key, src) {
+    const s = src || nv;
+    if (key === 'pxe') return s.netStack === 'Enabled' && s.pxe === 'Enabled';
+    if (key === 'nvme') return drivesIn() > 0 && s.mode !== 'Legacy';
+    // Виртуальный носитель существует всегда — он внутри контроллера, — но
+    // грузиться с него можно, только когда к нему что-то подключено. Пустой
+    // привод в списке есть, а загрузиться с него нельзя: ровно так и ведёт
+    // себя живая машина, у которой образ не примонтирован.
+    return s.vmedia === 'Attached';
+  }
+
+  function bootWhyNot(key, src) {
+    const s = src || nv;
+    if (key === 'pxe') return s.netStack === 'Disabled' ? 'UEFI network stack disabled' : 'PXE boot disabled';
+    if (key === 'nvme') return s.mode === 'Legacy' ? 'GPT not readable in Legacy mode' : 'no drive in cage';
+    return 'no media attached';
+  }
+
+  function bootChain(src) {
+    const s = src || nv;
+    return s.bootOrder.filter(function (k) { return bootAvailable(k, s); });
+  }
 
   // The link speed on the rear panel comes from the ports spec, not from a
   // letter in the text: swap the board for one with another network card and
@@ -2468,6 +4066,93 @@
   }
   const BOOT_POST_LABEL = { nvme: 'nvme0', pxe: 'pxe' + pxeSpeed().toLowerCase(), bmc: 'bmc' };
   const BOOT_SETUP_LABEL = { nvme: 'NVMe 0', pxe: 'PXE ' + pxeSpeed(), bmc: 'BMC Virtual Media' };
+  const BOOT_TARGET = { nvme: '/dev/nvme0n1', pxe: 'network (PXE)', bmc: 'BMC Virtual Media' };
+
+  // ── Эффект прошивки на машину ────────────────────────────────────────────
+  // Раньше их было два, и оба записаны как единственные разрешённые. Теперь
+  // больше, но правило то же: прошивка трогает схему только через классы и
+  // переменные на .rig. Она не лезет в чужие узлы руками и не знает ни про
+  // звук, ни про стили — слушают её они сами.
+  function applyNvEffects() {
+    // Обороты — переменной, а не классом на каждый режим: режимов четыре, а
+    // период считается из паспорта, и заводить под него четыре правила в
+    // стилях значило бы переписывать их при каждой правке оборотов.
+    rig.style.setProperty('--spin', fanSpin().toFixed(3) + 's');
+    // Ниже номинала крыльчатка перестаёт сливаться в диск — лопасти видно.
+    // Класс остался прежним: на него уже смотрят правила размытия.
+    rig.classList.toggle('nv-eff', fanTargetRpm() < (HW.fan ? HW.fan.rpm_nom : 0));
+    // has-fault is already taken by someone else's logic (the lamps of the
+    // missing units) — here we have a flag of our own, so as not to override
+    // that condition.
+    rig.classList.toggle('sb-off', nv.mode === 'UEFI' && nv.secureBoot === 'Disabled');
+    // Ещё две настройки слышны, а не видны. Quiet Boot глушит писк спикера на
+    // старте — как и положено тихой загрузке. Запрещённые C-States не дают
+    // ядрам уснуть, ток через дроссели не падает, и они поют. Звук про прошивку
+    // не спрашивает: он слушает эти классы, как их слушают стили.
+    rig.classList.toggle('nv-quiet', nv.quietBoot === 'Enabled');
+    rig.classList.toggle('nv-cst-off', nv.cstates === 'Disabled');
+    // Выключенное окно выше четырёх гигабайт — единственная настройка, от
+    // которой на схеме загорается лампа узла: карте в райзере некуда лечь
+    // своим окном, и прошивка оставляет слот ненастроенным.
+    rig.classList.toggle('nv-no4g', nv.above4g === 'Disabled');
+    updateFault();
+  }
+  applyNvEffects();   // apply what already lay in rig-nv, before setup is ever opened
+
+  // ── Питание вернулось ────────────────────────────────────────────────────
+  // Вызывается из updateMains, когда в машину вставили блок после полной
+  // темноты. Что делать дальше — вопрос к прошивке, и ответ у неё записан
+  // одной строкой.
+  function acRestorePolicy(wasOn) {
+    const mode = nv.acRestore;
+    const up = mode === 'Always On' || (mode === 'Last State' && wasOn);
+    if (!up) {
+      line('bios: restore on ac loss = ' + mode + ' · машина осталась в дежурке', 'muted');
+      return;
+    }
+    line('bios: restore on ac loss = ' + mode + ' · поднимаю машину', 'ok');
+    selAdd('System restored after AC loss (' + mode + ')', 'ok');
+    // Задержка не для красоты: живая машина ждёт, пока дежурка устоится, и
+    // только потом отпускает питание на хост.
+    wait(700, function () { powerOn(); });
+  }
+
+  // ── Пароль включения ─────────────────────────────────────────────────────
+  // Спрашивается до старта, потому что спрашивает его прошивка, а не система.
+  // Экран поднимается пустым — ровно так и выглядит машина, ждущая ввода
+  // раньше самотеста.
+  let powerGate = false;
+
+  function powerOnAllowed(retry) {
+    if (!nv.powerOnPw || powerGate) return true;
+    blankScreen(0xab);
+    askPasswordPrompt('Enter Power-On Password', function (given) {
+      if (given !== nv.powerOnPw) {
+        line('power-on: invalid password', 'err');
+        selAdd('Power-on password attempt failed', 'warn');
+        return false;
+      }
+      postCtl = null;
+      closeCrt();
+      powerGate = true;
+      retry();
+      powerGate = false;
+      return true;
+    }, '', function () { postCtl = null; closeCrt(); });
+    return false;
+  }
+
+  // Пустое поле экрана под накладку: и для пароля включения, и для меню
+  // загрузки, поднятого на выключенной картинке.
+  function blankScreen(code) {
+    openCrt('post');
+    postLog.textContent = '';
+    postLog.hidden = false;
+    if (postLogo) postLogo.hidden = true;
+    postCode(code);
+    postCtl = { f2Pending: false, bootPending: false, skip: false, done: true,
+                hung: false, standalone: true };
+  }
 
   // ── POST ───────────────────────────────────────────────────────────────
   // The lines are assembled once out of the three layers of truth — the spec,
@@ -2475,54 +4160,133 @@
   // screen and into the console: the gauges and sensors already diverged for
   // exactly that reason, they were computed twice by different formulas, and
   // this is the same place where it could have happened again.
+  //
+  // У каждой строки есть контрольная точка — то самое двузначное число, которое
+  // живая плата показывает индикатором у заднего края, а экран в углу. Код
+  // стоит на одной строке с тем, что он означает, и разъехаться им негде:
+  // расходятся ровно те пары, которые записаны в разных местах.
+  const POST_CODE_NAME = {
+    0x19: 'Pre-memory CPU init',
+    0x2b: 'Memory init',
+    0x31: 'Memory installed',
+    0x32: 'CPU post-memory init',
+    0x60: 'DXE core started',
+    0x78: 'ACPI module init',
+    0x92: 'PCI Bus enumeration',
+    0x96: 'PCI Bus assign resources',
+    0x99: 'Super IO init',
+    0xa0: 'Storage init',
+    0xa9: 'Start of Setup',
+    0xab: 'Setup input wait',
+    0xad: 'Ready to boot',
+    0xae: 'Boot device selection',
+    0xd6: 'No boot device found',
+    0xd7: 'PCI resource allocation error',
+  };
+
+  let postCodeNow = null;
+
+  function postCode(code) {
+    postCodeNow = (code === undefined) ? null : code;
+    const hex = postCodeNow === null ? '--' : postCodeNow.toString(16).toUpperCase().padStart(2, '0');
+    if (postCodeEl) {
+      postCodeEl.textContent = hex;
+      postCodeEl.title = postCodeNow === null ? '' : (POST_CODE_NAME[postCodeNow] || '');
+    }
+    // Тот же код уходит на плату. Индикатор нарисован у заднего края, как на
+    // живой машине, и знает про себя только цифры: разбор кода в имя остаётся
+    // здесь, потому что имя нужно экрану, а не индикатору.
+    setBoardPostCode(postCodeNow);
+  }
+
   function buildPostLines() {
     const fansOut = counts('.fan.pulled');
-    const drivesOut = counts('.bay.pulled');
     const cpuOut = counts('.cpu-slot.opened');
     const dimm = dimmState();
+    const mem = memPlan();
 
     const rows = [];
-    const push = function (t, c, d) { rows.push({ t: t, c: c || '', d: d }); };
+    const push = function (t, c, d, code) { rows.push({ t: t, c: c || '', d: d, code: code }); };
 
-    push(HW.board.model + ' · ' + HW.fw.bios_vendor + ' ' + HW.fw.bios + ' (' + HW.fw.bios_date + ')', '', 160);
+    push(HW.board.model + ' · ' + HW.fw.bios_vendor + ' ' + HW.fw.bios + ' (' + HW.fw.bios_date + ')', '', 160, 0x19);
     push('Board REV ' + HW.board.rev + ' · ' + HW.board.sha, '', 120);
-    push('Press ENTER or F2 to enter Setup', 'muted', 140);
+    push('AGESA ' + HW.fw.agesa + ' · ucode ' + HW.fw.ucode, 'muted', 120);
+    push('Press ENTER or F2 to enter Setup · F11 for boot menu', 'muted', 140, 0xab);
 
     for (let n = 0; n < HW.cpu.n; n++) {
       const out = chassis.querySelector('.cpu-slot[data-cpu="' + n + '"].opened');
-      if (out) push('CPU' + n + '  --- not detected ---', 'err', 160);
+      if (out) push('CPU' + n + '  --- not detected ---', 'err', 160, 0x32);
       else push('CPU' + n + '  ' + HW.cpu.model + '  ' + HW.cpu.cores + 'c/' + HW.cpu.threads + 't  '
-                 + HW.cpu.base.toFixed(2) + ' GHz', 'ok', 160);
+                 + HW.cpu.base.toFixed(2) + ' GHz', 'ok', 160, 0x32);
     }
 
     const speed = nv.memfreq === 'Auto' ? HW.dimm.speed : nv.memfreq;
     push('Memory Training ....... ' + dimm.in + ' of ' + dimm.total + ' · ' + (dimm.gb / 1024).toFixed(2)
-         + ' TiB @ ' + speed, dimm.out ? 'warn' : 'ok', 260);
+         + ' TiB @ ' + speed, dimm.out ? 'warn' : 'ok', 260, 0x2b);
+    if (mem.fell) {
+      push('Memory ' + mem.want + ' disabled: ' + mem.why, 'warn', 180, 0x31);
+    } else if (mem.mode !== 'Independent') {
+      push('Memory Mode: ' + mem.mode + ' · ' + (mem.gb / 1024).toFixed(2) + ' TiB usable', '', 180, 0x31);
+    }
+    if (nv.patrol === 'Enabled') push('Patrol Scrub .......... enabled', 'muted', 120, 0x31);
 
     const cpuPresent = HW.cpu.n - cpuOut;
-    push(nv.numa === 'Disabled' ? 'NUMA: disabled' : 'NUMA: ' + cpuPresent + ' nodes', '', 120);
+    push(nv.numa === 'Disabled' ? 'NUMA: disabled' : 'NUMA: ' + cpuPresent + ' nodes', '', 120, 0x78);
 
-    const nvmeTotal = HW.bay.filter(function (b) { return !b.filler; }).length;
-    push('NVMe: ' + (nvmeTotal - drivesOut) + ' devices', drivesOut ? 'warn' : '', 180);
+    // Окно выше четырёх гигабайт: карте с большой памятью на борту иначе некуда
+    // лечь. Отказ не выдуман — на живой машине с выключенным Above 4G ровно так
+    // и встаёт распределение ресурсов шины, а слот остаётся ненастроенным.
+    const cards = HW.riser.filter(function (r) { return !r.empty; });
+    if (nv.above4g === 'Disabled' && cards.length) {
+      push('PCI resource allocation error: ' + (cards[0].card || 'riser card')
+           + ' needs 64-bit BAR', 'err', 240, 0xd7);
+      push('Above 4G Decoding is disabled — card left unconfigured', 'warn', 180, 0x96);
+    } else {
+      push('PCI Bus ............... ' + HW.chips.length + ' devices · '
+           + (nv.pcieSpeed === 'Auto' ? 'Gen5 ×16' : nv.pcieSpeed + ' ×16'), '', 160, 0x92);
+      if (nv.sriov === 'Enabled') push('SR-IOV ................ enabled', 'muted', 110, 0x96);
+    }
+    if (nv.iommu === 'Disabled') push('IOMMU: disabled', 'warn', 120, 0x78);
+
+    push('NVMe: ' + drivesIn() + ' devices', counts('.bay.pulled') ? 'warn' : '', 180, 0xa0);
 
     if (fansOut > 0) push('Fan redundancy lost', 'warn', 160);
+    push('Fan Speed Policy: ' + fanPolicyEffective() + ' · ' + fanTargetRpm() + ' rpm', 'muted', 120);
     if (nv.mode === 'UEFI' && nv.secureBoot === 'Disabled') push('Secure Boot: Disabled', 'warn', 140);
+    if (nv.sol === 'Enabled') push('Console redirection ... COM1 ' + nv.solBaud + ' 8N1', 'muted', 120, 0x99);
+    if (nv.watchdog === 'Enabled') push('ASR watchdog armed: ' + nv.watchdogMin + ' min', 'muted', 120);
 
     push('Boot order: ' + nv.bootOrder.map(function (k) { return BOOT_POST_LABEL[k]; }).join(' → '),
-         'muted', 180);
+         'muted', 180, 0xae);
+
+    // Однократный выбор бьёт сохранённый порядок ровно один раз. Если то, что
+    // выбрали, из машины успело уехать, прошивка говорит об этом и идёт по
+    // обычной цепочке, а не встаёт молча.
+    const chain = bootChain();
+    let first = chain.length ? chain[0] : null;
+    if (bootNext) {
+      if (bootAvailable(bootNext)) {
+        first = bootNext;
+        push('Boot override: ' + BOOT_SETUP_LABEL[bootNext] + ' (one time)', '', 160);
+      } else {
+        push('Boot override ' + BOOT_SETUP_LABEL[bootNext] + ' unavailable: ' + bootWhyNot(bootNext),
+             'warn', 200);
+      }
+      bootNext = null;
+    }
 
     let bootFailed = false;
-    if (nv.mode === 'Legacy' && nv.bootOrder[0] === 'nvme') {
-      // Legacy does not see GPT — exactly the case where a real machine drops
-      // into "no boot device" and stays standing on the screen instead of
-      // quietly repairing itself.
-      push('No boot device found', 'err', 260);
+    if (!first) {
+      // Ни одного устройства: пустая корзина, выключенный сетевой стек, Legacy
+      // поверх GPT. Проверка ловила когда-то только последний случай, и машина
+      // бодро грузилась с накопителя, которого нет в шасси.
+      nv.bootOrder.forEach(function (k) {
+        push('  ' + BOOT_SETUP_LABEL[k] + ' — ' + bootWhyNot(k), 'muted', 90);
+      });
+      push('No boot device found', 'err', 260, 0xd6);
       bootFailed = true;
     } else {
-      const first = nv.bootOrder[0];
-      const label = first === 'nvme' ? '/dev/nvme0n1'
-                  : first === 'pxe' ? 'network (PXE)' : 'BMC Virtual Media';
-      push('Booting ' + label + ' ...', 'muted', 240);
+      push('Booting ' + BOOT_TARGET[first] + ' ...', 'muted', 240, 0xad);
     }
 
     return { lines: rows, bootFailed: bootFailed };
@@ -2551,23 +4315,29 @@
     // to make a guest hold Fn to get into setup. While the modal screen is
     // open Enter is busy with nothing else: the console field under the layer
     // does not get the focus.
-    if (e.key === 'F2' || e.key === 'Enter') {
+    if (e.key === 'F2' || e.key === 'F1' || e.key === 'Enter') {
       e.preventDefault();
       if (postCtl.done) enterSetupFromPost();
       else postCtl.f2Pending = true;
+    } else if (e.key === 'F11' || e.key === 'F12') {
+      e.preventDefault();
+      // Меню загрузки ловится в те же секунды, что и Setup: до конца ленты
+      // откладываем, после — поднимаем сразу.
+      if (postCtl.done) openBootMenu(true);
+      else postCtl.bootPending = true;
     } else if (e.key === 'Escape') {
       e.preventDefault();
       // The first Esc skips the pauses between the lines, the second closes
       // the screen. Otherwise the self-test looked hung: the lines had run
       // out and there was nothing to leave the screen with but waiting.
       if (!postCtl.done) postCtl.skip = true;
-      else { postCtl = null; closeCrt(); }
+      else if (!postCtl.hung) { postCtl = null; closeCrt(); }
     }
   }
 
   function enterSetupFromPost() {
     postCtl = null;
-    openSetup();
+    requestSetup();
   }
 
   /**
@@ -2579,12 +4349,24 @@
    * open at all — the delays are collapsed to zero by the same wait() that the
    * ordinary run plays through, so the lines simply go into the console one
    * after another with no pause between them.
+   *
+   * Тихая загрузка прячет ленту за логотипом — как ей и положено. Строки при
+   * этом никуда не деваются: они идут в консоль, потому что лента самотеста
+   * это ещё и журнал, а журнал не прячут заодно с картинкой.
    */
   function screenPost() {
     const built = buildPostLines();
+    const quiet = nv.quietBoot === 'Enabled';
     const showScreen = !reduced;
-    postCtl = { f2Pending: false, skip: false, done: false };
-    if (showScreen) { postLog.textContent = ''; openCrt('post'); }
+    postCtl = { f2Pending: false, bootPending: false, skip: false, done: false, hung: false };
+    if (showScreen) {
+      postLog.textContent = '';
+      postLog.hidden = quiet;
+      if (postLogo) postLogo.hidden = !quiet;
+      openCrt('post');
+      postCode(null);
+    }
+    disarmWatchdog();
 
     let i = 0;
     (function step() {
@@ -2596,7 +4378,15 @@
       if (i >= built.lines.length) {
         postCtl.done = true;
         if (postCtl.f2Pending) { enterSetupFromPost(); return; }
+        if (postCtl.bootPending) { postCtl.bootPending = false; openBootMenu(true); return; }
         if (built.bootFailed) {
+          postCtl.hung = true;
+          if (showScreen && quiet) {          // логотип уезжает: живая машина показывает отказ
+            postLog.hidden = false;
+            if (postLogo) postLogo.hidden = true;
+          }
+          selAdd('No bootable device', 'err');
+          armWatchdog();
           if (!showScreen) postCtl = null;   // no screen — nobody to catch F2 anyway
           return;                             // we hang on the screen, like a real machine with no disk
         }
@@ -2604,17 +4394,41 @@
         // The hint is printed into the console, not only onto the screen: the
         // screen goes away in a moment, and the question "how do I get into
         // the BIOS" stays.
-        line('F2 — BIOS Setup · bios — то же командой', 'muted');
+        line('F2 — BIOS Setup · F11 — меню загрузки · bios — то же командой', 'muted');
         postCtl = null;
         if (showScreen) wait(700, closeCrt);
         return;
       }
       const row = built.lines[i++];
       wait(postCtl.skip ? 0 : row.d, function () {
+        if (row.code !== undefined && row.code !== null) postCode(row.code);
         crtPostLine(row.t, row.c);
         step();
       });
     })();
+  }
+
+  // ── Сторожевой таймер ────────────────────────────────────────────────────
+  // ASR — то, ради чего он и стоит в серверах: система перестала отвечать,
+  // значит машину надо перезапустить, не дожидаясь человека. У нас «перестала
+  // отвечать» ровно одно и есть — самотест, вставший без устройства загрузки.
+  // Таймер взводится там и больше нигде.
+  let watchdogTimer = null;
+
+  function disarmWatchdog() {
+    if (watchdogTimer) { window.clearTimeout(watchdogTimer); watchdogTimer = null; }
+  }
+
+  function armWatchdog() {
+    disarmWatchdog();
+    if (nv.watchdog !== 'Enabled') return;
+    const ms = Math.max(1, Number(nv.watchdogMin) || 1) * 60000;
+    watchdogTimer = window.setTimeout(function () {
+      watchdogTimer = null;
+      selAdd('ASR watchdog expired · system reset', 'err');
+      line('asr: watchdog expired — перезапуск', 'warn');
+      screenPost();
+    }, ms);
   }
 
   // ── BIOS Setup ───────────────────────────────────────────────────────────
@@ -2623,15 +4437,28 @@
   // IMM change the set of rows on the fly (Secure Boot hides under Legacy, the
   // IP fields under Static), and if this were markup we would have to
   // hide/show pieces by hand in three places instead of one.
-  const SETUP_TABS = ['Main', 'Advanced', 'Boot', 'IMM'];
+  //
+  // Вкладка при этом больше не обязана быть плоским списком. Строка вида
+  // { kind: 'menu', rows: fn } — это вход внутрь, и Enter на ней уводит на
+  // уровень ниже. Так устроен настоящий Advanced: он не набор тумблеров, а
+  // оглавление, и без этого экран читается чем угодно, только не прошивкой.
+  const SETUP_TABS = ['Main', 'Advanced', 'Boot', 'Security', 'IMM', 'Save & Exit'];
   const CORE_OPTIONS = ['All', HW.cpu.cores, Math.floor(HW.cpu.cores / 2),
                          Math.floor(HW.cpu.cores / 4), Math.floor(HW.cpu.cores / 8)];
   const MEM_FREQ_OPTIONS = ['Auto', '6400', '6000', '5600', '4800'];
+  const POWER_OPTIONS = ['Maximum Performance', 'Balanced', 'Efficiency'];
+  const PCIE_SPEED_OPTIONS = ['Auto', 'Gen5', 'Gen4', 'Gen3'];
+  const BAUD_OPTIONS = ['115200', '57600', '38400', '19200', '9600'];
+  const AC_OPTIONS = ['Last State', 'Always On', 'Always Off'];
+  const WDT_OPTIONS = [1, 5, 10, 20];
+  const PW_LIMIT_STEP = 25;
 
   let setupTab = 0;
   let setupRow = -1;
+  let menuPath = [];       // стек входов внутрь вкладки; пуст — мы на её корне
   let nvDraft = null;      // draft: edits show at once, but reach nv only on F10
   let editField = null;    // { row, buf } — editing IP/mask/gateway character by character
+  let overlay = null;      // накладка поверх любого режима: рамка, меню, помощь, пароль
 
   function cycleEnum(list, cur, dir) {
     const i = list.indexOf(cur);
@@ -2641,92 +4468,320 @@
   }
   function toggleOnOff(cur) { return cur === 'Enabled' ? 'Disabled' : 'Enabled'; }
 
+  // Сахар: три четверти строк — это «тумблер поля черновика» и «перебор списка
+  // по полю черновика». Без него каждая обрастает своей парой замыканий, и за
+  // ними теряется то немногое, что в строках действительно разное.
+  function boolRow(id, label, field, help, extra) {
+    return Object.assign({
+      id: id, label: label, kind: 'bool', help: help,
+      get: function () { return nvDraft[field]; },
+      set: function () { nvDraft[field] = toggleOnOff(nvDraft[field]); },
+    }, extra || {});
+  }
+  function enumRow(id, label, field, options, help, extra) {
+    return Object.assign({
+      id: id, label: label, kind: 'enum', options: options, help: help,
+      get: function () { return String(nvDraft[field]); },
+      set: function (dir) { nvDraft[field] = cycleEnum(options, nvDraft[field], dir); },
+    }, extra || {});
+  }
+  function roRow(label, get) { return { label: label, ro: true, get: get }; }
+
+  // ── Main ─────────────────────────────────────────────────────────────────
   function mainRows() {
     const rows = [];
-    rows.push({ label: 'BIOS Version', ro: true,
-      get: function () { return HW.fw.bios + '  (' + HW.fw.bios_date + ')'; } });
-    rows.push({ label: 'Board', ro: true,
-      get: function () { return HW.board.model + '  REV ' + HW.board.rev + '  S/N ' + HW.board.sha; } });
+    rows.push(roRow('BIOS Version', function () { return HW.fw.bios + '  (' + HW.fw.bios_date + ')'; }));
+    rows.push(roRow('BIOS Vendor', function () { return HW.fw.bios_vendor; }));
+    // Прошивок на машине не одна, и человек, который её чинит, смотрит сюда
+    // первым делом: со странностями памяти на EPYC разбираются по версии
+    // AGESA, а не по версии BIOS.
+    rows.push(roRow('AGESA Version', function () { return HW.fw.agesa; }));
+    rows.push(roRow('Microcode Patch', function () { return HW.fw.ucode; }));
+    rows.push(roRow('PSP / SMU', function () { return HW.fw.psp + ' / ' + HW.fw.smu; }));
+    rows.push(roRow('BMC Firmware', function () {
+      return HW.fw.bmc + '  ' + HW.fw.bmc_chip + '  (' + HW.fw.bmc_date + ')';
+    }));
+    rows.push(roRow('Board', function () {
+      return HW.board.model + '  REV ' + HW.board.rev + '  S/N ' + HW.board.sha;
+    }));
+    rows.push(roRow('System UUID', function () { return HW.fw.uuid; }));
     for (let n = 0; n < HW.cpu.n; n++) {
       if (chassis.querySelector('.cpu-slot[data-cpu="' + n + '"].opened')) continue;   // a pulled one disappears
-      rows.push({ label: 'CPU' + n, ro: true,
-        get: function () { return HW.cpu.model + '  ' + HW.cpu.cores + 'c/' + HW.cpu.threads + 't'; } });
+      rows.push(roRow('CPU' + n, function () {
+        return HW.cpu.model + '  ' + HW.cpu.cores + 'c/' + HW.cpu.threads + 't';
+      }));
     }
     const dimm = dimmState();
-    rows.push({ label: 'Total Memory', ro: true,
-      get: function () { return dimm.in + ' × ' + HW.dimm.kind + '  ' + (dimm.gb / 1024).toFixed(2) + ' TiB'; } });
+    const mem = memPlan(nvDraft);
+    rows.push(roRow('Total Memory', function () {
+      return dimm.in + ' × ' + HW.dimm.kind + '  ' + (dimm.gb / 1024).toFixed(2) + ' TiB';
+    }));
+    if (mem.gb !== dimm.gb) {
+      rows.push(roRow('Usable Memory', function () {
+        return (mem.gb / 1024).toFixed(2) + ' TiB  (' + mem.mode + ')';
+      }));
+    }
     HW.bay.filter(function (b) { return !b.filler; }).forEach(function (b) {
       const out = !!chassis.querySelector('.bay.pulled[data-unit="hdd' + b.bay + '"]');
-      rows.push({ label: 'NVMe ' + b.bay, ro: true,
-        get: function () { return out ? '--- отсутствует ---' : b.model + '  ' + b.tb + ' TB'; } });
+      rows.push(roRow('NVMe ' + b.bay, function () {
+        return out ? '--- отсутствует ---' : b.model + '  ' + b.tb + ' TB';
+      }));
     });
     return rows;
   }
 
+  // ── Advanced: оглавление, а не список тумблеров ──────────────────────────
   function advRows() {
     return [
-      { id: 'smt', label: 'SMT', kind: 'bool', reboot: true,
-        get: function () { return nvDraft.ht; },
-        set: function () { nvDraft.ht = toggleOnOff(nvDraft.ht); },
-        help: 'Симметричная многопоточность: по два потока на ядро. Это же поле читает /proc/cpuinfo.' },
-      { id: 'cores', label: 'Active Cores per Socket', kind: 'enum', reboot: true, options: CORE_OPTIONS,
-        get: function () { return String(nvDraft.cores); },
-        set: function (dir) { nvDraft.cores = cycleEnum(CORE_OPTIONS, nvDraft.cores, dir); },
-        help: 'Сколько ядер на сокет включено. Меньше — ниже TDP и температура в простое.' },
-      { id: 'numa', label: 'NUMA', kind: 'bool', reboot: true,
-        get: function () { return nvDraft.numa; },
-        set: function () { nvDraft.numa = toggleOnOff(nvDraft.numa); },
-        help: 'Топология памяти: узел на сокет или единая плоская карта.' },
-      { id: 'memfreq', label: 'Memory Frequency', kind: 'enum', reboot: true, options: MEM_FREQ_OPTIONS,
-        get: function () { return nvDraft.memfreq; },
-        set: function (dir) { nvDraft.memfreq = cycleEnum(MEM_FREQ_OPTIONS, nvDraft.memfreq, dir); },
-        help: 'Auto берёт паспортную скорость модулей: ' + HW.dimm.speed + ' MT/s.' },
-      { id: 'power', label: 'Power Profile', kind: 'enum', reboot: true,
-        options: ['Maximum Performance', 'Efficiency'],
-        get: function () { return nvDraft.power; },
-        set: function (dir) { nvDraft.power = cycleEnum(['Maximum Performance', 'Efficiency'], nvDraft.power, dir); },
-        help: 'Efficiency вдвое растягивает период вращения крыльчаток на схеме.' },
-      { id: 'cstates', label: 'C-States', kind: 'bool', reboot: true,
-        get: function () { return nvDraft.cstates; },
-        set: function () { nvDraft.cstates = toggleOnOff(nvDraft.cstates); },
-        help: 'Глубокие состояния простоя ядра. Выключают ради предсказуемой задержки.' },
+      { label: 'Processor Configuration', kind: 'menu', rows: advCpuRows,
+        help: 'Ядра, потоки, состояния простоя, трансляция адресов и предел мощности пакета.' },
+      { label: 'Memory Configuration', kind: 'menu', rows: advMemRows,
+        help: 'Частота, режим отказоустойчивости, фоновая проверка.' },
+      { label: 'Power & Performance', kind: 'menu', rows: advPowerRows,
+        help: 'Профиль питания, детерминизм, поведение после пропажи питания.' },
+      { label: 'PCIe Configuration', kind: 'menu', rows: advPcieRows,
+        help: 'Окно выше четырёх гигабайт, SR-IOV, скорость линка в слотах.' },
+      { label: 'Serial Port Console Redirection', kind: 'menu', rows: advSolRows,
+        help: 'Вывод консоли в последовательный порт.' },
     ];
   }
 
-  function bootRows() {
-    const rows = [];
-    rows.push({ id: 'mode', label: 'Boot Mode', kind: 'enum', reboot: true, options: ['UEFI', 'Legacy'],
-      get: function () { return nvDraft.mode; },
-      set: function (dir) { nvDraft.mode = cycleEnum(['UEFI', 'Legacy'], nvDraft.mode, dir); },
-      help: 'Legacy прячет Secure Boot и переводит /sys/firmware/efi в офлайн.' });
+  function advCpuRows() {
+    return [
+      boolRow('smt', 'SMT', 'ht',
+        'Симметричная многопоточность: по два потока на ядро. Это же поле читает /proc/cpuinfo.',
+        { reboot: true }),
+      enumRow('cores', 'Active Cores per Socket', 'cores', CORE_OPTIONS,
+        'Сколько ядер на сокет включено. Меньше — ниже TDP и температура в простое.',
+        { reboot: true }),
+      boolRow('numa', 'NUMA', 'numa',
+        'Топология памяти: узел на сокет или единая плоская карта.', { reboot: true }),
+      boolRow('cstates', 'C-States', 'cstates',
+        'Глубокие состояния простоя ядра. Выключают ради предсказуемой '
+        + 'задержки — и тогда слышно, как поют дроссели: ядра не засыпают.',
+        { reboot: true }),
+      boolRow('iommu', 'IOMMU (AMD-Vi)', 'iommu',
+        'Трансляция адресов для устройств. Без неё нет ни проброса в гостя, ни '
+        + '/sys/class/iommu, а ядро получает amd_iommu=off.', { reboot: true }),
+      { id: 'plimit', label: 'Package Power Limit', kind: 'num', reboot: true,
+        get: function () {
+          return nvDraft.powerLimit ? nvDraft.powerLimit + ' W' : 'Auto (' + HW.cpu.tdp + ' W)';
+        },
+        set: function (dir) {
+          let v = Number(nvDraft.powerLimit) || HW.cpu.tdp;
+          v += dir > 0 ? PW_LIMIT_STEP : -PW_LIMIT_STEP;
+          // Ниже четверти пакета не опускаемся: живая прошивка тоже не даёт
+          // задушить процессор до состояния, в котором он не проходит самотест.
+          const floor = Math.round(HW.cpu.tdp / 4 / PW_LIMIT_STEP) * PW_LIMIT_STEP;
+          if (v >= HW.cpu.tdp) v = 0;                 // 0 — это Auto, паспортный TDP
+          else if (v < floor) v = floor;
+          nvDraft.powerLimit = v;
+        },
+        help: 'Потолок мощности пакета. Паспортный TDP — ' + HW.cpu.tdp
+              + ' Вт; заниженный виден в top и в sensors.' },
+    ];
+  }
 
-    if (nvDraft.mode === 'UEFI') {
-      rows.push({ id: 'secure', label: 'Secure Boot', kind: 'bool', reboot: true,
-        get: function () { return nvDraft.secureBoot; },
-        set: function () { nvDraft.secureBoot = toggleOnOff(nvDraft.secureBoot); },
-        help: 'Выключенный Secure Boot зажигает системную лампу неисправности на схеме.' });
-    }
-
-    rows.push({ id: 'quiet', label: 'Quiet Boot', kind: 'bool', reboot: true,
-      get: function () { return nvDraft.quietBoot; },
-      set: function () { nvDraft.quietBoot = toggleOnOff(nvDraft.quietBoot); },
-      help: 'Прячет POST-строки за логотипом производителя.' });
-
-    nvDraft.bootOrder.forEach(function (key, idx) {
-      rows.push({ id: 'order' + idx, label: 'Boot Option #' + (idx + 1), kind: 'order', idx: idx, reboot: true,
-        get: function () { return BOOT_SETUP_LABEL[nvDraft.bootOrder[idx]]; },
-        help: 'Enter/+ — вниз по списку, - — вверх. Первый пункт грузится первым.' });
-    });
-
+  function advMemRows() {
+    const d = dimmState();
+    const rows = [
+      enumRow('memfreq', 'Memory Frequency', 'memfreq', MEM_FREQ_OPTIONS,
+        'Auto берёт паспортную скорость модулей: ' + HW.dimm.speed + ' MT/s.', { reboot: true }),
+      enumRow('memmode', 'Memory Mode', 'memMode', ['Independent', 'Mirroring', 'Sparing'],
+        'Зеркалирование и резервный ранг стоят половины объёма, зато машина '
+        + 'переживает отказ ранга. Зеркало требует симметрично набитых каналов: '
+        + 'вынутая планка отправляет режим обратно в Independent.', { reboot: true }),
+      boolRow('patrol', 'Patrol Scrub', 'patrol',
+        'Фоновый обход памяти, вычитывающий и чинящий одиночные ошибки.', { reboot: true }),
+    ];
+    const mem = memPlan(nvDraft);
+    rows.push(roRow('Installed / Usable', function () {
+      return (d.gb / 1024).toFixed(2) + ' / ' + (mem.gb / 1024).toFixed(2) + ' TiB';
+    }));
+    if (mem.fell) rows.push(roRow('Mirroring Status', function () { return 'unavailable — ' + mem.why; }));
     return rows;
   }
 
-  function immRows() {
+  function advPowerRows() {
+    return [
+      enumRow('power', 'Power Profile', 'power', POWER_OPTIONS,
+        'Efficiency прижимает и охлаждение: обороты падают до самого тихого '
+        + 'режима, а вместе с ними и тон гула — со слухом это заметнее, чем глазом.',
+        { reboot: true }),
+      enumRow('determinism', 'Determinism Control', 'determinism', ['Performance', 'Power'],
+        'Performance держит одинаковую частоту на всех машинах партии, Power '
+        + 'выжимает из конкретного экземпляра всё, что он может.', { reboot: true }),
+      enumRow('acrestore', 'Restore on AC Power Loss', 'acRestore', AC_OPTIONS,
+        'Что делать, когда питание вернулось. Проверяется руками: вынуть оба '
+        + 'блока и вставить обратно.'),
+      boolRow('wol', 'Wake on LAN', 'wol', 'Подъём машины пакетом из сети управления.'),
+      boolRow('watchdog', 'ASR Watchdog', 'watchdog',
+        'Сторожевой таймер. Машина, вставшая без устройства загрузки, будет '
+        + 'перезапущена сама — ровно за этим он в серверах и стоит.'),
+      { id: 'wdtmin', label: 'ASR Timeout', kind: 'enum', options: WDT_OPTIONS,
+        get: function () { return nvDraft.watchdogMin + ' min'; },
+        set: function (dir) { nvDraft.watchdogMin = cycleEnum(WDT_OPTIONS, nvDraft.watchdogMin, dir); },
+        help: 'Сколько ждать, прежде чем перезапустить.' },
+    ];
+  }
+
+  function advPcieRows() {
+    return [
+      boolRow('above4g', 'Above 4G Decoding', 'above4g',
+        'Окно памяти устройств выше четырёх гигабайт. Без него карте с большой '
+        + 'памятью на борту некуда лечь — самотест ругается, и лампа слота горит.',
+        { reboot: true }),
+      boolRow('sriov', 'SR-IOV Support', 'sriov',
+        'Виртуальные функции сетевой карты. Требует включённого окна выше 4G.',
+        { reboot: true }),
+      enumRow('pciespeed', 'PCIe Link Speed', 'pcieSpeed', PCIE_SPEED_OPTIONS,
+        'Потолок скорости линка в слотах райзеров. Auto — что смогут договорить.',
+        { reboot: true }),
+      roRow('Slot 1', function () {
+        const r = HW.riser[0];
+        return r.link + (r.empty ? ' · empty' : ' · ' + r.card);
+      }),
+      roRow('Slot 2', function () {
+        const r = HW.riser[1];
+        return r.link + (r.empty ? ' · empty' : ' · ' + r.card);
+      }),
+    ];
+  }
+
+  function advSolRows() {
+    const rows = [
+      boolRow('sol', 'Console Redirection', 'sol',
+        'Вывод консоли в последовательный порт. На машине без монитора это '
+        + 'единственный способ увидеть самотест.'),
+    ];
+    if (nvDraft.sol === 'Enabled') {
+      rows.push(enumRow('baud', 'Baud Rate', 'solBaud', BAUD_OPTIONS,
+        'Скорость порта. 115200 — то, что стоит в консольных серверах по умолчанию.'));
+      rows.push(roRow('Terminal Type', function () { return 'VT100+'; }));
+      rows.push(roRow('Flow Control', function () { return 'None'; }));
+    }
+    return rows;
+  }
+
+  // ── Boot ─────────────────────────────────────────────────────────────────
+  function bootRows() {
     const rows = [];
-    rows.push({ id: 'proto', label: 'IPv4 Configuration', kind: 'enum', options: ['DHCP', 'Static'],
-      get: function () { return nvDraft.ipMode; },
-      set: function () { nvDraft.ipMode = nvDraft.ipMode === 'DHCP' ? 'Static' : 'DHCP'; },
-      help: 'DHCP — адрес из сети управления. Static открывает три поля ниже.' });
+    rows.push(enumRow('mode', 'Boot Mode', 'mode', ['UEFI', 'Legacy'],
+      'Legacy прячет Secure Boot, переводит /sys/firmware/efi в офлайн и не '
+      + 'видит разметку GPT — а с ней и накопитель как устройство загрузки.',
+      { reboot: true }));
+
+    if (nvDraft.mode === 'UEFI') {
+      rows.push(boolRow('secure', 'Secure Boot', 'secureBoot',
+        'Выключенный Secure Boot зажигает системную лампу неисправности на схеме.',
+        { reboot: true }));
+    }
+
+    rows.push(boolRow('quiet', 'Quiet Boot', 'quietBoot',
+      'Прячет строки самотеста за логотипом производителя. В консоль они идут '
+      + 'всё равно: лента самотеста это ещё и журнал.', { reboot: true }));
+
+    rows.push({ label: 'Network Boot Configuration', kind: 'menu', rows: bootNetRows,
+      help: 'Сетевой стек прошивки и загрузка по PXE.' });
+    rows.push({ label: 'Boot Option Priorities', kind: 'menu', rows: bootOrderRows,
+      help: 'Порядок опроса устройств. Первый пункт грузится первым.' });
+    return rows;
+  }
+
+  function bootNetRows() {
+    const rows = [
+      boolRow('netstack', 'UEFI Network Stack', 'netStack',
+        'Весь сетевой стек прошивки. Выключенный убирает PXE из списка загрузки.',
+        { reboot: true }),
+    ];
+    if (nvDraft.netStack === 'Enabled') {
+      rows.push(boolRow('pxe', 'PXE Boot to LAN', 'pxe',
+        'Загрузка по сети через ' + HW.ports.sfp + '.', { reboot: true }));
+      rows.push(roRow('PXE Device', function () { return BOOT_SETUP_LABEL.pxe; }));
+    }
+    return rows;
+  }
+
+  function bootOrderRows() {
+    return nvDraft.bootOrder.map(function (key, idx) {
+      return { id: 'order' + idx, label: 'Boot Option #' + (idx + 1), kind: 'order', idx: idx,
+        reboot: true,
+        get: function () {
+          const k = nvDraft.bootOrder[idx];
+          return BOOT_SETUP_LABEL[k] + (bootAvailable(k, nvDraft) ? '' : '  (unavailable)');
+        },
+        help: 'Enter/+ — вниз по списку, - — вверх. Устройства, которых сейчас в '
+              + 'машине нет, помечены: порядок их помнит, загрузка пропускает.' };
+    });
+  }
+
+  // ── Security ─────────────────────────────────────────────────────────────
+  // Пароль тут не защита, а её рисунок: лежит он в NVRAM открытым текстом, и
+  // снимается тем же F9, что и всё остальное. На живой машине за это отвечает
+  // перемычка на плате, и в подсказке об этом сказано честно.
+  function securityRows() {
+    const rows = [
+      { id: 'adminpw', label: 'Administrator Password', kind: 'password', field: 'adminPw',
+        get: function () { return nvDraft.adminPw ? 'Installed' : 'Not Installed'; },
+        help: 'Спрашивается на входе в Setup. Enter — задать или сменить, пустой '
+              + 'ввод — снять. Хранится открытым: это рисунок защиты, а не защита.' },
+      { id: 'poweronpw', label: 'Power-On Password', kind: 'password', field: 'powerOnPw',
+        get: function () { return nvDraft.powerOnPw ? 'Installed' : 'Not Installed'; },
+        help: 'Спрашивается при включении машины, до передачи управления системе.' },
+    ];
+
+    if (nvDraft.mode === 'UEFI') {
+      rows.push(roRow('Secure Boot State', function () {
+        return nvDraft.secureBoot === 'Enabled' ? nvDraft.sbKeys : 'Disabled';
+      }));
+      rows.push(enumRow('sbkeys', 'Secure Boot Mode', 'sbKeys', ['User Mode', 'Setup Mode'],
+        'User Mode — ключи установлены и проверяются. Setup Mode — платформа '
+        + 'открыта для записи своих ключей.', { reboot: true }));
+      rows.push({ id: 'clearkeys', label: 'Clear All Secure Boot Keys', kind: 'action',
+        help: 'Стирает PK, KEK и базу подписей. Платформа уходит в Setup Mode.',
+        run: function () {
+          askConfirm('Clear all Secure Boot keys?', function () {
+            nvDraft.sbKeys = 'Setup Mode';
+            nvDraft.secureBoot = 'Disabled';
+            line('bios: secure boot keys cleared', 'warn');
+          });
+        } });
+    }
+
+    rows.push(boolRow('tpm', 'TPM Device', 'tpm',
+      'Доверенный модуль. Без него Secure Boot всё ещё работает, но измерения '
+      + 'загрузки писать некуда.', { reboot: true }));
+    rows.push(roRow('TPM Version', function () {
+      return nvDraft.tpm === 'Enabled' ? '2.0  (fTPM)' : '--- disabled ---';
+    }));
+    return rows;
+  }
+
+  // ── IMM ──────────────────────────────────────────────────────────────────
+  function immRows() {
+    return [
+      { label: 'Network Configuration', kind: 'menu', rows: immNetRows,
+        help: 'Адрес сети управления и порт, которым контроллер в неё смотрит.' },
+      { label: 'Cooling', kind: 'menu', rows: immCoolRows,
+        help: 'Политика оборотов. Охлаждением распоряжается контроллер, а не '
+              + 'прошивка, — потому она и стоит здесь, а не в Advanced.' },
+      { label: 'System Event Log', kind: 'menu', rows: immSelRows,
+        help: 'Журнал событий машины.' },
+      enumRow('vmedia', 'Remote Media', 'vmedia', ['Detached', 'Attached'],
+        'Виртуальный привод контроллера. Пока к нему не подключён образ, он есть '
+        + 'в списке загрузки, но грузиться с него нельзя — как и на живой машине.'),
+      roRow('BMC Firmware', function () { return HW.fw.bmc + '  ' + HW.fw.bmc_chip; }),
+      roRow('MAC Address', function () { return HW.fw.mac; }),
+    ];
+  }
+
+  function immNetRows() {
+    const rows = [];
+    rows.push(enumRow('immnic', 'IMM Network Interface', 'immNic', ['Dedicated', 'Shared'],
+      'Dedicated — отдельный порт управления. Shared — контроллер едет по первому '
+      + 'гигабитному порту вместе с системным трафиком.'));
+    rows.push(enumRow('proto', 'IPv4 Configuration', 'ipMode', ['DHCP', 'Static'],
+      'DHCP — адрес из сети управления. Static открывает три поля ниже.'));
 
     if (nvDraft.ipMode === 'Static') {
       rows.push({ id: 'ip', label: 'IP Address', kind: 'text', field: 'ip',
@@ -2739,17 +4794,102 @@
         get: function () { return nvDraft.gw; },
         help: 'Шлюз сети управления.' });
     }
-
-    rows.push({ label: 'MAC Address', ro: true, get: function () { return HW.fw.mac; } });
+    rows.push(roRow('MAC Address', function () { return HW.fw.mac; }));
     return rows;
   }
 
+  function immCoolRows() {
+    const ids = fanPolicyIds();
+    const rows = [
+      enumRow('fanpolicy', 'Fan Speed Policy', 'fanPolicy', ids,
+        'Обороты крыльчаток. Тон гула идёт за ними: лопаточная частота — это '
+        + 'лопасти × об/мин ÷ 60. Профиль питания Efficiency прижимает политику '
+        + 'к самому тихому режиму независимо от того, что выбрано здесь.'),
+      roRow('Target Speed', function () { return fanTargetRpm(nvDraft) + ' rpm'; }),
+      roRow('Installed Fans', function () {
+        return (HW.fan.n - counts('.fan.pulled')) + ' of ' + HW.fan.n + '  ' + HW.fan.model;
+      }),
+      roRow('Blades per Rotor', function () { return String(HW.fan.blades); }),
+    ];
+    if (nvDraft.power === 'Efficiency') {
+      rows.push(roRow('Override', function () { return 'Power Profile: Efficiency → ' + ids[0]; }));
+    }
+    return rows;
+  }
+
+  function immSelRows() {
+    const rows = [];
+    if (!SEL_LOG.length) {
+      rows.push(roRow('Log', function () { return 'empty'; }));
+    } else {
+      SEL_LOG.slice(-12).forEach(function (e) {
+        rows.push(roRow('0x' + e.id.toString(16).padStart(4, '0'), function () { return e.t; }));
+      });
+    }
+    rows.push({ id: 'selclear', label: 'Clear System Event Log', kind: 'action',
+      help: 'Стирает журнал. Защёлкнутая лампа неисправности гаснет вместе с ним.',
+      run: function () {
+        askConfirm('Clear the System Event Log?', function () {
+          SEL_LOG.length = 0;
+          line('bios: system event log cleared', 'warn');
+        });
+      } });
+    return rows;
+  }
+
+  // ── Save & Exit ──────────────────────────────────────────────────────────
+  // Последняя вкладка Aptio, и она всегда одна и та же. Внизу — Boot Override:
+  // второй путь к однократной загрузке, уже без всплывающего меню.
+  function saveRows() {
+    const rows = [
+      { id: 'savexit', label: 'Save Changes and Exit', kind: 'action',
+        help: 'Записать изменения в NVRAM и выйти.',
+        run: function () { askConfirm('Save configuration and exit?', function () { commitSetup(); }); } },
+      { id: 'discardexit', label: 'Discard Changes and Exit', kind: 'action',
+        help: 'Выйти, не записывая.',
+        run: function () { askConfirm('Discard changes and exit?', discardSetup); } },
+      { id: 'save', label: 'Save Changes', kind: 'action',
+        help: 'Записать и остаться в Setup.',
+        run: function () { askConfirm('Save configuration?', function () { commitSetup(true); }); } },
+      { id: 'discard', label: 'Discard Changes', kind: 'action',
+        help: 'Вернуть черновик к тому, что лежит в NVRAM.',
+        run: function () {
+          askConfirm('Discard changes?', function () {
+            nvDraft = cloneNv(nv);
+            line('bios: changes discarded', 'muted');
+          });
+        } },
+      { id: 'defaults', label: 'Restore Optimized Defaults', kind: 'action',
+        help: 'Заводские значения. То же самое делает F9.',
+        run: function () { askConfirm('Load optimized defaults?', loadDefaults); } },
+      { label: 'Boot Override', ro: true, head: true, get: function () { return ''; } },
+    ];
+    nvDraft.bootOrder.forEach(function (key) {
+      rows.push({ id: 'override' + key, label: '  ' + BOOT_SETUP_LABEL[key], kind: 'action',
+        help: bootAvailable(key, nvDraft)
+          ? 'Загрузиться отсюда один раз. Сохранённый порядок не меняется.'
+          : 'Устройство недоступно: ' + bootWhyNot(key, nvDraft),
+        run: function () {
+          if (!bootAvailable(key, nvDraft)) {
+            line('bios: ' + BOOT_SETUP_LABEL[key] + ' — ' + bootWhyNot(key, nvDraft), 'warn');
+            return;
+          }
+          bootNext = key;
+          closeSetup();
+          screenPost();
+        } });
+    });
+    return rows;
+  }
+
+  const TAB_ROOT = {
+    'Main': mainRows, 'Advanced': advRows, 'Boot': bootRows,
+    'Security': securityRows, 'IMM': immRows, 'Save & Exit': saveRows,
+  };
+
   function currentRows() {
-    const tab = SETUP_TABS[setupTab];
-    if (tab === 'Main') return mainRows();
-    if (tab === 'Advanced') return advRows();
-    if (tab === 'Boot') return bootRows();
-    return immRows();
+    if (menuPath.length) return menuPath[menuPath.length - 1].rows();
+    return TAB_ROOT[SETUP_TABS[setupTab]]();
   }
 
   function firstNavigable(rows) {
@@ -2781,9 +4921,12 @@
     const r = rows[setupRow];
     if (!r || r.ro) return;
     if (r.kind === 'bool') r.set();
-    else if (r.kind === 'enum') r.set(dir);
+    else if (r.kind === 'enum' || r.kind === 'num') r.set(dir);
     else if (r.kind === 'order') moveBootOrder(r.idx, dir);
     else if (r.kind === 'text' && dir === 1) beginEdit(r);
+    else if (r.kind === 'password' && dir === 1) askPassword(r);
+    else if (r.kind === 'menu' && dir === 1) { menuPath.push({ label: r.label, rows: r.rows }); setupRow = -1; }
+    else if (r.kind === 'action' && dir === 1) r.run();
   }
 
   function handleEditKey(e) {
@@ -2808,17 +4951,32 @@
     }
   }
 
+  function nvDirty() {
+    return !!nvDraft && JSON.stringify(nvDraft) !== JSON.stringify(nv);
+  }
+
+  function loadDefaults() {
+    nvDraft = cloneNv(NV_DEFAULT);   // wipes only the draft — F9 does not touch the power
+    menuPath = [];
+    setupRow = -1;
+    line('bios: optimized defaults loaded', 'warn');
+  }
+
   function handleSetupKey(e) {
     if (editField) { handleEditKey(e); return; }
     const rows = currentRows();
     switch (e.key) {
       case 'ArrowLeft':
         e.preventDefault();
+        // Вкладки переключаются только с корня: на живой машине стрелка внутри
+        // подменю не выбрасывает наружу через уровень.
+        if (menuPath.length) return;
         setupTab = (setupTab - 1 + SETUP_TABS.length) % SETUP_TABS.length;
         setupRow = -1;
         break;
       case 'ArrowRight':
         e.preventDefault();
+        if (menuPath.length) return;
         setupTab = (setupTab + 1) % SETUP_TABS.length;
         setupRow = -1;
         break;
@@ -2840,20 +4998,26 @@
         break;
       case 'F1':
         e.preventDefault();
-        if (rows[setupRow]) line('help: ' + rows[setupRow].label + ' — ' + (rows[setupRow].help || ''), 'muted');
-        return;                       // the hint goes to the console, the screen is not repainted
+        openHelp();
+        return;
       case 'F9':
         e.preventDefault();
-        nvDraft = cloneNv(NV_DEFAULT);   // wipes only the draft — F9 does not touch the power
-        setupRow = -1;
-        line('bios: optimized defaults loaded', 'warn');
-        break;
+        askConfirm('Load optimized defaults?', loadDefaults);
+        return;
       case 'F10':
         e.preventDefault();
-        commitSetup();
-        return;                        // commitSetup closes the dialog itself
+        askConfirm('Save configuration and exit?', function () { commitSetup(); });
+        return;
+      case 'F11': case 'F12':
+        e.preventDefault();
+        openBootMenu(false);
+        return;
       case 'Escape':
         e.preventDefault();
+        if (menuPath.length) { menuPath.pop(); setupRow = -1; break; }
+        // Выход с несохранёнными правками спрашивает — как и положено. Без
+        // правок уходит молча: лишняя рамка на пустом месте раздражает.
+        if (nvDirty()) { askConfirm('Discard changes and exit?', discardSetup); return; }
         discardSetup();
         return;                        // discardSetup closes the dialog itself
       default:
@@ -2871,6 +5035,13 @@
       setupTabsEl.appendChild(t);
     });
 
+    // Хлебные крошки: без них, провалившись на два уровня, уже не сказать, где
+    // стоишь, — а Esc из подменю ведёт себя не так, как Esc с корня.
+    if (setupPathEl) {
+      const trail = [SETUP_TABS[setupTab]].concat(menuPath.map(function (m) { return m.label; }));
+      setupPathEl.textContent = trail.join('  ▸  ');
+    }
+
     const rows = currentRows();
     if (setupRow < 0 || setupRow >= rows.length || rows[setupRow].ro) {
       setupRow = firstNavigable(rows);
@@ -2881,45 +5052,101 @@
       const rowEl = document.createElement('div');
       rowEl.className = 'crt-row'
         + (r.ro ? ' ro' : '')
+        + (r.head ? ' head' : '')
+        + (r.kind === 'menu' ? ' menu' : '')
+        + (r.kind === 'action' ? ' action' : '')
         + (i === setupRow ? ' sel' : '')
         + (editField && editField.row === r ? ' editing' : '');
       const label = document.createElement('span');
       label.className = 'crt-row-label';
-      label.textContent = r.label + (r.reboot ? ' *' : '');
+      // Вход внутрь помечен треугольником, как в Aptio: по нему видно, что
+      // Enter здесь уводит на уровень ниже, а не меняет значение.
+      label.textContent = (r.kind === 'menu' ? '▶ ' : '') + r.label + (r.reboot ? ' *' : '');
       const value = document.createElement('span');
       value.className = 'crt-row-value';
-      value.textContent = (editField && editField.row === r) ? editField.buf + '_' : r.get();
+      // У входа в подменю и у действия значения справа нет вовсе — как и в
+      // Aptio: там это строка-команда, а не строка-настройка.
+      value.textContent = (editField && editField.row === r) ? editField.buf + '_'
+                        : (typeof r.get === 'function' ? r.get() : '');
       rowEl.appendChild(label);
       rowEl.appendChild(value);
       setupRowsEl.appendChild(rowEl);
     });
 
+    // Прокрутка длинных списков: выбранная строка обязана оставаться на виду.
+    // Настоящий BIOS листает страницами, у нас листает контейнер — но маркеры
+    // ▲▼ появляются там же и по тому же поводу.
+    const selEl = setupRowsEl.children[setupRow];
+    if (selEl && selEl.scrollIntoView) selEl.scrollIntoView({ block: 'nearest' });
+    updateScrollMarks();
+
     const sel = rows[setupRow];
     setupHelpEl.textContent = sel ? (sel.help || '')
-      : 'Main: только чтение — состав машины по паспорту и текущей сборке.';
+      : 'Только чтение: состав машины по паспорту и текущей сборке.';
     setupNoteEl.hidden = !rows.some(function (r) { return r.reboot; });
+    if (setupKeysEl) {
+      setupKeysEl.textContent = menuPath.length
+        ? 'F1 Help · ↑/↓ строка · Enter/+/− изменить · F9 Defaults · F10 Save & Exit · Esc назад'
+        : 'F1 Help · ←/→ раздел · ↑/↓ строка · Enter/+/− изменить · F9 Defaults · F10 Save & Exit · F11 Boot · Esc Exit';
+    }
+  }
+
+  function updateScrollMarks() {
+    const box = setupRowsEl;
+    box.classList.toggle('more-up', box.scrollTop > 1);
+    box.classList.toggle('more-down', box.scrollTop + box.clientHeight < box.scrollHeight - 1);
+  }
+
+  // ── Вход в Setup и пароль администратора ─────────────────────────────────
+  function requestSetup() {
+    if (nv.adminPw) {
+      // Экран поднимаем до запроса, и это не украшение: накладка живёт внутри
+      // него, а клавиши ей раздаёт диспетчер, который на закрытом экране молчит.
+      // Спросить пароль, не показав экрана, значило бы спросить и не услышать —
+      // ввод уходил бы в пустоту, а Enter открывал бы запрос заново.
+      if (!crtOpen) blankScreen(0xab);
+      askPasswordPrompt('Enter Administrator Password', function (given) {
+        if (given === nv.adminPw) { postCtl = null; openSetup(); return true; }
+        line('bios: invalid password', 'err');
+        selAdd('Setup password attempt failed', 'warn');
+        return false;
+      }, '', function () {
+        if (postCtl && postCtl.standalone) { postCtl = null; closeCrt(); }
+      });
+      return;
+    }
+    openSetup();
   }
 
   function openSetup() {
     nvDraft = cloneNv(nv);
     editField = null;
+    menuPath = [];
     setupTab = 0;
     setupRow = -1;
     openCrt('setup');
+    postCode(0xa9);
     renderSetupTab();
   }
 
   function closeSetup() {
     nvDraft = null;
     editField = null;
+    menuPath = [];
     closeCrt();
   }
 
-  function commitSetup() {
-    nv = nvDraft;
+  function commitSetup(stay) {
+    const before = JSON.stringify(nv);
+    nv = cloneNv(nvDraft);
     saveNv();
     applyNvEffects();
+    // Каждое сохранение — событие в журнале. Так ведёт себя любой контроллер
+    // управления: он видит запись в NVRAM и отмечает её, чтобы потом было с
+    // чем сверяться.
+    if (before !== JSON.stringify(nv)) selAdd('System boot settings changed', 'ok');
     line('bios: settings saved · вступит в силу после перезагрузки', 'ok');
+    if (stay) { nvDraft = cloneNv(nv); renderSetupTab(); return; }
     closeSetup();
   }
 
@@ -2928,25 +5155,240 @@
     closeSetup();
   }
 
+  // ── Накладки ─────────────────────────────────────────────────────────────
+  // Одна разметка на четверых: рамка подтверждения, меню загрузки, окно помощи
+  // и запрос пароля отличаются содержимым и разбором клавиш, но не устройством.
+  function closeOverlay() {
+    overlay = null;
+    if (overlayEl) overlayEl.hidden = true;
+  }
+
+  function renderOverlay() {
+    if (!overlay || !overlayEl) return;
+    overlayEl.hidden = false;
+    overlayEl.dataset.kind = overlay.kind;
+    overlayTitleEl.textContent = overlay.title;
+    overlayBodyEl.innerHTML = '';
+
+    if (overlay.kind === 'help') {
+      const pre = document.createElement('pre');
+      pre.className = 'crt-help-text';
+      pre.textContent = overlay.text;
+      overlayBodyEl.appendChild(pre);
+    } else if (overlay.kind === 'password') {
+      const row = document.createElement('div');
+      row.className = 'crt-overlay-input';
+      // Звёздочки, а не точки: BIOS набирает поле знакоместами.
+      row.textContent = overlay.buf.replace(/./g, '*') + '_';
+      overlayBodyEl.appendChild(row);
+      if (overlay.note) {
+        const note = document.createElement('div');
+        note.className = 'crt-overlay-note';
+        note.textContent = overlay.note;
+        overlayBodyEl.appendChild(note);
+      }
+    } else {
+      overlay.items.forEach(function (it, i) {
+        const el = document.createElement('div');
+        el.className = 'crt-overlay-item' + (i === overlay.sel ? ' sel' : '') + (it.dim ? ' dim' : '');
+        el.textContent = it.label;
+        overlayBodyEl.appendChild(el);
+      });
+    }
+    overlayKeysEl.textContent = overlay.keys;
+  }
+
+  function askConfirm(title, onYes) {
+    overlay = {
+      kind: 'confirm', title: title, sel: 0,
+      items: [{ label: 'Yes', value: true }, { label: 'No', value: false }],
+      keys: '←/→ выбор · Enter — принять · Esc — отмена',
+      done: function (v) {
+        closeOverlay();
+        if (v) onYes();
+        if (crtOpen && crt.dataset.mode === 'setup') renderSetupTab();
+      },
+    };
+    renderOverlay();
+  }
+
+  // Окно помощи — то самое, что в Aptio открывается по F1: рамка с легендой
+  // клавиш. Раньше подсказка уходила строкой в консоль, а консоль в этот момент
+  // лежит под экраном и помечена inert — то есть не появлялась нигде.
+  function openHelp() {
+    overlay = {
+      kind: 'help', title: 'General Help',
+      text: [
+        '  ↑ ↓        Select Item',
+        '  ← →        Select Screen',
+        '  Enter      Select / Sub-Menu',
+        '  + / −      Change Value',
+        '  F1         General Help',
+        '  F9         Optimized Defaults',
+        '  F10        Save & Exit',
+        '  F11        Boot Menu',
+        '  Esc        Exit / Back',
+      ].join('\n'),
+      keys: 'Enter или Esc — закрыть',
+      done: function () { closeOverlay(); renderSetupTab(); },
+    };
+    renderOverlay();
+  }
+
+  // Всплывающее меню загрузки. Выбор однократный: сохранённый порядок он не
+  // трогает, и следующая загрузка снова идёт по нему. Ровно так работает
+  // BootNext в UEFI.
+  function bootMenuItems(withSetup) {
+    const items = nv.bootOrder.map(function (k) {
+      const ok = bootAvailable(k);
+      return { label: BOOT_SETUP_LABEL[k] + (ok ? '' : '  — ' + bootWhyNot(k)), value: k, dim: !ok };
+    });
+    if (withSetup) items.push({ label: 'Enter Setup', value: '@setup' });
+    return items;
+  }
+
+  function openBootMenu(withSetup) {
+    const items = bootMenuItems(withSetup);
+    let first = 0;
+    for (let i = 0; i < items.length; i++) if (!items[i].dim) { first = i; break; }
+    overlay = {
+      kind: 'boot', title: 'Please select boot device:', sel: first, items: items,
+      keys: '↑/↓ выбор · Enter — загрузиться · Esc — отмена',
+      done: function (v) {
+        closeOverlay();
+        if (v === null) {
+          if (crtOpen && crt.dataset.mode === 'setup') renderSetupTab();
+          // Меню, поднятое на пустом поле, уносит это поле с собой: оставить
+          // после отмены чёрный экран было бы тупиком.
+          else if (postCtl && postCtl.standalone) { postCtl = null; closeCrt(); }
+          return;
+        }
+        if (v === '@setup') { postCtl = null; requestSetup(); return; }
+        bootNext = v;
+        line('boot: ' + BOOT_SETUP_LABEL[v] + ' (one time)', 'muted');
+        postCtl = null;
+        if (crt.dataset.mode === 'setup') closeSetup();
+        screenPost();
+      },
+    };
+    renderOverlay();
+  }
+
+  // F11 при закрытом экране: меню поднимается само, поверх пустого поля — как
+  // на машине, которую только что включили и успели поймать.
+  function openBootMenuStandalone() {
+    blankScreen(0xae);
+    openBootMenu(true);
+  }
+
+  function askPasswordPrompt(title, check, note, onCancel) {
+    overlay = {
+      kind: 'password', title: title, buf: '', note: note || '',
+      keys: 'Enter — принять · Esc — отмена',
+      done: function (v) {
+        if (v === null) { closeOverlay(); if (onCancel) onCancel(); return; }
+        // Своя рамка запоминается до проверки: проверка может открыть
+        // следующую — второй ввод пароля идёт сразу за первым, — и закрыть
+        // тогда надо себя, а не её. Иначе «повторите ввод» гаснет в тот же
+        // кадр, в котором появился.
+        const mine = overlay;
+        if (check(v)) { if (overlay === mine) closeOverlay(); }
+        else { mine.buf = ''; mine.note = 'Invalid password'; renderOverlay(); }
+      },
+    };
+    renderOverlay();
+  }
+
+  // Задать пароль: спрашиваем дважды, как это делает всякая прошивка. Пустой
+  // ввод снимает пароль — и это тоже её поведение, а не наша поблажка.
+  function askPassword(row) {
+    askPasswordPrompt('Create New Password', function (first) {
+      askPasswordPrompt('Confirm New Password', function (second) {
+        if (first !== second) {
+          line('bios: passwords do not match', 'err');
+          return true;                       // рамку закрываем, значение не трогаем
+        }
+        nvDraft[row.field] = first;
+        line('bios: ' + row.label.toLowerCase() + (first ? ' installed' : ' cleared'), 'warn');
+        renderSetupTab();
+        return true;
+      }, 'Повторите ввод');
+      return true;
+    }, 'Пустой ввод снимает пароль');
+  }
+
+  function handleOverlayKey(e) {
+    const o = overlay;
+    if (o.kind === 'password') {
+      if (e.key === 'Enter') { e.preventDefault(); o.done(o.buf); }
+      else if (e.key === 'Escape') { e.preventDefault(); o.done(null); }
+      else if (e.key === 'Backspace') { e.preventDefault(); o.buf = o.buf.slice(0, -1); renderOverlay(); }
+      else if (e.key.length === 1) { e.preventDefault(); o.buf += e.key; renderOverlay(); }
+      return;
+    }
+    if (o.kind === 'help') {
+      if (e.key === 'Enter' || e.key === 'Escape' || e.key === 'F1') { e.preventDefault(); o.done(); }
+      return;
+    }
+    const horiz = o.kind === 'confirm';
+    const prev = horiz ? 'ArrowLeft' : 'ArrowUp';
+    const next = horiz ? 'ArrowRight' : 'ArrowDown';
+    if (e.key === prev) { e.preventDefault(); o.sel = (o.sel - 1 + o.items.length) % o.items.length; renderOverlay(); }
+    else if (e.key === next) { e.preventDefault(); o.sel = (o.sel + 1) % o.items.length; renderOverlay(); }
+    else if (e.key === 'Enter') {
+      e.preventDefault();
+      const it = o.items[o.sel];
+      if (it.dim) return;               // недоступное устройство не выбирается
+      o.done(it.value);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      o.done(o.kind === 'confirm' ? false : null);
+    }
+  }
+
   // The current (saved) settings line by line — the thing that has to pipe:
   // `bios dump | grep Boot`. The draft deliberately does not get here: until
   // F10 has been pressed, from the outside the firmware has not changed.
   function nvDumpLines() {
+    const mem = memPlan();
     const rows = [];
-    rows.push({ t: 'Boot Mode              : ' + nv.mode });
-    if (nv.mode === 'UEFI') {
-      rows.push({ t: 'Secure Boot            : ' + nv.secureBoot, c: nv.secureBoot === 'Disabled' ? 'warn' : '' });
-    }
-    rows.push({ t: 'Quiet Boot             : ' + nv.quietBoot });
-    rows.push({ t: 'SMT                    : ' + nv.ht });
-    rows.push({ t: 'Active Cores/Socket    : ' + nv.cores });
-    rows.push({ t: 'NUMA                   : ' + nv.numa });
-    rows.push({ t: 'Memory Frequency       : ' + nv.memfreq });
-    rows.push({ t: 'Power Profile          : ' + nv.power });
-    rows.push({ t: 'C-States               : ' + nv.cstates });
-    rows.push({ t: 'Boot Order             : ' + nv.bootOrder.map(function (k) { return BOOT_SETUP_LABEL[k]; }).join(' → ') });
-    rows.push({ t: 'IMM IPv4               : ' + (nv.ipMode === 'DHCP' ? 'DHCP'
-      : 'Static ' + nv.ip + ' / ' + nv.mask + ' gw ' + nv.gw) });
+    const put = function (k, v, c) {
+      rows.push({ t: (k + '                       ').slice(0, 23) + ': ' + v, c: c || '' });
+    };
+    put('Boot Mode', nv.mode);
+    if (nv.mode === 'UEFI') put('Secure Boot', nv.secureBoot, nv.secureBoot === 'Disabled' ? 'warn' : '');
+    put('Quiet Boot', nv.quietBoot);
+    put('SMT', nv.ht);
+    put('Active Cores/Socket', nv.cores);
+    put('NUMA', nv.numa);
+    put('IOMMU', nv.iommu);
+    put('Memory Frequency', nv.memfreq);
+    put('Memory Mode', nv.memMode + (mem.fell ? ' (fell back: ' + mem.why + ')' : ''),
+        mem.fell ? 'warn' : '');
+    put('Patrol Scrub', nv.patrol);
+    put('Power Profile', nv.power);
+    put('Determinism', nv.determinism);
+    put('Package Power Limit', nv.powerLimit ? nv.powerLimit + ' W' : 'Auto');
+    put('C-States', nv.cstates);
+    put('Above 4G Decoding', nv.above4g, nv.above4g === 'Disabled' ? 'warn' : '');
+    put('SR-IOV', nv.sriov);
+    put('PCIe Link Speed', nv.pcieSpeed);
+    put('UEFI Network Stack', nv.netStack);
+    put('PXE Boot to LAN', nv.pxe);
+    put('Boot Order', nv.bootOrder.map(function (k) { return BOOT_SETUP_LABEL[k]; }).join(' → '));
+    put('Restore on AC Loss', nv.acRestore);
+    put('Wake on LAN', nv.wol);
+    put('ASR Watchdog', nv.watchdog === 'Enabled' ? nv.watchdogMin + ' min' : 'Disabled');
+    put('Console Redirection', nv.sol === 'Enabled' ? 'COM1 ' + nv.solBaud + ' 8N1' : 'Disabled');
+    put('Fan Speed Policy', fanPolicyEffective() + ' · ' + fanTargetRpm() + ' rpm');
+    put('Admin Password', nv.adminPw ? 'Installed' : 'Not Installed');
+    put('Power-On Password', nv.powerOnPw ? 'Installed' : 'Not Installed');
+    put('TPM Device', nv.tpm);
+    put('Secure Boot Mode', nv.sbKeys);
+    put('IMM Interface', nv.immNic);
+    put('IMM Remote Media', nv.vmedia);
+    put('IMM IPv4', nv.ipMode === 'DHCP' ? 'DHCP'
+      : 'Static ' + nv.ip + ' / ' + nv.mask + ' gw ' + nv.gw);
     return rows;
   }
 
@@ -3014,12 +5456,13 @@
     const load = (cpuLoad * cpu.sockets * (cpu.smt ? 2 : 1)).toFixed(2);
     const running = Math.max(1, Math.round(cpuLoad * 8));
     const dimm = dimmState();
-    const memUsedGiB = Math.round(dimm.gb * (0.12 + cpuLoad * 0.35));
+    const mem = memPlan();
+    const memUsedGiB = Math.round(mem.gb * (0.12 + cpuLoad * 0.35));
     return [
       'top - ' + pad(now.getHours()) + ':' + pad(now.getMinutes()) + ':' + pad(now.getSeconds())
         + '   up ' + upH + 'h ' + upM + 'm   load average: ' + load + ', ' + load + ', ' + load,
       'Tasks: ' + cpu.threads + ' total, ' + running + ' running, ' + Math.max(0, cpu.threads - running) + ' sleeping',
-      'Mem: ' + memUsedGiB + ' / ' + dimm.gb + ' GiB   ' + cpu.sockets + '/' + HW.cpu.n + ' sockets   '
+      'Mem: ' + memUsedGiB + ' / ' + mem.gb + ' GiB   ' + cpu.sockets + '/' + HW.cpu.n + ' sockets   '
         + dimm.in + '/' + dimm.total + ' dimms',
     ].join('\n');
   }
@@ -3065,7 +5508,7 @@
     sink: true,
     run: function (ctx) {
       if (ctx.args[0] === 'dump') return nvDumpLines();
-      openSetup();
+      requestSetup();
       return [];
     },
   });
@@ -3080,6 +5523,25 @@
     run: function () { screenPost(); return []; },
   });
 
+  cmd({
+    name: 'boot', group: 'ПРОШИВКА', brief: 'выбор устройства загрузки',
+    usage: 'boot [nvme|pxe|bmc]', sink: true,
+    help: ['Без аргумента поднимает то же всплывающее меню, что и F11.',
+           'С аргументом грузится с устройства однократно, не трогая',
+           'сохранённый порядок: это BootNext, а не новая настройка.'],
+    run: function (ctx) {
+      const key = (ctx.args[0] || '').toLowerCase();
+      if (!key) { openBootMenuStandalone(); return []; }
+      if (!BOOT_SETUP_LABEL[key]) return [{ t: 'boot: неизвестное устройство: ' + key, c: 'err' }];
+      if (!bootAvailable(key)) {
+        return [{ t: 'boot: ' + BOOT_SETUP_LABEL[key] + ' — ' + bootWhyNot(key), c: 'err' }];
+      }
+      bootNext = key;
+      screenPost();
+      return [];
+    },
+  });
+
   // ── Start-up ───────────────────────────────────────────────────────────
   const first = !state.visited;
   state.visited = true; save();
@@ -3087,19 +5549,17 @@
   // The cover. A visitor should not have to guess that it needs taking off:
   // on the first visit it comes off by itself. Putting it back is done by a
   // button on the board, next to the service mode switch.
-  const lidRemove = document.getElementById('lid-remove');
-  const lidOn = document.getElementById('lid-on');
-
   function setLid(off) {
+    // Тишина, если крышка уже в этом положении: setLid зовут и при
+    // восстановлении состояния из localStorage, где хода нет и звучать нечему.
+    if (rig.classList.contains('lid-off') !== off) sfx('lid');
     rig.classList.toggle('lid-off', off);
     state.lid = off; save();
   }
-  function bindLid(el, off, msg) {
-    if (!el) return;
-    el.addEventListener('click', function () { setLid(off); line(msg, 'muted'); });
-    el.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setLid(off); line(msg, 'muted'); }
-    });
+  // Обе кнопки крышки нарисованы на плате, значит слушаем их так же, как
+  // выключатель сервисного режима, — через саму плату.
+  function bindLid(id, off, msg) {
+    onBoard(id, function () { setLid(off); line(msg, 'muted'); });
   }
   const assembleBtn = document.getElementById('assemble-btn');
   if (assembleBtn) {
@@ -3109,8 +5569,8 @@
     });
   }
 
-  bindLid(lidRemove, true, 'cover removed');
-  bindLid(lidOn, false, 'cover in place');
+  bindLid('lid-remove', true, 'cover removed');
+  bindLid('lid-on', false, 'cover in place');
 
   setLid(!!state.lid);
   wait(260, function () { rig.classList.add('ready'); });

@@ -15,7 +15,11 @@
 
 # Свой прямоугольник: сборка проверит, что узел из него не вышел.
 # Слева выходит за габарит шасси: вынутый диск выезжает наружу, как в жизни.
-BOUNDS = (-120, 194, 300, 664)
+# Крайняя левая точка — не краска, а окно отсечения: оно обязано быть шире
+# полного вылета каддика (152 единицы плюс отведённая ручка), иначе срез
+# отрежет уехавшую рамку. Видимого следа за кромкой шасси у блока по-прежнему
+# нет — там только вынутая деталь.
+BOUNDS = (-220, 194, 400, 664)
 
 from board.geom import (
     BAY_N,
@@ -27,12 +31,10 @@ from board.geom import (
     GROUP_GAP,
     GROUP_H,
     X_FRONT,
-    H,
-    seat,
+    bay_seat,
 )
 from board.ink import silk_frame
 from board.lamps import act_led, lamp
-from board.revision import stamp
 from board.spec import BAYS
 
 LABEL_H = 43     # наклейка на ручке: вдвое короче прежнего шильдика
@@ -266,13 +268,31 @@ def render(cv):
         # Ёмкость, а не повтор модели. Развилка «для Optane пишем P5800X» имела
         # смысл, пока Optane стоял в одном отсеке из восьми; теперь такие все,
         # и наклейка дважды повторяла бы то, что уже написано строкой выше.
-        kind = 'FILLER' if filler else spec_bay.get('kind', '')
-        size = '—' if filler else f"{spec_bay.get('tb', 0)} TB"
-        sled = [(f'<g class="drive-body">'
+        # У заглушки на наклейке не написано ничего: это глухая панель, и
+        # писать на ней нечего. Слово FILLER было подписью к пустоте.
+        kind = '' if filler else spec_bay.get('kind', '')
+        size = '' if filler else f"{spec_bay.get('tb', 0)} TB"
+        # Накопитель нарисован на своём настоящем месте — справа от рамки, в
+        # глубине шасси, — и обрезан по устью отсека. Пока каддик на месте,
+        # диск целиком лежит правее среза и не виден; поехал наружу — и он
+        # выезжает из устья, как выезжает в жизни.
+        #
+        # Отсечение сидит на неподвижной обёртке вокруг всего каддика: срез
+        # стоит на месте, а внутри него едет одна группа — и рамка, и диск, и
+        # ручка. Будь clip-path на движущемся узле, он ехал бы вместе с ним и
+        # не обрезал бы ничего. Раньше диск просто проявлялся прозрачностью —
+        # деталь не выезжала, а включалась.
+        #
+        # Правая кромка окна — устье отсека: диск нарисован сразу за ней и в
+        # собранной машине не виден вовсе. Левая отнесена за габарит вылета,
+        # иначе на полном ходу срез отрезал бы уехавшую рамку.
+        clip = (f'<clipPath id="bay-out-{i}">'
+                f'<rect x="-220" y="{y-8}" width="{x+w+220}" height="{h+16}"/></clipPath>')
+        drive = (f'<g class="drive-body">'
                  f'{drive_body(x + w, y + 2, h - 4, lit=not filler, model=spec_bay.get("model", ""), size=size)}'
-                 f'</g>')]
-        sled.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="1" fill="#28323a" '
-                    f'stroke="rgba(147,161,161,0.26)"/>')
+                 f'</g>')
+        sled = [(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="1" fill="#28323a" '
+                 f'stroke="rgba(147,161,161,0.26)"/>')]
         sled.append(caddy_head(x, y, w, lamps))
 
         # Ручка — отдельная деталь и главная на лицевой стороне: рычаг во всю
@@ -315,8 +335,11 @@ def render(cv):
         kind_cls = 'blank' if filler else 'bay'
         unit = f'blank{i}' if filler else f'hdd{i}'
         cv.add(f'''<g class="unit pick {kind_cls}" data-unit="{unit}" data-group="hdd"
-          style="--seat:{seat('bay', i)}" data-href="https://github.com/cosmdandy">
-      <g class="pick-body">{''.join(sled)}<g class="bay-handle">{handle}</g></g>
+          style="--seat:{bay_seat(i, filler)}" data-href="https://github.com/cosmdandy">
+      {clip}
+      <g clip-path="url(#bay-out-{i})">
+        <g class="pick-body">{drive}{''.join(sled)}<g class="bay-handle">{handle}</g></g>
+      </g>
     </g>''')
     # Выноска корзины — одна на все отсеки, и указывает она на диск, а не на
     # решётку рядом с ним: якорь сидит в середине каддика третьей группы.
@@ -327,4 +350,3 @@ def render(cv):
                      "GitHub", "start", "https://github.com/cosmdandy", "hdd",
                      "код и проекты", "github"))
 
-    cv.add(stamp(X_FRONT + 4, H - 18, "фронт: восемь отсеков"))

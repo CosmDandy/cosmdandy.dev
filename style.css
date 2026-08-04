@@ -176,17 +176,21 @@
     }
 }
 
+/* swap, а не block: block прячет текст до приезда шрифта, и на медленном
+   мобильном соединении это ровно те сотни миллисекунд, когда экран уже
+   свёрстан, но пуст. Шрифты в preload, так что подмена держится недолго.
+   Так же сделано в блоге. */
 @font-face {
     font-family: 'Inter';
     font-weight: 400;
-    font-display: block;
+    font-display: swap;
     src: url('fonts/Inter-Regular.woff2') format('woff2');
 }
 
 @font-face {
     font-family: 'Inter';
     font-weight: 600;
-    font-display: block;
+    font-display: swap;
     src: url('fonts/Inter-SemiBold.woff2') format('woff2');
 }
 
@@ -217,6 +221,11 @@ body {
     color: var(--selection-fg);
 }
 
+/* Сетку сдвигает мышь — на десяток точек, ровно настолько, чтобы фон не
+   казался наклейкой. Сдвиг ставит скрипт, и ставит его прямо сюда, свойством
+   на самом слое. Переменную на корне тут пробовали: она наследуется, и запись
+   в неё раз в кадр отправляет браузер пересчитывать стиль всему документу
+   вместе со схемой в десять тысяч узлов. */
 .dots {
     position: fixed;
     inset: 0;
@@ -557,7 +566,13 @@ h1     { animation-delay: 0ms; }
    interface, even though it is there in behaviour.
 
    The icon shows the theme in force, not the one to come: the button answers
-   the question "what is it now", not "what will it be". */
+   the question "what is it now", not "what will it be".
+
+   Пока светлая тема выключена (THEME_CHOICE в скрипте страницы), кнопки нет:
+   переключатель, который ничего не переключает, хуже отсутствующего. Класс
+   ставит тот же скрипт, и снимается он вместе с ним. */
+:root.theme-locked .theme-switch { display: none; }
+
 .theme-switch {
     position: fixed;
     top: 24px;
@@ -664,4 +679,130 @@ h1     { animation-delay: 0ms; }
         box-shadow       var(--theme-fade),
         fill             var(--theme-fade),
         stroke           var(--theme-fade) !important;
+}
+
+/* ── Отметка о сборке ───────────────────────────────────────────────────────
+   Какой стенд, из чего собран и когда развёрнут. Стоит в углу и приглушена:
+   это инструмент для того, кто правит сайт, а не часть страницы. Под курсором
+   проявляется — читать её всё-таки иногда надо.
+
+   На продакшене её не рисуют вовсе (см. скрипт в странице), поэтому правил
+   «спрятать» здесь нет: нечего прятать. */
+.build-badge {
+    position: fixed;
+    left: 14px;
+    bottom: 12px;
+    z-index: 5;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 0.68rem;
+    letter-spacing: 0.02em;
+    color: var(--meta);
+    opacity: 0.5;
+    transition: opacity 0.25s ease;
+}
+.build-badge:hover { opacity: 1; }
+.build-badge a {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    text-decoration-thickness: 1px;
+}
+.build-badge a:hover { color: var(--heading); }
+
+/* ── Переезд имени на резюме и обратно ────────────────────────────────────
+ * Строка «Timofey Kondrashin · DevOps Engineer» стоит на обоих сайтах и
+ * набрана одним кеглем — здесь посреди карточки, на cv.cosmdandy.dev в углу
+ * шапки. Переход показан переездом самой строки: страница вокруг неё гаснет,
+ * а встречает её уже резюме и довозит на место.
+ *
+ * Нативным cross-document переходом этого не сделать: он работает только
+ * внутри одного origin, а cosmdandy.dev и cv.cosmdandy.dev — разные хосты.
+ * Отсюда ручная передача координат через адрес. Фон у обоих сайтов один и
+ * тот же чёрный, поэтому стык между документами не мигает.
+ */
+/* Пришли переездом: страница уже собрана за занавесом, и своё появление ей
+   играть не нужно — это читалось бы как «анимация во второй раз». Заглушка
+   не снимается до конца жизни документа, и это важно: стоит её снять, браузер
+   считает анимацию назначенной заново и честно проигрывает с нуля. Именно так
+   строка «currently building…» пропадала в момент клика по ссылке на резюме и
+   заново выплывала сверху посреди отъезда. */
+:root.vt-in .card h1,
+:root.vt-in .card .bio,
+:root.vt-in .card .now,
+:root.vt-in .card .links,
+:root.vt-in .card .link-item,
+:root.vt-in .rig-id h2,
+:root.vt-in .rig-id .bio,
+:root.vt-in .rig-id .now,
+:root.vt-in .rig-body,
+:root.vt-in .meta,
+:root.vt-in .build-badge,
+:root.vt-in .theme-switch,
+:root.vt-in .assemble-btn,
+:root.vt-in .sfx-btn,
+:root.vt-in .zoom-btn {
+    animation: none;
+}
+
+/* Уход. Не .rig целиком: внутри него шапка с именем, и та обязана остаться —
+   это она и летит. Гаснет плата, шапка едет поверх. */
+:root.vt-leaving .card .glow,
+:root.vt-leaving .card .now,
+:root.vt-leaving .card .links,
+:root.vt-leaving .rig-id .now,
+:root.vt-leaving .rig-body,
+:root.vt-leaving .meta,
+:root.vt-leaving .build-badge,
+:root.vt-leaving .theme-switch,
+:root.vt-leaving .assemble-btn,
+:root.vt-leaving .sfx-btn,
+:root.vt-leaving .zoom-btn,
+:root.vt-leaving .cursor-glow,
+:root.vt-leaving .link-hint {
+    /* Анимацию появления глушим, а не пережидаем: она идёт с задержкой, и
+       клик вскоре после загрузки попадал прямо в неё — анимация сильнее
+       перехода, и содержимое продолжало проявляться поверх гашения. */
+    animation: none;
+    opacity: 0;
+    pointer-events: none;
+    /* Быстрее, чем едет строка: она трогается с небольшой задержкой, и к
+       этому моменту вокруг неё уже должно быть пусто. */
+    transition: opacity 0.16s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* До первого расчёта строку не показываем: иначе она мелькнёт на своём месте
+   и только потом прыгнет в стартовую точку. Класс ставится в <head>, снимается
+   скриптом переезда. */
+:root.vt-pending .card h1,
+:root.vt-pending .card .bio,
+:root.vt-pending .rig-id h2,
+:root.vt-pending .rig-id .bio {
+    visibility: hidden;
+}
+
+/* ── Занавес ──────────────────────────────────────────────────────────────
+ * Смена документа — всегда обрыв: старый кадр гаснет, новый появляется
+ * целиком и сразу, и в этот момент не выполняется ни одна из двух страниц.
+ * Поэтому уходящая затемняется до фона, а приходящая из этого же фона
+ * проявляется — обрыв приходится на кадр, где обе стороны выглядят одинаково.
+ *
+ * Псевдоэлемент корня, а не узел в теле: он существует с первой строки
+ * <head>, то есть раньше, чем браузер успевает что-то нарисовать.
+ */
+:root.vt-veil::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 2147483000;
+    background: var(--bg);
+    pointer-events: none;
+    opacity: 0;
+    /* Коротко нарочно: занавес нужен ровно на стык документов, а не как
+       самостоятельное движение. Длиннее — и он читается как пауза, ради
+       которой гость ждёт. */
+    transition: opacity 0.18s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+:root.vt-veil.vt-shut::after {
+    opacity: 1;
 }

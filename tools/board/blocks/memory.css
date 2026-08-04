@@ -10,7 +10,7 @@
     stroke: rgba(58, 143, 196, 0.85);
     stroke-width: 1.1;
     transform-box: fill-box;
-    transition: fill 0.15s steps(1, end), transform var(--spring);
+    transition: fill 0.15s steps(1, end), transform var(--latch-close);
   }
   /* The hinge sits at the outboard end of the socket, not next to the module:
      a latch tips away from the DIMM it holds. Hence the pivot is the far
@@ -25,11 +25,28 @@
   /* Open means outward: the board runs front-to-right, so the front ear swings
      toward -X and the rear one toward +X — both away from the socket, never
      across the module. A positive angle is clockwise in SVG. */
+  /* Кривая — в правиле открытого состояния: переход берёт её из того
+     правила, в которое едет. Обратный ход тогда идёт по --latch-close, а не
+     зеркалом этой же кривой. */
+  .rig.service .dimm.pulled .latch-l,
+  .rig.service .dimm.pulled .latch-r { transition: transform var(--latch-throw); }
   .rig.service .dimm.pulled .latch-l { transform: rotate(-38deg); }
   .rig.service .dimm.pulled .latch-r { transform: rotate(38deg); }
+  /* Задержка — это время, за которое лепестки успевают отойти: плашка не
+     может тронуться, пока они держат. Она чуть больше прежней, потому что
+     сама защёлка теперь сначала додавливается внутрь и только потом
+     отбрасывается. */
+  /* Задержка — время, за которое лепестки успевают отойти. Она короче
+     прежней вдвое: заминка в этом движении принадлежит защёлкам, а сама
+     плашка после них идёт одним уверенным ходом. С прежними 0,22 плюс
+     собственная полка --heave модуль стоял полсекунды, и в кадре читались два
+     щелчка подряд вместо одного. */
   .rig.service .dimm.pulled .pick-body {
-    transform: translateY(-13px);
-    transition-delay: 0.12s;
+    transform: translateY(-9px);
+    /* Задержка внутри сокращённой записи, а не отдельным свойством: сокращённая
+       запись сбрасывает transition-delay в ноль, и стоящее выше отдельное
+       свойство молча пропадало. */
+    transition: transform var(--heave) 0.11s;
   }
 
   /* Assembly: the DIMM enters its socket with a short downward move — its
@@ -44,16 +61,58 @@
      that is exactly how an empty slot on a live machine looks, with its ears
      splayed aside. They close at the moment the module is pressed home — hence
      the same --seat delay. */
-  .rig.assembly .latch-l { animation: latchL var(--press-hard) var(--seat, 0s) backwards; }
-  .rig.assembly .latch-r { animation: latchR var(--press-hard) var(--seat, 0s) backwards; }
-  @keyframes latchL { from { transform: rotate(-38deg); } }
-  @keyframes latchR { from { transform: rotate(38deg); } }
+  .rig.assembly .latch-l { animation: latchL 0.95s linear var(--seat, 0s) backwards; }
+  .rig.assembly .latch-r { animation: latchR 0.95s linear var(--seat, 0s) backwards; }
+  /* Вставка — тот же ход, что и снятие, только наоборот, и первое движение в
+     нём микроскопическое: лепестки стоят в крайних положениях, модуль идёт
+     вниз и подаёт их внутрь на пару градусов. Дальше они держат, пока плашка
+     не сядет, и только тогда захлопываются с перебегом.
+
+     Кривая здесь линейная нарочно: форму задают сами кадры, а не смягчение
+     между ними. С --press-hard каждый промежуток получал бы собственный
+     разгон и торможение, и микродвижение читалось бы дрожью. */
+  @keyframes latchL {
+    0%   { transform: rotate(-38deg); }
+    20%  { transform: rotate(-33deg); }
+    58%  { transform: rotate(-32deg); }
+    78%  { transform: rotate(-4deg); }
+    88%  { transform: rotate(3deg); }
+    100% { transform: rotate(0); }
+  }
+  @keyframes latchR {
+    0%   { transform: rotate(38deg); }
+    20%  { transform: rotate(33deg); }
+    58%  { transform: rotate(32deg); }
+    78%  { transform: rotate(4deg); }
+    88%  { transform: rotate(-3deg); }
+    100% { transform: rotate(0); }
+  }
   /* A DIMM is not lowered but pressed in: it goes against resistance and
      seats when the latches at its ends click. */
+  /* Ход длиннее прежнего вдвое. На двадцати двух единицах плашка возникала
+     почти на месте, и видно было не движение, а появление; теперь видно,
+     откуда деталь приходит. */
   @keyframes seatDimm {
-    from { opacity: 0; transform: translateY(-22px); }
+    0%   { opacity: 0;    transform: translateY(-48px); }
+    16%  { opacity: 1; }
+    100% { opacity: 1;    transform: none; }
   }
 
-  /* The DIMM is held by the latches at its ends: until they throw open the
-     module stands dead solid, and after that it comes out with a jerk. */
-  .dimm .pick-body { transition: transform var(--click); }
+  /* Плашку держат лепестки по краям, и пока они не отошли, она стоит
+     намертво. Отошли — модуль идёт вверх сам: сперва на волосок, потом
+     уверенно и ровно. Не рывком — рывок был бы щелчком, а щёлкают тут
+     защёлки, не плашка. */
+  /* Вниз плашка идёт разворотом того же подъёма: сопротивление сидит в
+     разъёме, и встречается оно в конце хода, а не в начале. */
+  .dimm .pick-body { transition: transform var(--press-hard); }
+
+  /* Наведение — начало того же движения, а не отдельный отклик. Лепестки
+     чуть отходят, модуль трогается и останавливается: дальше он пойдёт,
+     только если по нему щёлкнуть. Углы взяты долей от полного размаха
+     (38°), чтобы правка одного не разошлась с другим.
+
+     Правило стоит после «вынуто»: у обоих одна специфичность, и наведение на
+     уже вынутую плашку не должно возвращать её лепестки назад. */
+  .dimm:hover:not(.pulled) .latch-l { transform: rotate(-11deg); }
+  .dimm:hover:not(.pulled) .latch-r { transform: rotate(11deg); }
+  .dimm:hover:not(.pulled) .pick-body { transform: translateY(-5px); }

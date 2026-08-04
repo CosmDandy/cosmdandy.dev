@@ -159,9 +159,12 @@ await click('.cpu-slot');
 await page.waitForTimeout(150);
 check('processor back in place', !(await cls('.cpu-slot')).includes('pulled'), await cls('.cpu-slot'));
 
-// 5b. A drive — three clicks: latch, caddy out, back. The caddy handle is a
-// separate part, and the order has to be exactly this one: until the latch is
-// swung open the drive does not leave the bay.
+// 5b. Каддик — четыре щелчка: защёлка, наружу, обратно в корзину, защёлка
+// закрыта. Ручка — отдельная деталь, и порядок обязан быть ровно таким: пока
+// защёлка не откинута, диск из отсека не выходит, а на обратном пути он
+// сперва заходит в корзину и только потом ручку захлопывают. Раньше третий
+// щелчок снимал оба класса разом: каддик въезжал, ручка складывалась сама на
+// полпути, и второго движения не было вовсе.
 await click('.bay');
 await page.waitForTimeout(150);
 check('drive latch swung open', (await cls('.bay')).includes('unlatched'), await cls('.bay'));
@@ -169,6 +172,11 @@ check('drive still in the bay', !(await cls('.bay')).includes('pulled'), await c
 await click('.bay');
 await page.waitForTimeout(150);
 check('drive pulled', (await cls('.bay')).includes('pulled'), await cls('.bay'));
+await click('.bay');
+await page.waitForTimeout(150);
+check('drive back in the bay, handle still open',
+      !(await cls('.bay')).includes('pulled') && (await cls('.bay')).includes('unlatched'),
+      await cls('.bay'));
 await click('.bay');
 await page.waitForTimeout(150);
 check('drive back in place', !(await cls('.bay')).includes('unlatched'), await cls('.bay'));
@@ -213,11 +221,17 @@ check('nodes are back in place', stillPulled === 0, `${stillPulled} left out`);
 
 // 8. A part number leads to a commit
 const stamp = await page.evaluate(() => {
-  const a = document.querySelector('a.stamp');
-  return { href: a?.getAttribute('href') ?? '', sha: a?.dataset.sha ?? '' };
+  const g = document.querySelector('g.stamp');
+  if (!g) return null;
+  return { sha: g.dataset.sha, tag: g.tagName,
+           texts: [...g.querySelectorAll('text')].map(t => t.textContent),
+           link: !!g.closest('a') };
 });
-check('part number points at its own commit',
-  stamp.href.includes('/commit/' + stamp.sha) && stamp.sha.length === 7, stamp.sha);
+// Партномер — набивка, а не ссылка: уводить со страницы ему незачем, а под
+// курсором он меняет номер на дату той сборки, которой принадлежит.
+check('the part number is a stamp, not a link',
+      !!stamp && !stamp.link && stamp.sha.length === 7 && stamp.texts.length === 2
+      && stamp.texts[0].startsWith('P/N'), JSON.stringify(stamp));
 
 // 9. The machine passport. It is printed into the page by the generator and
 // must agree with the schematic: if it says twenty-four modules while
@@ -310,6 +324,19 @@ check('Enter opens setup', (await crt()).mode === 'setup', JSON.stringify(await 
 await page.keyboard.press('Escape');
 await page.waitForTimeout(400);
 check('Esc closes setup', !(await crt()).open, JSON.stringify(await crt()));
+
+// 15b. Закрытый экран прячется от читалки — и прячется по-настоящему. Пока
+// фокус оставался на нём самом (openCrt переводит фокус туда руками), Chrome
+// отказывался ставить aria-hidden и писал об этом в панель Issues: «Blocked
+// aria-hidden on an element because its descendant retained focus». В консоль
+// это не попадает, поймать прогоном нельзя — поэтому проверяем не жалобу, а
+// то условие, из-за которого она возникает: экран спрятан, фокуса внутри нет.
+const shut = await page.evaluate(() => {
+  const el = document.getElementById('crt');
+  return { hidden: el.getAttribute('aria-hidden'), inside: el.contains(document.activeElement) };
+});
+check('закрытый экран спрятан от читалки, и фокус из него ушёл',
+  shut.hidden === 'true' && !shut.inside, JSON.stringify(shut));
 
 // 16. top shows the same metrics the gauges used to, and leaves on q.
 await page.evaluate(() => window.__rig.exec('top'));
@@ -477,10 +504,14 @@ const stowDur = await page.evaluate(() =>
 check('the units are stowed on the slow curve', stowDur !== clickDur && stowDur === '1.5s',
       clickDur + ' → ' + stowDur);
 await page.waitForTimeout(1800);
+// Сравнивать с длительностью, снятой у вынутого узла, нельзя: наружу и внутрь
+// у него разные кривые — своя на вынимание и своя посадочная на возврат. Важно
+// тут другое: что общая медленная кривая уборки после возврата отпустила узел и
+// он снова ходит своей.
+const backDur = await page.evaluate(() =>
+  getComputedStyle(document.querySelector('.fan .pick-body')).transitionDuration);
 check('the click comes back after the return',
-      (await page.evaluate(() =>
-        getComputedStyle(document.querySelector('.fan .pick-body')).transitionDuration)) === clickDur,
-      clickDur);
+      backDur !== stowDur && backDur !== '1.5s', clickDur + ' → ' + stowDur + ' → ' + backDur);
 
 // A running fan is a disc, a fan at reduced rpm is blades. Both states are
 // pure css, so what can break them silently is a selector — and that is
@@ -505,16 +536,65 @@ const willChange = await page.evaluate(() =>
   getComputedStyle(document.querySelector('.fan .fan-blades')).willChange);
 check('the impeller turns on a layer of its own', willChange === 'transform', willChange);
 
-// 27. The entrance waits for the schematic. The card is what opens first, and
-// .rig sits in display: none all that time — no animations are started in it at
-// all. The schedule used to be counted off from page load regardless, so a
-// visitor pressing the server button half a minute later got an assembled
-// machine: there was nothing left to watch. A fresh page of its own — this one
-// has already been visited, and the entrance plays once.
-const p2 = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
+// 29. Панель диагностики. Контрольный индикатор — не лампа: он показывает, где
+// машина находится, и за время самотеста код на нём меняется, а после —
+// замирает на том, с которого начинается загрузка. Кнопка сброса гасит
+// защёлкнувшуюся ошибку и отказывается это делать, пока узел вынут.
+const segMask = () => page.evaluate(() => [...document.querySelectorAll('.seg')]
+  .map(el => (el.classList.contains('on') ? '1' : '0')).join(''));
+await page.evaluate(() => document.getElementById('rig').classList.remove('service'));
+await click('#power');                       // выключаем
+await page.waitForTimeout(300);
+check('the checkpoint goes dark with the machine', /^0+$/.test(await segMask()), await segMask());
+await click('#power');                       // и включаем обратно
+const seen = new Set();
+for (let i = 0; i < 8; i++) { seen.add(await segMask()); await page.waitForTimeout(160); }
+check('the checkpoint counts through the self-test', seen.size >= 3, String(seen.size));
+await page.waitForFunction(() => {
+  const on = [...document.querySelectorAll('.seg')].filter(e => e.classList.contains('on'));
+  return on.length === 12;
+}, null, { timeout: 8000 }).catch(() => {});
+check('the checkpoint stops at the boot code',
+      (await page.evaluate(() => [...document.querySelectorAll('.seg')]
+        .filter(e => e.classList.contains('on')).length)) === 12,
+      await segMask());
+
+// Ошибка защёлкивается: узел вернули, а лампа неисправности горит дальше.
+await page.evaluate(() => document.getElementById('svc-switch')
+  .dispatchEvent(new MouseEvent('click', { bubbles: true })));
+await page.waitForTimeout(400);
+await click('.fan[data-fan="2"]');
+await page.waitForTimeout(200);
+check('a pulled unit latches the fault', (await rigCls()).includes('fault-latched'), await rigCls());
+await click('.fan[data-fan="2"]');           // вернули на место
+await page.waitForTimeout(200);
+check('the latch outlives the repair',
+      !(await rigCls()).includes('has-fault') && (await rigCls()).includes('fault-latched'),
+      await rigCls());
+await click('#lp-reset');
+await page.waitForTimeout(150);
+check('reset clears the latched fault', !(await rigCls()).includes('fault-latched'), await rigCls());
+await click('.fan[data-fan="2"]');           // снова вынули
+await page.waitForTimeout(200);
+await click('#lp-reset');
+await page.waitForTimeout(150);
+check('reset refuses while a unit is out', (await rigCls()).includes('fault-latched')
+      && (await logText()).includes('reset refused'), await rigCls());
+await click('.fan[data-fan="2"]');
+await page.waitForTimeout(200);
+
+// 27. Сборка ждёт схему. На узком экране открывается карточка, .rig лежит в
+// display: none, и ни одна анимация в нём не заводится. Расписание раньше
+// отсчитывалось от загрузки страницы независимо ни от чего, и гость, дошедший
+// до схемы через полминуты, получал уже собранную машину: смотреть было
+// нечего. Своя страница, потому что вход играет один раз за визит.
+//
+// Кнопки переключения вида больше нет — вид выбирает ширина окна. Поэтому и
+// проверяем ширину: узкое окно держит карточку, расширение показывает схему и
+// с ней запускает сборку.
+const p2 = await browser.newPage({ viewport: { width: 700, height: 1000 } });
 await p2.addInitScript(() => document.addEventListener('DOMContentLoaded',
   () => document.querySelectorAll('input').forEach(el => el.remove())));
-await p2.addInitScript(() => { try { localStorage.setItem('view', 'card'); } catch (e) {} });
 await p2.goto(url, { waitUntil: 'load' });
 const seatAnims = pg => pg.evaluate(() => document.querySelector('.chassis')
   .getAnimations({ subtree: true })
@@ -523,10 +603,9 @@ await p2.waitForTimeout(11000);      // дольше всего расписан
 const waiting = await p2.evaluate(() => document.getElementById('rig').className);
 check('the machine waits disassembled while the card is up',
       waiting.includes('assembly') && (await seatAnims(p2)) === 0, waiting);
-await p2.evaluate(() => document.getElementById('view-switch')
-  .dispatchEvent(new MouseEvent('click', { bubbles: true })));
+await p2.setViewportSize({ width: 1600, height: 1000 });
 await p2.waitForTimeout(1000);
-check('the server button is what starts the assembly', (await seatAnims(p2)) > 0,
+check('widening the window is what starts the assembly', (await seatAnims(p2)) > 0,
       String(await seatAnims(p2)));
 
 // 28. The assembly ends by its own animations, not by the clock. A tab in the
@@ -545,6 +624,457 @@ check('after the pause the assembly plays out to the end',
       !(await p2.evaluate(() => document.getElementById('rig').className)).includes('assembly')
       && (await seatAnims(p2)) === 0, await p2.evaluate(() => document.getElementById('rig').className));
 await p2.close();
+
+// 29. Звук. Обещание одно и жёсткое: пока гость сам не нажал кнопку, страница
+// не заводит аудиоконтекст вообще. Проверяем счётчиком на конструкторе, а не
+// на слух — контекст, заведённый «про запас», браузер показал бы значком звука
+// на вкладке молчащей визитки, и это ровно то, чего здесь быть не должно.
+const clickIn = (pg, sel) => pg.evaluate(s => document.querySelector(s)
+  ?.dispatchEvent(new MouseEvent('click', { bubbles: true })), sel);
+const acProbe = () => {
+  const Real = window.AudioContext;
+  window.__acs = [];
+  // Когда звук запланирован — в секундах от «сейчас». По этому списку
+  // проверяется, что сборка звучит в момент посадки, а не старта хода.
+  window.__at = [];
+  window.AudioContext = function () {
+    const c = new Real();
+    window.__acs.push(c);
+    const bs = c.createBufferSource.bind(c);
+    c.createBufferSource = function () {
+      const n = bs();
+      const start = n.start.bind(n);
+      n.start = function (when, off) {
+        window.__at.push(when - c.currentTime);
+        return start(when, off);
+      };
+      return n;
+    };
+    return c;
+  };
+};
+const p3 = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
+p3.on('pageerror', e => errors.push(String(e)));
+await p3.addInitScript(() => document.addEventListener('DOMContentLoaded',
+  () => document.querySelectorAll('input').forEach(el => el.remove())));
+await p3.addInitScript(acProbe);
+await p3.goto(url, { waitUntil: 'load' });
+await p3.evaluate(() => document.body.classList.add('view-rig'));
+await p3.waitForTimeout(1200);
+const acCount = () => p3.evaluate(() => window.__acs.length);
+const pressed = () => p3.evaluate(() => document.getElementById('sfx-btn').getAttribute('aria-pressed'));
+const soundPref = () => p3.evaluate(() => { try { return localStorage.getItem('sound'); } catch (e) { return null; } });
+check('звука нет, пока его не включили', (await acCount()) === 0 && (await pressed()) === 'false',
+      `contexts: ${await acCount()}, pressed: ${await pressed()}`);
+await clickIn(p3, '#sfx-btn');
+await p3.waitForTimeout(200);
+check('кнопка заводит контекст и запоминает выбор',
+      (await acCount()) === 1 && (await pressed()) === 'true' && (await soundPref()) === 'on',
+      `contexts: ${await acCount()}, pressed: ${await pressed()}, pref: ${await soundPref()}`);
+await clickIn(p3, '#sfx-btn');
+await p3.waitForTimeout(200);
+check('повторное нажатие выключает и второго контекста не заводит',
+      (await acCount()) === 1 && (await pressed()) === 'false' && (await soundPref()) === 'off',
+      `contexts: ${await acCount()}, pressed: ${await pressed()}, pref: ${await soundPref()}`);
+await p3.close();
+
+// 30. Синтез. Проверка выше ничего не говорит о том, что звук вообще
+// собирается: без настоящего жеста браузер держит контекст остановленным, и
+// sfx() честно молчит на каждом вызове. Поэтому отдельное окно с отключённой
+// политикой автозапуска — только там голоса действительно строятся, и видно,
+// падает ли что-нибудь внутри них.
+const errBefore = errors.length;
+const loud = await chromium.launch({ executablePath: CHROME,
+  args: ['--no-sandbox', '--autoplay-policy=no-user-gesture-required'] });
+const p4 = await loud.newPage({ viewport: { width: 1600, height: 1000 } });
+p4.on('pageerror', e => errors.push(String(e)));
+await p4.addInitScript(() => document.addEventListener('DOMContentLoaded',
+  () => document.querySelectorAll('input').forEach(el => el.remove())));
+await p4.addInitScript(acProbe);
+await p4.goto(url, { waitUntil: 'load' });
+await p4.evaluate(() => document.body.classList.add('view-rig'));
+await p4.waitForTimeout(1200);
+await clickIn(p4, '#sfx-btn');
+await p4.waitForTimeout(400);
+const acState = await p4.evaluate(() => window.__acs[0] && window.__acs[0].state);
+check('включённый звук поднимает контекст', acState === 'running', String(acState));
+// Ждём конца первой сборки. Пока она идёт, reassemble() сам себя блокирует, а
+// узлы закрыты для кликов — вся проверка ниже прошла бы вхолостую и покрасила
+// бы код, который на самом деле цел.
+await p4.waitForFunction(
+  () => !document.getElementById('rig').classList.contains('assembly'),
+  null, { timeout: 25000 }).catch(() => {});
+await p4.waitForTimeout(800);
+// Все голоса разом: тумблер, снятие и посадка узла, крышка, писк спикера и
+// целое расписание сборки. Падение внутри любого из них всплывёт в errors.
+await clickIn(p4, '#svc-switch');
+await clickIn(p4, '.unit.pick.bay');
+await p4.waitForTimeout(200);
+await clickIn(p4, '.unit.pick.bay');
+await clickIn(p4, '#lid-remove');
+await p4.waitForTimeout(200);
+await clickIn(p4, '#svc-switch');
+await clickIn(p4, '#power');
+await p4.waitForTimeout(700);
+await clickIn(p4, '#power');
+
+// Звук сборки обязан попадать в момент посадки, а не в момент старта хода.
+// Здесь и пряталась ошибка: --seat — это задержка начала движения, и у каддика
+// с его ходом в 1.2 с звук уходил вперёд настолько, что диск садился в полной
+// тишине. Сверяем последний запланированный звук с последней посадкой: сроки
+// берутся у самих анимаций, поэтому расходиться им больше чем на треть секунды
+// нечем — этот зазор и есть разгон трения перед ударом.
+await p4.evaluate(() => { window.__at = []; });
+await clickIn(p4, '#assemble-btn');
+await p4.waitForTimeout(500);
+const beat = await p4.evaluate(() => {
+  const land = document.querySelector('.chassis').getAnimations({ subtree: true })
+    .filter(a => String(a.animationName || '').startsWith('seat'))
+    .map(a => {
+      const t = a.effect.getComputedTiming();
+      return ((t.delay || 0) + (t.activeDuration || 0)) / 1000;
+    })
+    .filter(v => isFinite(v) && v > 0);
+  return {
+    n: window.__at.length,
+    sound: window.__at.length ? Math.max(...window.__at) : null,
+    land: land.length ? Math.max(...land) : null,
+  };
+});
+check('звук сборки попадает в посадку, а не в старт хода',
+      beat.n > 0 && beat.land !== null && Math.abs(beat.sound - beat.land) < 0.35,
+      `звуков ${beat.n}, последний ${beat.sound && beat.sound.toFixed(2)}с,` +
+      ` последняя посадка ${beat.land && beat.land.toFixed(2)}с`);
+
+await p4.waitForTimeout(2000);
+check('голоса строятся без ошибок', errors.length === errBefore,
+      errors.slice(errBefore, errBefore + 2).join(' | '));
+await p4.close();
+await loud.close();
+
+// 31. Прошивка. Setup перестал быть плоским списком: Advanced — это оглавление,
+// Enter уводит на уровень ниже, Esc возвращает, а не выбрасывает наружу. Плюс
+// три вещи, которых у плоского списка не было вовсе — рамка подтверждения,
+// окно помощи и всплывающее меню загрузки.
+//
+// Ловушка здесь та же, что в разделе 30, только злее: между концом сборки и
+// подъёмом экрана самотеста есть окно, в котором экран закрыт, а лента ещё не
+// началась. F2, нажатая в нём, уходит в отложенный вход и срабатывает через
+// четыре секунды — посреди чужой проверки. Поэтому ждём весь цикл: экран
+// поднялся, отыграл и ушёл.
+const p5 = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
+p5.on('pageerror', e => errors.push(String(e)));
+await p5.addInitScript(() => document.addEventListener('DOMContentLoaded',
+  () => document.querySelectorAll('input').forEach(el => el.remove())));
+await p5.goto(url, { waitUntil: 'load' });
+await p5.evaluate(() => document.body.classList.add('view-rig'));
+
+const biosSettle = async () => {
+  await p5.waitForFunction(() => !document.getElementById('rig').classList.contains('assembly'),
+                           null, { timeout: 30000 }).catch(() => {});
+  await p5.waitForFunction(() => document.getElementById('crt').classList.contains('on'),
+                           null, { timeout: 30000 }).catch(() => {});
+  await p5.waitForFunction(() => !document.getElementById('crt').classList.contains('on'),
+                           null, { timeout: 30000 }).catch(() => {});
+  await p5.waitForTimeout(400);
+};
+const tap = async k => { await p5.keyboard.press(k); await p5.waitForTimeout(70); };
+const bios = () => p5.evaluate(() => ({
+  mode: document.getElementById('crt').dataset.mode,
+  on: document.getElementById('crt').classList.contains('on'),
+  path: (document.getElementById('crt-setup-path') || {}).textContent || '',
+  tabs: [...document.querySelectorAll('#crt-setup-tabs .crt-tab')].map(t => t.textContent).join('|'),
+  labels: [...document.querySelectorAll('#crt-setup-rows .crt-row-label')].map(t => t.textContent),
+  ovl: document.getElementById('crt-overlay').hidden
+    ? null : document.getElementById('crt-overlay').dataset.kind,
+  ovlText: document.getElementById('crt-overlay-body').textContent,
+  code: (document.getElementById('crt-post-code') || {}).textContent,
+  spin: getComputedStyle(document.getElementById('rig')).getPropertyValue('--spin').trim(),
+}));
+
+await biosSettle();
+await tap('F2');
+let b = await bios();
+check('F2 открывает Setup', b.mode === 'setup' && b.on, `${b.mode}/${b.on}`);
+check('вкладок шесть, со Security и Save & Exit',
+      b.tabs === 'Main|Advanced|Boot|Security|IMM|Save & Exit', b.tabs);
+
+await tap('ArrowRight');
+b = await bios();
+check('Advanced — оглавление, а не список тумблеров',
+      b.labels.length > 0 && b.labels.every(l => l.startsWith('▶ ')), b.labels.join(','));
+await tap('Enter');
+b = await bios();
+check('Enter уводит на уровень ниже, крошки это показывают',
+      b.path === 'Advanced  ▸  Processor Configuration', b.path);
+await tap('ArrowLeft');
+b = await bios();
+check('стрелка внутри подменю не выбрасывает через уровень',
+      b.path.includes('Processor'), b.path);
+await tap('Escape');
+b = await bios();
+check('Esc из подменю возвращает на корень вкладки', b.path === 'Advanced', b.path);
+
+// Выделенная строка обязана читаться. Правило, попавшее прямо в подпись,
+// побеждает наследование при любой специфичности — и подпись входа оставалась
+// светло-серой на жёлтом поле, то есть невидимой. Цвет берём вычисленный: на
+// глаз тут верить нечему, вопрос ровно в том, какое правило победило.
+const sel31 = await p5.evaluate(() => {
+  const row = document.querySelector('#crt-setup-rows .crt-row.sel');
+  if (!row) return null;
+  return { fg: getComputedStyle(row.querySelector('.crt-row-label')).color,
+           bg: getComputedStyle(row).backgroundColor };
+});
+check('выделенная строка — чёрным по жёлтому, а не белым по жёлтому',
+      !!sel31 && sel31.fg === 'rgb(0, 0, 0)' && sel31.bg === 'rgb(216, 216, 0)',
+      JSON.stringify(sel31));
+
+await tap('F1');
+b = await bios();
+check('F1 открывает окно помощи, а не пишет в невидимую консоль',
+      b.ovl === 'help' && b.ovlText.includes('Select Item'), `${b.ovl}: ${b.ovlText.slice(0, 40)}`);
+await tap('Escape');
+
+// Политика оборотов: правка живёт в черновике, пока её не сохранили, и только
+// F10 доводит её до схемы. Это то же разделение, что у всей прошивки, — просто
+// здесь его видно глазом, по периоду вращения крыльчатки.
+const spin0 = (await bios()).spin;
+await p5.evaluate(() => {
+  const raw = JSON.parse(localStorage.getItem('rig-nv') || '{}');
+  raw.fanPolicy = 'Acoustic';
+  localStorage.setItem('rig-nv', JSON.stringify(raw));
+});
+b = await bios();
+check('запись мимо Setup схему не трогает', b.spin === spin0, `${b.spin} vs ${spin0}`);
+
+for (let i = 0; i < 3; i++) await tap('ArrowRight');   // Boot → Security → IMM
+await tap('ArrowDown');                                 // Cooling
+await tap('Enter');
+b = await bios();
+check('политика оборотов стоит в меню контроллера, а не в Advanced',
+      b.path.includes('Cooling') && b.labels.some(l => l.startsWith('Fan Speed Policy')),
+      `${b.path}: ${b.labels.join(',')}`);
+await tap('-');                                         // Balanced → Efficiency
+b = await bios();
+check('до сохранения период вращения прежний', b.spin === spin0, `${b.spin} vs ${spin0}`);
+await tap('F10');
+b = await bios();
+check('F10 спрашивает подтверждение', b.ovl === 'confirm', String(b.ovl));
+await tap('ArrowRight'); await tap('Enter');            // No
+b = await bios();
+check('No оставляет в Setup', b.mode === 'setup' && !b.ovl && b.on, `${b.mode}/${b.ovl}`);
+await tap('F10'); await tap('Enter');                   // Yes
+await p5.waitForTimeout(250);
+b = await bios();
+check('Yes сохраняет, закрывает экран и замедляет крыльчатки',
+      !b.on && Math.abs(parseFloat(b.spin) - 2 * parseFloat(spin0)) < 0.01,
+      `on=${b.on}, spin ${b.spin} vs ${spin0}`);
+
+await tap('F11');
+b = await bios();
+check('F11 поднимает всплывающее меню загрузки', b.ovl === 'boot', String(b.ovl));
+const orderBefore = await p5.evaluate(() => JSON.parse(localStorage.getItem('rig-nv')).bootOrder.join(','));
+await tap('Escape');
+await p5.waitForTimeout(200);
+b = await bios();
+const orderAfter = await p5.evaluate(() => JSON.parse(localStorage.getItem('rig-nv')).bootOrder.join(','));
+check('отмена уносит и меню, и пустой экран под ним', !b.ovl && !b.on, `${b.ovl}/${b.on}`);
+check('меню загрузки не трогает сохранённый порядок', orderBefore === orderAfter,
+      `${orderBefore} → ${orderAfter}`);
+
+// Машина, которой не с чего грузиться. Раньше проверка ловила только Legacy
+// поверх GPT, и пустая корзина бодро «загружалась» с несуществующего диска.
+// Здесь мы убираем все три пути сразу — иначе прошивка обязана уйти в PXE, и
+// это будет правильно.
+await p5.evaluate(() => {
+  const raw = JSON.parse(localStorage.getItem('rig-nv') || '{}');
+  raw.netStack = 'Disabled';
+  raw.vmedia = 'Detached';
+  raw.fanPolicy = 'Balanced';
+  localStorage.setItem('rig-nv', JSON.stringify(raw));
+  location.reload();
+});
+await p5.waitForTimeout(1200);
+await p5.evaluate(() => document.body.classList.add('view-rig'));
+await p5.waitForFunction(() => !document.getElementById('rig').classList.contains('assembly'),
+                         null, { timeout: 30000 }).catch(() => {});
+await p5.waitForTimeout(600);
+await clickIn(p5, '#svc-switch');
+await p5.waitForTimeout(800);
+// У каддика четыре движения, вынимается он двумя: откинуть защёлку и вытянуть.
+for (let step = 0; step < 2; step++) {
+  const bays = await p5.evaluate(() => document.querySelectorAll('.unit.pick.bay').length);
+  for (let i = 0; i < bays; i++) {
+    await p5.evaluate(n => document.querySelectorAll('.unit.pick.bay')[n]
+      ?.dispatchEvent(new MouseEvent('click', { bubbles: true })), i);
+    await p5.waitForTimeout(60);
+  }
+  await p5.waitForTimeout(500);
+}
+// Из сервисного режима не выходим: выход сажает все вынутые узлы обратно.
+await clickIn(p5, '#power');
+await p5.waitForTimeout(500);
+await p5.evaluate(() => { document.getElementById('log').innerHTML = ''; });
+await clickIn(p5, '#power');
+await p5.waitForFunction(() => document.getElementById('crt').classList.contains('on'),
+                         null, { timeout: 20000 }).catch(() => {});
+await p5.waitForTimeout(6500);
+const noboot = await p5.evaluate(() => ({
+  log: [...document.querySelectorAll('#log div')].map(d => d.textContent),
+  on: document.getElementById('crt').classList.contains('on'),
+  code: document.getElementById('crt-post-code').textContent,
+  lit: (() => {
+    const out = [];
+    for (let d = 0; d < 2; d++) for (const seg of 'abcdefg') {
+      const el = document.querySelector('.seg-' + d + seg);
+      if (el && el.classList.contains('on')) out.push(d + seg);
+    }
+    return out.join(',');
+  })(),
+}));
+check('машина без единого устройства не делает вид, что грузится',
+      noboot.log.some(t => /No boot device found/.test(t))
+      && !noboot.log.some(t => /Booting \/dev\/nvme0n1/.test(t)),
+      noboot.log.slice(-4).join(' / '));
+check('и называет причину по каждому устройству',
+      noboot.log.some(t => /NVMe 0 — no drive in cage/.test(t)),
+      noboot.log.filter(t => /—/.test(t)).join(' / '));
+check('экран остаётся стоять на отказе', noboot.on, String(noboot.on));
+// Экран пишет D6, индикатор на плате — d6: на семисегментном D неотличима от 0,
+// и живые платы пишут её строчной. Число при этом одно, и в том весь смысл:
+// пока лента индикатора была заготовленной, эти двое расходились.
+check('код отказа на экране и на плате — один и тот же',
+      noboot.code === 'D6' && noboot.lit === '0b,0c,0d,0e,0g,1a,1c,1d,1e,1f,1g',
+      `экран ${noboot.code}, плата ${noboot.lit}`);
+
+// Пароль задаётся в два ввода, и вторая рамка обязана дожить до ввода. Здесь
+// пряталась тихая ошибка: первая рамка закрывала не себя, а уже открытую
+// следующую, и «повторите ввод» гасло в том же кадре, в котором появлялось.
+await p5.evaluate(() => { localStorage.removeItem('rig-nv'); location.reload(); });
+await p5.waitForTimeout(1200);
+await p5.evaluate(() => document.body.classList.add('view-rig'));
+await biosSettle();
+await tap('F2');
+for (let i = 0; i < 3; i++) await tap('ArrowRight');   // Security
+await tap('Enter');
+let pw = await p5.evaluate(() => document.getElementById('crt-overlay-title').textContent);
+check('Security просит новый пароль', pw === 'Create New Password', pw);
+await p5.keyboard.type('hunter2');
+await tap('Enter');
+pw = await p5.evaluate(() => ({
+  hidden: document.getElementById('crt-overlay').hidden,
+  title: document.getElementById('crt-overlay-title').textContent,
+}));
+check('вторая рамка просит повторить и не гаснет',
+      !pw.hidden && pw.title === 'Confirm New Password', JSON.stringify(pw));
+await p5.keyboard.type('hunter2');
+await tap('Enter');
+const pwRows = await p5.evaluate(() => [...document.querySelectorAll('#crt-setup-rows .crt-row')]
+  .map(r => r.querySelector('.crt-row-label').textContent + ' = '
+          + r.querySelector('.crt-row-value').textContent));
+check('пароль отмечен установленным',
+      pwRows.some(t => /Administrator Password = Installed/.test(t)),
+      pwRows.filter(t => /Password/.test(t)).join(' | '));
+await tap('F10'); await tap('Enter');
+await p5.waitForTimeout(250);
+await tap('F2');
+await p5.waitForTimeout(200);
+pw = await p5.evaluate(() => document.getElementById('crt-overlay-title').textContent);
+check('сохранённый пароль спрашивают на входе', pw === 'Enter Administrator Password', pw);
+await p5.keyboard.type('hunter2');
+await tap('Enter');
+check('и он пускает', (await p5.evaluate(() => document.getElementById('crt').dataset.mode)) === 'setup');
+
+await p5.close();
+
+// 32. Лента ревизий. Три поломки одного корня: showRev переписывает разметку
+// платы целиком (board.innerHTML = markup), и всё, что было к ней привязано,
+// уезжает вместе со старыми узлами.
+//
+//   · органы управления нарисованы на плате — прямой обработчик умирал, и
+//     после первого же движения ползунка «Сервис» и крышка переставали
+//     нажиматься; теперь слушаем на самой плате, она подмену переживает;
+//   · архивная схема — снимок, а не машина: до шестидесятой ревизии лопасти
+//     висели на <path> без своей точки вращения, и сегодняшняя анимация
+//     уносила их в левый верхний угол холста;
+//   · сама команда стала on|off.
+const p6 = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
+p6.on('pageerror', e => errors.push(String(e)));
+// #tl-range оставляем: без ползунка эту проверку нечем двигать.
+await p6.addInitScript(() => document.addEventListener('DOMContentLoaded',
+  () => document.querySelectorAll('input:not(#tl-range)').forEach(el => el.remove())));
+await p6.goto(url, { waitUntil: 'load' });
+await p6.evaluate(() => document.body.classList.add('view-rig'));
+await p6.waitForFunction(() => !document.getElementById('rig').classList.contains('assembly'),
+                         null, { timeout: 30000 }).catch(() => {});
+await p6.waitForFunction(() => !document.getElementById('crt').classList.contains('on'),
+                         null, { timeout: 30000 }).catch(() => {});
+await p6.waitForTimeout(500);
+
+const tap6 = sel => p6.evaluate(s => document.querySelector(s)
+  ?.dispatchEvent(new MouseEvent('click', { bubbles: true })), sel);
+const rigHas = c => p6.evaluate(k => document.getElementById('rig').classList.contains(k), c);
+// Лента теперь не прячется display'ем, а схлопывается переходом: hidden
+// остаётся только за «истории нет вовсе». Спрашиваем то же, что и страница.
+const strip = () => p6.evaluate(() => {
+  const t = document.getElementById('timeline');
+  return !t.hidden && !document.getElementById('rig').classList.contains('revs-off');
+});
+const slide = async i => {
+  await p6.evaluate(n => { const r = document.getElementById('tl-range');
+    r.value = String(n); r.dispatchEvent(new Event('input', { bubbles: true })); }, i);
+  await p6.waitForTimeout(2200);
+};
+
+// Ряд кнопок отмерян от кнопки темы, крайней справа. Пока светлая тема
+// погашена, её место осталось бы пустым, и ряд висел бы в 54 пикселях от края.
+const rowGap = await p6.evaluate(() => {
+  const w = window.innerWidth;
+  const vis = ['.theme-switch', '.zoom-btn', '.assemble-btn', '.sfx-btn']
+    .map(s => document.querySelector(s))
+    .filter(el => el && getComputedStyle(el).display !== 'none');
+  return { сколько: vis.length, справа: Math.round(w - Math.max(...vis.map(el => el.getBoundingClientRect().right))) };
+});
+check('ряд кнопок прижат к правому краю', rowGap.справа === 24, JSON.stringify(rowGap));
+
+await tap6('#svc-switch');
+await p6.waitForTimeout(1600);
+check('лента поднимается вместе с сервисным режимом', await strip(), 'timeline');
+
+await p6.evaluate(() => window.__rig.exec('revisions off'));
+await p6.waitForTimeout(400);
+check('revisions off убирает ленту', !(await strip()), 'timeline');
+await p6.evaluate(() => window.__rig.exec('revisions on'));
+await p6.waitForTimeout(900);
+check('revisions on поднимает её обратно', await strip(), 'timeline');
+
+// Ревизия 58 (в ленте — 59-я) — последняя, где лопасти были на <path>.
+await slide(58);
+const arch = await p6.evaluate(() => {
+  const el = document.querySelector('#board .fan-blades');
+  if (!el) return null;
+  const b = el.getBoundingClientRect();
+  const board = document.getElementById('board').getBoundingClientRect();
+  return { anim: getComputedStyle(el).animationName,
+           inside: b.left >= board.left - 2 && b.top >= board.top - 2 && b.right <= board.right + 2 };
+});
+check('архивная схема не анимируется', arch && arch.anim === 'none', JSON.stringify(arch));
+check('лопасти архивной схемы остаются на месте', arch && arch.inside, JSON.stringify(arch));
+check('архивная схема помечена снимком', await rigHas('archive'), 'archive');
+
+// И назад на сегодняшнюю: она снова живая машина, и её кнопки работают.
+await slide(await p6.evaluate(() => Number(document.getElementById('tl-range').max)));
+check('сегодняшняя схема снова машина, а не снимок', !(await rigHas('archive')), 'archive');
+const svcWas = await rigHas('service');
+await tap6('#svc-switch');
+await p6.waitForTimeout(700);
+check('после ползунка выключатель сервиса жив', (await rigHas('service')) !== svcWas, 'service');
+const lidWas = await rigHas('lid-off');
+await tap6('#lid-on');
+await tap6('#lid-remove');
+await p6.waitForTimeout(700);
+check('после ползунка кнопки крышки живы', (await rigHas('lid-off')) !== lidWas, 'lid');
+await p6.close();
 
 const failed = results.filter(r => !r[1]);
 for (const [name, ok, got] of results) console.log(`  ${ok ? '·' : 'BROKEN'} ${name}${ok ? '' : ` → ${got}`}`);
