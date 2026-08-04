@@ -414,7 +414,7 @@
     cv: 'https://cv.cosmdandy.dev',
     github: 'https://github.com/cosmdandy',
     linkedin: 'https://linkedin.com/in/cosmdandy',
-    telegram: 'https://t.me/cosmdandy',
+    telegram: 'https://cosmdandy.dev/tg/',
     email: 'mailto:i@cosmdandy.dev',
   };
 

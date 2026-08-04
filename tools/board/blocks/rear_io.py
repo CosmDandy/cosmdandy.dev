@@ -272,7 +272,7 @@ def render(cv):
         return jack_y(k) + JACK_H / 2
 
     cv.callouts.append((X_IO - 30, 436, X_IO - 8, jack_mid(0), "Telegram", "end",
-                        "https://t.me/cosmdandy", "eth", "написать", "telegram"))
+                        "/tg/", "eth", "написать", "telegram"))
     cv.callouts.append((X_IO - 30, 596, X_IO - 8, jack_mid(1), "Twitter", "end",
                         "https://x.com/cosmdandy", "tw", "мысли", "twitter"))
     cv.callouts.append((X_IO - 30, 676, X_IO - 8, jack_mid(2), "Email", "end",
@@ -316,7 +316,7 @@ def render(cv):
 
     cv.add(f'''<g class="pick" data-unit="eth">
   <g class="pick-body">
-    <g class="unit" data-group="eth" data-href="https://t.me/cosmdandy">
+    <g class="unit" data-group="eth" data-href="/tg/">
       <g class="body">{jack(0, 4, 6)}</g>
     </g>
     <g class="unit" data-group="tw" data-href="https://x.com/cosmdandy">

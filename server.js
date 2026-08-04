@@ -2881,7 +2881,7 @@
     cv: 'https://cv.cosmdandy.dev',
     github: 'https://github.com/cosmdandy',
     linkedin: 'https://linkedin.com/in/cosmdandy',
-    telegram: 'https://t.me/cosmdandy',
+    telegram: 'https://cosmdandy.dev/tg/',
     email: 'mailto:i@cosmdandy.dev',
   };
 
@@ -3337,7 +3337,7 @@
           { t: 'blog       https://blog.cosmdandy.dev' },
           { t: 'cv         https://cv.cosmdandy.dev' },
           { t: 'linkedin   https://linkedin.com/in/cosmdandy' },
-          { t: 'telegram   https://t.me/cosmdandy' },
+          { t: 'telegram   https://cosmdandy.dev/tg/' },
           { t: 'x          https://x.com/cosmdandy' },
           { t: 'email      i@cosmdandy.dev' },
         ];

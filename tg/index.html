@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<!--
+    Hi. Crafted by hand — no frameworks, no build tools.
+    Source: github.com/CosmDandy/cosmdandy.dev
+-->
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>
+        // До отрисовки, иначе на долю секунды мелькнёт не та тема. Ключ тот же,
+        // что на визитке: тема выбирается один раз на весь сайт, и переход сюда
+        // не должен её сбрасывать.
+        (function () {
+            var saved = null;
+            try { saved = localStorage.getItem('theme'); } catch (e) {}
+            if (saved !== 'light' && saved !== 'dark') saved = null;
+            var system = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', saved || system);
+        })();
+    </script>
+    <title>Telegram — cosmdandy</title>
+    <meta name="description" content="Написать Тимофею Кондрашину в Telegram: @cosmdandy. Прямая ссылка на личные сообщения, хендл для копирования и QR-код.">
+    <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+    <meta name="theme-color" content="#fdf6e3" media="(prefers-color-scheme: light)">
+    <meta name="color-scheme" content="dark light">
+
+    <link rel="canonical" href="https://cosmdandy.dev/tg/">
+    <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+    <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
+
+    <meta property="og:title" content="Написать @cosmdandy в Telegram">
+    <meta property="og:description" content="Прямая ссылка на личные сообщения, хендл для копирования и QR-код.">
+    <meta property="og:type" content="profile">
+    <meta property="og:url" content="https://cosmdandy.dev/tg/">
+    <meta property="og:image" content="https://cosmdandy.dev/assets/og.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="cosmdandy · Timofey Kondrashin · DevOps Engineer">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Написать @cosmdandy в Telegram">
+    <meta name="twitter:description" content="Прямая ссылка на личные сообщения, хендл для копирования и QR-код.">
+    <meta name="twitter:image" content="https://cosmdandy.dev/assets/og.png">
+
+    <link rel="preload" href="/fonts/Inter-Regular.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/fonts/Inter-SemiBold.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<button class="theme-btn" id="theme-btn" type="button" aria-label="Переключить тему">
+    <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>
+    </svg>
+    <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="4.2"/>
+        <path d="M12 2.6v2.2M12 19.2v2.2M2.6 12h2.2M19.2 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M18.7 5.3l-1.6 1.6M6.9 17.1l-1.6 1.6"/>
+    </svg>
+</button>
+
+<div class="dots"></div>
+<div class="cursor-glow" id="cursor-glow"></div>
+
+<main>
+    <div class="card">
+        <div class="glow"></div>
+
+        <div class="mark">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21.2 4.4L2.4 11.5c-.6.2-.6 1.1.1 1.3l4.8 1.6 1.8 5.8c.2.5.8.7 1.2.4l2.7-2.2 5.3 3.9c.5.4 1.2.1 1.3-.5L22.8 5.5c.2-.7-.5-1.4-1.6-1.1z"/>
+                <path d="M8.3 14.4l9.2-7.8"/>
+            </svg>
+        </div>
+
+        <h1>@cosmdandy</h1>
+        <p class="bio">Timofey Kondrashin · DevOps Engineer</p>
+        <p class="now"><span class="live-dot"></span>личные сообщения открыты</p>
+
+        <nav class="links">
+            <!-- Главная кнопка уходит прямо в приложение. Тот, кто пришёл сюда
+                 писать, Telegram себе уже поставил, и лишняя остановка на чужой
+                 странице ему ни к чему. Навигации при этом не происходит: схему
+                 забирает система, страница остаётся на месте — так что если
+                 приложения нет и ничего не открылось, человек никуда не улетел
+                 и видит запасной путь на t.me в подвале. Тем же приёмом
+                 пользуется и сам Telegram на своих страницах. -->
+            <a href="tg://resolve?domain=cosmdandy" class="link-item primary" id="open-tg">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.2 4.4L2.4 11.5c-.6.2-.6 1.1.1 1.3l4.8 1.6 1.8 5.8c.2.5.8.7 1.2.4l2.7-2.2 5.3 3.9c.5.4 1.2.1 1.3-.5L22.8 5.5c.2-.7-.5-1.4-1.6-1.1z"/><path d="M8.3 14.4l9.2-7.8"/></svg>
+                <span>Написать в Telegram</span>
+                <svg class="hint-arrow" width="14" height="14" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 10 L10 2 M4 2 H10 V8"/></svg>
+            </a>
+
+            <button class="link-item" id="copy-btn" type="button" data-copy="@cosmdandy">
+                <span class="icon-slot">
+                    <svg class="ic-copy" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    <svg class="ic-done" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5.2 5.2L20 7"/></svg>
+                </span>
+                <span id="copy-label">Скопировать хендл</span>
+                <span class="hint" id="copy-hint">@cosmdandy</span>
+            </button>
+        </nav>
+
+        <!-- Код виден сразу, без кнопки: страницу открывают с одной мыслью —
+             написать, — и код это второй способ сделать то же самое, а не
+             дополнительный материал, ради которого стоит куда-то нажимать. -->
+        <div class="qr-panel">
+            <div class="qr-paper">
+                <svg viewBox="0 0 29 29" aria-label="QR-код на t.me/cosmdandy">
+                    <path d="M2 2.5h7m1 0h3m1 0h3m3 0h7m-25 1h1m5 0h1m3 0h1m1 0h1m1 0h1m1 0h1m1 0h1m5 0h1m-25 1h1m1 0h3m1 0h1m1 0h2m3 0h3m2 0h1m1 0h3m1 0h1m-25 1h1m1 0h3m1 0h1m3 0h1m1 0h4m2 0h1m1 0h3m1 0h1m-25 1h1m1 0h3m1 0h1m2 0h2m2 0h2m3 0h1m1 0h3m1 0h1m-25 1h1m5 0h1m1 0h1m2 0h2m3 0h1m1 0h1m5 0h1m-25 1h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7m-16 1h1m4 0h2m-16 1h1m1 0h1m3 0h2m1 0h1m2 0h1m2 0h1m3 0h1m2 0h1m1 0h1m-22 1h1m4 0h2m2 0h2m1 0h2m1 0h1m2 0h1m1 0h2m-24 1h2m3 0h1m2 0h2m4 0h1m3 0h4m1 0h1m-25 1h1m1 0h1m1 0h1m6 0h2m2 0h2m1 0h2m1 0h1m-22 1h1m2 0h1m1 0h3m2 0h3m3 0h1m1 0h1m5 0h1m-23 1h3m2 0h2m3 0h1m2 0h2m1 0h2m3 0h2m-25 1h2m1 0h1m2 0h1m1 0h1m3 0h2m1 0h1m5 0h2m1 0h1m-22 1h1m3 0h2m1 0h3m2 0h1m1 0h1m1 0h3m-22 1h9m1 0h1m4 0h6m2 0h1m-16 1h2m3 0h2m1 0h1m3 0h1m3 0h1m-25 1h7m1 0h4m1 0h2m1 0h1m1 0h1m1 0h1m3 0h1m-25 1h1m5 0h1m3 0h1m3 0h3m3 0h1m3 0h1m-25 1h1m1 0h3m1 0h1m2 0h1m1 0h10m3 0h1m-25 1h1m1 0h3m1 0h1m5 0h1m2 0h3m2 0h1m1 0h2m-24 1h1m1 0h3m1 0h1m1 0h1m1 0h1m1 0h3m2 0h1m1 0h3m1 0h2m-25 1h1m5 0h1m3 0h3m3 0h2m1 0h2m-21 1h7m1 0h1m3 0h5m1 0h1m2 0h1m2 0h1" stroke="var(--qr-ink)" stroke-width="1" fill="none"/>
+                </svg>
+            </div>
+            <p class="qr-caption">наведите камеру телефона</p>
+        </div>
+    </div>
+</main>
+
+<div class="meta">
+    <a href="https://cosmdandy.dev">cosmdandy.dev</a>
+    <span class="sep">·</span>
+    <a href="https://t.me/cosmdandy" id="fallback" target="_blank" rel="noopener">не открылось — перейти на t.me</a>
+</div>
+
+<script>
+    var root = document.documentElement;
+
+    // Атрибут к этому моменту уже стоит — его выставил скрипт в <head>, —
+    // поэтому читаем его, а не опрашиваем систему второй раз. Ключ общий с
+    // визиткой: тема выбирается один раз на весь сайт.
+    document.getElementById('theme-btn').addEventListener('click', function () {
+        var next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+        root.setAttribute('data-theme', next);
+        try { localStorage.setItem('theme', next); } catch (e) {}
+    });
+
+    var glow = document.getElementById('cursor-glow');
+    if (window.matchMedia('(pointer: fine)').matches) {
+        window.addEventListener('mousemove', function (e) {
+            glow.style.left = e.clientX + 'px';
+            glow.style.top = e.clientY + 'px';
+            glow.classList.add('visible');
+        });
+    }
+
+    var copyBtn = document.getElementById('copy-btn');
+    var copyLabel = document.getElementById('copy-label');
+    var copyTimer = null;
+
+    /* Запасной путь на execCommand нужен не для древних браузеров, а для
+       случаев, когда navigator.clipboard есть, но отказывает: страница не на
+       https, вкладка без фокуса, iframe без разрешения на буфер. Без него отказ
+       был молчаливым — обещание отклонялось, и кнопка просто не отзывалась. */
+    function legacyCopy(text) {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.top = '-1000px';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        ta.setSelectionRange(0, text.length);
+        var ok = false;
+        try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+        document.body.removeChild(ta);
+        return ok;
+    }
+
+    function showCopied(ok) {
+        copyBtn.classList.toggle('copied', ok);
+        copyLabel.textContent = ok ? 'Скопировано' : 'Выделите и скопируйте вручную';
+        clearTimeout(copyTimer);
+        copyTimer = setTimeout(function () {
+            copyBtn.classList.remove('copied');
+            copyLabel.textContent = 'Скопировать хендл';
+        }, ok ? 1800 : 2600);
+    }
+
+    copyBtn.addEventListener('click', function () {
+        var text = copyBtn.dataset.copy;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(
+                function () { showCopied(true); },
+                function () { showCopied(legacyCopy(text)); }
+            );
+        } else {
+            showCopied(legacyCopy(text));
+        }
+    });
+</script>
+</body>
+</html>
