@@ -30,12 +30,16 @@
 
   /* Откинутая защёлка уже вытягивает каддик на сантиметр: рычаг тянет его за
      собой, ещё не отпустив. Раньше на первом щелчке двигалась одна ручка, и
-     каддик стоял — из двух движений читалось одно. Рамка и накопитель едут
-     одним и тем же правилом: разными они разъезжались. */
+     каддик стоял — из двух движений читалось одно.
+
+     Про накопитель здесь больше ни слова, и это важно: он лежит внутри
+     .pick-body и едет вместе с ним одной деталью. Пока у него были свои
+     правила — те же по числам, но отдельные, — их приходилось держать
+     одинаковыми вручную, и одно из четырёх разошлось: обратный ход рамки шёл
+     --press-seat, а диск ехал по своей кривой. Три процента расхождения, и
+     диск заметно ползал внутри рамки. */
   .rig.service .bay.unlatched .pick-body,
-  .rig.service .blank.unlatched .pick-body,
-  .rig.service .bay.unlatched .drive-body,
-  .rig.service .blank.unlatched .drive-body {
+  .rig.service .blank.unlatched .pick-body {
     transform: translateX(-14px);
     transition: transform var(--lever);
   }
@@ -46,9 +50,7 @@
      тем, что диск «залетает». Отличить одно состояние от другого по классам
      нельзя — они совпадают, — поэтому обратный ход помечает себя сам. */
   .rig.service .bay.unlatched.back .pick-body,
-  .rig.service .blank.unlatched.back .pick-body,
-  .rig.service .bay.unlatched.back .drive-body,
-  .rig.service .blank.unlatched.back .drive-body {
+  .rig.service .blank.unlatched.back .pick-body {
     transition: transform var(--press-seat);
   }
 
@@ -80,9 +82,7 @@
      сборке. */
   .bay .pick-body, .blank .pick-body { transition: transform var(--press-seat); }
   .rig.service .bay.pulled .pick-body,
-  .rig.service .blank.pulled .pick-body,
-  .rig.service .bay.pulled .drive-body,
-  .rig.service .blank.pulled .drive-body {
+  .rig.service .blank.pulled .pick-body {
     transform: translateX(-152px);
     transition: transform var(--caddy);
   }
@@ -102,21 +102,19 @@
      иначе первое движение принадлежало бы ручке, а не каддику.
 
      Накопитель едет, а не проявляется. Он нарисован на своём месте в глубине
-     шасси и обрезан по устью отсека (clip-path у неподвижной обёртки вокруг
-     него), поэтому в собранной машине его не видно вовсе, а при вынимании он
-     выезжает из устья — как и в жизни. Прежде он появлялся прозрачностью:
-     деталь не выезжала, а включалась. */
-  .drive-body { transition: transform var(--press-seat); }
+     шасси и обрезан по устью отсека, поэтому в собранной машине его не видно
+     вовсе, а при вынимании он выезжает из устья — как и в жизни. Прежде он
+     появлялся прозрачностью: деталь не выезжала, а включалась.
+
+     Своего хода у него нет: он внутри .pick-body, и его везёт кривая
+     каддика. Обёртка с отсечением стоит снаружи и неподвижна — на движущемся
+     узле срез ехал бы вместе с ним и не обрезал бы ничего. Кривая покоя у
+     каддика объявлена выше, одна на всех. */
 
   /* Assembly: the drive is pushed in from the front, along the same path it
      takes coming out during teardown — only the other way round. */
-  /* Анимация висит на рамке и на накопителе по отдельности, а не на всём
-     каддике: обёртка с отсечением обязана стоять на месте, иначе срез поедет
-     вместе с диском и обрезать станет нечего. */
   .rig.assembly .bay .pick-body,
-  .rig.assembly .blank .pick-body,
-  .rig.assembly .bay .drive-body,
-  .rig.assembly .blank .drive-body {
+  .rig.assembly .blank .pick-body {
     animation: seatBay var(--press-seat) var(--seat, 0s) backwards;
   }
   /* The caddy runs along its rails freely and meets resistance only right at

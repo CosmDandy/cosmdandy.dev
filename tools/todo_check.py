@@ -45,6 +45,50 @@ def attrs(tag):
     return dict(re.findall(r'([a-z-]+)="([^"]*)"', tag))
 
 
+def defs_group(name):
+    """Содержимое шаблона из <defs> по его id.
+
+    Двадцать четыре слота памяти рисуются одним шаблоном на всех: гнездо с
+    контактами и тело модуля лежат в <defs>, а каждый слот — это <use> со
+    сдвигом. Двадцать четыре копии одного и того же занимали 1560 узлов из
+    2466 в блоке. Поэтому проверки, которые раньше резали разметку между
+    `data-dimm="L0"` и `L1`, теперь смотрят в шаблон: фигура там одна.
+    """
+    i = BOARD.find(f'<g id="{name}"')
+    if i < 0:
+        return ''
+    depth = 0
+    for m in re.finditer(r'<(/?)g\b', BOARD[i:]):
+        depth += -1 if m.group(1) else 1
+        if depth == 0:
+            return BOARD[i:i + m.end() + 1]
+    return ''
+
+
+def defs_uses(name):
+    """Сдвиги всех экземпляров шаблона по вертикали, сверху вниз."""
+    return sorted(float(m.group(1)) for m in re.finditer(
+        rf'<use href="#{name}" transform="translate\(0,([-\d.]+)\)"', BOARD))
+
+
+def perf_cells(src):
+    """Соты перфорации: (центр, полувысота, заливка) по каждой.
+
+    Решётка рисуется одной фигурой на всё поле — полторы тысячи отдельных
+    полигонов браузер разбирал и обходил при каждой перерисовке. Поэтому
+    разбираем подпути одного `d`, а не отдельные элементы: `M` начинает соту,
+    `z` её закрывает, вершины абсолютные.
+    """
+    out = []
+    for m in re.finditer(r'<path class="perf" d="([^"]*)" fill="([^"]*)"', src):
+        for sub in m.group(1).split('M')[1:]:
+            xy = [tuple(map(float, p.split())) for p in sub.rstrip('z').split('L')]
+            ys = [p[1] for p in xy]
+            out.append(((sum(p[0] for p in xy) / len(xy), sum(ys) / len(ys)),
+                        (max(ys) - min(ys)) / 2, m.group(2)))
+    return out
+
+
 def rects(src, **want):
     """Прямоугольники с заданными атрибутами: (x, y, w, h, атрибуты)."""
     out = []
@@ -204,10 +248,10 @@ def a8():
     # он вырезает лист, а не закрашивает его. Смотрим только на то, что
     # рисуется на самой схеме.
     src = re.sub(r'<mask id="[^"]*".*?</mask>', '', BOARD, flags=re.DOTALL)
-    holes = re.findall(r'<polygon points="([^"]*)" fill="([^"]*)"', src)
+    holes = perf_cells(src)
     if not holes:
         return 'сот на схеме нет'
-    opaque = [f for _, f in holes if f != 'none'
+    opaque = [f for _, _, f in holes if f != 'none'
               and (not f.startswith('rgba') or f.endswith(',1)'))]
     if opaque:
         return f'глухих сот: {len(opaque)}'
@@ -215,11 +259,8 @@ def a8():
     # X встречается через ряд: шаг столбца равен двум межрядным, то есть
     # 3·s + 1.73·gap. Меньше трёх высот полсоты — значит, соты налезают.
     cols = {}
-    for pts, _ in holes:
-        xs = [float(p.split(',')[0]) for p in pts.split()]
-        ys = [float(p.split(',')[1]) for p in pts.split()]
-        s_ = (max(ys) - min(ys)) / 2
-        cols.setdefault((round(sum(xs) / len(xs), 1), round(s_, 1)), []).append(sum(ys) / len(ys))
+    for (cx0, cy0), s_, _ in holes:
+        cols.setdefault((round(cx0, 1), round(s_, 1)), []).append(cy0)
     worst = None
     for (cx, s_), ys in cols.items():
         ys = sorted(ys)
@@ -439,9 +480,7 @@ def _dimm_chips():
     так находились только широкие.
     """
     from board.geom import SLOT_H
-    band = BOARD[BOARD.find('data-dimm="L0"'):]
-    band = band[:band.find('data-dimm="L1"')]
-    return sorted((r[0], r[2], r[1]) for r in rects(band, fill='#0d1519')
+    return sorted((r[0], r[2], r[1]) for r in rects(defs_group('dimm-body-0'), fill='#0d1519')
                   if SLOT_H - 11 <= r[3] <= SLOT_H - 8)
 
 
@@ -482,19 +521,22 @@ def e3():
 
 @check('E4', 'на широких чипах есть гравировка')
 def e4():
-    marks = [t for x, y, t, d in texts(BOARD) if d.get('font-size') == '3.4']
-    return len(marks) >= 24 * 2 or f'подписей на чипах: {len(marks)}'
+    # Гравировка лежит в шаблоне тела, а на плату он ставится двадцать четыре
+    # раза: считаем по шаблонам, помноженным на число экземпляров.
+    marks = sum(len([t for x, y, t, d in texts(defs_group(f'dimm-body-{k}'))
+                     if d.get('font-size') == '3.4']) * len(defs_uses(f'dimm-body-{k}'))
+                for k in (0, 1))
+    return marks >= 24 * 2 or f'подписей на чипах: {marks}'
 
 
 @check('E5', 'слева пробор с обвязкой, ключ сокета смещён вправо')
 def e5():
     from board.geom import DIMM_SOCK_W, X_CORE
-    band = BOARD[BOARD.find('data-dimm="L0"'):]
-    band = band[:band.find('data-dimm="L1"')]
-    parting = [r for r in rects(band, fill='#0b1418')]
+    # Пробор нарисован на теле модуля, ключ — в гнезде; шаблоны у них разные.
+    parting = [r for r in rects(defs_group('dimm-body-0'), fill='#0b1418')]
     if not parting:
         return 'пробора на модуле нет'
-    keys = [r for r in rects(band, fill='#0f1a20')]
+    keys = [r for r in rects(defs_group('dimm-static'), fill='#0f1a20')]
     if not keys:
         return 'ключа в сокете нет'
     at = (keys[0][0] - (X_CORE - 2)) / DIMM_SOCK_W
@@ -503,10 +545,9 @@ def e5():
 
 @check('E6', 'контакты сокета стали плотнее')
 def e6():
-    band = BOARD[BOARD.find('data-dimm="L0"'):]
-    band = band[:band.find('data-dimm="L1"')]
     xs = sorted({float(m.group(1)) for m in
-                 re.finditer(r'<line x1="([\d.]+)"[^>]*stroke="rgba\(206,168,58,0.62\)"', band)})
+                 re.finditer(r'<line x1="([\d.]+)"[^>]*stroke="rgba\(206,168,58,0.62\)"',
+                             defs_group('dimm-static'))})
     if len(xs) < 20:
         return f'контактов найдено: {len(xs)}'
     step = min(round(b - a, 2) for a, b in zip(xs, xs[1:]))
@@ -544,11 +585,13 @@ def e8():
 def e9():
     from board.spec import DIMM
     want = f"{DIMM['size_gb']}GB {DIMM['kind'].split()[0]} {DIMM['ranks']}"
-    if BOARD.count(f'>{want}</text>') != 24:
-        return f'строк паспорта на модулях: {BOARD.count(f">{want}</text>")}'
-    band = BOARD[BOARD.find('data-dimm="L0"'):]
-    band = band[:band.find('data-dimm="L1"')]
-    bars = [r for r in rects(band, fill='rgba(10,20,23,0.72)')]
+    # Паспортная строка одна на шаблон тела, а тел два — по чётности полосы.
+    # Считаем модули: строка в шаблоне, помноженная на число экземпляров.
+    lines = sum(defs_group(f'dimm-body-{k}').count(f'>{want}</text>')
+                * len(defs_uses(f'dimm-body-{k}')) for k in (0, 1))
+    if lines != 24:
+        return f'строк паспорта на модулях: {lines}'
+    bars = [r for r in rects(defs_group('dimm-body-0'), fill='rgba(10,20,23,0.72)')]
     return len(bars) >= 10 or f'штрихов в коде: {len(bars)}'
 
 
@@ -718,11 +761,19 @@ def h1():
     # и рука перехватывает. Внутрь --press-seat: перехватывать нечего, толкают
     # одним движением, упор в последнем сантиметре. Развёрнутая кривая давала
     # долгую полку почти у места — каддик читался застрявшим.
-    if '.drive-body { transition: transform var(--press-seat); }' not in CSS:
-        return 'у диска нет своего хода'
+    # Своего хода у диска быть не должно: он внутри каддика и едет его кривой.
+    # Пока правила были отдельными — те же по числам, но свои, — их держали
+    # одинаковыми вручную, и одно из четырёх разошлось.
+    if re.search(r'\.(bay|blank)[^,{]*\.drive-body[^,{]*\{', CSS):
+        return 'у диска снова свой ход, и он разойдётся с каддиком'
     if 'transition: transform var(--caddy);' not in CSS:
         return 'у вынимания нет своей кривой'
-    return BOARD.count('clip-path="url(#bay-out-') == 8 or 'отсечений по устью не восемь'
+    if BOARD.count('clip-path="url(#bay-out-') != 8:
+        return 'отсечений по устью не восемь'
+    # Обёртка с отсечением обязана стоять снаружи движущейся группы, иначе
+    # срез поедет вместе с диском и обрезать станет нечего.
+    return ('clip-path="url(#bay-out-0)">\n        <g class="pick-body">' in BOARD
+            or 'отсечение стоит не снаружи каддика')
 
 
 @check('H4', 'у вынутого каддика ручка остаётся откинутой')
@@ -833,8 +884,13 @@ def j1():
 
 @check('J2', 'медь разведена, а не слеплена кучками')
 def j2():
-    pts = [(float(m.group(1)), float(m.group(2))) for m in re.finditer(
-        r'<circle cx="(-?\d+)" cy="(-?\d+)" r="1.6" fill="none" stroke="rgba\(184,115,51', BOARD)]
+    # Большие отверстия склеены в пути группами, которые не соприкасаются
+    # (via_ring/via_groups в pcb_vias.py) — путей несколько. Каждая дырка —
+    # подпуть «M{cx+r} {cy}c...», центр восстанавливаем, отняв радиус у
+    # первой координаты.
+    pts = [(float(x) - 1.6, float(y)) for ring in re.finditer(
+        r'<path class="via-ring"[^>]*d="([^"]*)"', BOARD)
+        for x, y in re.findall(r'M(-?[\d.]+) (-?[\d.]+)c', ring.group(1))]
     if len(pts) < 200:
         return f'переходных отверстий всего {len(pts)}'
     # Ни одна ячейка сетки не должна собирать больше двух отверстий: контур
@@ -1803,12 +1859,8 @@ def _psu_plates():
 
 
 def _perf():
-    """Соты крышки: список центров и полувысота каждой."""
-    out = []
-    for pts in re.findall(r'<polygon points="([^"]*)"', LID):
-        xy = [tuple(map(float, p.split(','))) for p in pts.split()]
-        out.append((sum(p[0] for p in xy) / len(xy), sum(p[1] for p in xy) / len(xy)))
-    return out
+    """Соты крышки: список центров."""
+    return [c for c, _, _ in perf_cells(LID)]
 
 
 @check('B1', 'соты только над задней стенкой и отсеками БП, и они сквозные')
@@ -1832,7 +1884,7 @@ def b1():
     # Сквозная — значит лист в этих местах пробит, а не закрашен: те же соты
     # лежат в маске, которой вырезано тело листа.
     mask = re.search(r'<mask id="lid-perf".*?</mask>', LID, re.DOTALL)
-    if not mask or '<polygon' not in mask.group(0):
+    if not mask or '<path class="perf"' not in mask.group(0):
         return 'соты нарисованы поверх глухого листа, а не вырезаны в нём'
     return 'mask="url(#lid-perf)"' in LID or 'маска есть, но лист ею не пробит'
 
@@ -1867,8 +1919,11 @@ def b2():
 
 @check('B3', 'схематика крышки совпадает с местами самих узлов')
 def b3():
-    socks = sorted(rects(BOARD, fill='#05090b', width=str(geom.DIMM_SOCK_W)),
-                   key=lambda r: r[1])
+    # Гнездо нарисовано один раз в <defs>, а на плату его ставит <use> со
+    # сдвигом: место каждого сокета — это база шаблона плюс сдвиг экземпляра.
+    base = rects(defs_group('dimm-static'), fill='#05090b', width=str(geom.DIMM_SOCK_W))
+    socks = sorted(((base[0][0], base[0][1] + dy, base[0][2], base[0][3])
+                    for dy in defs_uses('dimm-static')), key=lambda r: r[1]) if base else []
     if len(socks) != 3 * geom.BANK_N:
         return f'сокетов памяти на плате: {len(socks)}'
     for b in range(3):
@@ -2280,6 +2335,203 @@ def c5():
     if not re.search(r'translate var\(--lid-press\) [\d.]+s', rules('.lid')):
         return 'крышка на обратном ходе не ждёт кожухи'
     return True
+
+
+def _sfx():
+    """Собранная логика целиком: меток частей в ней уже нет, их съедает сборка."""
+    return JS
+
+
+def _body(name):
+    """Тело функции по имени — до закрывающей скобки на её же отступе."""
+    i = JS.find(f'function {name}(')
+    if i < 0:
+        return ''
+    return JS[i:JS.find('\n  }', i)]
+
+
+@check('AL1', 'щелчок собран ударом и модами, а не полосой шума')
+def al1():
+    body = _body('chk')
+    if 'burst(' in body:
+        return 'щелчок снова кусок шума в полосе'
+    if 'tick(' not in body or body.count('mode(') < 3:
+        return 'нет фронта или мод'
+    # Полоса Q=6 выбрасывала двадцать три децибела энергии — ради этого всё и
+    # переписывалось; вернуть её значит вернуть щелчок, которого не слышно.
+    return 'duck(' in body or 'гул не приседает под удар'
+
+
+@check('AL2', 'гул приседает под удар отдельной ручкой, а не общей')
+def al2():
+    sfx = _sfx()
+    if 'function duck(' not in sfx or 'humDuck' not in sfx:
+        return 'приглушения нет'
+    if 'g.connect(duckNode())' not in sfx:
+        return 'гул идёт мимо ручки приглушения'
+    # Своя ручка нужна потому, что ту, что поднимает гул, humLevel переписывает
+    # целиком при каждом заходе курсора на машину.
+    return 'humDuck.connect(bus)' in sfx or 'ручка приглушения ни к чему не подключена'
+
+
+@check('AL3', 'тон гула считается от текущих оборотов, а не от паспорта')
+def al3():
+    sfx = _sfx()
+    if 'animationDuration' not in sfx or 'function fanRpm(' not in sfx:
+        return 'обороты берутся из паспорта и не меняются'
+    if 'SPIN_NOM' not in sfx:
+        return 'не с чем сравнивать паспортный период'
+    if 'function humTune(' not in sfx or 'exponentialRampToValueAtTime' not in sfx:
+        return 'тон не едет за оборотами'
+    if 'MutationObserver' not in sfx:
+        return 'смену настроек BIOS никто не слушает'
+    return True
+
+
+@check('AL4', 'тихая загрузка глушит писк спикера')
+def al4():
+    if "toggle('nv-quiet'" not in JS:
+        return 'прошивка не объявляет тихую загрузку'
+    sfx = _sfx()
+    beep = sfx[sfx.find('beep: function'):]
+    beep = beep[:beep.find('\n    }')]
+    if "nv-quiet" not in beep:
+        return 'писк не спрашивает про тихую загрузку'
+    # По умолчанию она выключена: машина показывает полный журнал самотеста,
+    # то есть ведёт себя как машина с выключенной тихой загрузкой.
+    return "quietBoot: 'Disabled'" in JS or 'по умолчанию машина стартует молча'
+
+
+@check('AL5', 'запрещённые C-States слышны писком дросселей')
+def al5():
+    if "toggle('nv-cst-off'" not in JS:
+        return 'прошивка не объявляет запрет C-States'
+    sfx = _sfx()
+    if 'coil' not in sfx:
+        return 'дросселей нет'
+    if "contains('nv-cst-off')" not in sfx:
+        return 'писк не спрашивает про C-States'
+    if "contains('nv-eff')" not in sfx:
+        return 'на энергосбережении дроссели тоже поют, а там машина спит'
+    return True
+
+
+@check('AL6', 'гул разложен на рокот и поток, тона расстроены между собой')
+def al6():
+    sfx = _sfx()
+    nodes = _body('fanNodes')
+    if "'lowpass'" not in nodes:
+        return 'рокота корпуса нет — гул остался одной серединой'
+    if nodes.count("'bandpass'") < 1 or nodes.count("'lowpass'") < 2:
+        return 'у потока нет завала верха, от него и устаёт ухо'
+    detune = re.search(r'\[(-?[\d.]+(?:, *-?[\d.]+){2,})\]\.forEach', nodes)
+    if not detune:
+        return 'все крыльчатки гудят в унисон'
+    return True
+
+
+@check('AJ3', 'сетка фона ходит за мышью и в лупе, и в обычном виде')
+def aj3():
+    # Сдвиг ставится обычным свойством на самих слоях. Наследуемой переменной
+    # на корне тут быть не должно: запись в неё раз в кадр гонит пересчёт стиля
+    # по всему дереву — 68% главного потока и десять кадров в секунду, померено
+    # (см. PROGRESS.8213f6dc.md).
+    page = (ROOT / 'style.css').read_text(encoding='utf-8')
+    if '--dots-x' in HTML or '--dots-x' in CSS or '--dots-x' in page:
+        return 'сдвиг снова ходит наследуемой переменной с корня'
+    body = HTML[HTML.find('function animate()'):]
+    body = body[:body.find('})();')]
+    if 'dotsEl.style.backgroundPosition' not in body:
+        return 'фон страницы стоит на месте'
+    if 'rigBody.style.backgroundPosition' not in body:
+        return 'поле лупы рисует сетку без сдвига'
+    if 'pos !== dotsPos' not in body:
+        return 'сдвиг пишется и тогда, когда не изменился'
+    return True
+
+
+@check('AJ4', 'подвал страницы в лупе уходит и перестаёт ловить курсор')
+def aj4():
+    flat = re.sub(r'/\*.*?\*/', ' ', CSS, flags=re.DOTALL)
+    if not re.search(r'body\.zoom \.meta \{[^}]*opacity: 0', flat):
+        return 'подвал остаётся видимым'
+    if not re.search(r'body\.zoom \.meta a \{[^}]*pointer-events: none', flat):
+        return 'ссылка в подвале по-прежнему кликается'
+    return True
+
+
+@check('AJ5', 'наведение гасит машину, а узел остаётся собой и обводится своим цветом')
+def aj5():
+    flat = re.sub(r'/\*.*?\*/', ' ', CSS, flags=re.DOTALL)
+    # Приглушается группа железа, а не вся плата: подписи и обводки лежат вне
+    # её и потому остаются собой. Компенсировать их обратным множителем
+    # нельзя — на белой плашке он упирается в потолок и возвращает серое.
+    if '<g class="lyr-parts">' not in BOARD:
+        return 'железо не выделено в свой слой, приглушать нечего'
+    if BOARD.index('<g class="lyr-parts">') > BOARD.index('class="callouts"'):
+        return 'подписи попали внутрь группы железа'
+    dim = re.search(r'\.rig\.spot:not\(\.service\) \.lyr-deck,[^{]*\{[^}]*'
+                    r'brightness\(([\d.]+)\)', flat)
+    if not dim:
+        return 'схема при наведении не гаснет'
+    if float(dim.group(1)) < 0.6:
+        return f'машина не приглушается, а гаснет: {dim.group(1)}'
+    # Приглушаются все бирки, кроме той, чей узел под курсором: когда вывели из
+    # приглушения все семь, они загорались разом и не показывали ничего.
+    off = re.search(r'\.rig\.spot:not\(\.service\) a\.callout:not\(\.lit\) \{[^}]*'
+                    r'brightness\(([\d.]+)\)', flat)
+    if not off:
+        return 'соседние бирки не приглушаются, горят все разом'
+    if abs(float(off.group(1)) - float(dim.group(1))) > 0.001:
+        return 'бирки приглушаются не в ту же меру, что железо'
+    if re.search(r'a\.callout\.lit[^{]*\{[^}]*brightness', flat):
+        return 'подсвеченную бирку снова осветляют множителем — белое обрежется'
+    lit = re.search(r'\.rig\.spot:not\(\.service\) \.unit\.lit \{[^}]*'
+                    r'brightness\(([\d.]+)\)', flat)
+    if not lit or float(lit.group(1)) * float(dim.group(1)) < 1.2:
+        return 'узел под курсором не подсвечен, а только не погашен'
+    if '.lid > svg' not in flat:
+        return 'надетая крышка остаётся яркой над погашенной машиной'
+    if 'spot-rings' not in JS or 'getBBox' not in JS:
+        return 'кольца рисуются не по габаритам самих узлов'
+    return True
+
+
+@check('AK3', 'схема разложена по слоям, и слои ничего не потеряли')
+def ak3():
+    import importlib
+
+    from board.canvas import Canvas
+    from build import LAYERS, ORDER, layered
+
+    cls = [f'lyr-{c}' for c, _ in LAYERS]
+    for c in cls:
+        if f'<g class="{c}">' not in BOARD:
+            return f'слоя {c} в разметке нет'
+    # Слои идут в объявленном порядке и не вложены друг в друга.
+    at = [BOARD.index(f'<g class="{c}">') for c in cls]
+    if at != sorted(at):
+        return f'слои идут не в объявленном порядке: {cls}'
+    # На группе слоя не должно быть transform: кольца прожектора меряют узлы
+    # через getBBox() и кладут прямоугольники в координатах корня, а своя
+    # система координат у слоя увела бы их вбок.
+    if re.search(r'<g class="lyr-[a-z]+"[^>]*transform', BOARD):
+        return 'на слое появился transform — кольца наведения уедут'
+    # Обводки и бирки лежат в самом верхнем слое поверх железа.
+    if BOARD.index('<g class="lyr-tags">') > BOARD.index('class="spot-rings"'):
+        return 'кольца наведения оказались вне верхнего слоя'
+    # И главное: обёртки ничего не теряют и не переставляют. Пересобираем
+    # холст заново и сверяем список фрагментов с обёрнутым.
+    cv = Canvas()
+    report = []
+    for name in ORDER:
+        mark = len(cv.parts)
+        importlib.import_module(f'board.blocks.{name}').render(cv)
+        report.append((name, len(cv.parts) - mark, None))
+    plain = list(cv.parts)
+    inner = [p for p in layered(plain, report)
+             if not (p.startswith('<g class="lyr-') or p == '</g>')]
+    return inner == plain or 'слои теряют или переставляют фрагменты'
 
 
 def main():

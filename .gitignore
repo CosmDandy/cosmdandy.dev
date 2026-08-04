@@ -358,3 +358,6 @@ tools/board/blocks/__pycache__/
 
 # кадры покадровой съёмки движения (tools/motion.mjs)
 tools/motion/
+
+# эталоны попиксельной сверки (tools/pixdiff.mjs)
+tools/.pixdiff/

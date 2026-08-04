@@ -73,7 +73,7 @@ const CASES = [
   ['райзер: отвод', '.riser[data-riser="1"]', '.riser[data-riser="1"] .pick-body', 1, 1200],
   ['вентилятор', '.fan[data-fan="3"]', '.fan[data-fan="3"] .pick-body', 1, 800],
   ['каддик', '.bay[data-unit="hdd1"]', '.bay[data-unit="hdd1"] .pick-body', 2, 1400],
-  ['диск в каддике', '.bay[data-unit="hdd5"]', '.bay[data-unit="hdd5"] .drive-body', 2, 1400],
+  ['диск в каддике', '.bay[data-unit="hdd5"]', '.bay[data-unit="hdd5"] .pick-body', 2, 1400],
   ['сетевая карта', '.pick[data-unit="eth"]', '.pick[data-unit="eth"] .pick-body', 1, 900],
   ['ручка каддика', '.bay[data-unit="hdd3"]', '.bay[data-unit="hdd3"] .bay-handle', 1, 400],
   ['радиатор CPU', '.cpu-slot[data-cpu="1"]', '.cpu-slot[data-cpu="1"] .heatsink', 1, 1000],

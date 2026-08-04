@@ -136,7 +136,11 @@
   const NV_DEFAULT = {
     ht: 'Enabled', cores: 'All', numa: 'Enabled', memfreq: 'Auto',
     power: 'Maximum Performance', cstates: 'Enabled',
-    mode: 'UEFI', secureBoot: 'Enabled', quietBoot: 'Enabled',
+    // Quiet Boot по умолчанию выключен, и это не произвол: машина показывает
+    // полный журнал самотеста и пищит спикером на старте — то есть ведёт себя
+    // ровно как машина с выключенной тихой загрузкой. Включите его в BIOS, и
+    // старт пройдёт молча.
+    mode: 'UEFI', secureBoot: 'Enabled', quietBoot: 'Disabled',
     bootOrder: ['nvme', 'pxe', 'bmc'],
     ipMode: 'DHCP', ip: HW.fw.ip, mask: '255.255.255.0', gw: '192.168.10.1',
   };
@@ -171,6 +175,12 @@
     // missing units) — here we have a flag of our own, so as not to override
     // that condition.
     rig.classList.toggle('sb-off', nv.mode === 'UEFI' && nv.secureBoot === 'Disabled');
+    // Ещё две настройки слышны, а не видны. Quiet Boot глушит писк спикера на
+    // старте — как и положено тихой загрузке. Запрещённые C-States не дают
+    // ядрам уснуть, ток через дроссели не падает, и они поют. Звук про прошивку
+    // не спрашивает: он слушает эти классы, как их слушают стили.
+    rig.classList.toggle('nv-quiet', nv.quietBoot === 'Enabled');
+    rig.classList.toggle('nv-cst-off', nv.cstates === 'Disabled');
   }
   applyNvEffects();   // apply what already lay in rig-nv, before setup is ever opened
 
@@ -401,11 +411,13 @@
         options: ['Maximum Performance', 'Efficiency'],
         get: function () { return nvDraft.power; },
         set: function (dir) { nvDraft.power = cycleEnum(['Maximum Performance', 'Efficiency'], nvDraft.power, dir); },
-        help: 'Efficiency вдвое растягивает период вращения крыльчаток на схеме.' },
+        help: 'Efficiency вчетверо растягивает период вращения крыльчаток, и '
+              + 'вчетверо же падает тон гула — со слухом это заметнее, чем глазом.' },
       { id: 'cstates', label: 'C-States', kind: 'bool', reboot: true,
         get: function () { return nvDraft.cstates; },
         set: function () { nvDraft.cstates = toggleOnOff(nvDraft.cstates); },
-        help: 'Глубокие состояния простоя ядра. Выключают ради предсказуемой задержки.' },
+        help: 'Глубокие состояния простоя ядра. Выключают ради предсказуемой '
+              + 'задержки — и тогда слышно, как поют дроссели: ядра не засыпают.' },
     ];
   }
 

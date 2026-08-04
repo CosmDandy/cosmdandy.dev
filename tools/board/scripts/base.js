@@ -938,6 +938,66 @@
   // ── Tying a unit to its label ──────────────────────────────────────────
   // The highlight goes both ways: unit ↔ its callout. A class instead of
   // :hover, because the elements sit in different branches of the tree.
+  // Кольцо наведения переезжает к узлу и берёт габарит у него самого: своей
+  // геометрии у него нет и быть не должно — блоки двигают детали, и второй
+  // экземпляр координат промахивался бы на первой же правке. Корзина дисков
+  // при этом обводится одним кольцом на восемь отсеков: узлов там восемь, а
+  // ссылка одна, и рамка обводит то, куда она ведёт.
+  const spotRings = chassis.querySelector('.spot-rings');
+  const RING_PAD = 7;
+  // Порог слияния соседних рамок. Между отсеками корзины тридцать единиц,
+  // между банками памяти сто восемьдесят, между сокетами сто шестьдесят: шаг
+  // в шестьдесят отделяет «стоит вплотную» от «стоит в другом конце платы».
+  const RING_GAP = 60;
+
+  function ringBoxes(group) {
+    const out = [];
+    chassis.querySelectorAll('#board [data-group="' + group + '"]').forEach(function (n) {
+      const b = n.getBBox();
+      out.push([b.x, b.y, b.x + b.width, b.y + b.height]);
+    });
+    // Рамки, стоящие вплотную, сливаются в одну: восемь отсеков корзины — это
+    // одна корзина, и ссылка у них одна. Восемь колец на ней читались бы
+    // решёткой, а не обводкой того, куда ведёт бирка. Банки памяти и сокеты
+    // стоят порознь и своими кольцами и остаются.
+    for (let merged = true; merged;) {
+      merged = false;
+      for (let i = 0; i < out.length && !merged; i++) {
+        for (let j = i + 1; j < out.length && !merged; j++) {
+          const a = out[i], b = out[j];
+          if (a[0] < b[2] + RING_GAP && b[0] < a[2] + RING_GAP &&
+              a[1] < b[3] + RING_GAP && b[1] < a[3] + RING_GAP) {
+            out[i] = [Math.min(a[0], b[0]), Math.min(a[1], b[1]),
+                      Math.max(a[2], b[2]), Math.max(a[3], b[3])];
+            out.splice(j, 1);
+            merged = true;
+          }
+        }
+      }
+    }
+    return out;
+  }
+
+  function ringTo(group) {
+    if (!spotRings) return;
+    // Цвет берём у бирки этого же узла: там он уже объявлен переменной, и
+    // таблица «узел — цвет сервиса» остаётся в одном месте, в ink.py.
+    const tag = chassis.querySelector('[data-for="' + group + '"]');
+    spotRings.style.setProperty('--accent',
+      tag ? tag.style.getPropertyValue('--accent') : '');
+    spotRings.textContent = '';
+    ringBoxes(group).forEach(function (b) {
+      const r = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      r.setAttribute('class', 'spot-ring');
+      r.setAttribute('x', b[0] - RING_PAD);
+      r.setAttribute('y', b[1] - RING_PAD);
+      r.setAttribute('width', b[2] - b[0] + RING_PAD * 2);
+      r.setAttribute('height', b[3] - b[1] + RING_PAD * 2);
+      r.setAttribute('rx', 9);
+      spotRings.appendChild(r);
+    });
+  }
+
   function lit(group, on) {
     chassis.querySelectorAll('[data-group="' + group + '"]').forEach(function (n) {
       n.classList.toggle('lit', on);
@@ -945,6 +1005,8 @@
     chassis.querySelectorAll('[data-for="' + group + '"]').forEach(function (n) {
       n.classList.toggle('lit', on);
     });
+    if (on) ringTo(group);
+    rig.classList.toggle('spot', on);
   }
   chassis.querySelectorAll('[data-group], [data-for]').forEach(function (n) {
     const g = n.dataset.group || n.dataset.for;

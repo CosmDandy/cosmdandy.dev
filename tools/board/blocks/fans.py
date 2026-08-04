@@ -28,7 +28,7 @@ from board.ink import mono, silk_inverse
 from board.lamps import fault_at, jitter
 from board.palette import ROTOR_BLADE, ROTOR_EDGE, ROTOR_PAD
 from board.revision import stamp
-from board.rotor import HUB_R, blur_disc, impeller
+from board.rotor import HUB_R, rotor_disc, rotor_streaks, impeller
 from board.spec import FAN as FAN_SPEC
 
 
@@ -59,21 +59,29 @@ def render(cv):
             rotors.append(f'<circle cx="{cx}" cy="{cy}" r="{rr:.1f}" fill="#0d1417" stroke="rgba(147,161,161,0.18)"/>')
             rotors.append(f'<circle cx="{cx}" cy="{cy}" r="{rr*0.99:.1f}" fill="none" '
                           f'stroke="{ROTOR_EDGE}" stroke-opacity="0.30"/>')
-            # Blades and blur ride in one turning group: it is a single layer
-            # for the compositor and a single animation, and which of the two
-            # is visible is decided by fill-opacity in css. The impellers share
-            # a period and differ in phase, so the wall does not pulse in
-            # unison.
+            # Диск стоит вне вращающейся группы и рисуется один раз навсегда:
+            # он осесимметричен, поворот вокруг своего же центра не меняет ни
+            # одного пикселя, а раньше он всё равно ездил внутри слоя
+            # will-change, который компоновщик пересобирал каждый кадр, пока
+            # стена крутится, — и так шестнадцать раз подряд ради круга,
+            # которому крутиться незачем. Класс rotor-blur идёт прямо из
+            # rotor_disc, так что то же появление-исчезание в fans.css его
+            # по-прежнему достаёт — пропала только вращающаяся часть.
+            rotors.append(rotor_disc(cx, cy, rr))
+            # Лопасти и три дуги едут в одной вращающейся группе: для
+            # компоновщика это один слой и одна анимация, а что из двух видно
+            # — решает fill-opacity в css. Период у крыльчаток общий, а фаза
+            # своя, поэтому стена не пульсирует в такт.
             #
-            # No outline on the blades. Sixteen rotors redraw whenever the wall
-            # turns, and stroking seven curves apiece is the one thing here
-            # worth not paying for — the slots between the blades draw that
-            # edge by themselves.
+            # Обводки у лопастей нет. Шестнадцать роторов перерисовываются на
+            # каждом повороте стены, и обводить семь кривых в каждом — как раз
+            # то, за что здесь не стоит платить: щель между лопастями и так
+            # рисует эту грань сама.
             rotors.append(
                 f'<g class="fan-blades" style="animation-delay:-{jitter(i, 0.1, 2.2, k)}s; '
                 f'transform-origin:{cx}px {cy}px">'
                 f'<path class="rotor-vane" d="{impeller(cx, cy, rr)}" fill="{ROTOR_BLADE}"/>'
-                f'<g class="rotor-blur">{blur_disc(cx, cy, rr)}</g>'
+                f'<g class="rotor-blur">{rotor_streaks(cx, cy, rr)}</g>'
                 f'</g>')
             # The hub, and the maker's sticker on it. From above the sticker is
             # the brightest thing on the rotor, and on a real fan it is the one

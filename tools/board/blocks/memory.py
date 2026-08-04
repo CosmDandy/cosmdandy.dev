@@ -135,6 +135,79 @@ def sticker(x, y):
     return ''.join(out)
 
 
+# Опорная точка, на которой рисуются общие детали в <defs>: первый слот
+# левого банка. Не (0, 0) — build.py проверяет BOUNDS блока по регулярке,
+# считая x/y-атрибуты из сырого текста, и это касается и того, что лежит
+# внутри <defs> (он не рендерится, но остаётся текстом фрагмента). Взяв за
+# ноль настоящую координату первого слота, получаем то же самое гнездо,
+# что рисовалось раньше явно, — оно уже проходило проверку BOUNDS, потому
+# что это и есть его прежние координаты.
+_DEFS_Y = Y_BANK_L
+
+
+def _slot_static(y):
+    """Гнездо модуля и его hit-зона — то, что остаётся на плате при вынутой
+    плашке.
+
+    Совпадает буквально у всех 24 слотов: контакты, ключ и зона захвата
+    зависят только от X_CORE и SOCK_W, а они одни на всю плату. Отличие
+    между слотами — только сдвиг по Y, а его добавляет transform на <use>,
+    которым слот на это гнездо ссылается.
+
+    Контакты плотнее прежнего: шаг четыре вместо шести. У DDR5 их больше
+    двух с половиной сотен на модуль, и редкая гребёнка читалась краевым
+    разъёмом райзера, а не памятью.
+    """
+    n_pins = int((SOCK_W - 20) // 4)
+    key_x = X_CORE - 2 + SOCK_W * KEY_AT
+    return (f'<rect class="hit" x="{X_CORE-8}" y="{y-1}" width="{SOCK_W+28}" height="{PITCH}" '
+            f'fill="#000" fill-opacity="0.001"/>'
+            f'<rect x="{X_CORE-2}" y="{y-1}" width="{SOCK_W}" height="{SLOT_H+2}" rx="1" '
+            f'fill="#05090b" stroke="rgba(147,161,161,0.26)"/>'
+            + ''.join(f'<line x1="{X_CORE+8+c*4}" y1="{y+2}" x2="{X_CORE+8+c*4}" '
+                      f'y2="{y+SLOT_H-2}" stroke="rgba(206,168,58,0.62)" '
+                      f'stroke-width="1"/>'
+                      for c in range(n_pins)
+                      if not (key_x - 4 < X_CORE + 8 + c * 4 < key_x + 8))
+            + f'<rect x="{key_x:.1f}" y="{y+1}" width="4" height="{SLOT_H-2}" '
+              f'fill="#0f1a20"/>')
+
+
+def _slot_body(y, parity):
+    """Тело модуля и наклейка — то, что едет вместе с pick-body при съёме.
+
+    parity — чётность позиции в банке (i % 2): единственное, чем корпус
+    одного слота отличается от соседнего, — цвет полосы текстолита. Два
+    варианта на все 24 слота, не 24. Наклейка не отличается вовсе: текст и
+    штрих-код берутся из паспорта модуля и ревизии платы, а не из номера
+    слота, — поэтому она одна и та же что при parity=0, что при parity=1.
+    """
+    skip = (X_CORE + STICKER_X, X_CORE + STICKER_X + STICKER_W)
+    return module(X_CORE, y, parity, skip=skip) + sticker(X_CORE + STICKER_X, y + 5.6)
+
+
+def _defs():
+    """Общая геометрия слота, вынесенная один раз на все 24.
+
+    Гнездо (контакты, ключ, hit-зона) даёт около 1560+48 узлов из 2466 —
+    почти всё дерево блока — и совпадает буквально; тело модуля и наклейка
+    совпадают с точностью до чётности позиции. Вынесенные сюда, они рисуются
+    по одному разу, а слот обращается к ним через <use> с одним числом
+    (сдвиг по Y).
+
+    Что осталось за скобками нарочно: задержка посадки (--seat), буква
+    канала на шелкографии и защёлки — у каждой плашки свои, а до внутренностей
+    <use> из CSS не достать (стилизуется только сам <use>, теневое дерево —
+    нет). Плашка выходит по одной, и это как раз то немногое, что должно
+    остаться настоящим отдельным узлом, а не ссылкой на общий.
+    """
+    return (f'<defs>'
+            f'<g id="dimm-static">{_slot_static(_DEFS_Y)}</g>'
+            f'<g id="dimm-body-0">{_slot_body(_DEFS_Y, 0)}</g>'
+            f'<g id="dimm-body-1">{_slot_body(_DEFS_Y, 1)}</g>'
+            f'</defs>')
+
+
 def render(cv):
     # Modules are populated not one after another but by channel: first the
     # first slot of every channel on both processors, then the second. That is
@@ -145,33 +218,23 @@ def render(cv):
         for i in range(n):
             y = y0 + i * PITCH
             # The socket stays on the board when the module is pulled out, so
-            # it is a separate shape and not part of the module. Inside are the
-            # gold-plated contacts and the off-centre key ridge: it is what
-            # stops the module from going in backwards.
+            # it is a separate shape and not part of the module — hence a
+            # separate <use>, outside .pick-body, right next to the hit zone
+            # that shares its geometry.
             #
-            # Контакты плотнее прежнего: шаг четыре вместо шести. У DDR5 их
-            # больше двух с половиной сотен на модуль, и редкая гребёнка
-            # читалась краевым разъёмом райзера, а не памятью.
-            n_pins = int((SOCK_W - 20) // 4)
-            key_x = X_CORE - 2 + SOCK_W * KEY_AT
-            socket = (f'<rect x="{X_CORE-2}" y="{y-1}" width="{SOCK_W}" height="{SLOT_H+2}" rx="1" '
-                      f'fill="#05090b" stroke="rgba(147,161,161,0.26)"/>'
-                      + ''.join(f'<line x1="{X_CORE+8+c*4}" y1="{y+2}" x2="{X_CORE+8+c*4}" '
-                                f'y2="{y+SLOT_H-2}" stroke="rgba(206,168,58,0.62)" '
-                                f'stroke-width="1"/>'
-                                for c in range(n_pins)
-                                if not (key_x - 4 < X_CORE + 8 + c * 4 < key_x + 8))
-                      + f'<rect x="{key_x:.1f}" y="{y+1}" width="4" height="{SLOT_H-2}" '
-                        f'fill="#0f1a20"/>')
+            # Сдвиг — через transform, а не через x/y на <use>: build.py ищет
+            # границы блока регуляркой по x=/y=-атрибутам, не разбирая ни
+            # path, ни transform (см. докстрing bbox() в build.py). Атрибут
+            # y="126" эта регулярка сочла бы координатой в 126 и обрушила
+            # проверку BOUNDS блока, хотя это не координата, а сдвиг.
+            #
             # the hover zone is wider than the module itself and covers the gap
             # to the next one: otherwise the cursor falls through between the
             # slots and the click goes nowhere
             slots.append(f'''<g class="pick dimm" data-dimm="{code}{i}" style="--seat:{dimm_seat(letters[i], wave2(i))}">
-          <rect class="hit" x="{X_CORE-8}" y="{y-1}" width="{SOCK_W+28}" height="{PITCH}" fill="#000" fill-opacity="0.001"/>
-          {socket}
+          <use href="#dimm-static" transform="translate(0,{y - _DEFS_Y})"/>
           <g class="pick-body">
-            {module(X_CORE, y, i, skip=(X_CORE + STICKER_X, X_CORE + STICKER_X + STICKER_W))}
-            {sticker(X_CORE + STICKER_X, y + 5.6)}
+            <use href="#dimm-body-{i % 2}" transform="translate(0,{y - _DEFS_Y})"/>
           </g>
           <path class="latch latch-l" d="M{X_CORE-7} {y+1} h6 v{SLOT_H-2} h-6 a2 2 0 0 1 -2 -2 v{-(SLOT_H-6)} a2 2 0 0 1 2 -2 Z"/>
           <path class="latch latch-r" d="M{X_CORE+DIMM_W+1} {y+1} h6 a2 2 0 0 1 2 2 v{SLOT_H-6} a2 2 0 0 1 -2 2 h-6 Z"/>
@@ -181,6 +244,12 @@ def render(cv):
       {hit(X_CORE-8, y0-4, SOCK_W + 42, n * PITCH + 6)}
       {''.join(slots)}
     </g>'''
+
+    # Общие узлы — один раз перед банками, а не внутри каждого: <use> находит
+    # id где угодно в документе, порядок для этого не важен, но так все
+    # 24 ссылки в build-выводе идут после того, на что ссылаются, — читается
+    # как обычный SVG, а не как забегание вперёд.
+    cv.add(_defs())
 
     # The label goes into the gap between packages: the strip at the edge is
     # taken up by them entirely, and in its old place the plate lay right on

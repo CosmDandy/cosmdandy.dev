@@ -665,7 +665,7 @@ body.view-rig .sfx-btn { display: grid; }
      labels are permanent, and hover only highlights the one in question. */
   .callouts { pointer-events: none; }
   a.callout { pointer-events: auto; cursor: pointer; }
-  a.callout:hover .co-box { fill: #fff; stroke: var(--cyan); stroke-width: 2.4; }
+  a.callout:hover .co-box { fill: #fff; stroke: var(--accent, var(--cyan)); stroke-width: 2.4; }
   a.callout:hover .co-line { stroke: var(--cyan); }
   a.callout:focus-visible { outline: none; }
   a.callout:focus-visible .co-box { stroke: var(--cyan); stroke-width: 2.2; }
@@ -1148,12 +1148,16 @@ body.view-rig .sfx-btn { display: grid; }
 
   /* Откинутая защёлка уже вытягивает каддик на сантиметр: рычаг тянет его за
      собой, ещё не отпустив. Раньше на первом щелчке двигалась одна ручка, и
-     каддик стоял — из двух движений читалось одно. Рамка и накопитель едут
-     одним и тем же правилом: разными они разъезжались. */
+     каддик стоял — из двух движений читалось одно.
+
+     Про накопитель здесь больше ни слова, и это важно: он лежит внутри
+     .pick-body и едет вместе с ним одной деталью. Пока у него были свои
+     правила — те же по числам, но отдельные, — их приходилось держать
+     одинаковыми вручную, и одно из четырёх разошлось: обратный ход рамки шёл
+     --press-seat, а диск ехал по своей кривой. Три процента расхождения, и
+     диск заметно ползал внутри рамки. */
   .rig.service .bay.unlatched .pick-body,
-  .rig.service .blank.unlatched .pick-body,
-  .rig.service .bay.unlatched .drive-body,
-  .rig.service .blank.unlatched .drive-body {
+  .rig.service .blank.unlatched .pick-body {
     transform: translateX(-14px);
     transition: transform var(--lever);
   }
@@ -1164,9 +1168,7 @@ body.view-rig .sfx-btn { display: grid; }
      тем, что диск «залетает». Отличить одно состояние от другого по классам
      нельзя — они совпадают, — поэтому обратный ход помечает себя сам. */
   .rig.service .bay.unlatched.back .pick-body,
-  .rig.service .blank.unlatched.back .pick-body,
-  .rig.service .bay.unlatched.back .drive-body,
-  .rig.service .blank.unlatched.back .drive-body {
+  .rig.service .blank.unlatched.back .pick-body {
     transition: transform var(--press-seat);
   }
 
@@ -1198,9 +1200,7 @@ body.view-rig .sfx-btn { display: grid; }
      сборке. */
   .bay .pick-body, .blank .pick-body { transition: transform var(--press-seat); }
   .rig.service .bay.pulled .pick-body,
-  .rig.service .blank.pulled .pick-body,
-  .rig.service .bay.pulled .drive-body,
-  .rig.service .blank.pulled .drive-body {
+  .rig.service .blank.pulled .pick-body {
     transform: translateX(-152px);
     transition: transform var(--caddy);
   }
@@ -1220,21 +1220,19 @@ body.view-rig .sfx-btn { display: grid; }
      иначе первое движение принадлежало бы ручке, а не каддику.
 
      Накопитель едет, а не проявляется. Он нарисован на своём месте в глубине
-     шасси и обрезан по устью отсека (clip-path у неподвижной обёртки вокруг
-     него), поэтому в собранной машине его не видно вовсе, а при вынимании он
-     выезжает из устья — как и в жизни. Прежде он появлялся прозрачностью:
-     деталь не выезжала, а включалась. */
-  .drive-body { transition: transform var(--press-seat); }
+     шасси и обрезан по устью отсека, поэтому в собранной машине его не видно
+     вовсе, а при вынимании он выезжает из устья — как и в жизни. Прежде он
+     появлялся прозрачностью: деталь не выезжала, а включалась.
+
+     Своего хода у него нет: он внутри .pick-body, и его везёт кривая
+     каддика. Обёртка с отсечением стоит снаружи и неподвижна — на движущемся
+     узле срез ехал бы вместе с ним и не обрезал бы ничего. Кривая покоя у
+     каддика объявлена выше, одна на всех. */
 
   /* Assembly: the drive is pushed in from the front, along the same path it
      takes coming out during teardown — only the other way round. */
-  /* Анимация висит на рамке и на накопителе по отдельности, а не на всём
-     каддике: обёртка с отсечением обязана стоять на месте, иначе срез поедет
-     вместе с диском и обрезать станет нечего. */
   .rig.assembly .bay .pick-body,
-  .rig.assembly .blank .pick-body,
-  .rig.assembly .bay .drive-body,
-  .rig.assembly .blank .drive-body {
+  .rig.assembly .blank .pick-body {
     animation: seatBay var(--press-seat) var(--seat, 0s) backwards;
   }
   /* The caddy runs along its rails freely and meets resistance only right at
@@ -2134,7 +2132,10 @@ body.zoom { overflow: hidden; }
     scrollbar-width: none;
     /* Та же точечная сетка, что и на странице, и тем же шагом. Глухая заливка
        накрывала её собой: поле в этом режиме лежит поверх всего, а сетка
-       нарисована под ним, и вход в лупу гасил фон целиком. */
+       нарисована под ним, и вход в лупу гасил фон целиком.
+
+       Сдвиг за мышью ставит скрипт — тем же свойством и тем же значением, что
+       и слою точек под полем: ходить они обязаны вместе. */
     background:
         radial-gradient(circle, var(--dots) 1px, transparent 1px) 0 0 / 24px 24px,
         var(--bg);
@@ -2225,11 +2226,74 @@ a.stamp:focus-visible text { fill-opacity: 1; }
    поэтому терять здесь нечего. Остаётся только .body — торцы гнёзд задней
    панели, у которых своей кривой нет. */
 .unit .body { transition: transform var(--glide), filter var(--fade); }
-.rig .unit.lit .pick-body,
-.rig .unit.lit .body { filter: brightness(1.35) saturate(1.15); }
-a.callout.lit .co-box { fill: #fff; stroke: var(--cyan); }
+/* Подсветка идёт по всему узлу, а не по его вынимаемым потрохам. Пока она
+   висела на .pick-body и .body, светились только те узлы, у которых такая
+   часть есть: у процессора это один радиатор, а гнездо, кристалл, рамка и
+   набивка оставались тусклыми — наводишь на процессор, а подсвечивается
+   железка над ним. У сетевой карты не светилось вообще ничего. */
+.rig .unit { transition: filter var(--fade); }
+.rig .unit.lit { filter: brightness(1.35) saturate(1.15); }
+/* Обводка плашки — цветом своего сервиса, а не общей бирюзой: у бирки уже
+   есть этот цвет в полоске у кромки и в значке, и третий цвет на той же
+   плашке читался чужим. Линия к узлу остаётся бирюзовой намеренно — она
+   принадлежит не бирке, а тому, куда указывает. */
+a.callout.lit .co-box { fill: #fff; stroke: var(--accent, var(--cyan)); }
 a.callout.lit .co-line { stroke: var(--cyan); }
 a.callout.lit .co-dot { fill: var(--head); }
+
+/* ── Прожектор: наведение приглушает всё, кроме узла ───────────────────────
+ * Машина уходит на четверть яркости вниз — это приглушение, а не темнота:
+ * схему по-прежнему видно всю, просто внимание уходит туда, где курсор.
+ * В треть яркости, с чего это начиналось, машина не приглушалась, а гасла.
+ *
+ * Узел под курсором получает обратный множитель, и произведение возвращает
+ * ему ровно его собственную яркость — а поверх ложится обычная подсветка
+ * наведения. То есть узел не «меньше погас», он подсвечен, как и без
+ * прожектора. Рамка и бирка получают точный обратный множитель, без
+ * подсветки: их цвет — цвет сервиса, и осветлённым он быть не должен.
+ * Поэтому здесь только brightness: saturate так не разворачивается.
+ *
+ * Гаснет и крышка. Она — отдельный svg рядом с платой, и общий фильтр её не
+ * достаёт: надетая крышка оставалась бы яркой над приглушённой машиной.
+ *
+ * В сервисном режиме прожектора нет. Там машину разбирают, курсор ходит по
+ * узлам постоянно, и гасить ради каждого касания всю машину — мигание, а не
+ * подсказка. Да и бирок, ради которых подсветка затевалась, там уже нет.
+ */
+/* Переход по яркости — только у железа. Бирке его давать нельзя: на её
+   transition висит лесенка проявления, задержка в полторы секунды с шагом на
+   каждую подпись, и приглушение уезжало в ту же очередь — соседние бирки
+   гасли через две секунды после наведения, по одной. Без перехода они
+   приглушаются сразу, а фон под ними уходит за свои 0.28s. */
+.rig .lyr-deck, .rig .lyr-parts, .rig .lid > svg { transition: filter 0.28s ease; }
+.rig.spot:not(.service) .lyr-deck,
+.rig.spot:not(.service) .lyr-parts,
+.rig.spot:not(.service) .lid > svg { filter: brightness(0.75); }
+/* Бирки лежат вне группы железа и приглушаются поимённо — все, кроме той, чей
+   узел под курсором. Ей не нужно ничего: она просто не приглушена, и белая
+   плашка остаётся белой. Через компенсацию это было недостижимо — обратный
+   множитель на белом упирается в потолок и возвращает серое. */
+.rig.spot:not(.service) a.callout:not(.lit) { filter: brightness(0.75); }
+/* 1.35 × 1/0.75 — обратный множитель, а поверх него подсветка наведения. */
+.rig.spot:not(.service) .unit.lit { filter: brightness(1.8) saturate(1.15); }
+/* Из приглушения выходит одна бирка — та, на которую навели. Остальные
+   приглушаются вместе с железом, и в этом весь смысл: горит ровно одна
+   подпись, и она называет то, что подсвечено. Когда из приглушения вывели все
+   семь, они загорались разом и не показывали ничего.
+
+   Обводки тоже вне группы железа, и по той же причине: у них цвет сервиса, а
+   обратный множитель обрезал бы синий и фиолетовый по верхнему каналу и
+   возвращал бы не тот цвет, каким они нарисованы. Правила им поэтому не
+   нужно — их просто никто не приглушает. */
+/* Группа колец стоит в разметке пустой: и место, и цвет им выдаёт скрипт по
+   самим узлам, у которых он их и меряет. */
+.spot-rings {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.22s ease;
+}
+.spot-ring { stroke: var(--accent, var(--cyan)); stroke-width: 2; }
+.rig.spot:not(.service) .spot-rings { opacity: 1; }
 
 /* ── Лента ревизий ────────────────────────────────────────────────────────
  * Плату собирает код, значит у неё есть история — и по ней можно ходить.
@@ -2706,6 +2770,13 @@ a.callout.lit .co-dot { fill: var(--head); }
  * выход обязан быть виден.
  */
 body.zoom .theme-switch { display: none; }
+/* Подвал уходит вместе с ней и по той же причине: «source · 2026» — подпись
+   страницы, а не предмета, и ссылка в ней уводит с него прочь. Уходит
+   плавно, а кликать перестаёт сразу: прозрачная ссылка ловила бы курсор
+   поверх поля, по которому машину возят. */
+body.zoom .meta { opacity: 0; }
+body.zoom .meta a { pointer-events: none; }
+.meta { transition: opacity 0.3s ease; }
 body.zoom .zoom-btn,
 body.zoom .assemble-btn {
     width: 56px;
