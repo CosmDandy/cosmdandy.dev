@@ -78,7 +78,7 @@
      остаётся: бирки проступают списком, а не разом. */
   .rig:not(.lid-off) .callout { opacity: 0; transition: opacity 0.3s ease; }
   .rig:not(.lid-off) a.callout { pointer-events: none; }
-  .rig.lid-off .callout { transition-delay: calc(1.35s + var(--tag-order, 0) * 0.14s); }
+  .rig.lid-off .callout { transition-delay: calc(1.35s + var(--tag-order, 0) * 0.09s); }
   /* Выход из сервисного режима — не снятие крышки, и ждать там нечего: лист
      стоит на месте, а бирки возвращались через полторы секунды, потому что
      правило выше матчилось и в этот момент тоже. Класс сборки узлов держится

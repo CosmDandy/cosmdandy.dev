@@ -34,6 +34,23 @@ body.view-rig main { display: none; }
    that ceiling, the machine stretched across the whole screen. */
 body.view-rig .rig { display: block; }
 
+/* Вид выбирает скрипт, а он с defer — до него на body нет ни одного из этих
+   классов, и первые кадры показывают карточку и схему разом. Body центрирует
+   флексом, поэтому они делят строку: карточка съезжает влево вместе со своим
+   цветным свечением, имя в шапке схемы стоит правее своего места, и через
+   долю секунды всё это прыгает по местам. Тот же порог продублирован
+   медиазапросом — с первого кадра показан ровно один вид.
+
+   Порог обязан совпадать с тем, что в скрипте: разойдутся — на промежуточной
+   ширине не останется ничего. */
+@media (min-width: 821px) {
+    body:not(.view-card):not(.view-rig) main { display: none; }
+}
+
+@media (max-width: 820px) {
+    body:not(.view-card):not(.view-rig) .rig { display: none; }
+}
+
 /* Кнопка лупы — сестра переключателя темы: тот же размер, та же обратная
    подложка, слева от неё. Ряд справа налево: тема, лупа, пересборка.
 
@@ -745,7 +762,7 @@ body.view-rig .sfx-btn { display: grid; }
      banner. */
   .co-shine { fill: rgba(255, 255, 255, 0.9); opacity: 0; }
   .rig:not(.assembly) .co-shine {
-    animation: coShine 0.85s calc(1.15s + var(--tag-order, 0) * 0.14s) ease-out 1;
+    animation: coShine 0.85s calc(1.15s + var(--tag-order, 0) * 0.09s) ease-out 1;
   }
   @keyframes coShine {
     from     { opacity: 0;    transform: translateX(0); }
@@ -1055,7 +1072,7 @@ body.view-rig .sfx-btn { display: grid; }
      остаётся: бирки проступают списком, а не разом. */
   .rig:not(.lid-off) .callout { opacity: 0; transition: opacity 0.3s ease; }
   .rig:not(.lid-off) a.callout { pointer-events: none; }
-  .rig.lid-off .callout { transition-delay: calc(1.35s + var(--tag-order, 0) * 0.14s); }
+  .rig.lid-off .callout { transition-delay: calc(1.35s + var(--tag-order, 0) * 0.09s); }
   /* Выход из сервисного режима — не снятие крышки, и ждать там нечего: лист
      стоит на месте, а бирки возвращались через полторы секунды, потому что
      правило выше матчилось и в этот момент тоже. Класс сборки узлов держится
@@ -1104,8 +1121,8 @@ body.view-rig .sfx-btn { display: grid; }
      ставит ей --tag-order. */
   .callout {
     opacity: 1;
-    transition: opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1)
-                calc(0.35s + var(--tag-order, 0) * 0.14s);
+    transition: opacity 0.5s cubic-bezier(0.22, 1, 0.36, 1)
+                calc(0.35s + var(--tag-order, 0) * 0.09s);
   }
   .rig.assembly .callout { opacity: 0; transition: opacity 0.2s linear; }
   /* И ждут экрана. Собранная машина включается, поднимается самотест — подписи
