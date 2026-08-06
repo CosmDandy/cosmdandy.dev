@@ -938,6 +938,20 @@
     rigBody.scrollTop = Math.max(0, Math.min(my, y));
   }
 
+  // Границы держим на любом движении поля, а не только на перетаскивании.
+  // Рука ходит через panTo и упирается в край схемы, а колесо, тачпад и стрелки
+  // идут мимо него — прямо в собственную прокрутку поля. Она шире: снятая
+  // крышка лежит сбоку и для браузера остаётся содержимым. Замерено на окне
+  // 1440×950 и третьей ступени: схема кончается на 1809, прокрутка пускала до
+  // 3969 — две тысячи точек, на которых нет ничего, кроме фона. Оттуда и
+  // «сдвинул влево, справа пусто».
+  rigBody.addEventListener('scroll', function () {
+    if (!rig.classList.contains('zoom')) return;
+    const [mx, my] = scrollMax();
+    if (rigBody.scrollLeft > mx) rigBody.scrollLeft = mx;
+    if (rigBody.scrollTop > my) rigBody.scrollTop = my;
+  }, { passive: true });
+
   function zoomTo(step, cx, cy) {
     const from = ZOOM_STEPS[zoomStep], to = ZOOM_STEPS[step];
     zoomStep = step;
