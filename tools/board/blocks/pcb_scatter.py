@@ -26,7 +26,7 @@ from board.lamps import lamp
 from board.metal import pad, relief
 from board.palette import SILVER
 from board.revision import BOARD_REV, BOARD_SN
-from board.spec import CPU, MADE, ram_label
+from board.spec import CPU, ram_label
 
 
 def render(cv):
@@ -210,8 +210,11 @@ def render(cv):
     # к гребёнке выводов, и её зелёный терялся в частых светлых штрихах. Сердце
     # машины должно быть видно с одного взгляда — иначе оно не сердце.
     parts.append(lamp('led-hb', bx + bw + 34, by + 20, 4, '#859900'))
-    parts.append(silk_boxed(bx + bw + 16, by + 20, "HB", 5.5, op=0.4))
-    cv.busy(bx + bw + 8, by + 10, 36, 22)
+    # Подпись под лампой, а не сбоку: слева от неё идут выводы процессора
+    # управления, и короткое «HB» терялось среди них — читалось как ещё одна
+    # метка вывода. Под лампой оно стоит особняком и явно относится к ней.
+    parts.append(silk_boxed(bx + bw + 34, by + 32, "HB", 5.5, op=0.4))
+    cv.busy(bx + bw + 22, by + 10, 28, 34)
 
     cv.add('<g class="decor parts">' + ''.join(parts) + '</g>')
     if lost:
@@ -434,7 +437,6 @@ def render(cv):
     # до кегля 3,6 — мельче на плате только гравировка на чипах памяти, и та
     # мелкая нарочно. Строку, продиктованную дословно, читать было нельзя.
     rev = f'REV {BOARD_REV} · S/N {BOARD_SN}'
-    made = f'ASSEMBLED IN A CONTAINER · {MADE}'
     # Разрядка в 0.10 em добавляется к продвижению знака, поэтому в fit()
     # уходит ширина поля, ужатая на ту же долю.
     avail = fw / 1.17
@@ -454,12 +456,9 @@ def render(cv):
   <text class="silk-name" x="{fx + fw / 2:.0f}" y="{fy + 16 + name_size:.0f}" text-anchor="middle"
         font-family="ui-monospace, Menlo, monospace"
         font-size="{name_size}" font-weight="600" letter-spacing="0.10em">COSMDANDY</text>
-  <text class="silk-line" x="{fx + fw / 2:.0f}" y="{fy + fh - 20:.0f}" text-anchor="middle"
+  <text class="silk-line" x="{fx + fw / 2:.0f}" y="{fy + fh - 12:.0f}" text-anchor="middle"
         font-family="ui-monospace, Menlo, monospace"
         font-size="{fit(rev, avail, 7)}" letter-spacing="0.06em">{rev}</text>
-  <text class="silk-line" x="{fx + fw / 2:.0f}" y="{fy + fh - 9:.0f}" text-anchor="middle"
-        font-family="ui-monospace, Menlo, monospace"
-        font-size="{fit(made, avail, 7)}" letter-spacing="0.06em">{made}</text>
   <path class="silk-rule" d="M{fx + 14} {fy + fh - 3} H{fx + fw - 14}" fill="none"/>
   <clipPath id="silk-clip"><rect x="{fx}" y="{fy}" width="{fw}" height="{fh}"/></clipPath>
   <g clip-path="url(#silk-clip)">
