@@ -112,7 +112,13 @@ def callout(tx, ty, ax, ay, text, anchor="start", href=None, unit=None,
     # разваливала её на две.
     style = f' style="--tag-order:{order};--accent:{accent}"'
     if href:
-        return (f'<a class="callout" href="{href}" target="_blank" rel="noopener"'
+        # Свои страницы открываются в этой же вкладке, чужие — в новой. Дело не
+        # в привычке: переезд имени между документами браузер делает сам, но
+        # только когда переход происходит здесь. Открытая вкладка — это новый
+        # документ без прошлого, и переносить в нём нечего, поэтому выноска на
+        # /tg молча теряла анимацию, хотя обе страницы её объявляли.
+        blank = '' if href.startswith('/') else ' target="_blank" rel="noopener"'
+        return (f'<a class="callout" href="{href}"{blank}'
                 f'{attr}{style}>{inner}</a>')
     return f'<g class="callout"{attr}{style}>{inner}</g>'
 

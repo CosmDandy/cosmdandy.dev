@@ -835,6 +835,25 @@
     if (linkHint) linkHint.classList.remove('on');
   }
 
+  // ── Живы ли сейчас ссылки схемы ────────────────────────────────────────
+  // Одно место на все вопросы «можно ли по этому нажать»: и подсказка у
+  // курсора, и подсветка плашек, и сам переход обязаны отвечать одинаково.
+  // Раньше каждый решал сам, и ответы расходились — плашка подсвечивалась и
+  // обещала адрес там, где нажатие уже ничего не делало.
+  //
+  // Ссылки живы у собранной машины со снятой крышкой, когда подписи на месте:
+  // под крышкой читать нечего, в сервисном режиме узлы разбирают, а пока идёт
+  // сборка (assembly), возврат (stowing) или самотест (tags-off) — плашек
+  // ещё нет на экране, и обещать по ним переход не из чего.
+  function linksLive() {
+    const c = rig.classList;
+    return c.contains('lid-off')
+      && !c.contains('service')
+      && !c.contains('assembly')
+      && !c.contains('stowing')
+      && !c.contains('tags-off');
+  }
+
   if (linkHint) {
     // Карточка — такой же набор ссылок, и адрес там нужен ровно затем же.
     // Раньше подсказка жила только на схеме, и на узком экране, где схемы нет,
@@ -857,10 +876,11 @@
         else placeHint(zoomHint(), e.clientX, e.clientY);
         return;
       }
-      // In service mode units are taken apart, not opened: the hint there
-      // would promise a navigation that is not going to happen.
-      const target = rig.classList.contains('service')
-        ? null : e.target.closest('a.callout, .unit[data-href]');
+      // Подсказка обещает переход, поэтому показывать её можно ровно тогда,
+      // когда переход состоится. Раньше условие было только про сервисный
+      // режим, и адрес всплывал у курсора там, где нажатие уже ничего не
+      // делало: под закрытой крышкой и пока плашки ещё не проступили.
+      const target = linksLive() ? e.target.closest('a.callout, .unit[data-href]') : null;
       const href = target && (target.getAttribute('href') || target.dataset.href);
       if (href) showLinkHint(href, e.clientX, e.clientY); else hideLinkHint();
     });
@@ -1449,6 +1469,15 @@
     // way out is another matter: outside service mode there is no reason for
     // it to hang there.
     if (!on && rig.classList.contains('lp-open')) toggleLp();
+    // Лупа живёт только внутри сервисного режима: разбирает узлы он, а она
+    // лишь показывает их вблизи. Раньше связь была односторонней — кнопка лупы
+    // включала режим, а выключатель на плате гасил режим и оставлял машину
+    // приближённой, без терминала и без разбора.
+    //
+    // Рекурсии здесь нет: setZoom снимает класс zoom прежде, чем сам дёрнет
+    // toggleService, и его собственная проверка к этому моменту уже не
+    // срабатывает.
+    if (!on && rig.classList.contains('zoom')) setZoom(false);
     if (!on) {
       // Assemble the machine completely: a unit could have been left at an
       // intermediate step too — with a drive latch flipped open or a heatsink
@@ -1662,9 +1691,14 @@
     // снимают; лупа же разглядывание, а не работа со ссылками. В обоих
     // состояниях подсказка с адресом уже не показывается, а сам переход
     // оставался: узел под закрытой крышкой молча уводил на другой сайт.
-    if (!rig.classList.contains('lid-off') || rig.classList.contains('zoom')) return;
+    if (!linksLive() || rig.classList.contains('zoom')) return;
     const href = unit.dataset.href;
     if (href.startsWith('mailto:')) { window.location.href = href; return; }
+    // Свой раздел открываем здесь же: имя переезжает на соседнюю страницу
+    // штатным переходом браузера, а он возможен только внутри одной вкладки.
+    // В новой вкладке документ начинается с чистого листа, и переносить в нём
+    // нечего — анимация молча пропадала, хотя обе страницы её объявляли.
+    if (href.startsWith('/')) { window.location.href = href; return; }
     window.open(href, '_blank', 'noopener');
   });
 
