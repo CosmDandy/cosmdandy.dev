@@ -202,6 +202,17 @@
     box-sizing: border-box;
 }
 
+/* Обрезка вбок нужна и на html: за карточку вылетают и пятно .glow со своими
+   160px, и крышка машины .lid, которую отъезд в сторону уносит на добрую
+   половину экрана. Одного правила на body не хватает — до области просмотра
+   оно не доходит, и страница честно прокручивается вправо. clip, а не hidden:
+   hidden завёл бы прокручиваемый контейнер, и всё, что стоит по углам с
+   position: fixed — подпись, кнопки, бейдж сборки — цеплялось бы уже к нему,
+   а не к окну. Так же сделано на /tg. */
+html {
+    overflow-x: clip;
+}
+
 body {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     font-variant-numeric: tabular-nums;
@@ -211,7 +222,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    overflow-x: hidden;
+    overflow-x: clip;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
 }
