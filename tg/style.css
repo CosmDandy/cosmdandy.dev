@@ -26,6 +26,43 @@
     animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+/* ── Занавес ─────────────────────────────────────────────────────────────
+   Всё, кроме переезжающей строки, сменяется затуханием — тем же движением,
+   каким закрывается и открывается переход на резюме.
+
+   Уход короче прихода нарочно: страница, которую покидают, не нуждается в
+   внимании, а приходящая должна успеть собраться. Обе доли перекрываются, и
+   между ними нет ни кадра пустоты — иначе на светлой теме мелькнула бы
+   белая вспышка, на тёмной чёрный провал.
+
+   Приходящая ещё и чуть поднимается — на восемь пикселей, ровно как элементы
+   внутри самой страницы при появлении. Движение общее, поэтому переход
+   читается как продолжение страницы, а не как отдельный эффект. */
+@keyframes vt-fade-out {
+    to { opacity: 0; }
+}
+
+@keyframes vt-fade-in {
+    from { opacity: 0; transform: translate3d(0, 8px, 0); }
+    to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+::view-transition-old(root) {
+    animation: vt-fade-out 0.32s cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+::view-transition-new(root) {
+    animation: vt-fade-in 0.52s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Кнопки в углах и переезжающая строка идут поверх занавеса: их снимки лежат
+   отдельными слоями, и общая смена кадра до них не достаёт. */
+::view-transition-group(back-btn),
+::view-transition-group(theme-btn) {
+    animation-duration: 0.4s;
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 h1 { view-transition-name: person-name; }
 .bio { view-transition-name: person-role; }
 
@@ -586,6 +623,37 @@ h1 {
                 background var(--theme-fade),
                 color var(--theme-fade);
 }
+
+/* Путь назад — сестра переключателя темы у противоположного угла: тот же
+   размер, та же обратная подложка. Стрелка чуть отъезжает влево на наведении,
+   показывая направление до нажатия. */
+.back-btn {
+    position: fixed;
+    top: 24px;
+    left: 24px;
+    z-index: 20;
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    display: grid;
+    place-items: center;
+    text-decoration: none;
+    background: var(--inv-surface);
+    color: var(--inv-node);
+    box-shadow: var(--inv-shadow);
+    transition: transform 0.48s cubic-bezier(0.34, 1.56, 0.64, 1),
+                background var(--theme-fade),
+                color var(--theme-fade);
+}
+
+.back-btn svg { width: 20px; height: 20px; }
+.back-btn:hover { transform: translate3d(-2px, 0, 0); }
+.back-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+
+/* Обе кнопки остаются на месте, пока страницы сменяются: без имени переезда
+   их снимает и заново показывает общая смена кадра, и угол мигает. */
+.back-btn { view-transition-name: back-btn; }
+.theme-btn { view-transition-name: theme-btn; }
 
 .theme-btn:hover { transform: translate3d(0, -1px, 0); }
 .theme-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
