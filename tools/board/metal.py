@@ -5,6 +5,7 @@ live board solder is the only thing that catches a highlight, and it is by
 that highlight that the eye separates a part from the drawing under it.
 """
 
+import math
 from board.geom import SOCKET_H, SOCKET_W
 from board.ink import mono
 from board.palette import COLD, HOT, SILVER, SILVER_DIM, SILVER_LIT
@@ -162,7 +163,7 @@ def finned_sink(x, y, w, h, r=5.4, inset=10, pitch=3.4):
 
 
 def hexgrid(x, y, w, h, s=6, gap=4.4, fill='rgba(2,7,9,0.42)',
-            stroke='rgba(147,161,161,0.16)'):
+            stroke='rgba(147,161,161,0.16)', skip=(), r=1.6):
     """Перфорация сотами: это дырки в стали, а не рисунок на ней.
 
     Отсюда две вещи, которых раньше не было.
@@ -204,6 +205,38 @@ def hexgrid(x, y, w, h, s=6, gap=4.4, fill='rgba(2,7,9,0.42)',
         return f'{v:.1f}'.removesuffix('.0')
 
     corners = ((0, -1), (1, -0.5), (1, 0.5), (0, 1), (-1, 0.5), (-1, -0.5))
+
+    def hexagon(cx, cy):
+        """Сота со скруглёнными вершинами.
+
+        Пробитая дырка не бывает с острыми углами: пуансон оставляет скругление
+        радиусом в десятые доли миллиметра, и в этом масштабе оно как раз
+        читается. С острыми вершинами поле сот выглядело гравировкой по стали,
+        а не перфорацией.
+
+        Каждая вершина срезается на r вдоль обоих рёбер, а сам угол становится
+        опорной точкой квадратичной кривой — то же самое, что делает rx у
+        прямоугольника.
+        """
+        pts = [(cx + s * 0.86 * ddx, cy + s * ddy) for ddx, ddy in corners]
+        parts = []
+        for i, (px, py) in enumerate(pts):
+            ax, ay = pts[i - 1]
+            bx, by = pts[(i + 1) % len(pts)]
+            la = math.hypot(px - ax, py - ay) or 1
+            lb = math.hypot(bx - px, by - py) or 1
+            k = min(r, la / 2, lb / 2)
+            sx, sy = px + (ax - px) / la * k, py + (ay - py) / la * k
+            ex, ey = px + (bx - px) / lb * k, py + (by - py) / lb * k
+            parts.append(('M' if not parts else 'L') + f'{n(sx)} {n(sy)}')
+            parts.append(f'Q{n(px)} {n(py)} {n(ex)} {n(ey)}')
+        return ''.join(parts) + 'z'
+
+    def занята(cx, cy):
+        """Сота попадает в зону, которую перфорация обходит."""
+        return any(kx - s <= cx <= kx + kw + s and ky - s <= cy <= ky + kh + s
+                   for kx, ky, kw, kh in skip)
+
     d = []
     dx = s * 1.72 + gap
     dy = s * 1.5 + gap * 0.866
@@ -211,8 +244,8 @@ def hexgrid(x, y, w, h, s=6, gap=4.4, fill='rgba(2,7,9,0.42)',
     while cy < y + h - s:
         cx = x + s + (dx / 2 if row % 2 else 0)
         while cx < x + w - s * 0.9:
-            pts = [f'{n(cx + s * 0.86 * ddx)} {n(cy + s * ddy)}' for ddx, ddy in corners]
-            d.append('M' + pts[0] + 'L' + 'L'.join(pts[1:]) + 'z')
+            if not занята(cx, cy):
+                d.append(hexagon(cx, cy))
             cx += dx
         cy += dy
         row += 1
