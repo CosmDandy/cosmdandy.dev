@@ -60,6 +60,17 @@
     </svg>
 </button>
 
+<!-- Обычная ссылка, а не кнопка со скриптом: имя переезжает обратно тем же
+     штатным переходом, и для него важно, чтобы это была настоящая навигация
+     в этой же вкладке. Стоит зеркально переключателю темы — угол, в котором
+     на визитке ничего нет, так что возврат не спорит с ним за место. -->
+<a class="back-btn" href="/" aria-label="Вернуться на визитку">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M15.5 5 8.5 12l7 7"/>
+    </svg>
+    <span>Визитка</span>
+</a>
+
 <div class="dots"></div>
 <div class="cursor-glow" id="cursor-glow"></div>
 
