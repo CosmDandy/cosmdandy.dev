@@ -16,7 +16,7 @@
 # Первая карта доходит до задней стенки: её торец — это гнёзда SFP+.
 BOUNDS = (992, 150, 316, 340)
 
-from board.geom import RISER, X_IO, X_PCB_END, X_REAR, riser_seat
+from board.geom import RISER, X_IO, X_REAR, riser_seat
 from board.ink import mono, silk_boxed
 from board.lamps import act_led, fault_at, lamp
 from board.metal import finned_sink, hexgrid
@@ -28,7 +28,12 @@ from board.spec import PORTS
 
 def render(cv):
     T, RI = 52, 18   # ширина стойки и радиус внутреннего угла
-    x0, x1 = X_REAR + 12, X_PCB_END - 6
+    x0 = X_REAR + 12
+    # Правый край кронштейна отсчитывается от задней панели, а не от кромки
+    # текстолита. Пока это было одно и то же число, разницы не было; когда
+    # текстолит продлили до внешнего края машины, кронштейны уехали вместе с
+    # ним и полезли на панель — им там делать нечего, они стоят перед ней.
+    x1 = X_IO - 10
     cw = x1 - x0 - T - 46
 
     # Подпись ведёт к торцу карты, а не к стенке: гнёзда принадлежат ей.

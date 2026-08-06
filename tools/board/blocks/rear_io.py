@@ -113,16 +113,10 @@ def magnetics(cy, label):
             + mono(x + w / 2, y + h / 2 + 2, label, 5, op=0.42))
 
 
-def jack_tabs(y, h):
-    """Лапки кожуха: ими металлическая клетка гнезда держится на плате.
-
-    Гнездо стоит за кромкой текстолита, а паяется в неё — поэтому лапки и
-    есть единственное, что от разъёма остаётся на плате.
-    """
-    n = max(2, int(h // 13))
-    step = (h - 6) / max(1, n - 1)
-    return ''.join(pad(X_IO_END - 13, y + 3 + k * step - 1.7, 13, 3.4, 0.5)
-                   for k in range(n))
+# Лапок кожуха у гнёзд больше нет. На живой плате ими клетка разъёма держится
+# в текстолите, но в этом масштабе от них оставались три пары светлых штрихов
+# в промежутках между гнёздами — и читались они не креплением, а серыми
+# перемычками, делящими ряд портов на части.
 
 
 def usb_stack(x, y):
@@ -240,8 +234,7 @@ def rear_wall(holes, cutouts):
             + f'<rect x="{x0}" y="{top}" width="{w}" height="{bot - top}" rx="2" '
               f'fill="{STEEL}" stroke="rgba(147,161,161,0.34)" stroke-width="1.1" '
               f'mask="url(#rear-perf)"/>'
-            + f'<g mask="url(#rear-plate)">{"".join(ribs)}</g>' + ''.join(edges)
-            + relief(X_WALL, top, WALL_D, bot - top, 1))
+            + f'<g mask="url(#rear-plate)">{"".join(ribs)}</g>' + ''.join(edges))
 
 
 def render(cv):
@@ -292,7 +285,6 @@ def render(cv):
     gap_mid2 = (jack_mid(1) + jack_mid(2)) / 2
     cv.add('<g class="decor">'
            + ''.join(magnetics(jack_mid(k), f"T{k+1} · 1G") for k in range(3))
-           + ''.join(jack_tabs(jack_y(k), JACK_H) for k in range(3))
            + mono(X_IO_END - 43, gap_mid + 3, PORTS['eth'], 7, op=0.5)
            + mono(X_IO_END - 43, gap_mid2 + 3, PORTS['mgmt'], 7, op=0.5)
            + '</g>')
