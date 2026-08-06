@@ -285,6 +285,30 @@ main {
     text-align: center;
 }
 
+/* ── Переезд на /tg ──────────────────────────────────────────────────────
+   На резюме имя переезжает вручную: там другой хост, и браузер помочь не
+   может. Внутри же сайта помогает — общие элементы он переносит сам, надо
+   лишь назвать их одинаково с обеих сторон.
+
+   Имя названо сразу в двух местах: строка живёт и в карточке, и в шапке
+   схемы. Спорить они не будут — вид, который сейчас не показан, скрыт через
+   display: none, а у неотрисованного элемента имя не участвует в переходе.
+   Поэтому здесь не нужен ни порог по ширине, ни оглядка на выбранный вид. */
+@view-transition { navigation: auto; }
+
+::view-transition-group(person-name),
+::view-transition-group(person-role) {
+    animation-duration: 0.5s;
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+h1, .rig-id h2 { view-transition-name: person-name; }
+.bio { view-transition-name: person-role; }
+
+@media (prefers-reduced-motion: reduce) {
+    @view-transition { navigation: none; }
+}
+
 h1 {
     font-size: 1.4rem;
     font-weight: 600;
