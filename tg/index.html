@@ -74,8 +74,14 @@
             </svg>
         </div>
 
-        <h1>@cosmdandy</h1>
-        <p class="bio">Timofey Kondrashin · DevOps Engineer</p>
+        <!-- Строка набрана ровно так же, как на визитке: те же два элемента с
+             теми же размерами и порядком. На них держится переход между
+             страницами — браузер сопоставляет их по имени и переносит сам,
+             а не показывает две разные шапки подряд. Хендл отсюда ушёл вниз,
+             на кнопку копирования: имя человека важнее его логина, и на обеих
+             страницах в этом месте должно стоять одно и то же. -->
+        <h1>Timofey Kondrashin</h1>
+        <p class="bio">DevOps Engineer</p>
         <p class="now"><span class="live-dot"></span>личные сообщения открыты</p>
 
         <nav class="links">
@@ -117,7 +123,10 @@
 </main>
 
 <div class="meta">
-    <a href="https://cosmdandy.dev">cosmdandy.dev</a>
+    <!-- Адрес относительный: это тот же сайт, и обратный переход должен
+         пройти таким же переездом, а не уходом на чужой хост. Заодно на
+         стенде ссылка остаётся внутри стенда. -->
+    <a href="/">cosmdandy.dev</a>
     <span class="sep">·</span>
     <a href="https://t.me/cosmdandy" id="fallback" target="_blank" rel="noopener">не открылось — перейти на t.me</a>
 </div>
@@ -134,8 +143,51 @@
         try { localStorage.setItem('theme', next); } catch (e) {}
     });
 
+    // ── Живой фон ──────────────────────────────────────────────────────────
+    // То же движение, что на визитке: сетка точек ходит за мышью на десяток
+    // пикселей, а свечение тянется за курсором с отставанием. Само по себе
+    // это почти незаметно — и в этом смысл: страница перестаёт выглядеть
+    // картинкой, но ничего не требует к себе внимания.
+    //
+    // Оба значения догоняют цель долями, а не ставятся напрямую: у сетки доля
+    // мелкая, потому её и ведёт заметно позже руки, у свечения крупнее. Один
+    // кадровый цикл на двоих — второй requestAnimationFrame ради тех же
+    // тридцати строк не нужен.
     var glow = document.getElementById('cursor-glow');
-    if (window.matchMedia('(pointer: fine)').matches) {
+    var dots = document.querySelector('.dots');
+    var fine = window.matchMedia('(pointer: fine)').matches;
+    var still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (fine && !still) {
+        var mouseX = window.innerWidth / 2, mouseY = window.innerHeight / 2;
+        var glowX = mouseX, glowY = mouseY;
+        var dotsX = 0, dotsY = 0, dotsPos = '';
+
+        window.addEventListener('mousemove', function (e) {
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+            glow.classList.add('visible');
+        });
+
+        (function frame() {
+            glowX += (mouseX - glowX) * 0.15;
+            glowY += (mouseY - glowY) * 0.15;
+            glow.style.left = glowX + 'px';
+            glow.style.top = glowY + 'px';
+
+            dotsX += ((mouseX / window.innerWidth - 0.5) * 10 - dotsX) * 0.05;
+            dotsY += ((mouseY / window.innerHeight - 0.5) * 10 - dotsY) * 0.05;
+            // Пишем только когда значение и правда изменилось: округление до
+            // сотых даёт ту же картинку, но избавляет от записи в стиль на
+            // каждом кадре, когда мышь уже стоит.
+            var pos = dotsX.toFixed(2) + 'px ' + dotsY.toFixed(2) + 'px';
+            if (pos !== dotsPos) {
+                dotsPos = pos;
+                dots.style.backgroundPosition = pos;
+            }
+            requestAnimationFrame(frame);
+        })();
+    } else if (fine) {
         window.addEventListener('mousemove', function (e) {
             glow.style.left = e.clientX + 'px';
             glow.style.top = e.clientY + 'px';
