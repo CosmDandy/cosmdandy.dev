@@ -34,6 +34,7 @@ callouts stuck together into one plate and the address could not be read.
 BOUNDS = (1100, 166, 212, 528)
 
 from board.geom import (
+    BRACKET_W,
     IO_AUX_H,
     IO_AUX_Y,
     IO_BOARD,
@@ -189,10 +190,16 @@ def rear_wall(holes, cutouts):
     # маске это дырка, сквозь неё видно то, что лежит под листом.
     field = f'<rect x="{x0 - 2}" y="{top - 2}" width="{w + 4}" height="{bot - top + 4}" fill="#fff"/>'
     mask, plate = [field], [field]
-    edges, ribs = [], []
+    ribs = []
 
+    # Проём под кронштейн вырезан не на всю глубину листа, а ровно под стойку
+    # плюс тонкий зазор. Прежде вырез шёл до самого края, и на высоте райзера
+    # задняя стенка пропадала совсем: за кронштейном зияла пустота вместо
+    # перфорации. Теперь за зазором лист продолжается — как на передней панели,
+    # где корзина дисков так же врезана в перфорированное поле.
+    cut_w = BRACKET_W + 6
     for hy, hh in cutouts:
-        hole = f'<rect x="{x0 - 2}" y="{hy}" width="{w + 4}" height="{hh}" fill="#000"/>'
+        hole = f'<rect x="{x0 - 2}" y="{hy}" width="{cut_w}" height="{hh}" fill="#000"/>'
         mask.append(hole)
         plate.append(hole)
     for hy, hh in holes:
@@ -201,11 +208,11 @@ def rear_wall(holes, cutouts):
         hole = f'<rect x="{X_WALL - 1}" y="{hy}" width="{WALL_D + 2}" height="{hh}" fill="#000"/>'
         mask.append(hole)
         plate.append(hole)
-        # Кромка окна: лист по краю отогнут внутрь, и на отбортовке ловится
-        # свет — без неё окно читается дыркой в бумаге, а не в стали.
-        edges.append(f'<path d="M{X_WALL} {hy} H{X_WALL+WALL_D} M{X_WALL} {hy+hh} '
-                     f'H{X_WALL+WALL_D}" stroke="rgba(223,232,234,0.26)" '
-                     f'stroke-width="1.2" fill="none"/>')
+        # Отбортовки у окна больше нет. Она рисовалась по стальному борту —
+        # той самой серой ленте вдоль края, — и держалась на ней. Ленту убрали,
+        # а пара светлых чёрточек от каждого окна осталась висеть в пустоте:
+        # снаружи это читалось короткими серыми штрихами между гнёздами, ни к
+        # чему не относящимися.
 
     # Соты по всему листу: одна сетка, а не по сетке на каждый просвет. Сота
     # той же величины, что на крышке и на кронштейнах — дырки в этой машине
@@ -234,7 +241,7 @@ def rear_wall(holes, cutouts):
             + f'<rect x="{x0}" y="{top}" width="{w}" height="{bot - top}" rx="2" '
               f'fill="{STEEL}" stroke="rgba(147,161,161,0.34)" stroke-width="1.1" '
               f'mask="url(#rear-perf)"/>'
-            + f'<g mask="url(#rear-plate)">{"".join(ribs)}</g>' + ''.join(edges))
+            + f'<g mask="url(#rear-plate)">{"".join(ribs)}</g>')
 
 
 def render(cv):
