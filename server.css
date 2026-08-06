@@ -1736,6 +1736,7 @@ body.view-rig .sfx-btn { display: grid; }
      здесь ровно затем же, зачем ниже у консоли: правила кнопки живут в
      блоке фронта, а он встаёт в общий css после этого. */
   .rig.blackout .pwr-led { stroke-opacity: 0 !important; animation: none !important; }
+  .rig.blackout .pwr-halo { fill-opacity: 0 !important; animation: none !important; }
 
   /* Консоль — это SOL к BMC, а BMC питается от той же дежурки: машина
      обесточена, значит и консоль мертва. Серая и не отвечает — ввод при этом
@@ -1934,12 +1935,28 @@ body.view-rig .sfx-btn { display: grid; }
   /* ── front_panel ──────────────────────────────── */
   /* The power button is a ring, so it has a stroke and not a fill. It blinks
      fast while the BMC is coming up and must not be pressed; slowly — standby,
-     you may switch on; steady — the machine is running. */
+     you may switch on; steady — the machine is running.
+
+     Три состояния должны отличаться не только частотой, но и яркостью: пока
+     мигали одной и той же вспышкой в полную силу, дежурка вблизи была
+     неотличима от работы, и по кнопке нельзя было сказать, включена машина
+     или нет. Работа — ровный свет с ореолом, дежурка — редкий тусклый тлеющий
+     проблеск почти без ореола, инициализация — частая полная вспышка.
+
+     Ореол гасится через fill-opacity, а не opacity: opacity на узле svg
+     поднимает его в отдельный композитный слой, и такие слои накрывали сцену
+     целиком. */
   .pwr-led { stroke-opacity: 0; }
+  .pwr-halo { fill-opacity: 0; transition: fill-opacity 0.4s ease; }
   .rig.init .pwr-led { stroke-opacity: 1; animation: pwrblink 0.4s steps(1, end) infinite; }
-  .rig.standby .pwr-led { stroke-opacity: 1; animation: pwrblink 2s steps(1, end) infinite; }
+  .rig.init .pwr-halo { animation: pwrhalo 0.4s steps(1, end) infinite; }
+  .rig.standby .pwr-led { animation: pwrember 2s steps(1, end) infinite; }
+  .rig.standby .pwr-halo { fill-opacity: 0.16; }
   .rig.on .pwr-led { stroke-opacity: 1; animation: none; }
+  .rig.on .pwr-halo { fill-opacity: 1; animation: none; }
   @keyframes pwrblink { 0%, 49% { stroke-opacity: 1 } 50%, 100% { stroke-opacity: 0.08 } }
+  @keyframes pwrhalo { 0%, 49% { fill-opacity: 1 } 50%, 100% { fill-opacity: 0 } }
+  @keyframes pwrember { 0%, 19% { stroke-opacity: 0.38 } 20%, 100% { stroke-opacity: 0.1 } }
   .rig.init .power-btn { cursor: not-allowed; }
 
   /* Identify in the rack: an even, hard blink so you can find the machine by eye. */

@@ -68,6 +68,7 @@
      здесь ровно затем же, зачем ниже у консоли: правила кнопки живут в
      блоке фронта, а он встаёт в общий css после этого. */
   .rig.blackout .pwr-led { stroke-opacity: 0 !important; animation: none !important; }
+  .rig.blackout .pwr-halo { fill-opacity: 0 !important; animation: none !important; }
 
   /* Консоль — это SOL к BMC, а BMC питается от той же дежурки: машина
      обесточена, значит и консоль мертва. Серая и не отвечает — ввод при этом
