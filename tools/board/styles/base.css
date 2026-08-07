@@ -906,6 +906,34 @@ body:has(.rig.assembly) .assemble-btn { filter: opacity(0.45); pointer-events: n
   .rig:not(.service).tags-off .pick, .rig:not(.service).tags-off .unit,
   .rig:not(.lid-off) .unit { pointer-events: none; }
 
+  /* ── Показ границ занятости ───────────────────────────────────────────
+     Регистр занятости знает, куда какому слою можно, но до сих пор был
+     невидим: элемент не встаёт, а почему — неизвестно. Слой рисует то же
+     самое, что регистр знает, каждый вид своим цветом.
+
+     Погашен по умолчанию и включается командой `bounds` в терминале. Держим
+     его в разметке всегда: отдельная сборка для отладки разошлась бы с
+     настоящей в первый же день. */
+  .lyr-bounds { display: none; pointer-events: none; }
+  .rig.bounds .lyr-bounds { display: block; }
+
+  .lyr-bounds .bnd rect {
+    fill-opacity: 0.10;
+    stroke-width: 1;
+    stroke-opacity: 0.55;
+  }
+
+  /* Поверх схемы, но под бирками: границы объясняют плату, а не заменяют её. */
+  .rig.bounds .lyr-parts, .rig.bounds .lyr-deck { opacity: 0.45; }
+
+  /* Показ по одному виду: класс на схеме гасит все, кроме названного. */
+  .rig.bounds[data-bnd] .bnd { display: none; }
+  .rig.bounds[data-bnd="copper"] .bnd-copper,
+  .rig.bounds[data-bnd="minor"] .bnd-minor,
+  .rig.bounds[data-bnd="silk"] .bnd-silk,
+  .rig.bounds[data-bnd="major"] .bnd-major,
+  .rig.bounds[data-bnd="board"] .bnd-board { display: block; }
+
   /* Схема ушла с экрана или вкладку свернули — крутить нечего. Пауза, а не
      отмена: анимации продолжатся с того же места, включая недоигранную
      сборку. */

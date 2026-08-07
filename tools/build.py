@@ -154,7 +154,40 @@ def build():
         print('DID NOT FIT:', ', '.join(board.lost))
 
     board.parts = layered(board.parts, report)
+    board.parts.append(bounds_layer(board))
     return board, lid, report
+
+
+# ── Показ границ ──────────────────────────────────────────────────────────
+# Регистр занятости — единственное место, где записано, куда какому слою
+# можно. Пока он был невидим, спорить с ним приходилось вслепую: элемент не
+# встаёт, а почему — неизвестно. Слой рисует то же самое, что регистр знает:
+# каждый занятый прямоугольник своим цветом по виду.
+#
+# Лежит поверх всего и по умолчанию погашен; включается командой `bounds` в
+# терминале сервисного режима. В разметке он есть всегда — иначе пришлось бы
+# держать вторую сборку для отладки, а она разошлась бы с настоящей.
+BOUNDS_INK = {
+    'board':  ('#dc322f', 'вырезы и края текстолита'),
+    'major':  ('#cb4b16', 'корпуса, разъёмы, гнёзда'),
+    'silk':   ('#b58900', 'подписи и шелкография'),
+    'minor':  ('#2aa198', 'рассыпуха'),
+    'copper': ('#268bd2', 'дорожки, переходные, площадки'),
+}
+
+
+def bounds_layer(cv):
+    out = []
+    for kind, rects in cv.bounds().items():
+        ink, title = BOUNDS_INK.get(kind, ('#93a1a1', kind))
+        body = ''.join(
+            f'<rect x="{x1:.0f}" y="{y1:.0f}" width="{x2 - x1:.0f}" '
+            f'height="{y2 - y1:.0f}"/>'
+            for x1, y1, x2, y2 in rects)
+        out.append(f'<g class="bnd bnd-{kind}" data-kind="{kind}" '
+                   f'data-title="{title}" data-count="{len(rects)}" '
+                   f'fill="{ink}" stroke="{ink}">{body}</g>')
+    return '<g class="lyr-bounds" aria-hidden="true">' + ''.join(out) + '</g>'
 
 
 # ── Слои ──────────────────────────────────────────────────────────────────

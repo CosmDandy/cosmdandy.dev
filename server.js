@@ -2639,6 +2639,52 @@
     if (SEL_LOG.length > 64) SEL_LOG.shift();
   }
 
+  // ── Границы занятости ────────────────────────────────────────────────
+  // Плату собирает генератор, и куда какому слою можно, записано в одном
+  // месте — в регистре занятости. Здесь он показывается: каждый вид своим
+  // цветом поверх приглушённой схемы. Без этого спорить с раскладкой
+  // приходится вслепую — деталь не встаёт, а причина не видна.
+  const BND = ['copper', 'minor', 'silk', 'major', 'board'];
+  const BND_RU = {
+    copper: 'дорожки, переходные, площадки',
+    minor: 'рассыпуха',
+    silk: 'подписи и шелкография',
+    major: 'корпуса, разъёмы, гнёзда',
+    board: 'вырезы и края текстолита',
+  };
+
+  cmd({
+    name: 'bounds', group: 'СХЕМА', brief: 'границы занятости слоёв',
+    usage: 'bounds [copper|minor|silk|major|board|off]',
+    help: ['Показывает, какие места на плате уже заняты и кем. Без имени —',
+           'все виды разом; с именем — только он; off — погасить.',
+           'Правило простое: рассыпуха ложится на медь, подписи на медь и на',
+           'рассыпуху, корпуса не лезут ни на что.'],
+    complete: function (argv, i) { return i === 1 ? BND.concat('off') : []; },
+    run: function (ctx) {
+      const rig = document.getElementById('rig');
+      const key = String(ctx.args[0] || '').toLowerCase();
+      if (key === 'off') {
+        rig.classList.remove('bounds');
+        rig.removeAttribute('data-bnd');
+        return [{ t: 'границы погашены', c: 'muted' }];
+      }
+      if (key && BND.indexOf(key) < 0) {
+        return [{ t: 'нет такого вида · bounds ' + BND.join('|'), c: 'warn' }];
+      }
+      rig.classList.add('bounds');
+      if (key) rig.setAttribute('data-bnd', key); else rig.removeAttribute('data-bnd');
+      const rows = BND.map(function (k) {
+        const g = document.querySelector('.bnd-' + k);
+        const n = g ? g.getAttribute('data-count') : '0';
+        const dim = key && key !== k;
+        return { t: k.padEnd(8) + String(n).padStart(4) + '  ' + BND_RU[k],
+                 c: dim ? 'muted' : 'ok' };
+      });
+      return [{ t: 'ВИД      ЗАНЯТО  ЧТО ЭТО', c: 'muted' }].concat(rows);
+    },
+  });
+
   cmd({
     name: 'sel', group: 'СОСТОЯНИЕ', brief: 'журнал событий; чтение снимает защёлку',
     usage: 'sel',
