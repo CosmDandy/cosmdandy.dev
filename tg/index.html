@@ -50,6 +50,16 @@
 </head>
 <body>
 
+<!-- Путь назад. Ссылка, а не кнопка с историей: на страницу попадают не только
+     с визитки — по прямому адресу, из QR, из чужого сообщения, — и «назад» у
+     такого гостя вело бы наружу сайта или никуда. Здесь адрес известен всегда,
+     а тем, кто пришёл переездом, браузер и так вернёт кнопкой назад. -->
+<a class="back-btn" href="/" aria-label="На визитку">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M15.5 5.5 9 12l6.5 6.5"/>
+    </svg>
+</a>
+
 <button class="theme-btn" id="theme-btn" type="button" aria-label="Переключить тему">
     <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>

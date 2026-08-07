@@ -361,6 +361,38 @@ main {
     .rig-id .bio { view-transition-name: person-role; }
 }
 
+/* ── Занавес ─────────────────────────────────────────────────────────────
+   Тот же, что на стороне /tg, и описан он там же подробно: уход короче
+   прихода, доли перекрываются, приходящая страница чуть поднимается.
+   Правила обязаны стоять с обеих сторон: анимацией распоряжается тот
+   документ, который принимает переход, и держать их только у соседа значит
+   получить занавес в одну сторону и рывок в другую. */
+@keyframes vt-fade-out {
+    to { opacity: 0; }
+}
+
+@keyframes vt-fade-in {
+    from { opacity: 0; transform: translate3d(0, 8px, 0); }
+    to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+::view-transition-old(root) {
+    animation: vt-fade-out 0.32s cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+::view-transition-new(root) {
+    animation: vt-fade-in 0.52s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+::view-transition-group(theme-btn) {
+    animation-duration: 0.4s;
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Переключатель темы здесь зовётся иначе, чем на /tg, а имя перехода должно
+   совпадать — по нему браузер и находит пару. */
+.theme-switch { view-transition-name: theme-btn; }
+
 @media (prefers-reduced-motion: reduce) {
     @view-transition { navigation: none; }
 }
