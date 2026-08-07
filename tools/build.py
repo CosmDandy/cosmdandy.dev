@@ -194,6 +194,10 @@ def build():
     board.parts = layered(board.parts, report)
     board.parts.append(bounds_layer(board))
     board.parts.append(overlap_layer(board))
+    # Слой наслоений рисунка приходит пустым: его заполняет браузер, померив
+    # готовую схему. Здесь мерить нечем — у половины узлов своя система
+    # координат, и разбирать её разметкой значит повторять getBBox вручную.
+    board.parts.append('<g class="lyr-clash" aria-hidden="true"></g>')
     board.parts.append(grid_layer())
     return board, lid, report
 

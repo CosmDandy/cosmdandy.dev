@@ -1021,6 +1021,25 @@ body:has(.rig.assembly) .assemble-btn { filter: opacity(0.45); pointer-events: n
   .rig.overlap:not(.bounds) .lyr-parts,
   .rig.overlap:not(.bounds) .lyr-deck { opacity: 0.45; }
 
+  /* ── Наслоения рисунка ────────────────────────────────────────────────
+     То, что видно глазом: подпись, накрытая непрозрачной фигурой. Регистр
+     об этом не знает — он хранит объявления, а половина блоков ничего о
+     себе не объявляет. Слой заполняет браузер, померив готовую схему.
+
+     Плату под ним НЕ приглушаем, в отличие от границ: смотреть надо ровно
+     на то, что накрыто, и приглушённый рисунок тут мешает, а не помогает. */
+  .lyr-clash { display: none; pointer-events: none; }
+  .rig.clash .lyr-clash { display: block; pointer-events: auto; }
+  .rig.clash .lyr-clash rect { cursor: help; }
+
+  .lyr-clash rect {
+    fill: #dc322f;
+    fill-opacity: 0.32;
+    stroke: #dc322f;
+    stroke-width: 1.2;
+    stroke-opacity: 0.95;
+  }
+
   /* Схема ушла с экрана или вкладку свернули — крутить нечего. Пауза, а не
      отмена: анимации продолжатся с того же места, включая недоигранную
      сборку. */

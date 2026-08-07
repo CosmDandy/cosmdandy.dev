@@ -873,6 +873,117 @@
     overlapLayer.addEventListener('mouseleave', hideLinkHint);
   }
 
+  // ── Наслоения рисунка ──────────────────────────────────────────────────
+  // Слой выше показывает нарушения регистра — то есть расхождения с тем, что
+  // блоки о себе ОБЪЯВИЛИ. Но объявляют не все: сервисная зона рисует надписи
+  // «PLATFORM», «BIOS BOOT FROM», «microSD» и свои разъёмы, а в регистр
+  // кладёт две записи на всю зону. Глаз при этом видит, что подпись накрыта
+  // корпусом, а регистр молчит, потому что его никто не спрашивал.
+  //
+  // Здесь наслоение ищется по факту нарисованного: берутся все подписи схемы
+  // и все непрозрачные фигуры, и проверяется, не легла ли фигура поверх
+  // подписи. Порядок в документе и есть порядок рисования — накрывает только
+  // то, что идёт ПОСЛЕ. Подложка под текстом рисуется до него и потому не
+  // считается помехой.
+  //
+  // Мерить приходится в браузере, а не при сборке: у половины узлов своя
+  // система координат (<use transform>), и разобрать её разметкой значит
+  // повторить работу, которую getBBox уже делает точно.
+  const clashLayer = document.querySelector('.lyr-clash');
+
+  function boxOf(el, root) {
+    // getBBox даёт габарит в своих координатах; в корневые его переводит
+    // матрица от элемента к корню.
+    const m = root.getScreenCTM().inverse().multiply(el.getScreenCTM());
+    const b = el.getBBox();
+    const xs = [], ys = [];
+    for (const [px, py] of [[b.x, b.y], [b.x + b.width, b.y],
+                            [b.x, b.y + b.height], [b.x + b.width, b.y + b.height]]) {
+      xs.push(m.a * px + m.c * py + m.e);
+      ys.push(m.b * px + m.d * py + m.f);
+    }
+    return { x: Math.min(...xs), y: Math.min(...ys),
+             w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
+  }
+
+  function opaque(el) {
+    // Полупрозрачное стекло подписи не прячет: сквозь заливку в четверть силы
+    // буквы читаются. Помеха — то, что кроет плотно.
+    const st = getComputedStyle(el);
+    if (st.display === 'none' || st.visibility === 'hidden') return false;
+    const fill = el.getAttribute('fill') || st.fill;
+    if (!fill || fill === 'none') return false;
+    const op = parseFloat(el.getAttribute('fill-opacity') || st.fillOpacity || '1');
+    if (op < 0.5) return false;
+    // rgba с малой альфой — та же полупрозрачность, только записанная в цвете.
+    const rgba = /rgba?\([^)]*,\s*([\d.]+)\s*\)/.exec(fill);
+    return !(rgba && parseFloat(rgba[1]) < 0.5);
+  }
+
+  function findClashes() {
+    const svg = rig.querySelector('svg');
+    if (!svg) return [];
+    const все = [].slice.call(svg.querySelectorAll('text, rect, circle, ellipse'));
+    // Слои разметки в счёт не идут: они и нарисованы поверх всего нарочно.
+    const годен = (el) => !el.closest('.lyr-bounds, .lyr-overlap, .lyr-grid, .lyr-clash');
+    const тексты = [], фигуры = [];
+    все.forEach(function (el, i) {
+      if (!годен(el)) return;
+      if (el.tagName === 'text') {
+        if (!el.textContent.trim()) return;
+        тексты.push({ el: el, at: i, box: boxOf(el, svg) });
+      } else if (opaque(el)) {
+        фигуры.push({ el: el, at: i, box: boxOf(el, svg) });
+      }
+    });
+    const найдено = [];
+    тексты.forEach(function (t) {
+      const площадь = Math.max(1, t.box.w * t.box.h);
+      фигуры.forEach(function (f) {
+        if (f.at < t.at) return;                  // нарисовано раньше — лежит снизу
+        const w = Math.min(t.box.x + t.box.w, f.box.x + f.box.w) - Math.max(t.box.x, f.box.x);
+        const h = Math.min(t.box.y + t.box.h, f.box.y + f.box.h) - Math.max(t.box.y, f.box.y);
+        if (w <= 0 || h <= 0 || w * h < площадь * 0.2) return;
+        найдено.push({ x: Math.max(t.box.x, f.box.x), y: Math.max(t.box.y, f.box.y),
+                       w: w, h: h, text: t.el.textContent.trim(),
+                       what: f.el.tagName + ' ' + (f.el.getAttribute('fill') || '') });
+      });
+    });
+    return найдено;
+  }
+
+  function drawClashes() {
+    if (!clashLayer) return;
+    // Считается один раз: обход схемы стоит заметно, а рисунок между
+    // включениями галочки не меняется.
+    if (clashLayer.dataset.done) return +clashLayer.dataset.count;
+    const found = findClashes();
+    clashLayer.innerHTML = found.map(function (c) {
+      return '<rect data-clash="' + c.text.replace(/[<>&"]/g, '') + '" data-what="'
+        + c.what.replace(/[<>&"]/g, '') + '" x="' + c.x.toFixed(0) + '" y="' + c.y.toFixed(0)
+        + '" width="' + Math.max(2, c.w).toFixed(0) + '" height="' + Math.max(2, c.h).toFixed(0) + '"/>';
+    }).join('');
+    clashLayer.dataset.done = '1';
+    clashLayer.dataset.count = found.length;
+    return found.length;
+  }
+
+  // Панель слоёв живёт на странице, а не в схеме, и считать наслоения сама не
+  // может: обход требует и корня схемы, и правил видимости.
+  window.rigClashes = drawClashes;
+
+  if (clashLayer && linkHint) {
+    clashLayer.addEventListener('mousemove', function (e) {
+      if (!rig.classList.contains('clash')) { hideLinkHint(); return; }
+      const box = e.target.closest('rect[data-clash]');
+      if (!box) { hideLinkHint(); return; }
+      placeHint('<span class="lh-scheme">' + box.dataset.clash + '</span>'
+        + '<span class="lh-host">накрыто</span>'
+        + ' · ' + (box.dataset.what || '?'), e.clientX, e.clientY);
+    });
+    clashLayer.addEventListener('mouseleave', hideLinkHint);
+  }
+
   // ── Живы ли сейчас ссылки схемы ────────────────────────────────────────
   // Одно место на все вопросы «можно ли по этому нажать»: и подсказка у
   // курсора, и подсветка плашек, и сам переход обязаны отвечать одинаково.
