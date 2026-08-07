@@ -182,5 +182,12 @@ def render(cv):
                    f'<path d="M{TAB_X+52} {mouth0+6:.1f} V{mouth1-6:.1f}" stroke="#dfe8ea" '
                    f'stroke-opacity="0.16" stroke-width="1.6"/>')
 
+        # Направление воздуха отлито в самом кожухе, а не напечатано на плате.
+        # Стрелки стояли на текстолите — но воздух гонит не плата, и на живой
+        # машине их находишь именно здесь, выпуклыми в пластике: рёбрышко со
+        # скосом, поймавшее свет. Одна на кожух, у самого зева.
+        стрелка = (f'<path d="M{NECK+16} {mid:.1f} h30 m-8 -5 l8 5 -8 5" fill="none" '
+                   f'stroke="#dfe8ea" stroke-opacity="0.22" stroke-width="1.6" '
+                   f'stroke-linejoin="round"/>')
         cv.add(f'<g class="baffle baffle-{code}" data-baffle="{code}">'
-               + hood + ''.join(marks) + shutter + '</g>')
+               + hood + ''.join(marks) + стрелка + shutter + '</g>')

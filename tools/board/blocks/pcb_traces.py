@@ -182,15 +182,15 @@ def render(cv):
     # Коммутатор линий — райзеры: две широкие шины PCIe в карман между блоками
     # питания. Это второй по калибру пучок после межпроцессорной шины.
     for ty, n in ((250, 16), (500, 12)):
-        LINKS.append((right_of('PCIe SW')[0], right_of('PCIe SW')[1], X_REAR + 60, ty,
+        LINKS.append((right_of('PEX88048')[0], right_of('PEX88048')[1], X_REAR + 60, ty,
                       n, 3.6, 'trunk', False))
     # Коммутатор берёт линии у обоих сокетов
     for cy in (Y_CPU0 + SOCKET_H - 30, Y_CPU1 + 30):
-        LINKS.append((right_of('PCIe SW')[0], right_of('PCIe SW')[1], X_CORE - 26, cy,
+        LINKS.append((right_of('PEX88048')[0], right_of('PEX88048')[1], X_CORE - 26, cy,
                       9, 3.2, 'mid', False))
     # Сетевой контроллер сидит у первого сокета: линии от коммутатора приходят
     # к нему, а от него шина уходит через всю плату к гнёздам задней панели.
-    LINKS.append((*right_of('PCIe SW', 24), *left_of('X710'), 8, 3.2, 'mid', False))
+    LINKS.append((*right_of('PEX88048', 24), *left_of('X710'), 8, 3.2, 'mid', False))
     # Шина от контроллера идёт не в пустоту у стенки, а в гигабитный PHY: между
     # ними MII, и на плате это одна из немногих цепей, которую видно целиком.
     LINKS.append((*right_of('X710'), *left_of('BCM54210'), 7, 3.0, 'mid', False))
@@ -201,12 +201,12 @@ def render(cv):
     for cy in (Y_CPU0 + 40, Y_CPU1 + 100):
         LINKS.append((*left_of('AST2600', 10), X_CORE - 30, cy, 5, 2.8, 'fine', False))
     # Чипсет — сокет и служебная зона
-    LINKS.append((*right_of('PCH C741'), X_CORE - 30, Y_CPU0 + 70, 11, 3.2, 'mid', False))
-    LINKS.append((*right_of('PCH C741', 12), X_SVC + 20, 300, 6, 3.0, 'fine', False))
+    LINKS.append((*right_of('PT5161L'), X_CORE - 30, Y_CPU0 + 70, 11, 3.2, 'mid', False))
+    LINKS.append((*right_of('PT5161L', 12), X_SVC + 20, 300, 6, 3.0, 'fine', False))
     # Логика питания — к дросселям обоих сокетов и к TPM
     for cy in (Y_CPU0 + 120, Y_CPU1 + 60):
-        LINKS.append((*right_of('CPLD'), X_VRM - 30, cy, 5, 3.0, 'fine', False))
-    LINKS.append((*right_of('TPM 2.0'), X_SVC + 20, 620, 5, 3.0, 'fine', False))
+        LINKS.append((*right_of('LCMXO3'), X_VRM - 30, cy, 5, 3.0, 'fine', False))
+    LINKS.append((*right_of('SLB9673'), X_SVC + 20, 620, 5, 3.0, 'fine', False))
     # служебная зона — задняя панель и карман райзеров
     for sy, ty in ((170, 300), (330, 430), (470, 560), (640, 620)):
         LINKS.append((X_SVC + 30, sy, X_REAR + 80, ty, 8, 3.2, 'mid', False))

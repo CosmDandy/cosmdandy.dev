@@ -331,7 +331,7 @@ def render(cv):
     gap_mid = (jack_mid(0) + jack_mid(1)) / 2
     gap_mid2 = (jack_mid(1) + jack_mid(2)) / 2
     cv.add('<g class="decor">'
-           + ''.join(magnetics(jack_mid(k), f"T{k+1} · 1G") for k in range(3))
+           + ''.join(magnetics(jack_mid(k), "PA0515.321NL") for k in range(3))
            + mono(X_IO_END - 43, gap_mid + 3, PORTS['eth'], 7, op=0.5)
            + mono(X_IO_END - 43, gap_mid2 + 3, PORTS['mgmt'], 7, op=0.5)
            + '</g>')
