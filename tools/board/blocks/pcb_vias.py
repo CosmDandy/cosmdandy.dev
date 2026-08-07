@@ -16,6 +16,7 @@ their borders with a dense contour — that is how copper flows around a large
 block on a real board.
 """
 
+from board.canvas import COPPER
 from board.geom import (
     BANK_N,
     CHIPS,
@@ -207,6 +208,18 @@ def render(cv):
     # Диаметр кольца — 2×радиус плюс толщина обводки: ближе этого соседние
     # отверстия уже перекрываются, и их нельзя сливать в один путь (см.
     # via_groups).
+    # Медь отмечается в регистре клетками, а не отверстие за отверстием: их
+    # почти тысяча, и тысяча записей раздула бы и регистр, и показ границ, где
+    # каждая рисуется прямоугольником. Клетка говорит ровно то, что нужно
+    # знать соседям: «здесь медь», — а точное место каждого кольца видно на
+    # самой плате.
+    CELL = 36
+    занято = set()
+    for vx, vy in big_vias + small_vias:
+        занято.add((int(vx // CELL), int(vy // CELL)))
+    for gx, gy in занято:
+        cv.busy(gx * CELL, gy * CELL, CELL, CELL, pad=0, kind=COPPER)
+
     ring_groups = via_groups(big_vias, 2 * 1.6 + 1.1)
     cv.add('<g class="decor vias" clip-path="url(#pcb-clip)">'
         + ''.join(f'<path class="via-ring" fill="none" stroke="rgba(184,115,51,0.34)" '

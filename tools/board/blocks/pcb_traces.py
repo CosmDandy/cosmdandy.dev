@@ -18,6 +18,7 @@
 а не обходят их поверху, поэтому BUSY здесь не спрашивается.
 """
 
+from board.canvas import COPPER
 from board.geom import (
     BANK_N,
     CHIPS,
@@ -158,6 +159,18 @@ def render(cv):
         paths, kn = bundle(ax, ay, bx, by, n, pitch, vert)
         tiers[tier].extend(paths)
         knots.extend(kn)
+        # Магистраль отмечается в регистре как медь. Никому она не мешает —
+        # поверх дорожек ставят и детали, и краску, — но пока её там не было,
+        # регистр знал о плате только то, где стоят корпуса, и показать, как
+        # разведена машина, было нечем. Ширина пучка — число проводников на
+        # шаг между ними.
+        span = n * pitch
+        x0, x1 = (min(ax, bx), max(ax, bx))
+        y0, y1 = (min(ay, by), max(ay, by))
+        if vert:
+            cv.busy(x0 - span / 2, y0, span, y1 - y0, pad=0, kind=COPPER)
+        else:
+            cv.busy(x0, y0 - span / 2, x1 - x0, span, pad=0, kind=COPPER)
 
     # Одиночные длинные трассы: не всё на плате идёт пучком, часть цепей
     # тянется через полплаты сама по себе. Они и разбивают регулярность
