@@ -953,6 +953,16 @@ body:has(.rig.assembly) .assemble-btn { filter: opacity(0.45); pointer-events: n
     stroke-opacity: 0.55;
   }
 
+  /* Адрес квадрата: буква вида и номер по порядку. Набран моноширинным и
+     мельче всего на плате — это подпись к разметке, а не часть машины. */
+  .lyr-bounds .bnd-id {
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 6px;
+    fill-opacity: 0.85;
+    stroke: none;
+    paint-order: stroke;
+  }
+
   /* Поверх схемы, но под бирками: границы объясняют плату, а не заменяют её. */
   .rig.bounds .lyr-parts, .rig.bounds .lyr-deck { opacity: 0.45; }
 

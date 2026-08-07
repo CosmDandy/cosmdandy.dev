@@ -204,27 +204,41 @@ def build():
 # Лежит поверх всего и по умолчанию погашен; включается командой `bounds` в
 # терминале сервисного режима. В разметке он есть всегда — иначе пришлось бы
 # держать вторую сборку для отладки, а она разошлась бы с настоящей.
+# Цвет, человеческое название и буква адреса. Буква нужна, чтобы на квадрат
+# можно было сослаться словами: «убери R7» короче и точнее, чем «вон та
+# фиолетовая штука над райзером». Номер даётся по порядку появления в
+# регистре, то есть по порядку сборки, — он устойчив, пока блок не переписан.
 BOUNDS_INK = {
-    'board':  ('#dc322f', 'вырезы и края текстолита'),
-    'reserve': ('#6c71c4', 'бронь под будущий узел'),
-    'major':  ('#cb4b16', 'корпуса, разъёмы, гнёзда'),
-    'silk':   ('#b58900', 'подписи и шелкография'),
-    'minor':  ('#2aa198', 'рассыпуха'),
-    'copper': ('#268bd2', 'дорожки, переходные, площадки'),
+    'board':  ('#dc322f', 'вырезы и края текстолита', 'E'),
+    'reserve': ('#6c71c4', 'бронь под будущий узел', 'R'),
+    'major':  ('#cb4b16', 'корпуса, разъёмы, гнёзда', 'B'),
+    'silk':   ('#b58900', 'подписи и шелкография', 'S'),
+    'minor':  ('#2aa198', 'рассыпуха', 'M'),
+    'copper': ('#268bd2', 'дорожки, переходные, площадки', 'C'),
 }
 
 
 def bounds_layer(cv):
     out = []
     for kind, rects in cv.bounds().items():
-        ink, title = BOUNDS_INK.get(kind, ('#93a1a1', kind))
-        body = ''.join(
-            f'<rect data-by="{by or "?"}" x="{x1:.0f}" y="{y1:.0f}" '
-            f'width="{x2 - x1:.0f}" height="{y2 - y1:.0f}"/>'
-            for x1, y1, x2, y2, by in rects)
+        ink, title, letter = BOUNDS_INK.get(kind, ('#93a1a1', kind, '?'))
+        body = []
+        for i, (x1, y1, x2, y2, by) in enumerate(rects, 1):
+            tag = f'{letter}{i}'
+            body.append(
+                f'<rect data-id="{tag}" data-by="{by or "?"}" x="{x1:.0f}" '
+                f'y="{y1:.0f}" width="{x2 - x1:.0f}" height="{y2 - y1:.0f}"/>')
+            # Подпись в левом верхнем углу — там, где у чертежа обычно стоит
+            # номер зоны. В мелкие квадраты она не влезает и только мусорит,
+            # поэтому им адрес остаётся в разметке, а на глаз не показывается.
+            if x2 - x1 >= 26 and y2 - y1 >= 14:
+                body.append(
+                    f'<text class="bnd-id" x="{x1 + 3:.0f}" y="{y1 + 9:.0f}" '
+                    f'fill="{ink}">{tag}</text>')
         out.append(f'<g class="bnd bnd-{kind}" data-kind="{kind}" '
-                   f'data-title="{title}" data-count="{len(rects)}" '
-                   f'fill="{ink}" stroke="{ink}">{body}</g>')
+                   f'data-title="{title}" data-letter="{letter}" '
+                   f'data-count="{len(rects)}" '
+                   f'fill="{ink}" stroke="{ink}">{"".join(body)}</g>')
     return '<g class="lyr-bounds" aria-hidden="true">' + ''.join(out) + '</g>'
 
 
