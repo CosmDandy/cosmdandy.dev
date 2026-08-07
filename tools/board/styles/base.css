@@ -906,6 +906,36 @@ body:has(.rig.assembly) .assemble-btn { filter: opacity(0.45); pointer-events: n
   .rig:not(.service).tags-off .pick, .rig:not(.service).tags-off .unit,
   .rig:not(.lid-off) .unit { pointer-events: none; }
 
+  /* ── Гашение блоков ──────────────────────────────────────────────────
+     Каждый блок сборки завёрнут в свою группу, и его можно убрать целиком —
+     чтобы увидеть, что именно он рисует и что остаётся под ним. Класс висит
+     на схеме, а не на самой группе: так состояние переживает пересборку
+     ленты ревизий, которая переписывает плату целиком. */
+  .rig[class*="hide-"] .blk { transition: opacity 0.25s ease; }
+
+  .rig.hide-chassis .blk-chassis { display: none; }
+  .rig.hide-pcb_field .blk-pcb_field { display: none; }
+  .rig.hide-pcb_edge .blk-pcb_edge { display: none; }
+  .rig.hide-pcb_traces .blk-pcb_traces { display: none; }
+  .rig.hide-pcb_vias .blk-pcb_vias { display: none; }
+  .rig.hide-pcb_scatter .blk-pcb_scatter { display: none; }
+  .rig.hide-frames .blk-frames { display: none; }
+  .rig.hide-vrm .blk-vrm { display: none; }
+  .rig.hide-front_panel .blk-front_panel { display: none; }
+  .rig.hide-drives .blk-drives { display: none; }
+  .rig.hide-backplane .blk-backplane { display: none; }
+  .rig.hide-fans .blk-fans { display: none; }
+  .rig.hide-memory .blk-memory { display: none; }
+  .rig.hide-service .blk-service { display: none; }
+  .rig.hide-psu .blk-psu { display: none; }
+  .rig.hide-risers .blk-risers { display: none; }
+  .rig.hide-rear_io .blk-rear_io { display: none; }
+  .rig.hide-marks .blk-marks { display: none; }
+  .rig.hide-baffle .blk-baffle { display: none; }
+  .rig.hide-cpu .blk-cpu { display: none; }
+  .rig.hide-callouts .blk-callouts { display: none; }
+  .rig.hide-lightpath .blk-lightpath { display: none; }
+
   /* ── Показ границ занятости ───────────────────────────────────────────
      Регистр занятости знает, куда какому слою можно, но до сих пор был
      невидим: элемент не встаёт, а почему — неизвестно. Слой рисует то же

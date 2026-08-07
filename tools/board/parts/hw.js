@@ -108,6 +108,69 @@
     if (SEL_LOG.length > 64) SEL_LOG.shift();
   }
 
+  // ── Слои сборки ──────────────────────────────────────────────────────
+  // Плату собирают блоками, и каждый завёрнут в свою группу. Здесь их можно
+  // гасить по одному: убрал блок — и видно, что он рисовал и что лежит под
+  // ним. Это и способ разобраться в чужой раскладке, и способ показать её.
+  const BLOCKS = [
+    ['chassis', 'рама и уши стойки'],
+    ['pcb_field', 'текстолит с вырезами'],
+    ['pcb_edge', 'разъёмы по кромке'],
+    ['pcb_traces', 'дорожки'],
+    ['pcb_vias', 'переходные отверстия'],
+    ['pcb_scatter', 'рассыпуха и шелкография'],
+    ['frames', 'рамки функциональных зон'],
+    ['vrm', 'питание ядра'],
+    ['front_panel', 'передняя панель'],
+    ['drives', 'корзина дисков'],
+    ['backplane', 'бэкплейн'],
+    ['fans', 'вентиляторы'],
+    ['memory', 'память'],
+    ['service', 'сервисная зона'],
+    ['psu', 'блоки питания'],
+    ['risers', 'райзеры'],
+    ['rear_io', 'задняя панель'],
+    ['marks', 'обозначения узлов'],
+    ['baffle', 'воздуховоды'],
+    ['cpu', 'процессоры'],
+    ['callouts', 'бирки-ссылки'],
+    ['lightpath', 'панель диагностики'],
+  ];
+
+  cmd({
+    name: 'layers', group: 'СХЕМА', brief: 'слои сборки: погасить и вернуть',
+    usage: 'layers [имя|all]',
+    help: ['Без имени — список слоёв и что из них сейчас погашено.',
+           'С именем — переключить слой. all — вернуть все.',
+           'Слой гасится целиком: видно, что он рисовал и что под ним.'],
+    complete: function (argv, i) {
+      return i === 1 ? BLOCKS.map(function (b) { return b[0]; }).concat('all') : [];
+    },
+    run: function (ctx) {
+      const rig = document.getElementById('rig');
+      const key = String(ctx.args[0] || '').toLowerCase();
+      if (key === 'all') {
+        BLOCKS.forEach(function (b) { rig.classList.remove('hide-' + b[0]); });
+        return [{ t: 'все слои на месте', c: 'ok' }];
+      }
+      if (key) {
+        if (!BLOCKS.some(function (b) { return b[0] === key; })) {
+          return [{ t: 'нет такого слоя · layers без имени покажет список', c: 'warn' }];
+        }
+        const off = rig.classList.toggle('hide-' + key);
+        return [{ t: key + (off ? ' погашен' : ' на месте'), c: off ? 'warn' : 'ok' }];
+      }
+      const rows = BLOCKS.map(function (b) {
+        const off = rig.classList.contains('hide-' + b[0]);
+        const n = document.querySelectorAll('.blk-' + b[0] + ' *').length;
+        return { t: (off ? '· ' : '  ') + b[0].padEnd(13) + String(n).padStart(5)
+                    + '  ' + b[1],
+                 c: off ? 'muted' : 'ok' };
+      });
+      return [{ t: '  СЛОЙ           ФИГУР  ЧТО ЭТО', c: 'muted' }].concat(rows);
+    },
+  });
+
   // ── Границы занятости ────────────────────────────────────────────────
   // Плату собирает генератор, и куда какому слою можно, записано в одном
   // месте — в регистре занятости. Здесь он показывается: каждый вид своим

@@ -223,13 +223,32 @@ LAYERS = [
 
 
 def layered(parts, report):
-    """Разложить фрагменты по слоям, не меняя порядка рисования."""
+    """Разложить фрагменты по слоям, не меняя порядка рисования.
+
+    Внутри слоя каждый блок сборки заворачивается в свою группу `blk-<имя>`.
+    Слой отвечает на вопрос «что выше чего», блок — на вопрос «что это»: без
+    второго нельзя ни погасить память отдельно от процессоров, ни показать,
+    что рассыпуха и подписи — разные вещи, хотя рисует их один файл.
+    """
     drawn = {name: n for name, n, _ in report}
-    out, i = [], 0
+    # Где чьи фрагменты: блоки рисуют строго по ORDER, значит границы каждого
+    # — просто нарастающая сумма.
+    span, at = {}, 0
+    for name in ORDER:
+        span[name] = (at, at + drawn[name])
+        at += drawn[name]
+
+    out, first = [], 0
     for cls, last in LAYERS:
-        n = sum(drawn[name] for name in ORDER[:ORDER.index(last) + 1])
-        out += [f'<g class="lyr-{cls}">'] + parts[i:n] + ['</g>']
-        i = n
+        stop = ORDER.index(last) + 1
+        out.append(f'<g class="lyr-{cls}">')
+        for name in ORDER[first:stop]:
+            a, b = span[name]
+            if b > a:
+                out += [f'<g class="blk blk-{name}">'] + parts[a:b] + ['</g>']
+        out.append('</g>')
+        first = stop
+    i = at
     assert i == len(parts), f'мимо слоёв прошло {len(parts) - i} фрагментов'
     return out
 
