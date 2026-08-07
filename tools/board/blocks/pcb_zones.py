@@ -7,6 +7,7 @@ looks empty.
 
 from board.blocks.frames import FIELD_FRAMES, title_box
 from board.geom import (
+    RISER,
     BANK_N,
     CHIPS,
     FAN_N,
@@ -64,8 +65,13 @@ def render(cv):
     # otherwise a large package lands in the pocket between the power supplies
     # and hides under the steel of the bracket. That is how the BMC went missing
     # under the plate.
-    for ry in (186, 474):
-        cv.busy(X_REAR + 12, ry, X_PCB_END - 18 - X_REAR, 192)
+    # Бронь берётся из тех же координат, по которым райзеры и рисуются. Пока
+    # числа стояли здесь своими, они разошлись с ними до неузнаваемости:
+    # первая бронь была сдвинута вниз относительно верхнего райзера, а вторая
+    # висела в пустоте на сотню единиц ниже нижнего — то есть нижний слот не
+    # был забронирован вовсе, а место под ним занимала бронь ни для чего.
+    for ry, rh in RISER:
+        cv.busy(X_REAR + 12, ry - 6, X_PCB_END - 18 - X_REAR, rh + 12)
     # Rear jacks: their magnetics and solder tabs, and the field where the
     # vendor mark is set. Both are drawn much later — by rear_io and by the
     # scatter's own tail — and both would otherwise be sprinkled with passives
