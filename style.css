@@ -917,16 +917,47 @@ h1     { animation-delay: 0ms; }
     box-shadow: var(--card-shadow);
 }
 
+/* Заголовок он же кнопка: панель занимает место, и убрать её надо уметь одним
+   нажатием, не разыскивая крестик. Стрелка показывает, куда всё уедет. */
 .dev-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    padding: 0 0 8px;
+    border: none;
+    background: none;
+    font: inherit;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: var(--bio);
-    margin-bottom: 8px;
+    cursor: pointer;
+    transition: color 0.2s ease;
 }
 
-/* Два столбца: что нарисовано и что забронировано. Рядом, потому что
-   вопрос всегда парный — «это есть на плате» и «а место под это занято». */
-.dev-body { display: flex; gap: 18px; align-items: flex-start; }
+.dev-head:hover { color: var(--hover-text); }
+.dev-head:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.dev-head::before {
+    content: '';
+    width: 0;
+    height: 0;
+    border: 4px solid transparent;
+    border-right-color: currentColor;
+    transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* Свёрнутая панель — узкий корешок у кромки: видно, что инструмент есть, но
+   схему он больше не загораживает. */
+.dev-layers.folded { padding: 10px 8px; }
+.dev-layers.folded .dev-body { display: none; }
+.dev-layers.folded .dev-head { padding: 0; }
+.dev-layers.folded .dev-head::before { transform: rotate(180deg); }
+.dev-layers.folded .dev-head span { display: none; }
+
+/* Один столбец, а не два: вдвоём они съедали треть ширины экрана и спорили
+   со схемой за место — а смотрят на них по очереди, а не одновременно. */
+.dev-body { display: flex; flex-direction: column; gap: 10px; }
 .dev-col { display: flex; flex-direction: column; gap: 1px; }
 
 .dev-sub {
