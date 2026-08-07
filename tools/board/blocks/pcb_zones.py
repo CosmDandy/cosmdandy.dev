@@ -39,8 +39,13 @@ from board.geom import (
 def render(cv):
     # Заголовки рамок функциональных блоков. Рамка рисуется поздно и поверх
     # рассыпухи, но подпись её — краска, и мелочь под ней читается грязью.
+    #
+    # Место держится как корпус, а не как бронь: обозначения узлов ставятся
+    # видом «корпус», а корпус бронь не избегает — он в неё как раз и встаёт.
+    # Из-за этого плашка «PLATFORM I/O» ложилась прямо на заголовок своей же
+    # рамки, а «L10-L21» — на заголовок питания ядра.
     for frame in FIELD_FRAMES:
-        cv.busy(*title_box(frame), kind=RESERVE)
+        cv.busy(*title_box(frame))
 
     # Large zones are claimed in advance so that the small parts do not land on
     # them. The reservations follow the actual dimensions: a generous margin ate

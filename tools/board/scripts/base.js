@@ -273,10 +273,19 @@
   }
 
   function opaque(el) {
+    // Блик — не помеха: он проезжает по детали раз в несколько секунд и
+    // существует ровно для того, чтобы её заметили. Заливка у него градиентная,
+    // и по цвету от глухой не отличается.
+    if (el.classList.contains('svc-shine') || el.classList.contains('silk-shine')
+        || el.classList.contains('shine')) return false;
     // Полупрозрачное стекло подписи не прячет: сквозь заливку в четверть силы
     // буквы читаются. Помеха — то, что кроет плотно.
     const st = getComputedStyle(el);
     if (st.display === 'none' || st.visibility === 'hidden') return false;
+    // Фигура с маской или обтравкой сплошной не бывает: задняя панель — это
+    // один прямоугольник во всю стену, а дырок в нём столько, что сквозь него
+    // видно и разъёмы, и подписи райзеров. По габариту она накрывала полстены.
+    if (el.getAttribute('mask') || el.getAttribute('clip-path')) return false;
     const fill = el.getAttribute('fill') || st.fill;
     if (!fill || fill === 'none') return false;
     const op = parseFloat(el.getAttribute('fill-opacity') || st.fillOpacity || '1');
@@ -338,7 +347,9 @@
         найдено.push({ x: Math.max(t.box.x, f.box.x), y: Math.max(t.box.y, f.box.y),
                        w: w, h: h, text: t.el.textContent.trim(),
                        frac: w * h / площадь,
-                       what: f.el.tagName + ' ' + (f.el.getAttribute('fill') || '') });
+                       what: f.el.tagName + '.' + (f.el.getAttribute('class') || '-')
+                             + ' из ' + ((f.el.closest('[data-blk]') || {}).dataset || {}).blk
+                             + ' / текст из ' + ((t.el.closest('[data-blk]') || {}).dataset || {}).blk });
       });
     });
     return найдено;
