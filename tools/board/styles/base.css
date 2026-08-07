@@ -945,7 +945,12 @@ body:has(.rig.assembly) .assemble-btn { filter: opacity(0.45); pointer-events: n
      его в разметке всегда: отдельная сборка для отладки разошлась бы с
      настоящей в первый же день. */
   .lyr-bounds { display: none; pointer-events: none; }
-  .rig.bounds .lyr-bounds { display: block; }
+  /* Пока границы показаны, они ловят мышь — иначе не над чем всплывать
+     подсказке. Нажатия по самой машине в этом режиме перехватываются, и это
+     честно: режим правки разметки, а не работы с ней. */
+  .rig.bounds .lyr-bounds { display: block; pointer-events: auto; }
+  .rig.bounds .lyr-bounds rect { cursor: help; }
+  .lyr-bounds .bnd-id { pointer-events: none; }
 
   .lyr-bounds .bnd rect {
     fill-opacity: 0.10;

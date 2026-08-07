@@ -201,6 +201,28 @@
     if (linkHint) linkHint.classList.remove('on');
   }
 
+  // ── Подсказка над границей занятости ─────────────────────────────────
+  // Границы показывают, где занято, но не говорят, чем именно и кем. Адрес
+  // подписан на самом квадрате, однако в мелкие он не влезает, а хозяин не
+  // подписан нигде — его знает только регистр. Поэтому под курсором тот же
+  // ярлык, что и у ссылок: адрес, вид и блок, который место застолбил.
+  //
+  // Работает, только пока границы включены: в обычном состоянии слой не
+  // ловит мышь вовсе и не мешает нажимать на саму машину.
+  const boundsLayer = document.querySelector('.lyr-bounds');
+  if (boundsLayer && linkHint) {
+    boundsLayer.addEventListener('mousemove', function (e) {
+      if (!rig.classList.contains('bounds')) { hideLinkHint(); return; }
+      const box = e.target.closest('rect[data-id]');
+      if (!box) { hideLinkHint(); return; }
+      const group = box.closest('.bnd');
+      placeHint('<span class="lh-scheme">' + box.dataset.id + '</span>'
+        + '<span class="lh-host">' + (group ? group.dataset.title : '') + '</span>'
+        + ' · ' + (box.dataset.by || '?'), e.clientX, e.clientY);
+    });
+    boundsLayer.addEventListener('mouseleave', hideLinkHint);
+  }
+
   // ── Живы ли сейчас ссылки схемы ────────────────────────────────────────
   // Одно место на все вопросы «можно ли по этому нажать»: и подсказка у
   // курсора, и подсветка плашек, и сам переход обязаны отвечать одинаково.
@@ -232,6 +254,11 @@
       else hideLinkHint();
     });
     rig.addEventListener('mousemove', function (e) {
+      // Над границами занятости говорит их собственный обработчик — он стоит
+      // ниже по дереву и уже показал адрес квадрата. Событие всплывает сюда,
+      // и без этой проверки схема тут же гасила подсказку, решив, что под
+      // курсором не ссылка.
+      if (rig.classList.contains('bounds') && e.target.closest('.lyr-bounds')) return;
       // В лупе у курсора стоит не адрес, а способ приблизить. Про shift
       // догадаться нельзя, а сказать о нём больше негде: консоли в этом режиме
       // нет, и подпись на экране была бы баннером. Зато место у курсора гость
