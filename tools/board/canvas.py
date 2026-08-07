@@ -35,14 +35,22 @@ in the code of both, not hidden in a shared variable anyone can edit.
 #   major  — корпуса, разъёмы, гнёзда, лампы, радиаторы. Через них не рисует
 #            никто: это объём, а не краска.
 #   board  — вырезы и края текстолита. Туда нельзя вообще ничего.
+#
+# Отдельно от корпуса стоит бронь. Это разные вещи, и путать их дорого: корпус
+# говорит «здесь стоит деталь», бронь — «сюда придёт узел». Под планкой памяти
+# и вокруг сокета на живой плате шелкографии полно: краска нанесена на
+# текстолит до того, как в него что-то вставили. А вот мелочь туда ставить
+# нельзя — она окажется под планкой.
 COPPER, MINOR, SILK, MAJOR, BOARD = 'copper', 'minor', 'silk', 'major', 'board'
+RESERVE = 'reserve'
 
 # Чего избегает каждый вид по умолчанию, если спрашивающий не сказал иначе.
 AVOID = {
     COPPER: (BOARD,),
-    MINOR: (BOARD, MAJOR, SILK),
+    MINOR: (BOARD, MAJOR, SILK, RESERVE),
     SILK: (BOARD, MAJOR, SILK),
     MAJOR: (BOARD, MAJOR),
+    RESERVE: (BOARD,),
     BOARD: (BOARD,),
 }
 
@@ -50,8 +58,12 @@ AVOID = {
 class Canvas:
     def __init__(self):
         self.parts = []      # SVG fragments in drawing order
-        # Занятые прямоугольники по видам: {вид: [(x1, y1, x2, y2), …]}.
+        # Занятые прямоугольники по видам: {вид: [(x1, y1, x2, y2, кто), …]}.
         self.taken = {kind: [] for kind in AVOID}
+        # Кто сейчас рисует. Ставит сборка перед вызовом блока, а busy() берёт
+        # отсюда — иначе источник пришлось бы дописывать в сотню вызовов, и
+        # первый же забытый оставил бы бронь без хозяина.
+        self.by = None
         self.callouts = []   # callout links: drawn last, on top of everything
         self.lost = []       # what did not fit — the builder reports it
         self.share = {}      # what a block announced to neighbours (see below)
@@ -59,11 +71,12 @@ class Canvas:
     def add(self, s):
         self.parts.append(s)
 
-    def busy(self, x, y, w, h, pad=3, kind=MAJOR):
+    def busy(self, x, y, w, h, pad=3, kind=MAJOR, by=None):
         """Пометить место занятым. Вид по умолчанию — самый строгий из тех,
         что ставят блоки: корпус детали. Так старый код, не знающий про виды,
         продолжает вести себя как раньше."""
-        self.taken[kind].append((x - pad, y - pad, x + w + pad, y + h + pad))
+        self.taken[kind].append(
+            (x - pad, y - pad, x + w + pad, y + h + pad, by or self.by))
 
     def free(self, x, y, w, h, kind=MAJOR, avoid=None):
         """Свободно ли место для того, кто рисует `kind`.
@@ -72,16 +85,16 @@ class Canvas:
         общего правила — например, обозначение у самой детали кладут вплотную.
         """
         for k in (avoid if avoid is not None else AVOID[kind]):
-            for (x1, y1, x2, y2) in self.taken[k]:
+            for (x1, y1, x2, y2, _by) in self.taken[k]:
                 if x < x2 and x + w > x1 and y < y2 and y + h > y1:
                     return False
         return True
 
-    def put(self, x, y, w, h, kind=MAJOR, avoid=None, pad=3):
+    def put(self, x, y, w, h, kind=MAJOR, avoid=None, pad=3, by=None):
         """Take a place if it is free. Returns True if it worked out."""
         if not self.free(x, y, w, h, kind, avoid):
             return False
-        self.busy(x, y, w, h, pad, kind)
+        self.busy(x, y, w, h, pad, kind, by)
         return True
 
     def bounds(self):

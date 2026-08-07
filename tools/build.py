@@ -125,7 +125,12 @@ def build():
     for name in ORDER:
         mod = importlib.import_module(f'board.blocks.{name}')
         mark = len(board.parts)
+        # Кто рисует — знает сборка, и она же говорит это регистру. Блокам
+        # дописывать источник в каждый вызов не нужно: первый же забытый
+        # оставил бы бронь без хозяина, а именно по хозяину её и ищут.
+        board.by = name
         mod.render(board)
+        board.by = None
         drawn = board.parts[mark:]
         box = bbox(drawn)
         report.append((name, len(drawn), box))
@@ -153,6 +158,9 @@ def build():
     if board.lost:
         print('DID NOT FIT:', ', '.join(board.lost))
 
+    for line in reserve_report(board, report):
+        print(line)
+
     board.parts = layered(board.parts, report)
     board.parts.append(bounds_layer(board))
     return board, lid, report
@@ -169,6 +177,7 @@ def build():
 # держать вторую сборку для отладки, а она разошлась бы с настоящей.
 BOUNDS_INK = {
     'board':  ('#dc322f', 'вырезы и края текстолита'),
+    'reserve': ('#6c71c4', 'бронь под будущий узел'),
     'major':  ('#cb4b16', 'корпуса, разъёмы, гнёзда'),
     'silk':   ('#b58900', 'подписи и шелкография'),
     'minor':  ('#2aa198', 'рассыпуха'),
@@ -181,14 +190,52 @@ def bounds_layer(cv):
     for kind, rects in cv.bounds().items():
         ink, title = BOUNDS_INK.get(kind, ('#93a1a1', kind))
         body = ''.join(
-            f'<rect x="{x1:.0f}" y="{y1:.0f}" width="{x2 - x1:.0f}" '
-            f'height="{y2 - y1:.0f}"/>'
-            for x1, y1, x2, y2 in rects)
+            f'<rect data-by="{by or "?"}" x="{x1:.0f}" y="{y1:.0f}" '
+            f'width="{x2 - x1:.0f}" height="{y2 - y1:.0f}"/>'
+            for x1, y1, x2, y2, by in rects)
         out.append(f'<g class="bnd bnd-{kind}" data-kind="{kind}" '
                    f'data-title="{title}" data-count="{len(rects)}" '
                    f'fill="{ink}" stroke="{ink}">{body}</g>')
     return '<g class="lyr-bounds" aria-hidden="true">' + ''.join(out) + '</g>'
 
+
+
+# ── Сверка брони с тем, что нарисовано ────────────────────────────────────
+# Бронь и рисунок живут отдельно: числа брони записаны в pcb_zones руками, а
+# рисует узел совсем другой блок. Ничто не заставляет их совпадать, и они
+# расходятся молча — так бронь под нижний райзер оказалась в пустоте на сотню
+# единиц ниже самого райзера, и заметить это удалось только глазами, когда
+# границы стали видимыми.
+#
+# Здесь тот же вопрос задаётся числом: во сколько раз бронь больше того, что
+# на её месте нарисовано, и попадает ли она в него вообще. Сборку не роняем —
+# бронь законно бывает с запасом, — но говорим вслух.
+def reserve_report(cv, report, fill=0.25):
+    """Насколько бронь заполнена тем, ради чего её держат.
+
+    Сравнивать бронь с габаритом блока бесполезно: блок памяти занимает всю
+    свою полосу, и любая бронь внутри неё выглядит оправданной. Вопрос в
+    другом — сколько внутри брони настоящих корпусов. Если четверть площади и
+    меньше, бронь держит пустоту: рассыпухе и краске туда нельзя, а стоять
+    там нечему.
+    """
+    bodies = cv.taken.get('major', ())
+    out = []
+    for x1, y1, x2, y2, by in cv.taken.get('reserve', ()):
+        area = max(1.0, (x2 - x1) * (y2 - y1))
+        busy = 0.0
+        for bx1, by1, bx2, by2, _who in bodies:
+            w = min(x2, bx2) - max(x1, bx1)
+            h = min(y2, by2) - max(y1, by1)
+            if w > 0 and h > 0:
+                busy += w * h
+        доля = busy / area
+        if доля < fill:
+            out.append(
+                f'БРОНЬ ПОЧТИ ПУСТА: {by} держит {area:.0f} единиц '
+                f'({x1:.0f},{y1:.0f})–({x2:.0f},{y2:.0f}), '
+                f'корпусами занято {доля * 100:.0f}%')
+    return out
 
 # ── Слои ──────────────────────────────────────────────────────────────────
 # Схема была плоской: тысяча с лишним фигур лежала прямо в корне, и «что выше
