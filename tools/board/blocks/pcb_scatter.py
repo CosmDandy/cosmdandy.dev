@@ -21,6 +21,7 @@ from board.geom import (
     H,
     fan_foot_y,
 )
+from board.canvas import MINOR, SILK
 from board.ink import empty_pads, mono, silk_boxed
 from board.lamps import lamp
 from board.metal import pad, relief
@@ -261,7 +262,7 @@ def render(cv):
         if kind == 'res':
             horiz = (x + y) % 2
             w, h = (10, 4) if horiz else (4, 10)
-            if not cv.put(x, y, w, h):
+            if not cv.put(x, y, w, h, MINOR):
                 return []
             if horiz:
                 body = f'<rect x="{x+2.6}" y="{y}" width="4.8" height="4" rx="0.6" fill="#1c262b"/>'
@@ -271,7 +272,7 @@ def render(cv):
                 pads = pad(x + 0.4, y, 3.2, 3) + pad(x + 0.4, y + 7, 3.2, 3)
             return [pads, body, relief(x, y, w, h, 0.6)]
         if kind == 'cap':
-            if not cv.put(x, y, 11, 8):
+            if not cv.put(x, y, 11, 8, MINOR):
                 return []
             return [pad(x, y + 1, 3, 6) + pad(x + 8, y + 1, 3, 6),
                     f'<rect x="{x+2.4}" y="{y}" width="6.2" height="8" rx="1" fill="#16202a" '
@@ -279,7 +280,7 @@ def render(cv):
                     f'<rect x="{x+3}" y="{y+0.8}" width="5" height="1.4" rx="0.7" '
                     f'fill="rgba(223,232,234,0.16)"/>']
         if kind == 'diode':
-            if not cv.put(x, y, 10, 5):
+            if not cv.put(x, y, 10, 5, MINOR):
                 return []
             return [pad(x, y + 0.6, 2.6, 3.8) + pad(x + 7.4, y + 0.6, 2.6, 3.8),
                     f'<rect x="{x+2.2}" y="{y}" width="5.6" height="5" rx="0.6" fill="#0d1a1e" '
@@ -288,14 +289,14 @@ def render(cv):
                     f'stroke-width="1" stroke-opacity="0.7"/>']
         if kind == 'array':
             # резисторная сборка: один корпус на четыре номинала, у шин их ряды
-            if not cv.put(x, y, 18, 9):
+            if not cv.put(x, y, 18, 9, MINOR):
                 return []
             return [''.join(pad(x + 2 + k * 4, y - 1.4, 2.4, 2.2) + pad(x + 2 + k * 4, y + 7.2, 2.4, 2.2)
                             for k in range(4)),
                     f'<rect x="{x}" y="{y}" width="18" height="7" rx="1" fill="#12191d" '
                     f'stroke="rgba(147,161,161,0.22)"/>',
                     relief(x, y, 18, 7)]
-        if not cv.put(x, y, 18, 11):
+        if not cv.put(x, y, 18, 11, MINOR):
             return []
         out = [''.join(pad(x - 2.4, y + 1.4 + d * 4, 2.6, 1.8) + pad(x + 13.8, y + 1.4 + d * 4, 2.6, 1.8)
                        for d in range(3)),
@@ -355,9 +356,19 @@ def render(cv):
     # Стопка встаёт у своей грозди — обозначение печатают рядом с деталью, к
     # которой оно относится, а не там, где на плате осталось место.
     PREFIX = ['R', 'C', 'R', 'C', 'U', 'Q', 'L', 'CR', 'TP', 'J']
+    # Стопок снова полсотни: разводит их теперь сам регистр занятости. Краска
+    # ложится поверх меди и поверх мелочи, но не на корпуса и не на другую
+    # краску — то есть ровно так, как на живой плате. Пока регистр был один на
+    # всех, приходилось выбирать между «нет обозначений вовсе» и «набросаны
+    # друг на друга»; теперь встают те, которым нашлось место, а остальные
+    # честно пропускаются.
     for i in range(min(58, len(clusters))):
         cx, cy = clusters[(i * 5) % len(clusters)]
-        n = 3 + (i % 3)                      # в стопке три-пять обозначений
+        # Две-три штуки в стопке, а не три-пять: краске достаётся то, что
+        # осталось между корпусами, и длинная колонка туда не входит. На живой
+        # плате в плотных местах обозначений тоже по одному-два — там, где
+        # места нет, их не печатают вовсе.
+        n = 2 + (i % 2)
         turn = i % 2                         # половину ставим боком
         # Запрашиваем ровно тот прямоугольник, который занимает текст: пять
         # знаков кеглем 5.5 — это около шестнадцати единиц в длину и семь на
@@ -372,28 +383,17 @@ def render(cv):
         # детали: обозначение печатают рядом со своей, но если там занято,
         # отступают дальше, а не бросают его вовсе.
         x = y = None
-        запасной = None
-        for step in range(24):
-            ang = math.radians((i * 61 + step * 15) % 360)
-            r = 26 + (step % 4) * 13
+        for step in range(36):
+            ang = math.radians((i * 61 + step * 10) % 360)
+            r = 24 + (step % 6) * 11
             px = int(cx + r * math.cos(ang))
             py = int(cy + r * math.sin(ang))
             if not (X_PCB + 16 < px < X_PCB_END - 24 and 30 < py < H - 34):
                 continue
-            if cv.put(px - 4, py - 8, w, h):
+            if cv.put(px - 4, py - 8, w, h, SILK):
                 x, y = px, py
                 break
-            if запасной is None:
-                запасной = (px, py)
-        # Место просят, но не требуют. Обозначение — это краска на текстолите:
-        # на живой плате её печатают в любую щель, поверх меди и поверх трасс,
-        # а не отводят под неё площадь. Пока мы требовали свободный
-        # прямоугольник, не вставала ни одна стопка из полусотни — поле к этому
-        # моменту занято обвязкой целиком, и схема оставалась вовсе без
-        # обозначений, хотя на живой плате их тысячи.
-        if x is None and запасной is not None:
-            x, y = запасной
-        elif x is None:
+        if x is None:
             continue
         base = 1000 + (i * 137) % 2600
         for k in range(n):

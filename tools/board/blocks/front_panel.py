@@ -144,7 +144,7 @@ def render(cv):
   </radialGradient></defs>
   <circle cx="{PWR_X}" cy="50" r="18" fill="#0f1619" stroke="rgba(147,161,161,0.34)"/>
   <circle class="pwr-halo" cx="{PWR_X}" cy="50" r="17.4" fill="url(#pwr-glow)"/>
-  <circle class="pwr-led" cx="{PWR_X}" cy="50" r="14.5" fill="none" stroke="#859900" stroke-width="1.2"/>
+  <circle class="pwr-led" cx="{PWR_X}" cy="50" r="14.5" fill="none" stroke="#859900" stroke-width="3.2"/>
   <circle class="pwr-ring" cx="{PWR_X}" cy="50" r="10" fill="none" stroke="#586e75" stroke-width="2"/>
   <line x1="{PWR_X}" y1="40" x2="{PWR_X}" y2="48" stroke="#586e75" stroke-width="2" stroke-linecap="round"/>
   {mono(PWR_X, 84, "POWER", 7, op=0.42)}
