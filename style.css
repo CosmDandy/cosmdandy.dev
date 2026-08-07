@@ -886,3 +886,75 @@ h1     { animation-delay: 0ms; }
 :root.vt-veil.vt-shut::after {
     opacity: 1;
 }
+
+/* ── Панель слоёв ─────────────────────────────────────────────────────────
+ * Инструмент разработки, а не часть визитки: показывается только там, где
+ * есть штамп сборки, — локально и на стендах. Скрипт панели сам решает,
+ * рисовать ли её; стили просто описывают, как она выглядит, когда есть.
+ *
+ * Прижата к левому краю и набрана моноширинным, как отметка о сборке в
+ * противоположном углу: обе — служебные надписи поверх страницы, и читаться
+ * они должны одинаково.
+ */
+.dev-layers {
+    position: fixed;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 40;
+    max-height: 92vh;
+    overflow-y: auto;
+    padding: 12px 14px 14px;
+    border-radius: 0 12px 12px 0;
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 0.66rem;
+    line-height: 1.5;
+    color: var(--meta);
+    background: linear-gradient(180deg, var(--card-from) 0%, var(--card-to) 100%);
+    border: 1px solid var(--card-border);
+    border-left: none;
+    backdrop-filter: blur(25px);
+    box-shadow: var(--card-shadow);
+}
+
+.dev-head {
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--bio);
+    margin-bottom: 8px;
+}
+
+/* Два столбца: что нарисовано и что забронировано. Рядом, потому что
+   вопрос всегда парный — «это есть на плате» и «а место под это занято». */
+.dev-body { display: flex; gap: 18px; align-items: flex-start; }
+.dev-col { display: flex; flex-direction: column; gap: 1px; }
+
+.dev-sub {
+    color: var(--now);
+    margin-bottom: 4px;
+    letter-spacing: 0.04em;
+}
+
+.dev-row {
+    display: grid;
+    grid-template-columns: 12px 1fr auto;
+    align-items: center;
+    gap: 6px;
+    padding: 1px 4px 1px 0;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease;
+}
+
+.dev-row:hover { background: var(--card-hover-from); color: var(--hover-text); }
+.dev-row input { accent-color: var(--green); width: 11px; height: 11px; margin: 0; }
+.dev-name { white-space: nowrap; }
+
+/* Число фигур выровнено по правому краю столбца: по нему сразу видно, кто на
+   плате главный по весу, и колонка читается как таблица. */
+.dev-num { color: var(--now); font-variant-numeric: tabular-nums; }
+
+/* Погашенный слой виден и в списке: строка тускнеет вместе с ним. */
+.dev-row:has(input:not(:checked)) .dev-name { opacity: 0.45; }
+
+@media (max-width: 1100px) { .dev-layers { display: none; } }

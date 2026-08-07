@@ -97,6 +97,35 @@ ORDER = [
 
 
 
+# Как блок называется по-русски. Нужно панели слоёв: имя модуля годится для
+# кода, но «pcb_scatter» ничего не говорит тому, кто смотрит на плату.
+BLOCK_RU = {
+    'chassis': 'рама и уши стойки',
+    'pcb_field': 'текстолит с вырезами',
+    'pcb_zones': 'бронь под узлы',
+    'pcb_edge': 'разъёмы по кромке',
+    'pcb_traces': 'дорожки',
+    'pcb_vias': 'переходные отверстия',
+    'pcb_scatter': 'рассыпуха и шелкография',
+    'frames': 'рамки зон',
+    'vrm': 'питание ядра',
+    'front_panel': 'передняя панель',
+    'drives': 'корзина дисков',
+    'backplane': 'бэкплейн',
+    'fans': 'вентиляторы',
+    'memory': 'память',
+    'service': 'сервисная зона',
+    'psu': 'блоки питания',
+    'risers': 'райзеры',
+    'rear_io': 'задняя панель',
+    'marks': 'обозначения узлов',
+    'baffle': 'воздуховоды',
+    'cpu': 'процессоры',
+    'callouts': 'бирки-ссылки',
+    'lightpath': 'панель диагностики',
+}
+
+
 def bbox(fragments):
     """Rough extents of what was drawn: from the numbers in coordinates.
 
@@ -292,7 +321,8 @@ def layered(parts, report):
         for name in ORDER[first:stop]:
             a, b = span[name]
             if b > a:
-                out += [f'<g class="blk blk-{name}">'] + parts[a:b] + ['</g>']
+                out += [f'<g class="blk blk-{name}" data-blk="{name}" '
+                        f'data-title="{BLOCK_RU.get(name, name)}">'] + parts[a:b] + ['</g>']
         out.append('</g>')
         first = stop
     i = at
