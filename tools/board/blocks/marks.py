@@ -4,9 +4,14 @@ Laid down at the end, on top of everything, and only where there really is
 free space — the occupancy registry already knows where the parts stand.
 """
 
+from board.canvas import BOARD, MAJOR, PART, SILK
 from board.geom import X_IO, X_PCB, X_REAR, X_SVC, Y_BANK_C, Y_BANK_L, Y_BANK_R, H
 from board.ink import silk_frame
 from board.spec import PORTS
+
+
+# Чего избегает обозначение узла: всё, что избегает корпус, плюс чужая краска.
+НЕ_ЛЕЗЕМ = (BOARD, MAJOR, PART, SILK)
 
 
 def render(cv):
@@ -48,7 +53,11 @@ def render(cv):
         # other axis: the occupancy registry has to be told about that, or the
         # label lands on a part.
         box = (x - 4, y - 11 - w, 15, w) if turn else (x, y - 12, w, 15)
-        if not cv.put(*box):
+        # Плашка узла — краска, но ставится она видом «корпус»: место под ней
+        # должно быть неприкосновенным, иначе рассыпуха ляжет сверху. А вот
+        # сама она на чужую краску залезать не должна — «корпус» шелкографию не
+        # избегает, и плашки садились на подпись «FAN FAULT» и на обозначения.
+        if not cv.put(*box, avoid=НЕ_ЛЕЗЕМ):
             continue
         marks.append(silk_frame(x, y - 11, text, 7, turn=turn))
 
@@ -57,12 +66,12 @@ def render(cv):
         x = X_PCB + 20 + (i * 173) % (X_REAR - 30 - X_PCB)
         y = 24 + (i * 251) % (H - 50)
         if i % 3 == 0:
-            if cv.put(x, y, 10, 6):
+            if cv.put(x, y, 10, 6, avoid=НЕ_ЛЕЗЕМ):
                 marks.append(f'<rect x="{x}" y="{y}" width="10" height="6" fill="rgba(147,161,161,0.15)"/>')
         elif i % 3 == 1:
-            if cv.put(x, y, 8, 8):
+            if cv.put(x, y, 8, 8, avoid=НЕ_ЛЕЗЕМ):
                 marks.append(f'<circle cx="{x+4}" cy="{y+4}" r="3.6" fill="#131e24" stroke="rgba(147,161,161,0.24)"/>')
         else:
-            if cv.put(x, y, 16, 9):
+            if cv.put(x, y, 16, 9, avoid=НЕ_ЛЕЗЕМ):
                 marks.append(f'<rect x="{x}" y="{y}" width="16" height="9" rx="1" fill="#16212a" stroke="rgba(147,161,161,0.18)"/>')
     cv.add('<g class="decor silk">' + ''.join(marks) + '</g>')

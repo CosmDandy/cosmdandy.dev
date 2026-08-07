@@ -65,7 +65,7 @@ def render(cv):
     # но «никто не целился» это не бронь, а везение. Под ILM и рамкой гнезда на
     # живой плате не стоит ничего: там контактное поле и четыре стойки.
     for y0 in (Y_CPU0, Y_CPU1):
-        cv.busy(X_SOCK - 8, y0 - 8, SOCKET_W + 16, SOCKET_H + 16, kind=COVER)
+        cv.busy(X_SOCK - 8, y0 - 8, SOCKET_W + 62, SOCKET_H + 16, kind=COVER)
     # Large packages: their places are declared in geom and claimed here, before
     # everyone else — the headers at the edge are placed by the same scan and
     # would otherwise land right on top of a chip.

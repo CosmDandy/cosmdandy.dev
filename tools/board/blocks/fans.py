@@ -24,12 +24,25 @@ from board.geom import (
     fan_foot_y,
     fan_seat,
 )
+from board.canvas import SILK
 from board.ink import mono, silk_inverse
 from board.lamps import fault_at, jitter
 from board.palette import ROTOR_BLADE, ROTOR_EDGE, ROTOR_PAD
 from board.revision import stamp
 from board.rotor import HUB_R, rotor_disc, rotor_streaks, impeller
 from board.spec import FAN as FAN_SPEC
+
+
+def фикс(cv, x, y, text, size):
+    """Подпись на плате, чьё место надо удержать.
+
+    silk_inverse рисует плашку с текстом, но в регистр не пишет ничего, и
+    «FAN FAULT» оказывалась под плашкой обозначения узла: та ставится позже и
+    про чужую краску знает только из регистра.
+    """
+    w = len(text) * size * 0.62 + 10
+    cv.busy(x, y, w, size + 6, pad=1, kind=SILK)
+    return silk_inverse(x, y, text, size)
 
 
 def render(cv):
@@ -206,6 +219,6 @@ def render(cv):
         <g class="cables">{wires}</g>
         {foot}
       </g>
+      {фикс(cv, sx + 30, fy + FAN_LAMP_DY - 6, 'FAN FAULT', 6)}
       {fault_at(cv, sx + 18, fy + FAN_LAMP_DY, 5)}
-      {silk_inverse(sx + 30, fy + FAN_LAMP_DY - 6, 'FAN FAULT', 6)}
     </g>''')
