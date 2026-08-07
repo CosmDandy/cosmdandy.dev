@@ -906,6 +906,25 @@ body:has(.rig.assembly) .assemble-btn { filter: opacity(0.45); pointer-events: n
   .rig:not(.service).tags-off .pick, .rig:not(.service).tags-off .unit,
   .rig:not(.lid-off) .unit { pointer-events: none; }
 
+  /* ── Координатная сетка ──────────────────────────────────────────────
+     Не называет деталь — называет место. «В D4 слишком плотно» понятно и
+     тому, кто смотрит, и тому, кто правит, и не требует адресовать каждый
+     штрих на плате. Включается своей галочкой в панели слоёв. */
+  .lyr-grid { display: none; pointer-events: none; }
+  .rig.grid .lyr-grid { display: block; }
+
+  .lyr-grid .grd-cell {
+    fill: none;
+    stroke: rgba(147, 161, 161, 0.22);
+    stroke-width: 0.6;
+  }
+
+  .lyr-grid .grd-id {
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 8px;
+    fill: rgba(147, 161, 161, 0.42);
+  }
+
   /* ── Гашение блоков ──────────────────────────────────────────────────
      Каждый блок сборки завёрнут в свою группу, и его можно убрать целиком —
      чтобы увидеть, что именно он рисует и что остаётся под ним. Класс висит

@@ -48,6 +48,7 @@ import re
 from pathlib import Path
 
 from board.canvas import Canvas
+from board.geom import H, W
 from board.ink import callout_box
 from board.revision import SN_SLOT
 from board.spec import EXPECT, passport
@@ -192,7 +193,36 @@ def build():
 
     board.parts = layered(board.parts, report)
     board.parts.append(bounds_layer(board))
+    board.parts.append(grid_layer())
     return board, lid, report
+
+
+# ── Координатная сетка ────────────────────────────────────────────────────
+# Адресовать сам рисунок нечем: деталь — это не одна фигура, а четыре-пять
+# штрихов, и номер такой фигуры ничего не скажет ни тому, кто смотрит, ни
+# тому, кто правит. Сетка обходит это с другой стороны: она не называет
+# деталь, она называет место. «В D4 слишком плотно» понятно обоим и не
+# требует трогать ни один блок.
+#
+# Шаг в сто единиц выбран по размеру узла: планка памяти, сокет, блок питания
+# — каждый занимает клетку или две. Мельче — и адрес перестанет отличаться от
+# координаты, крупнее — и в одной клетке окажется полплаты.
+GRID_STEP = 100
+
+
+def grid_layer(step=GRID_STEP):
+    letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+    cols = int(W // step) + 1
+    rows = int(H // step) + 1
+    out = []
+    for c in range(cols):
+        for r in range(rows):
+            x, y = c * step, r * step
+            tag = f'{letters[c % 26]}{r + 1}'
+            out.append(f'<rect class="grd-cell" data-cell="{tag}" x="{x}" y="{y}" '
+                       f'width="{step}" height="{step}"/>')
+            out.append(f'<text class="grd-id" x="{x + 4}" y="{y + 12}">{tag}</text>')
+    return ('<g class="lyr-grid" aria-hidden="true">' + ''.join(out) + '</g>')
 
 
 # ── Показ границ ──────────────────────────────────────────────────────────
