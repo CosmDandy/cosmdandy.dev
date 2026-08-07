@@ -290,16 +290,29 @@
     const svg = rig.querySelector('svg');
     if (!svg) return [];
     const все = [].slice.call(svg.querySelectorAll('text, rect, circle, ellipse'));
-    // Слои разметки в счёт не идут: они и нарисованы поверх всего нарочно.
-    const годен = (el) => !el.closest('.lyr-bounds, .lyr-overlap, .lyr-grid, .lyr-clash');
+    // Что в счёт не идёт.
+    //
+    // Слои разметки — они нарисованы поверх всего нарочно.
+    //
+    // Накладки интерфейса — бирки-ссылки и выдвижная панель диагностики. Они
+    // лежат отдельными слоями поверх машины, и это их работа: бирка обязана
+    // накрывать плату, иначе её не прочесть. Наслоение — это спор двух вещей
+    // за одно место на самой плате, а бирка с платой не спорит, она над ней.
+    const годен = (el) => !el.closest('.lyr-bounds, .lyr-overlap, .lyr-grid, '
+                                      + '.lyr-clash, .lyr-tags, .lyr-probe');
     const тексты = [], фигуры = [];
     все.forEach(function (el, i) {
       if (!годен(el)) return;
+      // Чья это деталь. Внутри одного узла порядок нарисован сознательно:
+      // подпись на кристалле лежит под крышкой процессора, наклейка диска — под
+      // рамкой каддика. Это не спор за место, а устройство детали, и считать
+      // такое наслоением значит хоронить настоящие находки под сотней верных.
+      const узел = el.closest('.pick, .unit');
       if (el.tagName === 'text') {
         if (!el.textContent.trim()) return;
-        тексты.push({ el: el, at: i, box: boxOf(el, svg) });
+        тексты.push({ el: el, at: i, box: boxOf(el, svg), узел: узел });
       } else if (opaque(el)) {
-        фигуры.push({ el: el, at: i, box: boxOf(el, svg) });
+        фигуры.push({ el: el, at: i, box: boxOf(el, svg), узел: узел });
       }
     });
     const найдено = [];
@@ -307,11 +320,13 @@
       const площадь = Math.max(1, t.box.w * t.box.h);
       фигуры.forEach(function (f) {
         if (f.at < t.at) return;                  // нарисовано раньше — лежит снизу
+        if (f.узел && f.узел === t.узел) return;  // одна деталь — так и задумано
         const w = Math.min(t.box.x + t.box.w, f.box.x + f.box.w) - Math.max(t.box.x, f.box.x);
         const h = Math.min(t.box.y + t.box.h, f.box.y + f.box.h) - Math.max(t.box.y, f.box.y);
         if (w <= 0 || h <= 0 || w * h < площадь * 0.2) return;
         найдено.push({ x: Math.max(t.box.x, f.box.x), y: Math.max(t.box.y, f.box.y),
                        w: w, h: h, text: t.el.textContent.trim(),
+                       frac: w * h / площадь,
                        what: f.el.tagName + ' ' + (f.el.getAttribute('fill') || '') });
       });
     });
@@ -326,7 +341,8 @@
     const found = findClashes();
     clashLayer.innerHTML = found.map(function (c) {
       return '<rect data-clash="' + c.text.replace(/[<>&"]/g, '') + '" data-what="'
-        + c.what.replace(/[<>&"]/g, '') + '" x="' + c.x.toFixed(0) + '" y="' + c.y.toFixed(0)
+        + c.what.replace(/[<>&"]/g, '') + '" data-frac="' + c.frac.toFixed(2)
+        + '" x="' + c.x.toFixed(0) + '" y="' + c.y.toFixed(0)
         + '" width="' + Math.max(2, c.w).toFixed(0) + '" height="' + Math.max(2, c.h).toFixed(0) + '"/>';
     }).join('');
     clashLayer.dataset.done = '1';
