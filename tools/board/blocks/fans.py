@@ -43,6 +43,9 @@ def render(cv):
     cv.add(stamp(X_FAN + 6, H - 24, "вентиляторы"))
     for i in range(FAN_N):
         y = 26 + i * FAN_STEP
+        # Модуль занимает всю глубину стенки. Раньше в регистр попадали только
+        # колодки у кромки платы, а сам вентилятор — нет.
+        cv.busy(X_FAN, y, FAN_W, FAN_STEP - 8, pad=0)
         # The impellers are deliberately wider than their own half and overlap
         # each other: that is how twin fans stand in 1U, and the pair reads as
         # one module rather than two circles side by side. The radius is

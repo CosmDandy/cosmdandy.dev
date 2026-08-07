@@ -21,7 +21,7 @@ from board.geom import (
     H,
     fan_foot_y,
 )
-from board.canvas import MINOR, SILK
+from board.canvas import MINOR, PART, SILK
 from board.ink import empty_pads, mono, silk_boxed
 from board.lamps import lamp
 from board.metal import pad, relief
@@ -169,7 +169,11 @@ def render(cv):
             for yy in range(int(ya), int(yb) - int(h), step):
                 x0 = xa + (spot * 53 + yy) % 70
                 for xx in list(range(x0, int(xb - w), step)) + list(range(xa, x0, step)):
-                    if cv.put(xx, yy, w, h):
+                    # Всё, что расставляет этот обход, — крупная рассыпуха, а
+                    # не узел: у неё нет ни бирки, ни имени на схеме, и место
+                    # ей не назначено, а найдено. Вид отделяет её от разъёмов
+                    # и гнёзд, чтобы по адресу было видно, о чём речь.
+                    if cv.put(xx, yy, w, h, PART):
                         parts.append(draw(xx, yy))
                         hubs.append((xx + w / 2, yy + h / 2, max(w, h)))
                         return True
@@ -182,7 +186,7 @@ def render(cv):
     pads_done = 0
     for k, (name, cols) in enumerate((("J150", 4), ("J156", 3), ("DEBUG CONN", 5))):
         px, py = X_SVC + 8, 706 + k * 42
-        if cv.put(px - 4, py - 4, 118, 38):
+        if cv.put(px - 4, py - 4, 118, 38, PART):
             parts.append(empty_pads(px, py, cols, 2, pitch=7)
                          + mono(px + cols * 3.5, py + 26, name, 5, op=0.3))
             pads_done += 1

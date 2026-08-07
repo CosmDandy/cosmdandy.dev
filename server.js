@@ -857,6 +857,22 @@
     boundsLayer.addEventListener('mouseleave', hideLinkHint);
   }
 
+  // Наслоение подписано двумя адресами сразу — вопрос к нему всегда «кто с
+  // кем», а не «что это». Хозяева тоже оба: чаще всего наслоение выходит
+  // между разными блоками, и без имён непонятно, кому из них уступать.
+  const overlapLayer = document.querySelector('.lyr-overlap');
+  if (overlapLayer && linkHint) {
+    overlapLayer.addEventListener('mousemove', function (e) {
+      if (!rig.classList.contains('overlap')) { hideLinkHint(); return; }
+      const box = e.target.closest('rect[data-pair]');
+      if (!box) { hideLinkHint(); return; }
+      placeHint('<span class="lh-scheme">' + box.dataset.pair + '</span>'
+        + '<span class="lh-host">наслоение</span>'
+        + ' · ' + (box.dataset.by || '?'), e.clientX, e.clientY);
+    });
+    overlapLayer.addEventListener('mouseleave', hideLinkHint);
+  }
+
   // ── Живы ли сейчас ссылки схемы ────────────────────────────────────────
   // Одно место на все вопросы «можно ли по этому нажать»: и подсказка у
   // курсора, и подсветка плашек, и сам переход обязаны отвечать одинаково.

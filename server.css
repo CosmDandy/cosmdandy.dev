@@ -1278,7 +1278,30 @@ body.view-rig .sfx-btn { display: grid; }
   .rig.bounds[data-bnd="minor"] .bnd-minor,
   .rig.bounds[data-bnd="silk"] .bnd-silk,
   .rig.bounds[data-bnd="major"] .bnd-major,
+  .rig.bounds[data-bnd="part"] .bnd-part,
+  .rig.bounds[data-bnd="reserve"] .bnd-reserve,
   .rig.bounds[data-bnd="board"] .bnd-board { display: block; }
+
+  /* ── Наслоения ────────────────────────────────────────────────────────
+     Где два квадрата одного вида стоят в одном месте. Границы этого не
+     показывают: верхний квадрат просто закрывает нижний, и наслоение
+     выглядит как один прямоугольник. Здесь оно залито поперечной штриховкой
+     — единственный рисунок на схеме, который ни на что не похож, и потому
+     заметен даже поверх включённых границ. */
+  .lyr-overlap { display: none; pointer-events: none; }
+  .rig.overlap .lyr-overlap { display: block; pointer-events: auto; }
+  .rig.overlap .lyr-overlap rect { cursor: help; }
+
+  .lyr-overlap .ovl rect {
+    fill-opacity: 0.42;
+    stroke-width: 1.4;
+    stroke-opacity: 0.9;
+  }
+
+  /* Плата под наслоениями приглушается так же, как под границами: смотрят
+     на разметку, а не на машину. */
+  .rig.overlap:not(.bounds) .lyr-parts,
+  .rig.overlap:not(.bounds) .lyr-deck { opacity: 0.45; }
 
   /* Схема ушла с экрана или вкладку свернули — крутить нечего. Пауза, а не
      отмена: анимации продолжатся с того же места, включая недоигранную

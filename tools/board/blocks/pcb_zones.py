@@ -8,18 +8,20 @@ looks empty.
 from board.blocks.frames import FIELD_FRAMES, title_box
 from board.canvas import RESERVE
 from board.geom import (
-    RISER,
     BANK_N,
     CHIPS,
     FAN_N,
     IO_BOARD,
     IO_FREE,
     PITCH,
+    RISER,
     SOCKET_H,
+    SOCKET_W,
     X_CORE,
     X_PCB,
     X_PCB_END,
     X_REAR,
+    X_SOCK,
     X_SVC,
     X_VRM,
     Y_BANK_C,
@@ -51,6 +53,14 @@ def render(cv):
     # он есть: полоса слотов.
     for by in (Y_BANK_L, Y_BANK_C, Y_BANK_R):
         cv.busy(X_CORE - 16, by - 10, 358, BANK_N * PITCH + 12, kind=RESERVE)
+    # Сокеты. Брони под ними не было ни одной — при том, что это два самых
+    # крупных узла платы и вокруг них забронировано всё остальное: и банки
+    # памяти, и питание ядра, и обвязка. Место под гнездо держалось само собой,
+    # потому что рисующий его блок идёт последним и никто туда не целился, —
+    # но «никто не целился» это не бронь, а везение. Под ILM и рамкой гнезда на
+    # живой плате не стоит ничего: там контактное поле и четыре стойки.
+    for y0 in (Y_CPU0, Y_CPU1):
+        cv.busy(X_SOCK - 8, y0 - 8, SOCKET_W + 16, SOCKET_H + 16, kind=RESERVE)
     # Large packages: their places are declared in geom and claimed here, before
     # everyone else — the headers at the edge are placed by the same scan and
     # would otherwise land right on top of a chip.

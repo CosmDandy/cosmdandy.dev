@@ -217,6 +217,13 @@ def render(cv):
         slots = []
         for i in range(n):
             y = y0 + i * PITCH
+            # Слот занимает место, и об этом надо сказать вслух. Блок рисуется
+            # поздно, когда поле уже разобрано, и молчание сходило ему с рук:
+            # после него места просит только краска. Но регистр — не только
+            # очередь, он ещё и то, по чему сверяют разметку с рисунком, и
+            # двадцати четырёх самых заметных узлов платы в нём не было вовсе:
+            # под банками памяти он считал поле пустым.
+            cv.busy(X_CORE - 8, y, DIMM_SOCK_W + 8, SLOT_H, pad=0)
             # The socket stays on the board when the module is pulled out, so
             # it is a separate shape and not part of the module — hence a
             # separate <use>, outside .pick-body, right next to the hit zone
