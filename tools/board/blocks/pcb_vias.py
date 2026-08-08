@@ -30,6 +30,7 @@ from board.geom import (
     X_CORE,
     X_PCB,
     X_SOCK,
+    X_VRM,
     Y_BANK_C,
     Y_BANK_L,
     Y_BANK_R,
@@ -80,6 +81,54 @@ def outline(x, y, w, h, gap=6, step=13):
             if dense(px, py):
                 ring.append((px, py))
     return ring
+
+
+def fanout(x, y, w, h, pitch=7, rows=3):
+    """Веер из-под корпуса: ряды отверстий, выходящие из контактного поля.
+
+    У BGA выводы стоят сеткой под самим корпусом, и вывести их наружу можно
+    только вниз — по переходному отверстию на каждый. Поэтому вокруг такого
+    корпуса на живой плате не россыпь, а правильная решётка, и она начинается
+    прямо под ним и на несколько рядов выходит за кромку.
+
+    Это единственное место, где медь идёт СКВОЗЬ корпус, а не в обход, — и
+    именно поэтому зоны KEEP_OUT здесь не спрашиваются: их запрет про то,
+    что под сокет и под гнездо памяти сверлить нечего, а под шариковым
+    корпусом сверлят как раз всюду.
+    """
+    out = []
+    for r in range(rows):
+        step = pitch + r * 1.5           # дальше от корпуса — реже
+        far = 4 + r * pitch
+        for k in range(int(w // step) + 1):
+            px = x + k * step
+            out.append((px, y - far))
+            out.append((px, y + h + far))
+        for k in range(int(h // step) + 1):
+            py = y + k * step
+            out.append((x - far, py))
+            out.append((x + w + far, py))
+    # Поле под самим корпусом: шаг вдвое крупнее шариков — отверстие ставят не
+    # под каждый, а под каждый второй, иначе плату не развести.
+    for kx in range(1, int(w // (pitch * 1.6))):
+        for ky in range(1, int(h // (pitch * 1.6))):
+            out.append((x + kx * pitch * 1.6, y + ky * pitch * 1.6))
+    return out
+
+
+def thermal(x, y, w, h):
+    """Рыжая площадка теплоотвода: медь, с которой снята маска.
+
+    Под силовым корпусом её делают широкой нарочно — тепло уходит в плату
+    через неё, а не через выводы, — и решето отверстий в ней уводит его на
+    внутренние слои. На живой плате это самое крупное рыжее пятно.
+    """
+    holes = ''.join(f'<circle cx="{x + 5 + kx * 6:.0f}" cy="{y + 5 + ky * 6:.0f}" r="1.2" '
+                    f'fill="none" stroke="rgba(184,115,51,0.5)" stroke-width="1"/>'
+                    for kx in range(int((w - 6) // 6)) for ky in range(int((h - 6) // 6)))
+    return (f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="1.5" '
+            f'fill="rgba(184,115,51,0.20)" stroke="rgba(184,115,51,0.42)" '
+            f'stroke-width="0.8"/>{holes}')
 
 
 KAPPA = 4 / 3 * (2 ** 0.5 - 1)  # смещение опорной точки для кубической дуги в четверть круга
@@ -188,6 +237,11 @@ def render(cv):
     vias = [(x, y) for x, y in cv.share['knots'] if clear(x, y)]
     for x, y, w, h in KEEP_OUT:
         vias.extend(outline(x, y, w, h))
+    # Веер из-под каждого шарикового корпуса. Его отверстия не фильтруются
+    # зонами: там, где у сокета контактное поле, у BGA как раз и сверлят.
+    fans = []
+    for _n, _s, x, y, w, h in CHIPS:
+        fans.extend(fanout(x, y, w, h))
     field = []
     for i in range(430):
         # three manners: in rows along traces, in clumps by packages, at random
@@ -220,7 +274,7 @@ def render(cv):
     # Обрезка по контуру текстолита. Медь есть только там, где есть плата:
     # контур вокруг блока считается с запасом и у крайних банков выходил за
     # кромку — переходные отверстия оказывались нарисованными на шасси.
-    big_vias = [(vx, vy) for vx, vy in vias if clear(vx, vy)]
+    big_vias = [(vx, vy) for vx, vy in vias if clear(vx, vy)] + fans
     # Диаметр кольца — 2×радиус плюс толщина обводки: ближе этого соседние
     # отверстия уже перекрываются, и их нельзя сливать в один путь (см.
     # via_groups).
@@ -250,8 +304,13 @@ def render(cv):
                     pad=0, kind=COPPER)
             start = prev = gx
 
+    # Площадки теплоотвода у питания ядра. Рисуются здесь, а не в vrm: это
+    # медь на текстолите, и лежать она обязана под деталью, а не поверх неё —
+    # блок питания ядра идёт много позже и накрывает их своими дросселями.
+    pads = ''.join(thermal(X_VRM - 4, y0 + 2, 26, SOCKET_H) for y0 in (Y_CPU0, Y_CPU1))
+
     ring_groups = via_groups(big_vias, 2 * 1.6 + 1.1)
-    cv.add('<g class="decor vias" clip-path="url(#pcb-clip)">'
+    cv.add('<g class="decor vias" clip-path="url(#pcb-clip)">' + pads
         + ''.join(f'<path class="via-ring" fill="none" stroke="rgba(184,115,51,0.34)" '
                   f'stroke-width="1.1" d="{via_ring(g, 1.6)}"/>' for g in ring_groups)
         # The small ones as a single path: half a thousand separate circles
