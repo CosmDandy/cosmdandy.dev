@@ -76,7 +76,10 @@ def emboss(x, y, text, size=6):
     больше ничем: своего цвета у тиснения нет.
     """
     def line(dy, fill):
-        return (f'<text x="{x}" y="{y + dy}" fill="{fill}" '
+        # Класс не косметический: проверки «надпись не залезает на кромку
+        # текстолита» по нему и отличают сталь от платы. Тиснение обязано быть
+        # за кромкой — там и есть поддон.
+        return (f'<text class="emboss-line" x="{x}" y="{y + dy}" fill="{fill}" '
                 f'font-family="ui-monospace, Menlo, monospace" font-size="{size}" '
                 f'letter-spacing="0.08em">{text}</text>')
     return ('<g class="decor emboss">'

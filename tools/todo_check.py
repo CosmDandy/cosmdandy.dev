@@ -878,7 +878,11 @@ def _out_of_board():
 def j1():
     # Штыри салазок стоят на боковинах шасси и обязаны быть снаружи, медь
     # обрезана контуром платы — обе группы к этой проверке не относятся.
-    stray = [t for t in _out_of_board() if 'rack-rail' not in t[1] and 'vias' not in t[1]]
+    # Тиснение на стальном поддоне тоже снаружи и тоже обязано быть: партномер
+    # листа выдавлен по кромке, где лист ничем не занят. Проверка про краску на
+    # текстолите, а поддон — не текстолит.
+    stray = [t for t in _out_of_board()
+             if not any(k in t[1] for k in ('rack-rail', 'vias', 'emboss'))]
     return len(stray) <= 2 or f'за кромкой: {stray[:5]}'
 
 
@@ -1658,7 +1662,10 @@ def x2():
 @check('Y3', 'ни одна надпись на плате не залезает на её кромку')
 def y3():
     from board.geom import H
-    bad = [(t, y) for x, y, t, d in texts(BOARD) if y < 20 or y > H - 20]
+    # Тиснение поддона исключено по классу: оно за кромкой платы нарочно —
+    # см. пояснение в J1.
+    bad = [(t, y) for x, y, t, d in texts(BOARD)
+           if (y < 20 or y > H - 20) and 'emboss' not in d.get('class', '')]
     return not bad or f'за кромкой: {bad[:3]}'
 
 

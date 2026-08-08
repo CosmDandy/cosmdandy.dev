@@ -233,6 +233,25 @@ def thin(points, cell):
     return out
 
 
+def sparse(points, seeded, cell=12, most=3):
+    """Точки, которые не превращают клетку сетки в кучку.
+
+    Считаются вместе с теми, что уже стоят: своя разреженность ничего не даёт,
+    если рядом лежит чужой контур.
+    """
+    counted = {}
+    for x, y in seeded:
+        counted[(x // cell, y // cell)] = counted.get((x // cell, y // cell), 0) + 1
+    out = []
+    for x, y in points:
+        key = (x // cell, y // cell)
+        if counted.get(key, 0) >= most:
+            continue
+        counted[key] = counted.get(key, 0) + 1
+        out.append((x, y))
+    return out
+
+
 def render(cv):
     vias = [(x, y) for x, y in cv.share['knots'] if clear(x, y)]
     for x, y, w, h in KEEP_OUT:
@@ -242,6 +261,7 @@ def render(cv):
     fans = []
     for _n, _s, x, y, w, h in CHIPS:
         fans.extend(fanout(x, y, w, h))
+    fans = thin(fans, 9)
     field = []
     for i in range(430):
         # three manners: in rows along traces, in clumps by packages, at random
@@ -274,7 +294,13 @@ def render(cv):
     # Обрезка по контуру текстолита. Медь есть только там, где есть плата:
     # контур вокруг блока считается с запасом и у крайних банков выходил за
     # кромку — переходные отверстия оказывались нарисованными на шасси.
-    big_vias = [(vx, vy) for vx, vy in vias if clear(vx, vy)] + fans
+    # Веер садится в то, что уже разведено, и считаться должен вместе с ним.
+    # Сам по себе он правильный — так медь из-под шарикового корпуса и выходит,
+    # — но ряды его сходятся к углам корпуса, а там же лежит контур, которым
+    # медь обходит соседний блок. В клетку набивалось по шесть колец: это уже
+    # не разводка, а кучка — отверстия в ней сливаются в пятно.
+    big_vias = [(vx, vy) for vx, vy in vias if clear(vx, vy)]
+    big_vias += sparse(fans, big_vias)
     # Диаметр кольца — 2×радиус плюс толщина обводки: ближе этого соседние
     # отверстия уже перекрываются, и их нельзя сливать в один путь (см.
     # via_groups).

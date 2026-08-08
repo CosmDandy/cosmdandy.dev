@@ -695,6 +695,12 @@ def render(cv):
                 else:
                     tx, ty = x + dx + w / 2 - span / 2 + slide, y + dy
                     box = (tx, ty - cap, span, cap)
+                # Деталь стоит на текстолите, а её обозначение — на шаг в
+                # сторону, и у самой кромки этот шаг уводил надпись за плату.
+                # Нижней кромке нужен запас сверх габарита: у надписи меряется
+                # базовая линия, а под ней остаются выносные элементы.
+                if not on_laminate(*box) or box[1] + box[3] > H - 22:
+                    continue
                 if not cv.put(*box, kind=SILK, pad=0,
                               avoid=(*AVOID[SILK], RESERVE, MINOR)):
                     continue
