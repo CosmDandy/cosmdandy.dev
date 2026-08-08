@@ -140,8 +140,13 @@ def silk_inverse(x, y, text, size=7):
     pad_x, pad_y = 5, 3
     w = len(text) * size * 0.62 + pad_x * 2
     h = size + pad_y * 2
+    # Краска кроет плотно. На полупрозрачной плашке сквозь неё просвечивало
+    # всё, что лежит ниже: медные кольца переходных отверстий проступали прямо
+    # на «DIMM B», и подпись читалась наслоением, хотя поверх неё ничего не
+    # лежало. На живой плате шелкография непрозрачна — она для того и нанесена,
+    # чтобы её было видно на любом фоне.
     return (f'<rect x="{x}" y="{y}" width="{w:.1f}" height="{h}" rx="1.5" '
-            f'fill="#c6c0ad" fill-opacity="0.55" stroke="rgba(147,161,161,0.24)" stroke-width="0.6"/>'
+            f'fill="#c6c0ad" fill-opacity="0.92" stroke="rgba(147,161,161,0.24)" stroke-width="0.6"/>'
             f'<text x="{x+w/2:.1f}" y="{y+h-pad_y-1:.1f}" text-anchor="middle" fill="#0a1417" '
             f'font-family="ui-monospace, Menlo, monospace" font-size="{size}">{text}</text>')
 

@@ -54,15 +54,31 @@ def clear(px, py):
     return not any(x <= px <= x + w and y <= py <= y + h for x, y, w, h in KEEP_OUT)
 
 
-def outline(x, y, w, h, gap=6, step=9):
-    """A contour of vias around a block: copper skirts it in a dense row."""
+def outline(x, y, w, h, gap=6, step=13):
+    """Отверстия вдоль блока: медь обходит его, но не частоколом.
+
+    Ровный ряд с постоянным шагом по всему периметру читался не медью, а
+    перфорацией: одинаковые кольца через равные промежутки вдоль всей кромки
+    банка памяти. На живой плате переходные идут группами — где цепи выходят
+    из-под блока, там их пучок, а между пучками пусто.
+
+    Пропуск берётся из координаты, а не из счётчика: так он не образует
+    периода, и при пересборке рисунок тот же.
+    """
     ring = []
+    def густо(px, py):
+        # Три числа в свёртке: без третьего сетка давала полосы по диагонали.
+        return (int(px) * 73 + int(py) * 149 + int(px * py) % 17) % 100 < 62
     for k in range(int(w // step) + 1):
         px = x + k * step
-        ring += [(px, y - gap), (px, y + h + gap)]
+        for py in (y - gap, y + h + gap):
+            if густо(px, py):
+                ring.append((px, py))
     for k in range(int(h // step) + 1):
         py = y + k * step
-        ring += [(x - gap, py), (x + w + gap, py)]
+        for px in (x - gap, x + w + gap):
+            if густо(px, py):
+                ring.append((px, py))
     return ring
 
 
