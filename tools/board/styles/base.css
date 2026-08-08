@@ -644,6 +644,27 @@ body:has(.rig.assembly) .assemble-btn { filter: opacity(0.45); pointer-events: n
      только правило со специфичностью выше, чем `a.callout`. */
   .rig.service a.callout { visibility: hidden; pointer-events: none; }
   .rig.service a.callout > * { visibility: visible; }
+
+  /* Плашка кликается ровно тогда, когда её видно. Раньше это было связано
+     только с сервисным режимом, а видимость выноски зависит ещё от трёх
+     вещей, и во всех трёх она молча оставалась ссылкой:
+
+     — пока идёт сборка (assembly) и пока машина складывается обратно
+       (stowing) — плашки уже или ещё прозрачны, а курсор их находил: наводишь
+       на пустое место, а оттуда подсветка и подсказка с адресом;
+     — пока не уехал экран самотеста (tags-off) — то же самое;
+     — под закрытой крышкой. Крышка непрозрачная, за ней ничего не разобрать,
+       но выноски продолжали и подсвечиваться под курсором, и открываться.
+       Узлы платы в этом состоянии молчат давно — правило в скрипте, — а
+       плашки остались настоящими <a>, мимо него.
+
+     Возвращаются они переходом с задержкой почти в полторы секунды, так что
+     речь не о паре кадров. visibility здесь не годится: она отменила бы
+     затухание, а гасить их надо плавно. */
+  .rig.assembly a.callout,
+  .rig.stowing a.callout,
+  .rig.tags-off a.callout,
+  .rig:not(.lid-off) a.callout { pointer-events: none; }
   /* Линия и точка — цвета своего сервиса, того же, что полоска у кромки бирки
      и значок на ней. Цвет приходит переменной от генератора: он один на всю
      выноску, и менять его в двух местах значит однажды их развести. Подсветка
@@ -856,7 +877,168 @@ body:has(.rig.assembly) .assemble-btn { filter: opacity(0.45); pointer-events: n
   .rig.service .callout { opacity: 0; transition: opacity 0.45s ease; }
   /* Пока идёт сборка, разбирать нечего: клики по полусобранной машине
      оставляли бы узлы в состоянии, из которого их никто не вернёт. */
+  /* Схему не выделяют. Это машина, а не текст: перетаскивание с зажатой
+     кнопкой возит её в лупе и тянет узлы, а браузер в это же время считает
+     жест выделением и подсвечивает подписи, номера и шелкографию — синие
+     пятна по всей плате. Имя и должность в шапке выделять по-прежнему можно,
+     их иногда копируют. */
+  .rig .stage, .rig .chassis, .rig svg, .rig .panel, .rig .rig-side {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
   .rig.assembly .pick, .rig.assembly .unit { pointer-events: none; }
+
+  /* То же самое для остальных состояний, где узел ничего не делает, но под
+     курсором вёл себя как живой: наводишь на процессор — и он подсвечивается,
+     показывает бирку с названием, а плашки при этом ещё не проступили.
+     Обводка появлялась раньше того, к чему она относится.
+
+     Возврат из сервисного режима (stowing) и самотест (tags-off) — не пара
+     кадров: вместе это полторы секунды и дольше. В самом сервисном режиме
+     узлы, наоборот, живее всех — их там разбирают, поэтому tags-off снимает
+     их с мыши только вне сервиса.
+
+     Под закрытой крышкой снят только .unit — это ссылка на раздел, читать её
+     сквозь крышку нечего. .pick оставлен: им разбирают машину, и крышка среди
+     того, что снимают. */
+  .rig.stowing .pick, .rig.stowing .unit,
+  .rig:not(.service).tags-off .pick, .rig:not(.service).tags-off .unit,
+  .rig:not(.lid-off) .unit { pointer-events: none; }
+
+  /* ── Координатная сетка ──────────────────────────────────────────────
+     Не называет деталь — называет место. «В D4 слишком плотно» понятно и
+     тому, кто смотрит, и тому, кто правит, и не требует адресовать каждый
+     штрих на плате. Включается своей галочкой в панели слоёв. */
+  .lyr-grid { display: none; pointer-events: none; }
+  .rig.grid .lyr-grid { display: block; }
+
+  .lyr-grid .grd-cell {
+    fill: none;
+    stroke: rgba(147, 161, 161, 0.22);
+    stroke-width: 0.6;
+  }
+
+  .lyr-grid .grd-id {
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 8px;
+    fill: rgba(147, 161, 161, 0.42);
+  }
+
+  /* ── Гашение блоков ──────────────────────────────────────────────────
+     Каждый блок сборки завёрнут в свою группу, и его можно убрать целиком —
+     чтобы увидеть, что именно он рисует и что остаётся под ним. Класс висит
+     на схеме, а не на самой группе: так состояние переживает пересборку
+     ленты ревизий, которая переписывает плату целиком. */
+  .rig[class*="hide-"] .blk { transition: opacity 0.25s ease; }
+
+  .rig.hide-chassis .blk-chassis { display: none; }
+  .rig.hide-pcb_field .blk-pcb_field { display: none; }
+  .rig.hide-pcb_edge .blk-pcb_edge { display: none; }
+  .rig.hide-pcb_traces .blk-pcb_traces { display: none; }
+  .rig.hide-pcb_vias .blk-pcb_vias { display: none; }
+  .rig.hide-pcb_scatter .blk-pcb_scatter { display: none; }
+  .rig.hide-frames .blk-frames { display: none; }
+  .rig.hide-vrm .blk-vrm { display: none; }
+  .rig.hide-front_panel .blk-front_panel { display: none; }
+  .rig.hide-drives .blk-drives { display: none; }
+  .rig.hide-backplane .blk-backplane { display: none; }
+  .rig.hide-fans .blk-fans { display: none; }
+  .rig.hide-memory .blk-memory { display: none; }
+  .rig.hide-service .blk-service { display: none; }
+  .rig.hide-psu .blk-psu { display: none; }
+  .rig.hide-risers .blk-risers { display: none; }
+  .rig.hide-rear_io .blk-rear_io { display: none; }
+  .rig.hide-marks .blk-marks { display: none; }
+  .rig.hide-baffle .blk-baffle { display: none; }
+  .rig.hide-cpu .blk-cpu { display: none; }
+  .rig.hide-callouts .blk-callouts { display: none; }
+  .rig.hide-lightpath .blk-lightpath { display: none; }
+
+  /* ── Показ границ занятости ───────────────────────────────────────────
+     Регистр занятости знает, куда какому слою можно, но до сих пор был
+     невидим: элемент не встаёт, а почему — неизвестно. Слой рисует то же
+     самое, что регистр знает, каждый вид своим цветом.
+
+     Погашен по умолчанию и включается командой `bounds` в терминале. Держим
+     его в разметке всегда: отдельная сборка для отладки разошлась бы с
+     настоящей в первый же день. */
+  .lyr-bounds { display: none; pointer-events: none; }
+  /* Пока границы показаны, они ловят мышь — иначе не над чем всплывать
+     подсказке. Нажатия по самой машине в этом режиме перехватываются, и это
+     честно: режим правки разметки, а не работы с ней. */
+  .rig.bounds .lyr-bounds { display: block; pointer-events: auto; }
+  .rig.bounds .lyr-bounds rect { cursor: help; }
+  .lyr-bounds .bnd-id { pointer-events: none; }
+
+  .lyr-bounds .bnd rect {
+    fill-opacity: 0.10;
+    stroke-width: 1;
+    stroke-opacity: 0.55;
+  }
+
+  /* Адрес квадрата: буква вида и номер по порядку. Набран моноширинным и
+     мельче всего на плате — это подпись к разметке, а не часть машины. */
+  .lyr-bounds .bnd-id {
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 6px;
+    fill-opacity: 0.85;
+    stroke: none;
+    paint-order: stroke;
+  }
+
+  /* Поверх схемы, но под бирками: границы объясняют плату, а не заменяют её. */
+  .rig.bounds .lyr-parts, .rig.bounds .lyr-deck { opacity: 0.45; }
+
+  /* Показ по одному виду: класс на схеме гасит все, кроме названного. */
+  .rig.bounds[data-bnd] .bnd { display: none; }
+  .rig.bounds[data-bnd="copper"] .bnd-copper,
+  .rig.bounds[data-bnd="minor"] .bnd-minor,
+  .rig.bounds[data-bnd="silk"] .bnd-silk,
+  .rig.bounds[data-bnd="major"] .bnd-major,
+  .rig.bounds[data-bnd="part"] .bnd-part,
+  .rig.bounds[data-bnd="reserve"] .bnd-reserve,
+  .rig.bounds[data-bnd="board"] .bnd-board { display: block; }
+
+  /* ── Наслоения ────────────────────────────────────────────────────────
+     Где два квадрата одного вида стоят в одном месте. Границы этого не
+     показывают: верхний квадрат просто закрывает нижний, и наслоение
+     выглядит как один прямоугольник. Здесь оно залито поперечной штриховкой
+     — единственный рисунок на схеме, который ни на что не похож, и потому
+     заметен даже поверх включённых границ. */
+  .lyr-overlap { display: none; pointer-events: none; }
+  .rig.overlap .lyr-overlap { display: block; pointer-events: auto; }
+  .rig.overlap .lyr-overlap rect { cursor: help; }
+
+  .lyr-overlap .ovl rect {
+    fill-opacity: 0.42;
+    stroke-width: 1.4;
+    stroke-opacity: 0.9;
+  }
+
+  /* Плата под наслоениями приглушается так же, как под границами: смотрят
+     на разметку, а не на машину. */
+  .rig.overlap:not(.bounds) .lyr-parts,
+  .rig.overlap:not(.bounds) .lyr-deck { opacity: 0.45; }
+
+  /* ── Наслоения рисунка ────────────────────────────────────────────────
+     То, что видно глазом: подпись, накрытая непрозрачной фигурой. Регистр
+     об этом не знает — он хранит объявления, а половина блоков ничего о
+     себе не объявляет. Слой заполняет браузер, померив готовую схему.
+
+     Плату под ним НЕ приглушаем, в отличие от границ: смотреть надо ровно
+     на то, что накрыто, и приглушённый рисунок тут мешает, а не помогает. */
+  .lyr-clash { display: none; pointer-events: none; }
+  .rig.clash .lyr-clash { display: block; pointer-events: auto; }
+  .rig.clash .lyr-clash rect { cursor: help; }
+
+  .lyr-clash rect {
+    fill: #dc322f;
+    fill-opacity: 0.32;
+    stroke: #dc322f;
+    stroke-width: 1.2;
+    stroke-opacity: 0.95;
+  }
 
   /* Схема ушла с экрана или вкладку свернули — крутить нечего. Пауза, а не
      отмена: анимации продолжатся с того же места, включая недоигранную

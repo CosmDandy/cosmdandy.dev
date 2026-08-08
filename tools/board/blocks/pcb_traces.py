@@ -18,6 +18,9 @@
 а не обходят их поверху, поэтому BUSY здесь не спрашивается.
 """
 
+from itertools import pairwise
+
+from board.canvas import COPPER
 from board.geom import (
     BANK_N,
     CHIPS,
@@ -41,6 +44,67 @@ from board.geom import (
 )
 
 BANK_H = BANK_N * PITCH
+
+
+def spine(ax, ay, bx, by, vertical):
+    """Ломаная центральной дорожки пучка — те же изломы, что рисует bundle.
+
+    Шина без бокового сноса идёт прямо, и излома у неё нет вовсе: точка
+    посередине только делила бы отрезок надвое двумя одинаковыми записями.
+    """
+    if vertical:
+        d = bx - ax
+        if not d:
+            return [(ax, ay), (ax, by)]
+        my = ay + (by - ay) * 0.38
+        return [(ax, ay), (ax, my), (ax + d, my + abs(d)), (ax + d, by)]
+    d = by - ay
+    if not d:
+        return [(ax, ay), (bx, ay)]
+    mx = ax + (bx - ax) * 0.38
+    step = abs(d) if bx >= ax else -abs(d)
+    return [(ax, ay), (mx, ay), (mx + step, by), (bx, by)]
+
+
+def span_rects(pts, span, vertical):
+    """Прямоугольники вдоль ломаной, а не габарит вокруг неё.
+
+    Пучок помечался одним прямоугольником по своим концам, причём с `min()`
+    по обеим осям — то есть лентой у начала шины, которая до её конца не
+    доходила вовсе: скос не покрывался никак, а перепад в двести единиц
+    оставался вне разметки.
+
+    Осевое звено пишется одним прямоугольником, скос — лестницей из звеньев
+    длиной в ширину пучка. Мельче дробить смысла нет: у каждого звена свои
+    поля, и на коротких кусках они начинают стоить больше, чем экономит
+    точность.
+
+    Отступ у скоса даётся только по той оси, вдоль которой разнесены сами
+    проводники: у горизонтального пучка они смещены по вертикали, у
+    вертикального — по горизонтали, и на скосе это остаётся ровно так же —
+    bundle() прибавляет смещение к концам, а не к нормали. Отступ по обеим
+    осям сразу и шире нужного, и уже: на стыке осевого звена со скосом
+    крайний проводник выходил из разметки на три единицы.
+    """
+    half = span / 2
+    out = []
+    for (x0, y0), (x1, y1) in pairwise(pts):
+        dx, dy = x1 - x0, y1 - y0
+        if not dx and not dy:
+            continue
+        # Снос проводников: по x у вертикального пучка, по y у горизонтального.
+        gx, gy = (half, 0) if vertical else (0, half)
+        if not dx or not dy:
+            out.append((min(x0, x1) - gx, min(y0, y1) - gy,
+                        abs(dx) + gx * 2, abs(dy) + gy * 2))
+            continue
+        n = max(1, min(12, round(max(abs(dx), abs(dy)) / max(span, 8))))
+        for k in range(n):
+            sx0, sy0 = x0 + dx * k / n, y0 + dy * k / n
+            sx1, sy1 = x0 + dx * (k + 1) / n, y0 + dy * (k + 1) / n
+            out.append((min(sx0, sx1) - gx, min(sy0, sy1) - gy,
+                        abs(sx1 - sx0) + gx * 2, abs(sy1 - sy0) + gy * 2))
+    return out
 
 
 def render(cv):
@@ -118,15 +182,15 @@ def render(cv):
     # Коммутатор линий — райзеры: две широкие шины PCIe в карман между блоками
     # питания. Это второй по калибру пучок после межпроцессорной шины.
     for ty, n in ((250, 16), (500, 12)):
-        LINKS.append((right_of('PCIe SW')[0], right_of('PCIe SW')[1], X_REAR + 60, ty,
+        LINKS.append((right_of('PEX88048')[0], right_of('PEX88048')[1], X_REAR + 60, ty,
                       n, 3.6, 'trunk', False))
     # Коммутатор берёт линии у обоих сокетов
     for cy in (Y_CPU0 + SOCKET_H - 30, Y_CPU1 + 30):
-        LINKS.append((right_of('PCIe SW')[0], right_of('PCIe SW')[1], X_CORE - 26, cy,
+        LINKS.append((right_of('PEX88048')[0], right_of('PEX88048')[1], X_CORE - 26, cy,
                       9, 3.2, 'mid', False))
     # Сетевой контроллер сидит у первого сокета: линии от коммутатора приходят
     # к нему, а от него шина уходит через всю плату к гнёздам задней панели.
-    LINKS.append((*right_of('PCIe SW', 24), *left_of('X710'), 8, 3.2, 'mid', False))
+    LINKS.append((*right_of('PEX88048', 24), *left_of('X710'), 8, 3.2, 'mid', False))
     # Шина от контроллера идёт не в пустоту у стенки, а в гигабитный PHY: между
     # ними MII, и на плате это одна из немногих цепей, которую видно целиком.
     LINKS.append((*right_of('X710'), *left_of('BCM54210'), 7, 3.0, 'mid', False))
@@ -137,12 +201,12 @@ def render(cv):
     for cy in (Y_CPU0 + 40, Y_CPU1 + 100):
         LINKS.append((*left_of('AST2600', 10), X_CORE - 30, cy, 5, 2.8, 'fine', False))
     # Чипсет — сокет и служебная зона
-    LINKS.append((*right_of('PCH C741'), X_CORE - 30, Y_CPU0 + 70, 11, 3.2, 'mid', False))
-    LINKS.append((*right_of('PCH C741', 12), X_SVC + 20, 300, 6, 3.0, 'fine', False))
+    LINKS.append((*right_of('PT5161L'), X_CORE - 30, Y_CPU0 + 70, 11, 3.2, 'mid', False))
+    LINKS.append((*right_of('PT5161L', 12), X_SVC + 20, 300, 6, 3.0, 'fine', False))
     # Логика питания — к дросселям обоих сокетов и к TPM
     for cy in (Y_CPU0 + 120, Y_CPU1 + 60):
-        LINKS.append((*right_of('CPLD'), X_VRM - 30, cy, 5, 3.0, 'fine', False))
-    LINKS.append((*right_of('TPM 2.0'), X_SVC + 20, 620, 5, 3.0, 'fine', False))
+        LINKS.append((*right_of('LCMXO3'), X_VRM - 30, cy, 5, 3.0, 'fine', False))
+    LINKS.append((*right_of('SLB9673'), X_SVC + 20, 620, 5, 3.0, 'fine', False))
     # служебная зона — задняя панель и карман райзеров
     for sy, ty in ((170, 300), (330, 430), (470, 560), (640, 620)):
         LINKS.append((X_SVC + 30, sy, X_REAR + 80, ty, 8, 3.2, 'mid', False))
@@ -158,6 +222,13 @@ def render(cv):
         paths, kn = bundle(ax, ay, bx, by, n, pitch, vert)
         tiers[tier].extend(paths)
         knots.extend(kn)
+        # Магистраль отмечается в регистре как медь. Никому она не мешает —
+        # поверх дорожек ставят и детали, и краску, — но пока её там не было,
+        # регистр знал о плате только то, где стоят корпуса, и показать, как
+        # разведена машина, было нечем. Ширина пучка — число проводников на
+        # шаг между ними, а отмечается шина звеньями вдоль своего пути.
+        for rx, ry, rw, rh in span_rects(spine(ax, ay, bx, by, vert), n * pitch, vert):
+            cv.busy(rx, ry, rw, rh, pad=0, kind=COPPER)
 
     # Одиночные длинные трассы: не всё на плате идёт пучком, часть цепей
     # тянется через полплаты сама по себе. Они и разбивают регулярность

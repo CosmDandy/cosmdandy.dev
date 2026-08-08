@@ -19,6 +19,7 @@ from board.geom import BAY_DEPTH, BAY_TOP, FRONT_W, X_FRONT, H
 from board.ink import hit, mono
 from board.lamps import act_led, fault_mark, glow, id_mark, square_led
 from board.metal import hexgrid
+from board.palette import GLOW_TINT
 
 # The face of the diagnostics panel. Its height matches the sliding part: it is
 # one piece, you simply see its end face. The width is taken from the cage —
@@ -117,13 +118,35 @@ def render(cv):
     # Кнопка — по середине своей плашки, и слегка мельче прежней: на 1U фронте
     # круг в двадцать одну единицу забирал полплашки и спорил с панелью
     # диагностики за внимание.
+    #
+    # Кольцо состояния лежит между знаком и обводкой: радиус 14.5 — ровно
+    # посередине, по 2.9 зазора в обе стороны. Раньше оно было снаружи кнопки
+    # (r 22, толщиной 2.2) и читалось не индикатором, а вторым ободом: широкая
+    # дуга поверх плашки спорила с самой кнопкой, и по ней не было понятно,
+    # включена машина или нет. Тонкая полоса внутри — то, как это сделано на
+    # живой кнопке: светится ободок вокруг знака, а не сама кнопка.
+    #
+    # Ореол — не обводка, а диск с радиальным градиентом: у обводки свечение
+    # пришлось бы рисовать вторым, широким и полупрозрачным кольцом, то есть
+    # ровно теми концентрическими кругами, от которых индикация уже ушла.
+    # Градиент гаснет к 62% радиуса и к самому краю, поэтому свет не доходит
+    # ни до знака, ни до обводки — кольцо остаётся отдельной деталью.
     PWR_X = MOD_X + MOD_W / 2
+    tint = GLOW_TINT['#859900']
     cv.add(f'''<g class="power-btn" id="power" role="button" tabindex="0" aria-label="Питание">
   {hit(PWR_X-28, 18, 56, 72)}
+  <defs><radialGradient id="pwr-glow">
+    <stop offset="62%" stop-color="rgba({tint},0)"/>
+    <stop offset="74%" stop-color="rgba({tint},0.14)"/>
+    <stop offset="83%" stop-color="rgba({tint},0.36)"/>
+    <stop offset="92%" stop-color="rgba({tint},0.12)"/>
+    <stop offset="100%" stop-color="rgba({tint},0)"/>
+  </radialGradient></defs>
   <circle cx="{PWR_X}" cy="50" r="18" fill="#0f1619" stroke="rgba(147,161,161,0.34)"/>
+  <circle class="pwr-halo" cx="{PWR_X}" cy="50" r="17.4" fill="url(#pwr-glow)"/>
+  <circle class="pwr-led" cx="{PWR_X}" cy="50" r="14.5" fill="none" stroke="#859900" stroke-width="3.2"/>
   <circle class="pwr-ring" cx="{PWR_X}" cy="50" r="10" fill="none" stroke="#586e75" stroke-width="2"/>
   <line x1="{PWR_X}" y1="40" x2="{PWR_X}" y2="48" stroke="#586e75" stroke-width="2" stroke-linecap="round"/>
-  <circle class="pwr-led" cx="{PWR_X}" cy="50" r="22" fill="none" stroke="#859900" stroke-width="2.2"/>
   {mono(PWR_X, 84, "POWER", 7, op=0.42)}
 </g>''')
 

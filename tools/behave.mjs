@@ -1069,11 +1069,26 @@ const svcWas = await rigHas('service');
 await tap6('#svc-switch');
 await p6.waitForTimeout(700);
 check('после ползунка выключатель сервиса жив', (await rigHas('service')) !== svcWas, 'service');
+// Обе кнопки крышки, и по очереди, а не подряд. Подряд их жать нельзя: они
+// парные, и вторая возвращает то, что сделала первая, — состояние приходит
+// туда же, откуда ушло. Пока «снять крышку» была мертва (её клик не всплывал
+// до платы, слушали именно плату), это сходило с рук: работала одна кнопка из
+// двух, состояние менялось, проверка зеленела. То есть зеленела она благодаря
+// поломке. Теперь живы обе, и спрашиваем каждую отдельно: сначала ту, что
+// уместна в текущем положении крышки, потом обратную.
 const lidWas = await rigHas('lid-off');
-await tap6('#lid-on');
-await tap6('#lid-remove');
-await p6.waitForTimeout(700);
-check('после ползунка кнопки крышки живы', (await rigHas('lid-off')) !== lidWas, 'lid');
+const lidFlip = async want => {
+  await tap6(want ? '#lid-remove' : '#lid-on');
+  // Крышка снимается в три движения и едет больше секунды — ждём факт, а не
+  // часы: на фиксированной паузе проверка ловила бы середину хода.
+  return p6.waitForFunction(
+    w => document.getElementById('rig').classList.contains('lid-off') === w,
+    want, { timeout: 6000 }).then(() => true, () => false);
+};
+const lidThere = await lidFlip(!lidWas);
+const lidBack = await lidFlip(lidWas);
+check('после ползунка обе кнопки крышки живы', lidThere && lidBack,
+      `туда=${lidThere} обратно=${lidBack}`);
 await p6.close();
 
 const failed = results.filter(r => !r[1]);

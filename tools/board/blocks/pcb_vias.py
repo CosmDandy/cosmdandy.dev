@@ -16,6 +16,7 @@ their borders with a dense contour — that is how copper flows around a large
 block on a real board.
 """
 
+from board.canvas import COPPER
 from board.geom import (
     BANK_N,
     CHIPS,
@@ -53,15 +54,31 @@ def clear(px, py):
     return not any(x <= px <= x + w and y <= py <= y + h for x, y, w, h in KEEP_OUT)
 
 
-def outline(x, y, w, h, gap=6, step=9):
-    """A contour of vias around a block: copper skirts it in a dense row."""
+def outline(x, y, w, h, gap=6, step=13):
+    """Отверстия вдоль блока: медь обходит его, но не частоколом.
+
+    Ровный ряд с постоянным шагом по всему периметру читался не медью, а
+    перфорацией: одинаковые кольца через равные промежутки вдоль всей кромки
+    банка памяти. На живой плате переходные идут группами — где цепи выходят
+    из-под блока, там их пучок, а между пучками пусто.
+
+    Пропуск берётся из координаты, а не из счётчика: так он не образует
+    периода, и при пересборке рисунок тот же.
+    """
     ring = []
+    def густо(px, py):
+        # Три числа в свёртке: без третьего сетка давала полосы по диагонали.
+        return (int(px) * 73 + int(py) * 149 + int(px * py) % 17) % 100 < 62
     for k in range(int(w // step) + 1):
         px = x + k * step
-        ring += [(px, y - gap), (px, y + h + gap)]
+        for py in (y - gap, y + h + gap):
+            if густо(px, py):
+                ring.append((px, py))
     for k in range(int(h // step) + 1):
         py = y + k * step
-        ring += [(x - gap, py), (x + w + gap, py)]
+        for px in (x - gap, x + w + gap):
+            if густо(px, py):
+                ring.append((px, py))
     return ring
 
 
@@ -207,6 +224,32 @@ def render(cv):
     # Диаметр кольца — 2×радиус плюс толщина обводки: ближе этого соседние
     # отверстия уже перекрываются, и их нельзя сливать в один путь (см.
     # via_groups).
+    # Медь отмечается в регистре клетками, а не отверстие за отверстием: их
+    # почти тысяча, и тысяча записей раздула бы и регистр, и показ границ, где
+    # каждая рисуется прямоугольником. Клетка говорит ровно то, что нужно
+    # знать соседям: «здесь медь», — а точное место каждого кольца видно на
+    # самой плате.
+    #
+    # Клетки одной строки, идущие подряд, пишутся одной полосой: отверстия
+    # покрывают плату почти сплошь, и поштучно это четыре сотни записей —
+    # регистр превращается в миллиметровку, на которой не видно ничего, кроме
+    # самой миллиметровки. Полоса говорит ровно то же самое и занимает ровно
+    # то же место.
+    CELL = 36
+    занято = set()
+    for vx, vy in big_vias + small_vias:
+        занято.add((int(vx // CELL), int(vy // CELL)))
+    for gy in sorted({gy for _gx, gy in занято}):
+        row = sorted(gx for gx, y in занято if y == gy)
+        start = prev = row[0]
+        for gx in row[1:] + [None]:
+            if gx == prev + 1:
+                prev = gx
+                continue
+            cv.busy(start * CELL, gy * CELL, (prev - start + 1) * CELL, CELL,
+                    pad=0, kind=COPPER)
+            start = prev = gx
+
     ring_groups = via_groups(big_vias, 2 * 1.6 + 1.1)
     cv.add('<g class="decor vias" clip-path="url(#pcb-clip)">'
         + ''.join(f'<path class="via-ring" fill="none" stroke="rgba(184,115,51,0.34)" '

@@ -4,6 +4,7 @@
 и точка первого вывода. Ставим их до мелочи, чтобы места достались им.
 """
 
+import hashlib
 import math
 
 from board.geom import (
@@ -21,12 +22,13 @@ from board.geom import (
     H,
     fan_foot_y,
 )
-from board.ink import empty_pads, mono, silk_boxed
+from board.canvas import BOARD, COVER, MAJOR, MINOR, PART, RESERVE, SILK
+from board.ink import barcode, empty_pads, mono, silk_boxed
 from board.lamps import lamp
 from board.metal import pad, relief
 from board.palette import SILVER
 from board.revision import BOARD_REV, BOARD_SN
-from board.spec import CPU, MADE, ram_label
+from board.spec import CPU, ram_label
 
 
 def render(cv):
@@ -134,8 +136,13 @@ def render(cv):
                 # отведённое место и садилась на соседа
                 + mono(x, y + 16, mark, 5, anchor="start", op=0.34))
 
+    # «SPI FLASH» отсюда убран: это не партномер, а назначение, и та же
+    # микросхема уже стоит рядом под своим настоящим именем W25Q256. На плате
+    # их было две — одна деталь, нарисованная дважды. На её место встал второй
+    # датчик температуры: на двухсокетной плате их и правда несколько, по
+    # одному у каждого сокета.
     SOICS = [('D9LHR', 30, 13), ('PCA9557', 26, 11), ('MAX6642', 24, 11), ('W25Q256', 28, 12),
-             ('ADM1278', 26, 11), ('LM75', 20, 10), ('SPI FLASH', 34, 12), ('TMP421', 22, 10)]
+             ('ADM1278', 26, 11), ('LM75', 20, 10), ('EMC1413', 24, 11), ('TMP421', 22, 10)]
     parts = []
     lost = []
     # центры уже поставленных корпусов: обвязка кладётся вокруг них, а не
@@ -143,7 +150,7 @@ def render(cv):
     hubs = []
     spot = 0
 
-    def place(w, h, draw, name='деталь'):
+    def place(w, h, draw, name='деталь', kind=PART, avoid=None):
         """Кладём деталь в первое свободное место честного обхода платы.
 
     Псевдослучайные броски исчерпывались раньше, чем находилось место, и
@@ -168,7 +175,11 @@ def render(cv):
             for yy in range(int(ya), int(yb) - int(h), step):
                 x0 = xa + (spot * 53 + yy) % 70
                 for xx in list(range(x0, int(xb - w), step)) + list(range(xa, x0, step)):
-                    if cv.put(xx, yy, w, h):
+                    # Всё, что расставляет этот обход, — крупная рассыпуха, а
+                    # не узел: у неё нет ни бирки, ни имени на схеме, и место
+                    # ей не назначено, а найдено. Вид отделяет её от разъёмов
+                    # и гнёзд, чтобы по адресу было видно, о чём речь.
+                    if cv.put(xx, yy, w, h, kind, avoid=avoid):
                         parts.append(draw(xx, yy))
                         hubs.append((xx + w / 2, yy + h / 2, max(w, h)))
                         return True
@@ -181,7 +192,7 @@ def render(cv):
     pads_done = 0
     for k, (name, cols) in enumerate((("J150", 4), ("J156", 3), ("DEBUG CONN", 5))):
         px, py = X_SVC + 8, 706 + k * 42
-        if cv.put(px - 4, py - 4, 118, 38):
+        if cv.put(px - 4, py - 4, 118, 38, PART):
             parts.append(empty_pads(px, py, cols, 2, pitch=7)
                          + mono(px + cols * 3.5, py + 26, name, 5, op=0.3))
             pads_done += 1
@@ -209,9 +220,12 @@ def render(cv):
     # Отодвинута от корпуса: на прежних десяти единицах лампа стояла вплотную
     # к гребёнке выводов, и её зелёный терялся в частых светлых штрихах. Сердце
     # машины должно быть видно с одного взгляда — иначе оно не сердце.
-    parts.append(lamp('led-hb', bx + bw + 34, by + 20, 4, '#859900'))
-    parts.append(silk_boxed(bx + bw + 16, by + 20, "HB", 5.5, op=0.4))
-    cv.busy(bx + bw + 8, by + 10, 36, 22)
+    parts.append(lamp('led-hb', bx + bw + 34, by + 34, 4, '#859900'))
+    # Подпись под лампой, а не сбоку: слева от неё идут выводы процессора
+    # управления, и короткое «HB» терялось среди них — читалось как ещё одна
+    # метка вывода. Под лампой оно стоит особняком и явно относится к ней.
+    parts.append(silk_boxed(bx + bw + 34, by + 46, "HB", 5.5, op=0.4))
+    cv.busy(bx + bw + 22, by + 24, 28, 34)
 
     cv.add('<g class="decor parts">' + ''.join(parts) + '</g>')
     if lost:
@@ -258,7 +272,7 @@ def render(cv):
         if kind == 'res':
             horiz = (x + y) % 2
             w, h = (10, 4) if horiz else (4, 10)
-            if not cv.put(x, y, w, h):
+            if not cv.put(x, y, w, h, MINOR):
                 return []
             if horiz:
                 body = f'<rect x="{x+2.6}" y="{y}" width="4.8" height="4" rx="0.6" fill="#1c262b"/>'
@@ -268,7 +282,7 @@ def render(cv):
                 pads = pad(x + 0.4, y, 3.2, 3) + pad(x + 0.4, y + 7, 3.2, 3)
             return [pads, body, relief(x, y, w, h, 0.6)]
         if kind == 'cap':
-            if not cv.put(x, y, 11, 8):
+            if not cv.put(x, y, 11, 8, MINOR):
                 return []
             return [pad(x, y + 1, 3, 6) + pad(x + 8, y + 1, 3, 6),
                     f'<rect x="{x+2.4}" y="{y}" width="6.2" height="8" rx="1" fill="#16202a" '
@@ -276,7 +290,7 @@ def render(cv):
                     f'<rect x="{x+3}" y="{y+0.8}" width="5" height="1.4" rx="0.7" '
                     f'fill="rgba(223,232,234,0.16)"/>']
         if kind == 'diode':
-            if not cv.put(x, y, 10, 5):
+            if not cv.put(x, y, 10, 5, MINOR):
                 return []
             return [pad(x, y + 0.6, 2.6, 3.8) + pad(x + 7.4, y + 0.6, 2.6, 3.8),
                     f'<rect x="{x+2.2}" y="{y}" width="5.6" height="5" rx="0.6" fill="#0d1a1e" '
@@ -285,14 +299,14 @@ def render(cv):
                     f'stroke-width="1" stroke-opacity="0.7"/>']
         if kind == 'array':
             # резисторная сборка: один корпус на четыре номинала, у шин их ряды
-            if not cv.put(x, y, 18, 9):
+            if not cv.put(x, y, 18, 9, MINOR):
                 return []
             return [''.join(pad(x + 2 + k * 4, y - 1.4, 2.4, 2.2) + pad(x + 2 + k * 4, y + 7.2, 2.4, 2.2)
                             for k in range(4)),
                     f'<rect x="{x}" y="{y}" width="18" height="7" rx="1" fill="#12191d" '
                     f'stroke="rgba(147,161,161,0.22)"/>',
                     relief(x, y, 18, 7)]
-        if not cv.put(x, y, 18, 11):
+        if not cv.put(x, y, 18, 11, MINOR):
             return []
         out = [''.join(pad(x - 2.4, y + 1.4 + d * 4, 2.6, 1.8) + pad(x + 13.8, y + 1.4 + d * 4, 2.6, 1.8)
                        for d in range(3)),
@@ -304,15 +318,45 @@ def render(cv):
     KIND = ('res', 'cap', 'res', 'diode', 'cap', 'array', 'res', 'ic')
     clusters = []                       # центры гроздей: по ним же встанут refdes
 
-    # вокруг каждого корпуса — плотное кольцо обвязки
+    # Развязка вокруг корпуса: массив по рядам выводов, а не кольцо.
+    #
+    # Кольцо из восьми деталей одного радиуса — это узор, и читался он именно
+    # узором: ровный венчик вокруг каждой микросхемы. На живой плате развязка
+    # выстроена по рядам выводов, вплотную к корпусу и рядами: конденсатор
+    # обязан стоять у самого вывода питания, иначе не работает, — а стоящие в
+    # ряд выводы дают в ответ ряд конденсаторов. Дальше от корпуса идёт вторая
+    # линия и уже вразнобой: там сидит то, что от близости не зависит.
+    #
+    # Конденсаторов в этих рядах вчетверо больше всего прочего — на живой плате
+    # соотношение примерно такое же: развязка по питанию нужна каждому выводу,
+    # а подтяжка и защита — единицам.
+    РЯД = ('cap', 'cap', 'res', 'cap', 'cap', 'diode', 'cap', 'res')
     for n, (cx, cy, size) in enumerate(hubs):
-        ring = size / 2 + 9
-        for k in range(8):
-            ang = (k * 47 + n * 23) % 360
-            r = ring + (k % 2) * 10
+        половина = size / 2
+        шаг = 13
+        сколько = max(2, int(size // шаг))
+        k = 0
+        # Первая линия: вдоль каждой из четырёх сторон корпуса, вплотную.
+        for сторона in range(4):
+            for j in range(сколько):
+                сдвиг = (j - (сколько - 1) / 2) * шаг
+                if сторона == 0:      # сверху
+                    px, py = cx + сдвиг, cy - половина - 14
+                elif сторона == 1:    # снизу
+                    px, py = cx + сдвиг, cy + половина + 6
+                elif сторона == 2:    # слева
+                    px, py = cx - половина - 14, cy + сдвиг
+                else:                 # справа
+                    px, py = cx + половина + 6, cy + сдвиг
+                silk.extend(small_part(РЯД[(n + k) % len(РЯД)], int(px), int(py)))
+                k += 1
+        # Вторая линия: вразнобой, по кругу пошире.
+        for j in range(6):
+            ang = (j * 61 + n * 29) % 360
+            r = половина + 20 + (j % 3) * 8
             px = int(cx + r * math.cos(math.radians(ang)))
             py = int(cy + r * math.sin(math.radians(ang)))
-            silk.extend(small_part(KIND[(n + k) % len(KIND)], px, py))
+            silk.extend(small_part(KIND[(n + j) % len(KIND)], px, py))
         clusters.append((cx, cy))
 
     # Полоса у левой кромки: между колодками вентиляторов остаются широкие
@@ -337,14 +381,40 @@ def render(cv):
             silk.extend(small_part(KIND[(i + k) % len(KIND)], px, py))
         clusters.append((kx, ky))
 
-    # тестовые точки
-    for i in range(26):
-        x = X_PCB + 30 + (i * 173) % (PCB_W - 60)
-        y = 40 + (i * 121) % (PCB_H - 50)
+    # Тестовые точки. Часть подписана по функции — так и на живой плате: голый
+    # пятачок без имени бесполезен, к нему незачем цеплять щуп. Подписаны не
+    # все: имя печатают там, где к точке действительно ходят с осциллографом, а
+    # остальные так и остаются безымянными кружками.
+    #
+    # Шаг 173/121 давал диагональный муар — ряды точек выстраивались в косые
+    # линии, которых на плате не бывает. Место берётся из отпечатка, как и
+    # номера обозначений.
+    ЩУПЫ = ('PCIE PROBE CLK', 'BSI PROBE CLK', 'PE HEARTBEAT',
+            'iBMC HEARTBEAT', 'SYS_PWRGD', 'VCORE0 SENSE', 'PWROK')
+    подписано = 0
+    # Бросков больше, чем нужно точек: место под пятачок находится не всегда, а
+    # под пятачок с подписью — тем более. На живой плате контрольных точек
+    # десятки, и подписана из них примерно каждая четвёртая.
+    for i in range(90):
+        зерно = hashlib.sha1(f'{BOARD_SN}:tp:{i}'.encode()).hexdigest()
+        x = X_PCB + 30 + int(зерно[:4], 16) % int(PCB_W - 60)
+        y = 40 + int(зерно[4:8], 16) % int(PCB_H - 50)
         if not cv.free(x - 4, y - 4, 8, 8):
             continue
         silk.append(f'<circle cx="{x}" cy="{y}" r="2.6" fill="none" stroke="rgba(147,161,161,0.30)" stroke-width="1"/>')
         silk.append(f'<circle cx="{x}" cy="{y}" r="0.9" fill="rgba(147,161,161,0.34)"/>')
+        if подписано < len(ЩУПЫ):
+            имя = ЩУПЫ[подписано]
+            ш = len(имя) * 2.6 + 2
+            # Подпись ищет сторону, а не встаёт только справа: у пятачка посреди
+            # плотного поля свободна бывает одна сторона из четырёх, и с одной
+            # попыткой из семи имён вставало ровно одно.
+            for dx, dy, anchor in ((5, -4, 'start'), (-5 - ш, -4, 'start'),
+                                   (-ш / 2, -12, 'start'), (-ш / 2, 6, 'start')):
+                if cv.put(x + dx, y + dy, ш, 7, SILK):
+                    silk.append(mono(x + dx, y + dy + 6, имя, 4.2, anchor=anchor, op=0.28))
+                    подписано += 1
+                    break
 
     # позиционные обозначения — то, что реально написано на плате рядом с деталями
     # Обозначения на живой плате четырёхзначные, стоят стопками по 3–5 у своей
@@ -352,27 +422,56 @@ def render(cv):
     # Стопка встаёт у своей грозди — обозначение печатают рядом с деталью, к
     # которой оно относится, а не там, где на плате осталось место.
     PREFIX = ['R', 'C', 'R', 'C', 'U', 'Q', 'L', 'CR', 'TP', 'J']
+    # Стопок снова полсотни: разводит их теперь сам регистр занятости. Краска
+    # ложится поверх меди и поверх мелочи, но не на корпуса и не на другую
+    # краску — то есть ровно так, как на живой плате. Пока регистр был один на
+    # всех, приходилось выбирать между «нет обозначений вовсе» и «набросаны
+    # друг на друга»; теперь встают те, которым нашлось место, а остальные
+    # честно пропускаются.
     for i in range(min(58, len(clusters))):
         cx, cy = clusters[(i * 5) % len(clusters)]
-        n = 3 + (i % 3)                      # в стопке три-пять обозначений
+        # Две-три штуки в стопке, а не три-пять: краске достаётся то, что
+        # осталось между корпусами, и длинная колонка туда не входит. На живой
+        # плате в плотных местах обозначений тоже по одному-два — там, где
+        # места нет, их не печатают вовсе.
+        n = 2 + (i % 2)
         turn = i % 2                         # половину ставим боком
-        w, h = (30, 7 * n + 6) if not turn else (7 * n + 6, 30)
+        # Запрашиваем ровно тот прямоугольник, который занимает текст: пять
+        # знаков кеглем 5.5 — это около шестнадцати единиц в длину и семь на
+        # строку. Раньше просили 30 в поперечнике, вдвое больше нужного, и
+        # место не находилось нигде: к моменту расстановки поле уже занято
+        # обвязкой, и ни одна из полусотни стопок не вставала. Обозначений на
+        # плате не было вовсе — при том, что на живой их тысячи и это её
+        # главный признак.
+        w, h = (17, 7 * n + 4) if not turn else (7 * n + 4, 17)
         # Обвязка кольцом уже заняла ближний радиус, поэтому стопке даём обойти
-        # гроздь по кругу: без перебора вставали три штуки из полусотни.
+        # гроздь по кругу — и не по одному витку, а по трём, расходящимся от
+        # детали: обозначение печатают рядом со своей, но если там занято,
+        # отступают дальше, а не бросают его вовсе.
         x = y = None
-        for step in range(12):
-            ang = math.radians((i * 61 + step * 30) % 360)
-            r = 34 + (step % 3) * 12
+        for step in range(36):
+            ang = math.radians((i * 61 + step * 10) % 360)
+            r = 24 + (step % 6) * 11
             px = int(cx + r * math.cos(ang))
             py = int(cy + r * math.sin(ang))
-            if X_PCB + 16 < px < X_PCB_END - 24 and 30 < py < H - 34 and cv.put(px - 4, py - 8, w, h):
+            if not (X_PCB + 16 < px < X_PCB_END - 24 and 30 < py < H - 34):
+                continue
+            if cv.put(px - 4, py - 8, w, h, SILK):
                 x, y = px, py
                 break
         if x is None:
             continue
-        base = 1000 + (i * 137) % 2600
+        # Номер берётся из хэша, а не из арифметики. Прежние 1000 + i·137 с
+        # шагом семь внутри стопки давали ряд: соседние обозначения отличались
+        # ровно на семь, и по трём подряд читалась формула. На живой плате
+        # номер детали — это её место в схеме, а схему рисуют не по возрастанию
+        # координаты: рядом стоят R1274 и C2801, и ничего между ними общего
+        # нет. Отпечаток даёт ту же устойчивость — пересобрали, номер тот же, —
+        # но без ряда.
+        зерно = hashlib.sha1(f'{BOARD_SN}:refdes:{i}'.encode()).hexdigest()
         for k in range(n):
-            ref = f'{PREFIX[(i + k) % len(PREFIX)]}{base + k * 7}'
+            номер = int(зерно[k * 4:k * 4 + 4], 16) % 3400 + 1000
+            ref = f'{PREFIX[(i + k) % len(PREFIX)]}{номер}'
             if turn:
                 tx, ty = x + k * 7, y + 12
                 silk.append(f'<text x="{tx}" y="{ty}" transform="rotate(-90 {tx} {ty})" '
@@ -393,6 +492,12 @@ def render(cv):
                    (X_PCB+14, 430), (X_REAR-18, 430), (740, H-30),
                    (X_PCB_END-14, Y_PSU_TOP+14), (X_PCB_END-14, Y_PSU_BOT-14)]):
         cv.busy(x - 10, y - 10, 20, 20)
+        # Отверстие подписано: на живой плате у каждого есть имя — H1, H2, а у
+        # крепления радиатора своё, HSA. Безымянных дырок в текстолите не
+        # бывает, их перечисляет сборочный чертёж.
+        имя = f'H{i+1}'
+        if cv.put(x + 12, y - 4, len(имя) * 3.4 + 2, 8, SILK):
+            holes.append(mono(x + 12, y + 2, имя, 5, anchor="start", op=0.30))
         # Медное кольцо вокруг отверстия — маска на него не заходит, поэтому оно
         # рыжее. У части отверстий винт с пружинной шайбой.
         holes.append(f'<circle cx="{x}" cy="{y}" r="10.5" fill="none" stroke="rgba(184,115,51,0.34)" stroke-width="3"/>')
@@ -402,14 +507,81 @@ def render(cv):
             holes.append(f'<path d="M{x-3.4} {y} h6.8 M{x} {y-3.4} v6.8" stroke="rgba(147,161,161,0.5)" stroke-width="1.3"/>')
     cv.add('<g class="decor">' + ''.join(holes) + '</g>')
 
-    # стрелки продува
-    airflow = []
-    for i in range(5):
-        y = 120 + i * 160
-        airflow.append(f'<path d="M{X_PCB+22} {y} h34 m-7 -4 l7 4 -7 4" fill="none" '
-                       f'stroke="rgba(42,161,152,0.22)" stroke-width="1.4"/>')
-    airflow.append(silk_boxed(X_PCB + 40, 102, "AIRFLOW", 6, op=0.34))
-    cv.add('<g class="decor">' + ''.join(airflow) + '</g>')
+    # ── Наклейка FRU ──────────────────────────────────────────────────────
+    # Самая узнаваемая бумажка на серверной плате: белый прямоугольник со
+    # штрих-кодом и партномером сменного узла. По ней плату и заказывают —
+    # инженер не переписывает надписи с чипов, он сканирует эту наклейку.
+    # Без неё плата выглядит инженерным образцом, а не изделием.
+    #
+    # Место ищется тем же обходом, что и у крупной рассыпухи: наклейку клеят
+    # туда, где осталось поле, и на живых платах она каждый раз в новом углу.
+    FRU_W, FRU_H = 96, 42
+    def fru(x, y):
+        строки = (f'FRU P/N {BOARD_SN}', f'EC {BOARD_REV}A', 'MADE IN CHINA')
+        out = [f'<rect x="{x}" y="{y}" width="{FRU_W}" height="{FRU_H}" rx="1.5" '
+               f'fill="#d9d3c1" fill-opacity="0.55" stroke="rgba(147,161,161,0.34)"/>',
+               barcode(x + 5, y + 4, BOARD_SN, 14, bars=22, pitch=3.9,
+                       thin=1.1, thick=2.2)]
+        for k, t in enumerate(строки):
+            out.append(f'<text x="{x + 5}" y="{y + 26 + k * 6}" fill="rgba(10,20,23,0.66)" '
+                       f'font-family="ui-monospace, Menlo, monospace" font-size="4.6">{t}</text>')
+        return ''.join(out)
+
+    поздние = len(parts)
+    place(FRU_W + 6, FRU_H + 6, lambda x, y: fru(x + 3, y + 3), 'наклейка FRU',
+          PART, (BOARD, MAJOR, PART, SILK, MINOR, RESERVE, COVER))
+
+    # ── Знаки соответствия ────────────────────────────────────────────────
+    # Их печатают на каждой плате, и они не украшение: без свинца, соответствие
+    # директивам, раздельный сбор. Стоят кучкой у кромки, мелко и глухо — их
+    # читают, только когда специально ищут.
+    def знаки(x, y):
+        out = [f'<circle cx="{x+7}" cy="{y+7}" r="6.4" fill="none" '
+               f'stroke="rgba(147,161,161,0.34)" stroke-width="0.9"/>',
+               mono(x + 7, y + 9.4, 'Pb', 5.5, op=0.34),
+               # Перечёркнутый бак: раздельный сбор.
+               f'<rect x="{x+20}" y="{y+2.6}" width="8" height="9" rx="1" fill="none" '
+               f'stroke="rgba(147,161,161,0.34)" stroke-width="0.9"/>',
+               f'<path d="M{x+21} {y+1.4} h6 M{x+18} {y+13} l12 -12" fill="none" '
+               f'stroke="rgba(147,161,161,0.34)" stroke-width="0.9"/>',
+               mono(x + 40, y + 9.4, 'CE', 6.5, op=0.34)]
+        return ''.join(out)
+
+    ЧИСТО = (BOARD, MAJOR, PART, SILK, MINOR, RESERVE, COVER)
+    place(52, 18, lambda x, y: знаки(x + 2, y + 2), 'знаки соответствия',
+          SILK, ЧИСТО)
+
+    # ── Предохранитель ────────────────────────────────────────────────────
+    # На живой плате он один и подписан прямо на текстолите — номинал печатают
+    # рядом, потому что менять его будут по этой надписи, а не по документации.
+    def предохранитель(x, y):
+        return (f'<rect x="{x}" y="{y}" width="18" height="9" rx="4.5" fill="#2a3238" '
+                f'stroke="rgba(147,161,161,0.36)"/>'
+                + pad(x - 2.4, y + 1, 4, 7) + pad(x + 16.4, y + 1, 4, 7)
+                + mono(x, y + 17, 'F560 4A/32V', 4.6, anchor="start", op=0.32))
+
+    place(46, 24, lambda x, y: предохранитель(x + 2, y + 2), 'предохранитель',
+          PART, ЧИСТО)
+
+    # ── Реперы ────────────────────────────────────────────────────────────
+    # Буквы в рамке по углам текстолита. Это не украшение и не подпись: по ним
+    # автомат установки читает, какой стороной и какой ревизией лежит плата, а
+    # человек — с какого угла начинается нумерация зон. На живой плате они
+    # стоят обязательно и всегда по углам, потому что угол виден при любом
+    # положении заготовки.
+    def репер(x, y, буква):
+        return (f'<rect x="{x}" y="{y}" width="13" height="13" rx="1" fill="none" '
+                f'stroke="rgba(147,161,161,0.30)" stroke-width="0.8"/>'
+                + mono(x + 6.5, y + 9.5, буква, 7, op=0.34))
+
+    реперы = []
+    for (rx, ry, буква) in ((X_PCB + 30, 26, 'A'), (X_REAR - 46, 26, 'F'),
+                            (X_PCB + 30, H - 40, 'G'), (X_REAR - 46, H - 40, 'H')):
+        if cv.put(rx, ry, 15, 15, SILK):
+            реперы.append(репер(rx, ry, буква))
+    cv.add('<g class="decor silk">' + ''.join(реперы) + '</g>')
+
+    cv.add('<g class="decor parts">' + ''.join(parts[поздние:]) + '</g>')
 
     # Марка изготовителя. Стояла вертикально по правой кромке кеглем в 44 — и
     # не читалась: кромку пересекают три бирки ссылок, а они непрозрачные, и
@@ -434,7 +606,6 @@ def render(cv):
     # до кегля 3,6 — мельче на плате только гравировка на чипах памяти, и та
     # мелкая нарочно. Строку, продиктованную дословно, читать было нельзя.
     rev = f'REV {BOARD_REV} · S/N {BOARD_SN}'
-    made = f'ASSEMBLED IN A CONTAINER · {MADE}'
     # Разрядка в 0.10 em добавляется к продвижению знака, поэтому в fit()
     # уходит ширина поля, ужатая на ту же долю.
     avail = fw / 1.17
@@ -454,12 +625,9 @@ def render(cv):
   <text class="silk-name" x="{fx + fw / 2:.0f}" y="{fy + 16 + name_size:.0f}" text-anchor="middle"
         font-family="ui-monospace, Menlo, monospace"
         font-size="{name_size}" font-weight="600" letter-spacing="0.10em">COSMDANDY</text>
-  <text class="silk-line" x="{fx + fw / 2:.0f}" y="{fy + fh - 20:.0f}" text-anchor="middle"
+  <text class="silk-line" x="{fx + fw / 2:.0f}" y="{fy + fh - 12:.0f}" text-anchor="middle"
         font-family="ui-monospace, Menlo, monospace"
         font-size="{fit(rev, avail, 7)}" letter-spacing="0.06em">{rev}</text>
-  <text class="silk-line" x="{fx + fw / 2:.0f}" y="{fy + fh - 9:.0f}" text-anchor="middle"
-        font-family="ui-monospace, Menlo, monospace"
-        font-size="{fit(made, avail, 7)}" letter-spacing="0.06em">{made}</text>
   <path class="silk-rule" d="M{fx + 14} {fy + fh - 3} H{fx + fw - 14}" fill="none"/>
   <clipPath id="silk-clip"><rect x="{fx}" y="{fy}" width="{fw}" height="{fh}"/></clipPath>
   <g clip-path="url(#silk-clip)">

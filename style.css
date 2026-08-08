@@ -202,6 +202,17 @@
     box-sizing: border-box;
 }
 
+/* Обрезка вбок нужна и на html: за карточку вылетают и пятно .glow со своими
+   160px, и крышка машины .lid, которую отъезд в сторону уносит на добрую
+   половину экрана. Одного правила на body не хватает — до области просмотра
+   оно не доходит, и страница честно прокручивается вправо. clip, а не hidden:
+   hidden завёл бы прокручиваемый контейнер, и всё, что стоит по углам с
+   position: fixed — подпись, кнопки, бейдж сборки — цеплялось бы уже к нему,
+   а не к окну. Так же сделано на /tg. */
+html {
+    overflow-x: clip;
+}
+
 body {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     font-variant-numeric: tabular-nums;
@@ -211,7 +222,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    overflow-x: hidden;
+    overflow-x: clip;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
 }
@@ -283,6 +294,107 @@ main {
 .card {
     position: relative;
     text-align: center;
+}
+
+/* ── Переезд на /tg ──────────────────────────────────────────────────────
+   На резюме имя переезжает вручную: там другой хост, и браузер помочь не
+   может. Внутри же сайта помогает — общие элементы он переносит сам, надо
+   лишь назвать их одинаково с обеих сторон.
+
+   Имя названо сразу в двух местах: строка живёт и в карточке, и в шапке
+   схемы. Спорить они не будут — вид, который сейчас не показан, скрыт через
+   display: none, а у неотрисованного элемента имя не участвует в переходе.
+   Поэтому здесь не нужен ни порог по ширине, ни оглядка на выбранный вид. */
+@view-transition { navigation: auto; }
+
+::view-transition-group(person-name),
+::view-transition-group(person-role) {
+    animation-duration: 0.5s;
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Кегли строки на двух сторонах не совпадают: в шапке схемы имя 1.5rem, в
+   карточке и на /tg — 1.4rem. По умолчанию снимок старого текста растягивают
+   до размера нового, и буквы едут размытыми, будто их увеличивают.
+   object-fit: none оставляет снимку его размер, а привязка к левому верху
+   совмещает строки по началу букв: имя разной длины иначе гуляет вбок.
+
+   Те же правила стоят на стороне /tg — переход общий, и описывать его обе
+   стороны обязаны одинаково. */
+::view-transition-old(person-name),
+::view-transition-new(person-name),
+::view-transition-old(person-role),
+::view-transition-new(person-role) {
+    height: 100%;
+    width: auto;
+    object-fit: none;
+    object-position: left top;
+    mix-blend-mode: normal;
+}
+
+::view-transition-old(person-name),
+::view-transition-old(person-role) {
+    animation: vt-name-out 0.16s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+::view-transition-new(person-name),
+::view-transition-new(person-role) {
+    animation: vt-name-in 0.26s cubic-bezier(0.32, 0.72, 0, 1) 0.1s backwards;
+}
+
+@keyframes vt-name-out { to { opacity: 0; } }
+@keyframes vt-name-in { from { opacity: 0; } }
+
+/* Имя переезда назначается по ширине окна, а не сразу обоим видам. Строка
+   живёт в двух местах — в карточке и в шапке схемы, — и хотя невидимый вид
+   скрыт через display: none, полагаться на это нельзя: имя обязано быть ровно
+   одно в любой момент, включая первый кадр, когда вид ещё не выбран. Два
+   отрисованных элемента с одним именем браузер считает ошибкой и отменяет
+   переход целиком. Порог тот же, что у выбора вида. */
+@media (max-width: 820px) {
+    .card h1 { view-transition-name: person-name; }
+    .card .bio { view-transition-name: person-role; }
+}
+
+@media (min-width: 821px) {
+    .rig-id h2 { view-transition-name: person-name; }
+    .rig-id .bio { view-transition-name: person-role; }
+}
+
+/* ── Занавес ─────────────────────────────────────────────────────────────
+   Тот же, что на стороне /tg, и описан он там же подробно: уход короче
+   прихода, доли перекрываются, приходящая страница чуть поднимается.
+   Правила обязаны стоять с обеих сторон: анимацией распоряжается тот
+   документ, который принимает переход, и держать их только у соседа значит
+   получить занавес в одну сторону и рывок в другую. */
+@keyframes vt-fade-out {
+    to { opacity: 0; }
+}
+
+@keyframes vt-fade-in {
+    from { opacity: 0; transform: translate3d(0, 8px, 0); }
+    to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+::view-transition-old(root) {
+    animation: vt-fade-out 0.32s cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+::view-transition-new(root) {
+    animation: vt-fade-in 0.52s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+::view-transition-group(theme-btn) {
+    animation-duration: 0.4s;
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Переключатель темы здесь зовётся иначе, чем на /tg, а имя перехода должно
+   совпадать — по нему браузер и находит пару. */
+.theme-switch { view-transition-name: theme-btn; }
+
+@media (prefers-reduced-motion: reduce) {
+    @view-transition { navigation: none; }
 }
 
 h1 {
@@ -806,3 +918,106 @@ h1     { animation-delay: 0ms; }
 :root.vt-veil.vt-shut::after {
     opacity: 1;
 }
+
+/* ── Панель слоёв ─────────────────────────────────────────────────────────
+ * Инструмент разработки, а не часть визитки: показывается только там, где
+ * есть штамп сборки, — локально и на стендах. Скрипт панели сам решает,
+ * рисовать ли её; стили просто описывают, как она выглядит, когда есть.
+ *
+ * Прижата к левому краю и набрана моноширинным, как отметка о сборке в
+ * противоположном углу: обе — служебные надписи поверх страницы, и читаться
+ * они должны одинаково.
+ */
+.dev-layers {
+    position: fixed;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 40;
+    max-height: 92vh;
+    overflow-y: auto;
+    padding: 12px 14px 14px;
+    border-radius: 0 12px 12px 0;
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 0.66rem;
+    line-height: 1.5;
+    color: var(--meta);
+    background: linear-gradient(180deg, var(--card-from) 0%, var(--card-to) 100%);
+    border: 1px solid var(--card-border);
+    border-left: none;
+    backdrop-filter: blur(25px);
+    box-shadow: var(--card-shadow);
+}
+
+/* Заголовок он же кнопка: панель занимает место, и убрать её надо уметь одним
+   нажатием, не разыскивая крестик. Стрелка показывает, куда всё уедет. */
+.dev-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    padding: 0 0 8px;
+    border: none;
+    background: none;
+    font: inherit;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--bio);
+    cursor: pointer;
+    transition: color 0.2s ease;
+}
+
+.dev-head:hover { color: var(--hover-text); }
+.dev-head:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.dev-head::before {
+    content: '';
+    width: 0;
+    height: 0;
+    border: 4px solid transparent;
+    border-right-color: currentColor;
+    transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* Свёрнутая панель — узкий корешок у кромки: видно, что инструмент есть, но
+   схему он больше не загораживает. */
+.dev-layers.folded { padding: 10px 8px; }
+.dev-layers.folded .dev-body { display: none; }
+.dev-layers.folded .dev-head { padding: 0; }
+.dev-layers.folded .dev-head::before { transform: rotate(180deg); }
+.dev-layers.folded .dev-head span { display: none; }
+
+/* Один столбец, а не два: вдвоём они съедали треть ширины экрана и спорили
+   со схемой за место — а смотрят на них по очереди, а не одновременно. */
+.dev-body { display: flex; flex-direction: column; gap: 10px; }
+.dev-col { display: flex; flex-direction: column; gap: 1px; }
+
+.dev-sub {
+    color: var(--now);
+    margin-bottom: 4px;
+    letter-spacing: 0.04em;
+}
+
+.dev-row {
+    display: grid;
+    grid-template-columns: 12px 1fr auto;
+    align-items: center;
+    gap: 6px;
+    padding: 1px 4px 1px 0;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease;
+}
+
+.dev-row:hover { background: var(--card-hover-from); color: var(--hover-text); }
+.dev-row input { accent-color: var(--green); width: 11px; height: 11px; margin: 0; }
+.dev-name { white-space: nowrap; }
+
+/* Число фигур выровнено по правому краю столбца: по нему сразу видно, кто на
+   плате главный по весу, и колонка читается как таблица. */
+.dev-num { color: var(--now); font-variant-numeric: tabular-nums; }
+
+/* Погашенный слой виден и в списке: строка тускнеет вместе с ним. */
+.dev-row:has(input:not(:checked)) .dev-name { opacity: 0.45; }
+
+@media (max-width: 1100px) { .dev-layers { display: none; } }

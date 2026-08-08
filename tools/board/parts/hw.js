@@ -143,7 +143,7 @@
         { t: 'cover   : ' + (rig.classList.contains('lid-off') ? 'removed' : 'in place') },
         { t: 'service : ' + (rig.classList.contains('service') ? 'on' : 'off') },
         { t: 'cpu     : ' + cpu.sockets + '× ' + (cpu.spec.short || '—') + ' · '
-             + cpu.cores + 'c/' + cpu.threads + 't' },
+             + cpu.cores + 'c/' + cpu.threads + 't всего' },
         { t: 'memory  : ' + dimm.in + ' of ' + dimm.total + ' · ' + (dimm.gb / 1024).toFixed(2) + ' TiB' },
         { t: 'health  : ' + (gone.length ? 'degraded · вынуто: ' + gone.join(', ') : 'ok'),
           c: gone.length ? 'warn' : 'ok' },
@@ -157,9 +157,24 @@
     run: function (ctx) {
       const out = counts('.fan.pulled');
       const dimm = dimmState();
+      // Датчик живёт в самом процессоре, и у вынутого спрашивать нечего. Пока
+      // строка печаталась безусловно, sensors бодро показывал температуру
+      // сокета, с которого на схеме снят радиатор, — а /proc/cpuinfo этот же
+      // сокет честно пропускал. Две команды об одной машине расходились на
+      // глазах.
+      const снят = function (n) {
+        const s = rig.querySelector('.cpu-slot[data-cpu="' + n + '"]');
+        return !!(s && s.classList.contains('pulled'));
+      };
+      const темп = function (n, dv) {
+        return снят(n)
+          ? { t: 'CPU' + n + ' Temp      — · радиатор снят', c: 'muted' }
+          : { t: 'CPU' + n + ' Temp      ' + Math.round(metric('temp').v - dv) + ' °C',
+              c: out ? 'warn' : 'ok' };
+      };
       const rows = [
-        { t: 'CPU0 Temp      ' + Math.round(metric('temp').v) + ' °C', c: out ? 'warn' : 'ok' },
-        { t: 'CPU1 Temp      ' + Math.round(metric('temp').v - 2) + ' °C', c: out ? 'warn' : 'ok' },
+        темп(0, 0),
+        темп(1, 2),
         { t: 'Inlet Temp     ' + (21 + Math.round(Math.random() * 2)) + ' °C', c: 'ok' },
         { t: 'Fan Speed      ' + (fanRpmNow(ctx.nv) + out * 1800) + ' RPM', c: out ? 'warn' : 'ok' },
         { t: 'Fan Policy     ' + fanPolicyNow(ctx.nv), c: 'muted' },
@@ -276,7 +291,13 @@
       // We list what is drawn: chips from the spec, drives from the cage,
       // risers with their cards. An empty riser is marked as exactly that.
       const rows = [];
-      HW.chips.forEach(function (chip, i) {
+      // Только то, что действительно висит на PCIe. TPM разговаривает по SPI,
+      // логика питания по eSPI, гигабитный PHY по MDIO — в выводе lspci их не
+      // бывает, и печатать их там значит выдумывать шину.
+      const НЕ_PCI = ['SLB9673', 'LCMXO3', 'BCM54210', 'AST2600'];
+      HW.chips.filter(function (chip) {
+        return НЕ_PCI.indexOf(chip.mark) < 0;
+      }).forEach(function (chip, i) {
         rows.push({ t: (i + 1).toString(16).padStart(2, '0') + ':00.0  ' + chip.ref.padEnd(5)
                        + chip.mark, c: 'muted' });
       });
@@ -308,10 +329,21 @@
         { t: 'Product Name   : ' + HW.board.model + ' · ' + HW.board.form },
         { t: 'Board Revision : ' + HW.board.rev },
         { t: 'Serial Number  : ' + HW.board.sha },
+        // Ровно то, что напечатано на наклейке FRU у кромки платы. Живой fru
+        // с неё и списывают: партномер сменного узла, уровень изменений,
+        // страна сборки. Пока их не было, консоль и наклейка отвечали на один
+        // вопрос по-разному — а инженер сверяет именно эти две строки.
+        { t: 'FRU P/N        : ' + HW.board.sha },
+        { t: 'EC Level       : ' + HW.board.rev + 'A' },
+        { t: 'Manufacturer   : MADE IN CHINA' },
+        { t: 'UUID           : ' + (HW.fw.uuid || '—') },
         { t: 'BIOS Version   : ' + HW.fw.bios + '  (' + HW.fw.bios_date + ')' },
         { t: 'BMC Firmware   : ' + HW.fw.bmc + '  (' + HW.fw.bmc_chip + ')' },
+        // На процессор, и это сказано прямо. Строка status печатает то же
+        // число, умноженное на сокеты, и, пока обе молчали о том, что считают,
+        // машина выглядела спорящей сама с собой: 192c здесь и 384c там.
         { t: 'CPU            : ' + HW.cpu.n + '× ' + HW.cpu.model + ' · ' + HW.cpu.socket
-             + ' · ' + HW.cpu.cores + 'c/' + HW.cpu.threads + 't' },
+             + ' · ' + HW.cpu.cores + 'c/' + HW.cpu.threads + 't на сокет' },
         { t: 'Memory         : ' + d.total + '× ' + HW.dimm.kind + ' ' + HW.dimm.size_gb
              + 'GB ' + HW.dimm.speed + ' MT/s · ' + (d.total * HW.dimm.size_gb / 1024).toFixed(2) + ' TiB' },
         { t: 'Storage        : ' + disks.length + '× NVMe (' + disks.filter(function (b) {

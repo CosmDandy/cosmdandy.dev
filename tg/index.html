@@ -50,6 +50,16 @@
 </head>
 <body>
 
+<!-- Путь назад. Ссылка, а не кнопка с историей: на страницу попадают не только
+     с визитки — по прямому адресу, из QR, из чужого сообщения, — и «назад» у
+     такого гостя вело бы наружу сайта или никуда. Здесь адрес известен всегда,
+     а тем, кто пришёл переездом, браузер и так вернёт кнопкой назад. -->
+<a class="back-btn" href="/" aria-label="На визитку">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M15.5 5.5 9 12l6.5 6.5"/>
+    </svg>
+</a>
+
 <button class="theme-btn" id="theme-btn" type="button" aria-label="Переключить тему">
     <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>
@@ -59,6 +69,17 @@
         <path d="M12 2.6v2.2M12 19.2v2.2M2.6 12h2.2M19.2 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M18.7 5.3l-1.6 1.6M6.9 17.1l-1.6 1.6"/>
     </svg>
 </button>
+
+<!-- Обычная ссылка, а не кнопка со скриптом: имя переезжает обратно тем же
+     штатным переходом, и для него важно, чтобы это была настоящая навигация
+     в этой же вкладке. Стоит зеркально переключателю темы — угол, в котором
+     на визитке ничего нет, так что возврат не спорит с ним за место. -->
+<a class="back-btn" href="/" aria-label="Вернуться на визитку">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M15.5 5 8.5 12l7 7"/>
+    </svg>
+    <span>Визитка</span>
+</a>
 
 <div class="dots"></div>
 <div class="cursor-glow" id="cursor-glow"></div>
@@ -74,8 +95,14 @@
             </svg>
         </div>
 
-        <h1>@cosmdandy</h1>
-        <p class="bio">Timofey Kondrashin · DevOps Engineer</p>
+        <!-- Строка набрана ровно так же, как на визитке: те же два элемента с
+             теми же размерами и порядком. На них держится переход между
+             страницами — браузер сопоставляет их по имени и переносит сам,
+             а не показывает две разные шапки подряд. Хендл отсюда ушёл вниз,
+             на кнопку копирования: имя человека важнее его логина, и на обеих
+             страницах в этом месте должно стоять одно и то же. -->
+        <h1>Timofey Kondrashin</h1>
+        <p class="bio">DevOps Engineer</p>
         <p class="now"><span class="live-dot"></span>личные сообщения открыты</p>
 
         <nav class="links">
@@ -117,7 +144,10 @@
 </main>
 
 <div class="meta">
-    <a href="https://cosmdandy.dev">cosmdandy.dev</a>
+    <!-- Адрес относительный: это тот же сайт, и обратный переход должен
+         пройти таким же переездом, а не уходом на чужой хост. Заодно на
+         стенде ссылка остаётся внутри стенда. -->
+    <a href="/">cosmdandy.dev</a>
     <span class="sep">·</span>
     <a href="https://t.me/cosmdandy" id="fallback" target="_blank" rel="noopener">не открылось — перейти на t.me</a>
 </div>
@@ -134,8 +164,51 @@
         try { localStorage.setItem('theme', next); } catch (e) {}
     });
 
+    // ── Живой фон ──────────────────────────────────────────────────────────
+    // То же движение, что на визитке: сетка точек ходит за мышью на десяток
+    // пикселей, а свечение тянется за курсором с отставанием. Само по себе
+    // это почти незаметно — и в этом смысл: страница перестаёт выглядеть
+    // картинкой, но ничего не требует к себе внимания.
+    //
+    // Оба значения догоняют цель долями, а не ставятся напрямую: у сетки доля
+    // мелкая, потому её и ведёт заметно позже руки, у свечения крупнее. Один
+    // кадровый цикл на двоих — второй requestAnimationFrame ради тех же
+    // тридцати строк не нужен.
     var glow = document.getElementById('cursor-glow');
-    if (window.matchMedia('(pointer: fine)').matches) {
+    var dots = document.querySelector('.dots');
+    var fine = window.matchMedia('(pointer: fine)').matches;
+    var still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (fine && !still) {
+        var mouseX = window.innerWidth / 2, mouseY = window.innerHeight / 2;
+        var glowX = mouseX, glowY = mouseY;
+        var dotsX = 0, dotsY = 0, dotsPos = '';
+
+        window.addEventListener('mousemove', function (e) {
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+            glow.classList.add('visible');
+        });
+
+        (function frame() {
+            glowX += (mouseX - glowX) * 0.15;
+            glowY += (mouseY - glowY) * 0.15;
+            glow.style.left = glowX + 'px';
+            glow.style.top = glowY + 'px';
+
+            dotsX += ((mouseX / window.innerWidth - 0.5) * 10 - dotsX) * 0.05;
+            dotsY += ((mouseY / window.innerHeight - 0.5) * 10 - dotsY) * 0.05;
+            // Пишем только когда значение и правда изменилось: округление до
+            // сотых даёт ту же картинку, но избавляет от записи в стиль на
+            // каждом кадре, когда мышь уже стоит.
+            var pos = dotsX.toFixed(2) + 'px ' + dotsY.toFixed(2) + 'px';
+            if (pos !== dotsPos) {
+                dotsPos = pos;
+                dots.style.backgroundPosition = pos;
+            }
+            requestAnimationFrame(frame);
+        })();
+    } else if (fine) {
         window.addEventListener('mousemove', function (e) {
             glow.style.left = e.clientX + 'px';
             glow.style.top = e.clientY + 'px';

@@ -835,6 +835,219 @@
     if (linkHint) linkHint.classList.remove('on');
   }
 
+  // ── Подсказка над границей занятости ─────────────────────────────────
+  // Границы показывают, где занято, но не говорят, чем именно и кем. Адрес
+  // подписан на самом квадрате, однако в мелкие он не влезает, а хозяин не
+  // подписан нигде — его знает только регистр. Поэтому под курсором тот же
+  // ярлык, что и у ссылок: адрес, вид и блок, который место застолбил.
+  //
+  // Работает, только пока границы включены: в обычном состоянии слой не
+  // ловит мышь вовсе и не мешает нажимать на саму машину.
+  const boundsLayer = document.querySelector('.lyr-bounds');
+  if (boundsLayer && linkHint) {
+    boundsLayer.addEventListener('mousemove', function (e) {
+      if (!rig.classList.contains('bounds')) { hideLinkHint(); return; }
+      const box = e.target.closest('rect[data-id]');
+      if (!box) { hideLinkHint(); return; }
+      const group = box.closest('.bnd');
+      placeHint('<span class="lh-scheme">' + box.dataset.id + '</span>'
+        + '<span class="lh-host">' + (group ? group.dataset.title : '') + '</span>'
+        + ' · ' + (box.dataset.by || '?'), e.clientX, e.clientY);
+    });
+    boundsLayer.addEventListener('mouseleave', hideLinkHint);
+  }
+
+  // Наслоение подписано двумя адресами сразу — вопрос к нему всегда «кто с
+  // кем», а не «что это». Хозяева тоже оба: чаще всего наслоение выходит
+  // между разными блоками, и без имён непонятно, кому из них уступать.
+  const overlapLayer = document.querySelector('.lyr-overlap');
+  if (overlapLayer && linkHint) {
+    overlapLayer.addEventListener('mousemove', function (e) {
+      if (!rig.classList.contains('overlap')) { hideLinkHint(); return; }
+      const box = e.target.closest('rect[data-pair]');
+      if (!box) { hideLinkHint(); return; }
+      placeHint('<span class="lh-scheme">' + box.dataset.pair + '</span>'
+        + '<span class="lh-host">наслоение</span>'
+        + ' · ' + (box.dataset.by || '?'), e.clientX, e.clientY);
+    });
+    overlapLayer.addEventListener('mouseleave', hideLinkHint);
+  }
+
+  // ── Наслоения рисунка ──────────────────────────────────────────────────
+  // Слой выше показывает нарушения регистра — то есть расхождения с тем, что
+  // блоки о себе ОБЪЯВИЛИ. Но объявляют не все: сервисная зона рисует надписи
+  // «PLATFORM», «BIOS BOOT FROM», «microSD» и свои разъёмы, а в регистр
+  // кладёт две записи на всю зону. Глаз при этом видит, что подпись накрыта
+  // корпусом, а регистр молчит, потому что его никто не спрашивал.
+  //
+  // Здесь наслоение ищется по факту нарисованного: берутся все подписи схемы
+  // и все непрозрачные фигуры, и проверяется, не легла ли фигура поверх
+  // подписи. Порядок в документе и есть порядок рисования — накрывает только
+  // то, что идёт ПОСЛЕ. Подложка под текстом рисуется до него и потому не
+  // считается помехой.
+  //
+  // Мерить приходится в браузере, а не при сборке: у половины узлов своя
+  // система координат (<use transform>), и разобрать её разметкой значит
+  // повторить работу, которую getBBox уже делает точно.
+  const clashLayer = document.querySelector('.lyr-clash');
+
+  function boxOf(el, root) {
+    // getBBox даёт габарит в своих координатах; в корневые его переводит
+    // матрица от элемента к корню.
+    const m = root.getScreenCTM().inverse().multiply(el.getScreenCTM());
+    const b = el.getBBox();
+    const xs = [], ys = [];
+    for (const [px, py] of [[b.x, b.y], [b.x + b.width, b.y],
+                            [b.x, b.y + b.height], [b.x + b.width, b.y + b.height]]) {
+      xs.push(m.a * px + m.c * py + m.e);
+      ys.push(m.b * px + m.d * py + m.f);
+    }
+    return { x: Math.min(...xs), y: Math.min(...ys),
+             w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
+  }
+
+  function opaque(el) {
+    // Блик — не помеха: он проезжает по детали раз в несколько секунд и
+    // существует ровно для того, чтобы её заметили. Заливка у него градиентная,
+    // и по цвету от глухой не отличается.
+    if (el.classList.contains('svc-shine') || el.classList.contains('silk-shine')
+        || el.classList.contains('shine')) return false;
+    // Полупрозрачное стекло подписи не прячет: сквозь заливку в четверть силы
+    // буквы читаются. Помеха — то, что кроет плотно.
+    const st = getComputedStyle(el);
+    if (st.display === 'none' || st.visibility === 'hidden') return false;
+    // Фигура с маской или обтравкой сплошной не бывает: задняя панель — это
+    // один прямоугольник во всю стену, а дырок в нём столько, что сквозь него
+    // видно и разъёмы, и подписи райзеров. По габариту она накрывала полстены.
+    if (el.getAttribute('mask') || el.getAttribute('clip-path')) return false;
+    const fill = el.getAttribute('fill') || st.fill;
+    if (!fill || fill === 'none') return false;
+    const op = parseFloat(el.getAttribute('fill-opacity') || st.fillOpacity || '1');
+    if (op < 0.5) return false;
+    // rgba с малой альфой — та же полупрозрачность, только записанная в цвете.
+    const rgba = /rgba?\([^)]*,\s*([\d.]+)\s*\)/.exec(fill);
+    return !(rgba && parseFloat(rgba[1]) < 0.5);
+  }
+
+  function findClashes() {
+    const svg = rig.querySelector('svg');
+    if (!svg) return [];
+    const все = [].slice.call(svg.querySelectorAll('text, rect, circle, ellipse'));
+    // Что в счёт не идёт.
+    //
+    // Слои разметки — они нарисованы поверх всего нарочно.
+    //
+    // Накладки интерфейса — бирки-ссылки и выдвижная панель диагностики. Они
+    // лежат отдельными слоями поверх машины, и это их работа: бирка обязана
+    // накрывать плату, иначе её не прочесть. Наслоение — это спор двух вещей
+    // за одно место на самой плате, а бирка с платой не спорит, она над ней.
+    //
+    // Посадочные места — их и должно быть не видно. Подпись «FAN3» на дне
+    // корзины или разъём на дне отсека диска показываются ровно тогда, когда
+    // узел вынут; накрытыми они выглядят только у собранной машины, а
+    // спрашивать с них за это нельзя — они для того и нарисованы.
+    //
+    // Заготовки — defs, маски, обтравка, узоры. Они не рисуются вовсе, но в
+    // разметке лежат такими же прямоугольниками, и белый прямоугольник маски
+    // задней панели «накрывал» половину подписей на ней.
+    const годен = (el) => !el.closest('.lyr-bounds, .lyr-overlap, .lyr-grid, '
+                                      + '.lyr-clash, .lyr-tags, .lyr-probe, '
+                                      + '.fan-seat, .bay-slot, .cpu-seat, .dimm-seat, '
+                                      + 'defs, mask, clipPath, pattern, symbol, marker');
+    const тексты = [], фигуры = [];
+    все.forEach(function (el, i) {
+      if (!годен(el)) return;
+      // Чья это деталь. Внутри одного узла порядок нарисован сознательно:
+      // подпись на кристалле лежит под крышкой процессора, наклейка диска — под
+      // рамкой каддика. Это не спор за место, а устройство детали, и считать
+      // такое наслоением значит хоронить настоящие находки под сотней верных.
+      const узел = el.closest('.pick, .unit');
+      // Ездит ли элемент. Тело накопителя вчетверо шире своей лицевой рамки и
+      // целиком лежит под соседями: в собранной машине его не видно вовсе, а
+      // при разборке каддик выезжает и уносит его с собой. Сравнивать такое с
+      // чужими деталями бессмысленно — их взаимное положение зависит от того,
+      // что сейчас вынуто.
+      const едет = !!el.closest('.pick-body');
+      if (el.tagName === 'text') {
+        if (!el.textContent.trim()) return;
+        тексты.push({ el: el, at: i, box: boxOf(el, svg), узел: узел, едет: едет });
+      } else if (opaque(el)) {
+        фигуры.push({ el: el, at: i, box: boxOf(el, svg), узел: узел, едет: едет });
+      }
+    });
+    const найдено = [];
+    тексты.forEach(function (t) {
+      const площадь = Math.max(1, t.box.w * t.box.h);
+      фигуры.forEach(function (f) {
+        if (f.at < t.at) return;                  // нарисовано раньше — лежит снизу
+        if (f.узел && f.узел === t.узел) return;  // одна деталь — так и задумано
+        if ((t.едет || f.едет) && f.узел !== t.узел) return;   // разъедутся при разборке
+        const w = Math.min(t.box.x + t.box.w, f.box.x + f.box.w) - Math.max(t.box.x, f.box.x);
+        const h = Math.min(t.box.y + t.box.h, f.box.y + f.box.h) - Math.max(t.box.y, f.box.y);
+        if (w <= 0 || h <= 0 || w * h < площадь * 0.2) return;
+        найдено.push({ x: Math.max(t.box.x, f.box.x), y: Math.max(t.box.y, f.box.y),
+                       w: w, h: h, text: t.el.textContent.trim(),
+                       frac: w * h / площадь,
+                       what: f.el.tagName + '.' + (f.el.getAttribute('class') || '-')
+                             + ' из ' + ((f.el.closest('[data-blk]') || {}).dataset || {}).blk
+                             + ' / текст из ' + ((t.el.closest('[data-blk]') || {}).dataset || {}).blk });
+      });
+    });
+    return найдено;
+  }
+
+  function drawClashes() {
+    if (!clashLayer) return;
+    // Считается один раз: обход схемы стоит заметно, а рисунок между
+    // включениями галочки не меняется.
+    if (clashLayer.dataset.done) return +clashLayer.dataset.count;
+    const found = findClashes();
+    clashLayer.innerHTML = found.map(function (c) {
+      return '<rect data-clash="' + c.text.replace(/[<>&"]/g, '') + '" data-what="'
+        + c.what.replace(/[<>&"]/g, '') + '" data-frac="' + c.frac.toFixed(2)
+        + '" x="' + c.x.toFixed(0) + '" y="' + c.y.toFixed(0)
+        + '" width="' + Math.max(2, c.w).toFixed(0) + '" height="' + Math.max(2, c.h).toFixed(0) + '"/>';
+    }).join('');
+    clashLayer.dataset.done = '1';
+    clashLayer.dataset.count = found.length;
+    return found.length;
+  }
+
+  // Панель слоёв живёт на странице, а не в схеме, и считать наслоения сама не
+  // может: обход требует и корня схемы, и правил видимости.
+  window.rigClashes = drawClashes;
+
+  if (clashLayer && linkHint) {
+    clashLayer.addEventListener('mousemove', function (e) {
+      if (!rig.classList.contains('clash')) { hideLinkHint(); return; }
+      const box = e.target.closest('rect[data-clash]');
+      if (!box) { hideLinkHint(); return; }
+      placeHint('<span class="lh-scheme">' + box.dataset.clash + '</span>'
+        + '<span class="lh-host">накрыто</span>'
+        + ' · ' + (box.dataset.what || '?'), e.clientX, e.clientY);
+    });
+    clashLayer.addEventListener('mouseleave', hideLinkHint);
+  }
+
+  // ── Живы ли сейчас ссылки схемы ────────────────────────────────────────
+  // Одно место на все вопросы «можно ли по этому нажать»: и подсказка у
+  // курсора, и подсветка плашек, и сам переход обязаны отвечать одинаково.
+  // Раньше каждый решал сам, и ответы расходились — плашка подсвечивалась и
+  // обещала адрес там, где нажатие уже ничего не делало.
+  //
+  // Ссылки живы у собранной машины со снятой крышкой, когда подписи на месте:
+  // под крышкой читать нечего, в сервисном режиме узлы разбирают, а пока идёт
+  // сборка (assembly), возврат (stowing) или самотест (tags-off) — плашек
+  // ещё нет на экране, и обещать по ним переход не из чего.
+  function linksLive() {
+    const c = rig.classList;
+    return c.contains('lid-off')
+      && !c.contains('service')
+      && !c.contains('assembly')
+      && !c.contains('stowing')
+      && !c.contains('tags-off');
+  }
+
   if (linkHint) {
     // Карточка — такой же набор ссылок, и адрес там нужен ровно затем же.
     // Раньше подсказка жила только на схеме, и на узком экране, где схемы нет,
@@ -847,6 +1060,11 @@
       else hideLinkHint();
     });
     rig.addEventListener('mousemove', function (e) {
+      // Над границами занятости говорит их собственный обработчик — он стоит
+      // ниже по дереву и уже показал адрес квадрата. Событие всплывает сюда,
+      // и без этой проверки схема тут же гасила подсказку, решив, что под
+      // курсором не ссылка.
+      if (rig.classList.contains('bounds') && e.target.closest('.lyr-bounds')) return;
       // В лупе у курсора стоит не адрес, а способ приблизить. Про shift
       // догадаться нельзя, а сказать о нём больше негде: консоли в этом режиме
       // нет, и подпись на экране была бы баннером. Зато место у курсора гость
@@ -857,10 +1075,11 @@
         else placeHint(zoomHint(), e.clientX, e.clientY);
         return;
       }
-      // In service mode units are taken apart, not opened: the hint there
-      // would promise a navigation that is not going to happen.
-      const target = rig.classList.contains('service')
-        ? null : e.target.closest('a.callout, .unit[data-href]');
+      // Подсказка обещает переход, поэтому показывать её можно ровно тогда,
+      // когда переход состоится. Раньше условие было только про сервисный
+      // режим, и адрес всплывал у курсора там, где нажатие уже ничего не
+      // делало: под закрытой крышкой и пока плашки ещё не проступили.
+      const target = linksLive() ? e.target.closest('a.callout, .unit[data-href]') : null;
       const href = target && (target.getAttribute('href') || target.dataset.href);
       if (href) showLinkHint(href, e.clientX, e.clientY); else hideLinkHint();
     });
@@ -1449,6 +1668,15 @@
     // way out is another matter: outside service mode there is no reason for
     // it to hang there.
     if (!on && rig.classList.contains('lp-open')) toggleLp();
+    // Лупа живёт только внутри сервисного режима: разбирает узлы он, а она
+    // лишь показывает их вблизи. Раньше связь была односторонней — кнопка лупы
+    // включала режим, а выключатель на плате гасил режим и оставлял машину
+    // приближённой, без терминала и без разбора.
+    //
+    // Рекурсии здесь нет: setZoom снимает класс zoom прежде, чем сам дёрнет
+    // toggleService, и его собственная проверка к этому моменту уже не
+    // срабатывает.
+    if (!on && rig.classList.contains('zoom')) setZoom(false);
     if (!on) {
       // Assemble the machine completely: a unit could have been left at an
       // intermediate step too — with a drive latch flipped open or a heatsink
@@ -1662,9 +1890,14 @@
     // снимают; лупа же разглядывание, а не работа со ссылками. В обоих
     // состояниях подсказка с адресом уже не показывается, а сам переход
     // оставался: узел под закрытой крышкой молча уводил на другой сайт.
-    if (!rig.classList.contains('lid-off') || rig.classList.contains('zoom')) return;
+    if (!linksLive() || rig.classList.contains('zoom')) return;
     const href = unit.dataset.href;
     if (href.startsWith('mailto:')) { window.location.href = href; return; }
+    // Свой раздел открываем здесь же: имя переезжает на соседнюю страницу
+    // штатным переходом браузера, а он возможен только внутри одной вкладки.
+    // В новой вкладке документ начинается с чистого листа, и переносить в нём
+    // нечего — анимация молча пропадала, хотя обе страницы её объявляли.
+    if (href.startsWith('/')) { window.location.href = href; return; }
     window.open(href, '_blank', 'noopener');
   });
 
@@ -1835,7 +2068,22 @@
     const stages = lex(text);
     let out = null;
     for (let i = 0; i < stages.length; i++) out = runStage(stages[i], out);
-    (out || []).forEach(function (row) { line(row.t, row.c || ''); });
+    // Экран бережёт последняя стадия, а не источник. `/proc/cpuinfo` — это без
+    // малого восемь тысяч строк, и напечатать их целиком значит стереть всё,
+    // что было в терминале до. Резать его в самом файле нельзя: конвейер
+    // обязан видеть весь файл, иначе `grep | wc` соврёт. Поэтому обрезается
+    // именно вывод, и ровно тогда, когда он идёт на экран.
+    const ЭКРАН = 60;
+    let печать = out || [];
+    if (печать.length > ЭКРАН) {
+      const скрыто = печать.length - ЭКРАН;
+      печать = печать.slice(0, ЭКРАН).concat([
+        { t: '', c: '' },
+        { t: '… ещё ' + скрыто + ' строк · целиком — по конвейеру, '
+             + 'например ' + text.split('|')[0].trim() + ' | wc', c: 'muted' },
+      ]);
+    }
+    печать.forEach(function (row) { line(row.t, row.c || ''); });
     return out || [];
   }
 
@@ -2322,6 +2570,20 @@
     rigBody.scrollTop = Math.max(0, Math.min(my, y));
   }
 
+  // Границы держим на любом движении поля, а не только на перетаскивании.
+  // Рука ходит через panTo и упирается в край схемы, а колесо, тачпад и стрелки
+  // идут мимо него — прямо в собственную прокрутку поля. Она шире: снятая
+  // крышка лежит сбоку и для браузера остаётся содержимым. Замерено на окне
+  // 1440×950 и третьей ступени: схема кончается на 1809, прокрутка пускала до
+  // 3969 — две тысячи точек, на которых нет ничего, кроме фона. Оттуда и
+  // «сдвинул влево, справа пусто».
+  rigBody.addEventListener('scroll', function () {
+    if (!rig.classList.contains('zoom')) return;
+    const [mx, my] = scrollMax();
+    if (rigBody.scrollLeft > mx) rigBody.scrollLeft = mx;
+    if (rigBody.scrollTop > my) rigBody.scrollTop = my;
+  }, { passive: true });
+
   function zoomTo(step, cx, cy) {
     const from = ZOOM_STEPS[zoomStep], to = ZOOM_STEPS[step];
     zoomStep = step;
@@ -2626,7 +2888,7 @@
         { t: 'cover   : ' + (rig.classList.contains('lid-off') ? 'removed' : 'in place') },
         { t: 'service : ' + (rig.classList.contains('service') ? 'on' : 'off') },
         { t: 'cpu     : ' + cpu.sockets + '× ' + (cpu.spec.short || '—') + ' · '
-             + cpu.cores + 'c/' + cpu.threads + 't' },
+             + cpu.cores + 'c/' + cpu.threads + 't всего' },
         { t: 'memory  : ' + dimm.in + ' of ' + dimm.total + ' · ' + (dimm.gb / 1024).toFixed(2) + ' TiB' },
         { t: 'health  : ' + (gone.length ? 'degraded · вынуто: ' + gone.join(', ') : 'ok'),
           c: gone.length ? 'warn' : 'ok' },
@@ -2640,9 +2902,24 @@
     run: function (ctx) {
       const out = counts('.fan.pulled');
       const dimm = dimmState();
+      // Датчик живёт в самом процессоре, и у вынутого спрашивать нечего. Пока
+      // строка печаталась безусловно, sensors бодро показывал температуру
+      // сокета, с которого на схеме снят радиатор, — а /proc/cpuinfo этот же
+      // сокет честно пропускал. Две команды об одной машине расходились на
+      // глазах.
+      const снят = function (n) {
+        const s = rig.querySelector('.cpu-slot[data-cpu="' + n + '"]');
+        return !!(s && s.classList.contains('pulled'));
+      };
+      const темп = function (n, dv) {
+        return снят(n)
+          ? { t: 'CPU' + n + ' Temp      — · радиатор снят', c: 'muted' }
+          : { t: 'CPU' + n + ' Temp      ' + Math.round(metric('temp').v - dv) + ' °C',
+              c: out ? 'warn' : 'ok' };
+      };
       const rows = [
-        { t: 'CPU0 Temp      ' + Math.round(metric('temp').v) + ' °C', c: out ? 'warn' : 'ok' },
-        { t: 'CPU1 Temp      ' + Math.round(metric('temp').v - 2) + ' °C', c: out ? 'warn' : 'ok' },
+        темп(0, 0),
+        темп(1, 2),
         { t: 'Inlet Temp     ' + (21 + Math.round(Math.random() * 2)) + ' °C', c: 'ok' },
         { t: 'Fan Speed      ' + (fanRpmNow(ctx.nv) + out * 1800) + ' RPM', c: out ? 'warn' : 'ok' },
         { t: 'Fan Policy     ' + fanPolicyNow(ctx.nv), c: 'muted' },
@@ -2759,7 +3036,13 @@
       // We list what is drawn: chips from the spec, drives from the cage,
       // risers with their cards. An empty riser is marked as exactly that.
       const rows = [];
-      HW.chips.forEach(function (chip, i) {
+      // Только то, что действительно висит на PCIe. TPM разговаривает по SPI,
+      // логика питания по eSPI, гигабитный PHY по MDIO — в выводе lspci их не
+      // бывает, и печатать их там значит выдумывать шину.
+      const НЕ_PCI = ['SLB9673', 'LCMXO3', 'BCM54210', 'AST2600'];
+      HW.chips.filter(function (chip) {
+        return НЕ_PCI.indexOf(chip.mark) < 0;
+      }).forEach(function (chip, i) {
         rows.push({ t: (i + 1).toString(16).padStart(2, '0') + ':00.0  ' + chip.ref.padEnd(5)
                        + chip.mark, c: 'muted' });
       });
@@ -2791,10 +3074,21 @@
         { t: 'Product Name   : ' + HW.board.model + ' · ' + HW.board.form },
         { t: 'Board Revision : ' + HW.board.rev },
         { t: 'Serial Number  : ' + HW.board.sha },
+        // Ровно то, что напечатано на наклейке FRU у кромки платы. Живой fru
+        // с неё и списывают: партномер сменного узла, уровень изменений,
+        // страна сборки. Пока их не было, консоль и наклейка отвечали на один
+        // вопрос по-разному — а инженер сверяет именно эти две строки.
+        { t: 'FRU P/N        : ' + HW.board.sha },
+        { t: 'EC Level       : ' + HW.board.rev + 'A' },
+        { t: 'Manufacturer   : MADE IN CHINA' },
+        { t: 'UUID           : ' + (HW.fw.uuid || '—') },
         { t: 'BIOS Version   : ' + HW.fw.bios + '  (' + HW.fw.bios_date + ')' },
         { t: 'BMC Firmware   : ' + HW.fw.bmc + '  (' + HW.fw.bmc_chip + ')' },
+        // На процессор, и это сказано прямо. Строка status печатает то же
+        // число, умноженное на сокеты, и, пока обе молчали о том, что считают,
+        // машина выглядела спорящей сама с собой: 192c здесь и 384c там.
         { t: 'CPU            : ' + HW.cpu.n + '× ' + HW.cpu.model + ' · ' + HW.cpu.socket
-             + ' · ' + HW.cpu.cores + 'c/' + HW.cpu.threads + 't' },
+             + ' · ' + HW.cpu.cores + 'c/' + HW.cpu.threads + 't на сокет' },
         { t: 'Memory         : ' + d.total + '× ' + HW.dimm.kind + ' ' + HW.dimm.size_gb
              + 'GB ' + HW.dimm.speed + ' MT/s · ' + (d.total * HW.dimm.size_gb / 1024).toFixed(2) + ' TiB' },
         { t: 'Storage        : ' + disks.length + '× NVMe (' + disks.filter(function (b) {
@@ -2981,10 +3275,16 @@
   }
   function fsTotalLogical(ctx) { return fsLogicalPerSocket(ctx) * fsSocketsUp(ctx); }
 
-  function fsMac(ctx, idx) {
+  // Адрес интерфейса. Нулевое смещение отдано контроллеру управления, дальше
+  // идут порты машины: eth0 получает +4. Пока сдвига не было, eth0 и BMC
+  // показывали один и тот же MAC — на живой машине это разные блоки, им и
+  // выделяют разные диапазоны при производстве.
+  const MAC_ПОРТЫ = 4;
+
+  function fsMac(ctx, idx, свой) {
     const mac = (ctx.HW.fw || {}).mac || '00:00:00:00:00:00';
     const parts = mac.split(':');
-    const last = (parseInt(parts[5], 16) + idx) & 0xff;
+    const last = (parseInt(parts[5], 16) + idx + (свой ? 0 : MAC_ПОРТЫ)) & 0xff;
     parts[5] = last.toString(16).padStart(2, '0');
     return parts.join(':');
   }
@@ -3259,7 +3559,7 @@
         return [
           { t: 'bmc.firmware = ' + (fw.bmc || '') },
           { t: 'bmc.chip     = ' + (fw.bmc_chip || '') },
-          { t: 'bmc.mac      = ' + (fw.mac || '') },
+          { t: 'bmc.mac      = ' + (fw.mac || '') },   // свой адрес, порты машины идут после
           { t: 'bmc.ip       = ' + (fw.ip || '') },
         ];
       }),

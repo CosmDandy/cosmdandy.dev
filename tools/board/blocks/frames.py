@@ -42,9 +42,12 @@ BANK_H = (BANK_N - 1) * PITCH + SLOT_H
 FIELD_FRAMES = (
     (X_SVC - 4, 92, 166, 262, "PLATFORM I/O", "U12 U18 C120-C138 R240-R262", 6),
     # Заголовок отодвинут вправо, за корпус: слева от него гребёнка выводов
-    # AST2600, и подпись ложилась прямо на неё.
-    (1016, 272, 116, 74, "BMC", "U79 C300-C312", 80),
-    (428, 108, 62, 74, "PCH", "U31 C314-C318", 6),
+    # AST2600, и подпись ложилась прямо на неё. Рамка опущена на десяток
+    # единиц: её кромка шла вплотную под плашкой RISER_1, и слово «BMC»
+    # читалось продолжением той плашки, а не заголовком своей зоны. Ниже её
+    # опускать нельзя — там лампа HB, и заголовок садится прямо на неё.
+    (1016, 282, 116, 74, "BMC", "U79 C300-C312", 80),
+    (428, 108, 62, 74, "RETIMER", "U31 C314-C318", 6),
 )
 
 
@@ -55,23 +58,32 @@ def title_box(frame):
 
 
 def render(cv):
+    # Числа рамок нужны дважды: по ним рисуется рамка и по ним же держится
+    # место под её надписи. Поэтому сначала список, потом отрисовка — иначе
+    # координаты пришлось бы писать вторыми числами, а они разошлись бы.
+    ЗАПИСИ = []
+
+    def рамка(x, y, w, h, title, refs, title_dx=6):
+        ЗАПИСИ.append((x, y, w, h, title, refs, title_dx))
+        return block_frame(x, y, w, h, title, refs, title_dx)
+
     frames = [
         # BMC и чипсет стояли в левой кромке рядом и делили одну рамку. Теперь
         # контроллер управления сидит в кармане между райзерами, и на две
         # половины платы рамка не растягивается: у каждого своя, иначе обведён
         # чипсет, а подписано это BMC.
-        *(block_frame(x, y, w, h, title, refs, dx)
+        *(рамка(x, y, w, h, title, refs, dx)
           for x, y, w, h, title, refs, dx in FIELD_FRAMES),
         # The socket title is pulled towards the middle: the part-number link
         # sits at the left edge of the frame, and in its old place the plate
         # landed right on top of it.
-        block_frame(X_SOCK - 8, Y_CPU0 - 8, SOCKET_W + 16, SOCKET_H + 16,
+        рамка(X_SOCK - 8, Y_CPU0 - 8, SOCKET_W + 16, SOCKET_H + 16,
                     f"CPU0 · {CPU['socket']}", "U1 · VR L10-L21", title_dx=110),
-        block_frame(X_SOCK - 8, Y_CPU1 - 8, SOCKET_W + 16, SOCKET_H + 16,
+        рамка(X_SOCK - 8, Y_CPU1 - 8, SOCKET_W + 16, SOCKET_H + 16,
                     f"CPU1 · {CPU['socket']}", "U2 · VR L30-L41", title_dx=110),
         # The choke row is narrow: a three-character title is all that fits.
-        block_frame(X_CORE - 30, Y_CPU0 - 6, 30, SOCKET_H + 12, "VR0", "L10-L21"),
-        block_frame(X_CORE - 30, Y_CPU1 - 6, 30, SOCKET_H + 12, "VR1", "L30-L41"),
+        рамка(X_CORE - 30, Y_CPU0 - 6, 30, SOCKET_H + 12, "VR0", "L10-L21"),
+        рамка(X_CORE - 30, Y_CPU1 - 6, 30, SOCKET_H + 12, "VR1", "L30-L41"),
     ]
     # Banks: the frame hugs the sockets themselves, but not the DIMM labels to
     # the right of them — otherwise the dashes run exactly across the lines.
@@ -90,6 +102,19 @@ def render(cv):
         # вставали в две строки впритык: подпись банка читалась подписью
         # процессора, съехавшей вниз. Сто семьдесят единиц выводят её за
         # правый край того перечня и оставляют над своими же гнёздами.
-        frames.append(block_frame(X_CORE - 10, y0 - 6, DIMM_SOCK_W + 16, BANK_H + 12,
+        frames.append(рамка(X_CORE - 10, y0 - 6, DIMM_SOCK_W + 16, BANK_H + 12,
                                   title, refs, title_dx=170))
     cv.add('<g class="decor">' + ''.join(frames) + '</g>')
+
+    # Надписи рамок держат своё место. Заголовки трёх рамок в поле рассыпухи
+    # бронирует pcb_zones — он проходит раньше всех и успевает к мелочи. Но
+    # перечни позиций и рамки, объявленные прямо здесь, не держал никто, и
+    # обозначения узлов ложились прямо на них: плашка «U79 C300-C312» на
+    # перечне BMC, «L10-L21» — на перечне питания ядра.
+    #
+    # Место берётся как корпус: обозначения узлов ставятся тем же видом, а
+    # корпус в бронь как раз и встаёт — бронью их было не удержать.
+    for x, y, w, h, title, refs, dx in ЗАПИСИ:
+        cv.busy(x + dx - 2, y - 6, len(title) * 6 * 0.62 + 11, 12)
+        if refs:
+            cv.busy(x + 8, y + h - 10, len(refs) * 5 * 0.6 + 4, 8)

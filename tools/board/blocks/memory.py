@@ -145,7 +145,7 @@ def sticker(x, y):
 _DEFS_Y = Y_BANK_L
 
 
-def _slot_static(y):
+def _slot_static(y, первый=False):
     """Гнездо модуля и его hit-зона — то, что остаётся на плате при вынутой
     плашке.
 
@@ -160,10 +160,17 @@ def _slot_static(y):
     """
     n_pins = int((SOCK_W - 20) // 4)
     key_x = X_CORE - 2 + SOCK_W * KEY_AT
+    # Цвет гнезда — не украшение, а инструкция по заселению. Первый слот каждого
+    # канала красят иначе, и правило «ставь в цветные, пока они есть» написано
+    # прямо на плате: две планки в один канал работают медленнее, чем те же две
+    # в разные. У нас все двадцать четыре гнезда были одинаково чёрными, и
+    # порядок заселения нельзя было прочесть ниоткуда.
+    корпус = '#2a1f14' if первый else '#05090b'
+    борт = 'rgba(203,75,22,0.34)' if первый else 'rgba(147,161,161,0.26)'
     return (f'<rect class="hit" x="{X_CORE-8}" y="{y-1}" width="{SOCK_W+28}" height="{PITCH}" '
             f'fill="#000" fill-opacity="0.001"/>'
             f'<rect x="{X_CORE-2}" y="{y-1}" width="{SOCK_W}" height="{SLOT_H+2}" rx="1" '
-            f'fill="#05090b" stroke="rgba(147,161,161,0.26)"/>'
+            f'fill="{корпус}" stroke="{борт}"/>'
             + ''.join(f'<line x1="{X_CORE+8+c*4}" y1="{y+2}" x2="{X_CORE+8+c*4}" '
                       f'y2="{y+SLOT_H-2}" stroke="rgba(206,168,58,0.62)" '
                       f'stroke-width="1"/>'
@@ -203,6 +210,7 @@ def _defs():
     """
     return (f'<defs>'
             f'<g id="dimm-static">{_slot_static(_DEFS_Y)}</g>'
+            f'<g id="dimm-static-1">{_slot_static(_DEFS_Y, первый=True)}</g>'
             f'<g id="dimm-body-0">{_slot_body(_DEFS_Y, 0)}</g>'
             f'<g id="dimm-body-1">{_slot_body(_DEFS_Y, 1)}</g>'
             f'</defs>')
@@ -217,6 +225,13 @@ def render(cv):
         slots = []
         for i in range(n):
             y = y0 + i * PITCH
+            # Слот занимает место, и об этом надо сказать вслух. Блок рисуется
+            # поздно, когда поле уже разобрано, и молчание сходило ему с рук:
+            # после него места просит только краска. Но регистр — не только
+            # очередь, он ещё и то, по чему сверяют разметку с рисунком, и
+            # двадцати четырёх самых заметных узлов платы в нём не было вовсе:
+            # под банками памяти он считал поле пустым.
+            cv.busy(X_CORE - 8, y, DIMM_SOCK_W + 8, SLOT_H, pad=0)
             # The socket stays on the board when the module is pulled out, so
             # it is a separate shape and not part of the module — hence a
             # separate <use>, outside .pick-body, right next to the hit zone
@@ -232,7 +247,7 @@ def render(cv):
             # to the next one: otherwise the cursor falls through between the
             # slots and the click goes nowhere
             slots.append(f'''<g class="pick dimm" data-dimm="{code}{i}" style="--seat:{dimm_seat(letters[i], wave2(i))}">
-          <use href="#dimm-static" transform="translate(0,{y - _DEFS_Y})"/>
+          <use href="#dimm-static{'-1' if i % 2 == 0 else ''}" transform="translate(0,{y - _DEFS_Y})"/>
           <g class="pick-body">
             <use href="#dimm-body-{i % 2}" transform="translate(0,{y - _DEFS_Y})"/>
           </g>

@@ -10,6 +10,8 @@ from board.geom import BAY_N, BAY_TOP, X_BP, H
 
 
 def render(cv):
+    # Плата бэкплейна стоит поперёк корпуса во всю его высоту.
+    cv.busy(X_BP, 8, 18, H - 16, pad=0)
     bp = [f'<rect x="{X_BP}" y="8" width="18" height="{H-16}" rx="0" fill="#0e3a40" stroke="rgba(133,153,0,0.24)"/>']
     for i in range(BAY_N):
         y = BAY_TOP + 30 + i * (H - 12 - BAY_TOP - 70) / BAY_N

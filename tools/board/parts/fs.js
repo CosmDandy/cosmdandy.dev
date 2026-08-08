@@ -61,10 +61,16 @@
   }
   function fsTotalLogical(ctx) { return fsLogicalPerSocket(ctx) * fsSocketsUp(ctx); }
 
-  function fsMac(ctx, idx) {
+  // Адрес интерфейса. Нулевое смещение отдано контроллеру управления, дальше
+  // идут порты машины: eth0 получает +4. Пока сдвига не было, eth0 и BMC
+  // показывали один и тот же MAC — на живой машине это разные блоки, им и
+  // выделяют разные диапазоны при производстве.
+  const MAC_ПОРТЫ = 4;
+
+  function fsMac(ctx, idx, свой) {
     const mac = (ctx.HW.fw || {}).mac || '00:00:00:00:00:00';
     const parts = mac.split(':');
-    const last = (parseInt(parts[5], 16) + idx) & 0xff;
+    const last = (parseInt(parts[5], 16) + idx + (свой ? 0 : MAC_ПОРТЫ)) & 0xff;
     parts[5] = last.toString(16).padStart(2, '0');
     return parts.join(':');
   }
@@ -339,7 +345,7 @@
         return [
           { t: 'bmc.firmware = ' + (fw.bmc || '') },
           { t: 'bmc.chip     = ' + (fw.bmc_chip || '') },
-          { t: 'bmc.mac      = ' + (fw.mac || '') },
+          { t: 'bmc.mac      = ' + (fw.mac || '') },   // свой адрес, порты машины идут после
           { t: 'bmc.ip       = ' + (fw.ip || '') },
         ];
       }),
