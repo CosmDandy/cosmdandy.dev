@@ -71,8 +71,12 @@ def render(cv):
     # Large packages: their places are declared in geom and claimed here, before
     # everyone else — the headers at the edge are placed by the same scan and
     # would otherwise land right on top of a chip.
+    # Бронь по габариту корпуса с выводами, не шире. Прежние восемь единиц
+    # запаса с каждой стороны отталкивали от чипа его же развязку: конденсатор
+    # обязан стоять у самого вывода питания, иначе он не работает, — а места
+    # ближе брони ему не оставалось, и ряды не вставали вовсе.
     for _n, _s, x, y, w, h in CHIPS:
-        cv.busy(x - 8, y - 8, w + 16, h + 16, kind=RESERVE)
+        cv.busy(x - 5, y - 5, w + 10, h + 10, kind=RESERVE)
     # Core power: a row of chokes, a heatsink bar and two electrolytic cans. It
     # is drawn after the discrete components and does not ask for space, so we
     # hold it here — otherwise the crystals and the small chokes end up under
