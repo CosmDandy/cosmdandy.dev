@@ -2068,7 +2068,22 @@
     const stages = lex(text);
     let out = null;
     for (let i = 0; i < stages.length; i++) out = runStage(stages[i], out);
-    (out || []).forEach(function (row) { line(row.t, row.c || ''); });
+    // Экран бережёт последняя стадия, а не источник. `/proc/cpuinfo` — это без
+    // малого восемь тысяч строк, и напечатать их целиком значит стереть всё,
+    // что было в терминале до. Резать его в самом файле нельзя: конвейер
+    // обязан видеть весь файл, иначе `grep | wc` соврёт. Поэтому обрезается
+    // именно вывод, и ровно тогда, когда он идёт на экран.
+    const ЭКРАН = 60;
+    let печать = out || [];
+    if (печать.length > ЭКРАН) {
+      const скрыто = печать.length - ЭКРАН;
+      печать = печать.slice(0, ЭКРАН).concat([
+        { t: '', c: '' },
+        { t: '… ещё ' + скрыто + ' строк · целиком — по конвейеру, '
+             + 'например ' + text.split('|')[0].trim() + ' | wc', c: 'muted' },
+      ]);
+    }
+    печать.forEach(function (row) { line(row.t, row.c || ''); });
     return out || [];
   }
 
@@ -2873,7 +2888,7 @@
         { t: 'cover   : ' + (rig.classList.contains('lid-off') ? 'removed' : 'in place') },
         { t: 'service : ' + (rig.classList.contains('service') ? 'on' : 'off') },
         { t: 'cpu     : ' + cpu.sockets + '× ' + (cpu.spec.short || '—') + ' · '
-             + cpu.cores + 'c/' + cpu.threads + 't' },
+             + cpu.cores + 'c/' + cpu.threads + 't всего' },
         { t: 'memory  : ' + dimm.in + ' of ' + dimm.total + ' · ' + (dimm.gb / 1024).toFixed(2) + ' TiB' },
         { t: 'health  : ' + (gone.length ? 'degraded · вынуто: ' + gone.join(', ') : 'ok'),
           c: gone.length ? 'warn' : 'ok' },
@@ -3006,7 +3021,13 @@
       // We list what is drawn: chips from the spec, drives from the cage,
       // risers with their cards. An empty riser is marked as exactly that.
       const rows = [];
-      HW.chips.forEach(function (chip, i) {
+      // Только то, что действительно висит на PCIe. TPM разговаривает по SPI,
+      // логика питания по eSPI, гигабитный PHY по MDIO — в выводе lspci их не
+      // бывает, и печатать их там значит выдумывать шину.
+      const НЕ_PCI = ['SLB9673', 'LCMXO3', 'BCM54210', 'AST2600'];
+      HW.chips.filter(function (chip) {
+        return НЕ_PCI.indexOf(chip.mark) < 0;
+      }).forEach(function (chip, i) {
         rows.push({ t: (i + 1).toString(16).padStart(2, '0') + ':00.0  ' + chip.ref.padEnd(5)
                        + chip.mark, c: 'muted' });
       });
@@ -3038,10 +3059,21 @@
         { t: 'Product Name   : ' + HW.board.model + ' · ' + HW.board.form },
         { t: 'Board Revision : ' + HW.board.rev },
         { t: 'Serial Number  : ' + HW.board.sha },
+        // Ровно то, что напечатано на наклейке FRU у кромки платы. Живой fru
+        // с неё и списывают: партномер сменного узла, уровень изменений,
+        // страна сборки. Пока их не было, консоль и наклейка отвечали на один
+        // вопрос по-разному — а инженер сверяет именно эти две строки.
+        { t: 'FRU P/N        : ' + HW.board.sha },
+        { t: 'EC Level       : ' + HW.board.rev + 'A' },
+        { t: 'Manufacturer   : MADE IN CHINA' },
+        { t: 'UUID           : ' + (HW.fw.uuid || '—') },
         { t: 'BIOS Version   : ' + HW.fw.bios + '  (' + HW.fw.bios_date + ')' },
         { t: 'BMC Firmware   : ' + HW.fw.bmc + '  (' + HW.fw.bmc_chip + ')' },
+        // На процессор, и это сказано прямо. Строка status печатает то же
+        // число, умноженное на сокеты, и, пока обе молчали о том, что считают,
+        // машина выглядела спорящей сама с собой: 192c здесь и 384c там.
         { t: 'CPU            : ' + HW.cpu.n + '× ' + HW.cpu.model + ' · ' + HW.cpu.socket
-             + ' · ' + HW.cpu.cores + 'c/' + HW.cpu.threads + 't' },
+             + ' · ' + HW.cpu.cores + 'c/' + HW.cpu.threads + 't на сокет' },
         { t: 'Memory         : ' + d.total + '× ' + HW.dimm.kind + ' ' + HW.dimm.size_gb
              + 'GB ' + HW.dimm.speed + ' MT/s · ' + (d.total * HW.dimm.size_gb / 1024).toFixed(2) + ' TiB' },
         { t: 'Storage        : ' + disks.length + '× NVMe (' + disks.filter(function (b) {
@@ -3228,10 +3260,16 @@
   }
   function fsTotalLogical(ctx) { return fsLogicalPerSocket(ctx) * fsSocketsUp(ctx); }
 
-  function fsMac(ctx, idx) {
+  // Адрес интерфейса. Нулевое смещение отдано контроллеру управления, дальше
+  // идут порты машины: eth0 получает +4. Пока сдвига не было, eth0 и BMC
+  // показывали один и тот же MAC — на живой машине это разные блоки, им и
+  // выделяют разные диапазоны при производстве.
+  const MAC_ПОРТЫ = 4;
+
+  function fsMac(ctx, idx, свой) {
     const mac = (ctx.HW.fw || {}).mac || '00:00:00:00:00:00';
     const parts = mac.split(':');
-    const last = (parseInt(parts[5], 16) + idx) & 0xff;
+    const last = (parseInt(parts[5], 16) + idx + (свой ? 0 : MAC_ПОРТЫ)) & 0xff;
     parts[5] = last.toString(16).padStart(2, '0');
     return parts.join(':');
   }
@@ -3506,7 +3544,7 @@
         return [
           { t: 'bmc.firmware = ' + (fw.bmc || '') },
           { t: 'bmc.chip     = ' + (fw.bmc_chip || '') },
-          { t: 'bmc.mac      = ' + (fw.mac || '') },
+          { t: 'bmc.mac      = ' + (fw.mac || '') },   // свой адрес, порты машины идут после
           { t: 'bmc.ip       = ' + (fw.ip || '') },
         ];
       }),
