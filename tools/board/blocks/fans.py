@@ -163,6 +163,12 @@ def render(cv):
         # the mating part on the board. The leg and the wires are part of the
         # fan: pull it and they go with it, detaching from the board. The lamp
         # stays on the board though: what lights up is not the fan but its seat.
+        #
+        # Ответная колодка на плате — тоже не часть вентилятора, и лежит она
+        # рядом с лампой, а не внутри pick-body. Пока она стояла внутри, вместе
+        # с модулем уезжала и она, и напечатанная рядом с ней «FAN1 CONN»: на
+        # живой машине вентилятор вынимают, а разъём и краска остаются в плате.
+        # Провода при этом честно отходят от колодки — они-то на модуле.
         # The connector is in the top corner of the module, which is where it
         # stands on a real fan. The mating header on the board, however, comes
         # opposite the middle of the module: the seat lamp has to be across
@@ -234,8 +240,8 @@ def render(cv):
         {mono(X_FAN + FAN_W / 2, y + 8, f"FAN{i+1}", 7, op=0.42)}
         {mono(X_FAN + FAN_W / 2, y + h - 2, f"{FAN_SPEC['rpm_max']} RPM", 7, op=0.30)}
         <g class="cables">{wires}</g>
-        {foot}
       </g>
+      {foot}
       {held_plate(cv, sx + 30, fy + FAN_LAMP_DY - 6, 'FAN FAULT', 6)}
       {fault_at(cv, sx + 18, fy + FAN_LAMP_DY, 5)}
     </g>''')
