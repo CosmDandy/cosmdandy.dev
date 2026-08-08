@@ -319,11 +319,20 @@ def render(cv):
     def jack_mid(k):
         return jack_y(k) + JACK_H / 2
 
-    cv.callouts.append((X_IO - 30, 436, X_IO - 8, jack_mid(0), "Telegram", "end",
+    # Шаг между бирками — 170, см. пояснение у LinkedIn в risers. Выноска от
+    # поднятой бирки к своему гнезду идёт длиннее прежнего, и это цена: гнёзда
+    # стоят внизу кучно, а бирки обязаны читаться порознь.
+    # Опущена ровно настолько, чтобы из-под неё вышла лампа HB у контроллера
+    # управления: она моргает раз в секунду и есть единственный признак, что
+    # машина жива, — прятать её под плашкой нельзя.
+    cv.callouts.append((X_IO - 30, 385, X_IO - 8, jack_mid(0), "Telegram", "end",
                         "/tg/", "eth", "написать", "telegram"))
-    cv.callouts.append((X_IO - 30, 596, X_IO - 8, jack_mid(1), "Twitter", "end",
+    # Ниже марки изготовителя: строка COSMDANDY на текстолите — самое крупное,
+    # что на плате написано, и закрывать её плашкой значит прятать подпись
+    # автора под ссылкой на его же профиль.
+    cv.callouts.append((X_IO - 30, 560, X_IO - 8, jack_mid(1), "Twitter", "end",
                         "https://x.com/cosmdandy", "tw", "мысли", "twitter"))
-    cv.callouts.append((X_IO - 30, 676, X_IO - 8, jack_mid(2), "Email", "end",
+    cv.callouts.append((X_IO - 30, 670, X_IO - 8, jack_mid(2), "Email", "end",
                         "mailto:i@cosmdandy.dev", "bmc", "i@cosmdandy.dev", "email"))
 
     # Обвязка гнёзд на самом текстолите. Гигабитный PHY стоит слева от неё и
