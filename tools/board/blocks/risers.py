@@ -59,6 +59,7 @@ def render(cv):
             hex_y, hex_h = y + 4, hh - T - 8
             edge_y = y + hh - T - 6
 
+
         # Райзер — это две вещи: стальной кронштейн, за который тянут, и его
         # собственная плата со слотом. Плату видно вдоль кронштейна: карта
         # втыкается именно в неё, а сталь только держит.
@@ -151,10 +152,14 @@ def render(cv):
         ty = y + (-10 if up else hh - 6)
         py = y + (6 if up else hh - T + 6)
         tab = (
-            # торцевой: наполовину за габаритом стойки
-            f'<rect x="{x1-T+10}" y="{ty}" width="{T-24}" height="16" rx="2" fill="{COLD}" '
+            # Торцевая ручка стоит на полке кронштейна, левее окна под планку
+            # карты. Прежние координаты клали её на четырнадцать единиц прямо
+            # на торец карты: ручка кронштейна поверх чужих гнёзд — то, чего на
+            # машине не бывает, за ручку как раз и тянут, чтобы карту не
+            # трогать.
+            f'<rect x="{X_IO-46}" y="{ty}" width="{T-24}" height="16" rx="2" fill="{COLD}" '
             f'stroke="rgba(238,232,213,0.55)" stroke-width="1.2"/>'
-            f'<rect x="{x1-T+16}" y="{ty+4}" width="{T-36}" height="8" rx="1" fill="rgba(238,232,213,0.22)"/>'
+            f'<rect x="{X_IO-40}" y="{ty+4}" width="{T-36}" height="8" rx="1" fill="rgba(238,232,213,0.22)"/>'
             # на полке, ближе к центру машины: за него райзер и качают
             f'<rect x="{x0-8}" y="{py}" width="16" height="{T-12}" rx="2" fill="{COLD}" '
             f'stroke="rgba(238,232,213,0.55)" stroke-width="1.2"/>'
@@ -193,8 +198,8 @@ def render(cv):
           </mask></defs>
           <path d="{d}" fill="{STEEL}" stroke="rgba(147,161,161,0.30)" stroke-width="1.4"
                 mask="url(#riser-perf-{k})"/>
-          {hexgrid(x1 - T + 8, hex_y, T - 16, hex_h, s=6, gap=5, fill='none',
-                   stroke='rgba(147,161,161,0.26)')}
+          <g mask="url(#riser-perf-{k})">{hexgrid(x1 - T + 8, hex_y, T - 16, hex_h,
+             s=6, gap=5, fill='none', stroke='rgba(147,161,161,0.26)')}</g>
           {card}
           {tab}
         </g>

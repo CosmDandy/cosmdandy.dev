@@ -5,7 +5,8 @@ free space — the occupancy registry already knows where the parts stand.
 """
 
 from board.canvas import BOARD, MAJOR, PART, SILK
-from board.geom import X_IO, X_PCB, X_REAR, X_SVC, Y_BANK_C, Y_BANK_L, Y_BANK_R, H
+from board.geom import (IO_Y, JACK_H, JACK_PITCH, RISER, X_IO, X_PCB, X_REAR, X_SVC,
+                        Y_BANK_C, Y_BANK_L, Y_BANK_R, H)
 from board.ink import silk_frame
 from board.spec import PORTS
 
@@ -38,14 +39,19 @@ def render(cv):
         # съёмный модуль на гребёнке — но не оба сразу, как было.
         (X_SVC + 8, 556, "USB_INT", True),
         (X_SVC + 8, 600, "NMI_SW"),
-        (X_REAR + 14, 176, "RISER_1 · PCIE_G5", True),
-        (X_REAR + 14, 686, "RISER_2 · PCIE_G5", True),
+        (X_REAR + 14, RISER[0][0], "RISER_1 · PCIE_G5", True),
+        (X_REAR + 14, RISER[1][0] + RISER[1][1] + 4, "RISER_2 · PCIE_G5", True),
         # Не OCP: отдельного отсека под сетевую мезонину в этой машине нет, и
         # карта нарисована обычной PCIe-картой на кронштейне верхнего райзера.
         # Обозначение врало ровно про то, по чему разъём и опознают.
         (X_IO - 96, 176, f"RISER_1_CARD · {PORTS['sfp']}", True),
-        (X_IO - 96, 330, f"LAN_1/2 · {PORTS['eth']}", True),
-        (X_IO - 96, 464, "MLAN · IPMI 2.0", True),
+        # Подписи стоят напротив своих гнёзд и считаются от того же IO_Y и
+        # того же шага, что и сами гнёзда: прежние 330 и 464 были записаны
+        # руками и при первой же перекладке панели повисли между портами.
+        # Повёрнутая строка ведётся от нижней кромки, поэтому к началу гнезда
+        # прибавляется его высота.
+        (X_IO - 96, IO_Y + JACK_PITCH + JACK_H, f"LAN_1/2 · {PORTS['eth']}", True),
+        (X_IO - 96, IO_Y + 2 * JACK_PITCH + JACK_H, "MLAN · IPMI 2.0", True),
     ]
     for cand in CANDIDATES:
         x, y, text = cand[0], cand[1], cand[2]
