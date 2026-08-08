@@ -556,13 +556,34 @@ def render(cv):
                     px, py = cx + half + 6, cy + shift
                 silk.extend(small_part(ROW[(n + k) % len(ROW)], int(px), int(py)))
                 k += 1
-        # Вторая линия: вразнобой, по кругу пошире.
-        for j in range(6):
-            ang = (j * 61 + n * 29) % 360
-            r = half + 20 + (j % 3) * 8
-            px = int(cx + r * math.cos(math.radians(ang)))
-            py = int(cy + r * math.sin(math.radians(ang)))
-            silk.extend(small_part(KIND[(n + j) % len(KIND)], px, py))
+        # Вторая линия — второй ряд вдоль тех же сторон, а не кольцо.
+        #
+        # Кольцо было последним, что осталось от прежнего венчика: шесть
+        # деталей по окружности одного радиуса вокруг каждого корпуса. Радиус
+        # у них разнился на три ступени, но глаз читал именно окружность — на
+        # плате такой фигуры не бывает вовсе. Развязка идёт рядами, потому что
+        # рядами стоят выводы, и второй ряд повторяет первый, а не обходит его
+        # по дуге.
+        #
+        # Ряд разрежен и сдвинут на полшага: сплошная вторая линия дала бы
+        # решётку, а на живой плате во втором ряду сидит то, что от близости
+        # к выводу не зависит, — и стоит оно не у каждого вывода.
+        for side in range(4):
+            for j in range(count + 1):
+                if (j + side) % 3 == 0:      # разрежаем: каждая третья позиция пуста
+                    continue
+                shift = (j - count / 2) * step + step / 2
+                far = half + 22
+                if side == 0:
+                    px, py = cx + shift, cy - far - 12
+                elif side == 1:
+                    px, py = cx + shift, cy + far + 4
+                elif side == 2:
+                    px, py = cx - far - 14, cy + shift
+                else:
+                    px, py = cx + far + 4, cy + shift
+                silk.extend(small_part(KIND[(n + k) % len(KIND)], int(px), int(py)))
+                k += 1
         clusters.append((cx, cy))
 
     # Полоса у левой кромки: между колодками вентиляторов остаются широкие

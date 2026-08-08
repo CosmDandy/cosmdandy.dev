@@ -18,7 +18,7 @@ from board.ink import barcode, mono
 from board.spec import PSU
 from board.lamps import fault_at, jitter, lamp
 from board.metal import finned_sink
-from board.palette import METAL, METAL_DEEP, ROTOR_BLADE, ROTOR_EDGE, ROTOR_PAD
+from board.palette import HOT, METAL, METAL_DEEP, ROTOR_BLADE, ROTOR_EDGE, ROTOR_PAD
 from board.revision import BOARD_SHA, stamp
 from board.rotor import HUB_R, blur_disc, impeller
 
@@ -105,7 +105,8 @@ def render(cv):
         latch_y = mid - 58
         psu.append(f'<g class="psu-latch">'
                    f'<path d="M{X_REAR+282} {latch_y} h34 l8 8 -8 8 h-34 Z" '
-                   f'fill="#cb4b16" stroke="rgba(238,232,213,0.55)" stroke-width="1.3"/>'
+                   # Защёлка терракотовая по тому же коду: блок меняют на ходу.
+                   f'fill="{HOT}" stroke="rgba(238,232,213,0.55)" stroke-width="1.3"/>'
                    + ''.join(f'<line x1="{X_REAR+290}" y1="{latch_y+5+g*6}" '
                              f'x2="{X_REAR+312}" y2="{latch_y+5+g*6}" '
                              f'stroke="rgba(20,20,10,0.34)" stroke-width="1.6"/>'

@@ -27,7 +27,7 @@ from board.geom import (
 from board.canvas import SILK
 from board.ink import mono, silk_inverse
 from board.lamps import fault_at, jitter
-from board.palette import ROTOR_BLADE, ROTOR_EDGE, ROTOR_PAD
+from board.palette import HOT, ROTOR_BLADE, ROTOR_EDGE, ROTOR_PAD
 from board.revision import stamp
 from board.rotor import HUB_R, rotor_disc, rotor_streaks, impeller
 from board.spec import FAN as FAN_SPEC
@@ -138,7 +138,8 @@ def render(cv):
         # are drawn before the body: a tab is recessed into the frame, and only
         # half of it sticks out.
         tabs = ''.join(
-            f'<rect x="{tx}" y="{y+h/2-19}" width="16" height="38" rx="2" fill="#cb4b16" '
+            # Язычок терракотовый по коду замены: вентилятор вынимают на ходу.
+            f'<rect x="{tx}" y="{y+h/2-19}" width="16" height="38" rx="2" fill="{HOT}" '
             f'stroke="rgba(238,232,213,0.55)" stroke-width="1.2"/>'
             f'<rect x="{tx+4}" y="{y+h/2-13}" width="6" height="26" rx="1" fill="rgba(238,232,213,0.22)"/>'
             for tx in (X_FAN - 8, X_FAN + FAN_W - 8))
