@@ -33,6 +33,17 @@ from board.rotor import HUB_R, rotor_disc, rotor_streaks, impeller
 from board.spec import FAN as FAN_SPEC
 
 
+def подпись(cv, x, y, text, size):
+    """Строка на текстолите, которая занимает своё место.
+
+    mono() только рисует; чтобы поверх не легло обозначение узла, место надо
+    ещё и взять — регистр об отрисованном не знает ничего.
+    """
+    w = len(text) * size * 0.6
+    cv.busy(x, y - size, w, size + 3, pad=1, kind=SILK)
+    return mono(x, y, text, size, anchor="start", op=0.34)
+
+
 def фикс(cv, x, y, text, size):
     """Подпись на плате, чьё место надо удержать.
 
@@ -170,7 +181,12 @@ def render(cv):
         # the mating header at the end of the leg — it seats into the board
         foot = (f'<rect x="{sx-4}" y="{fy}" width="14" height="16" rx="2" fill="#101a1e" '
                 f'stroke="rgba(147,161,161,0.38)"/>'
-                f'<rect x="{sx-1}" y="{fy+3}" width="8" height="10" rx="1" fill="#060d10"/>')
+                f'<rect x="{sx-1}" y="{fy+3}" width="8" height="10" rx="1" fill="#060d10"/>'
+                # Колодка подписана прямо на текстолите — так подписан на живой
+                # плате каждый разъём: имя цепи и слово CONN. Без него колодка
+                # у кромки читается просто чёрным прямоугольником, а на машине
+                # по этой надписи и находят, куда воткнуть вентилятор.
+                + подпись(cv, sx + 12, fy + 11, f'FAN{i+1} CONN', 4.5))
 
         # The shell: from above a real module shows a closed plastic cover with
         # a seam between the two sections, not bare impellers. It is drawn over

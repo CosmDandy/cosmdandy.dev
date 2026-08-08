@@ -13,6 +13,8 @@ from board.geom import (
     FAN_N,
     IO_BOARD,
     IO_FREE,
+    LID_BTN,
+    SVC_SW,
     PITCH,
     RISER,
     SOCKET_H,
@@ -123,7 +125,14 @@ def render(cv):
                            (X_SVC + 6, 272, 150, 74),    # CMOS and microSD
                            (X_SVC + 6, 392, 146, 48),    # M.2
                            (X_SVC + 130, 296, 46, 388),  # silkscreen along the edge
-                           (X_SVC + 18, 500, 104, 104),  # "fit the cover" button
+                           # Кнопка «надеть крышку» — по её собственным числам,
+                           # а не по вторым, записанным здесь: прежние 500
+                           # разошлись с настоящими 712 на две сотни, и наклейка
+                           # FRU встала прямо под кнопку. Та же ошибка, что была
+                           # у брони райзеров, и находится она так же — глазами.
+                           (LID_BTN[0] - 6, LID_BTN[1], LID_BTN[2] + 12, LID_BTN[2] + 6),
                            (X_SVC + 2, 438, 154, 62),   # jumper table
-                           (X_SVC + 6, 612, 130, 100)):  # SERVICE toggle
+                           # Тумблер — по своим числам, см. LID_BTN выше.
+                           (SVC_SW[0] - 4, SVC_SW[1] - 10,
+                            SVC_SW[2] + 8, SVC_SW[3] + 52)):
         cv.busy(bx, by, bw, bh)

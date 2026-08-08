@@ -22,8 +22,8 @@ from board.geom import (
     H,
     fan_foot_y,
 )
-from board.canvas import MINOR, PART, SILK
-from board.ink import empty_pads, mono, silk_boxed
+from board.canvas import BOARD, COVER, MAJOR, MINOR, PART, RESERVE, SILK
+from board.ink import barcode, empty_pads, mono, silk_boxed
 from board.lamps import lamp
 from board.metal import pad, relief
 from board.palette import SILVER
@@ -150,7 +150,7 @@ def render(cv):
     hubs = []
     spot = 0
 
-    def place(w, h, draw, name='деталь'):
+    def place(w, h, draw, name='деталь', kind=PART, avoid=None):
         """Кладём деталь в первое свободное место честного обхода платы.
 
     Псевдослучайные броски исчерпывались раньше, чем находилось место, и
@@ -179,7 +179,7 @@ def render(cv):
                     # не узел: у неё нет ни бирки, ни имени на схеме, и место
                     # ей не назначено, а найдено. Вид отделяет её от разъёмов
                     # и гнёзд, чтобы по адресу было видно, о чём речь.
-                    if cv.put(xx, yy, w, h, PART):
+                    if cv.put(xx, yy, w, h, kind, avoid=avoid):
                         parts.append(draw(xx, yy))
                         hubs.append((xx + w / 2, yy + h / 2, max(w, h)))
                         return True
@@ -436,6 +436,12 @@ def render(cv):
                    (X_PCB+14, 430), (X_REAR-18, 430), (740, H-30),
                    (X_PCB_END-14, Y_PSU_TOP+14), (X_PCB_END-14, Y_PSU_BOT-14)]):
         cv.busy(x - 10, y - 10, 20, 20)
+        # Отверстие подписано: на живой плате у каждого есть имя — H1, H2, а у
+        # крепления радиатора своё, HSA. Безымянных дырок в текстолите не
+        # бывает, их перечисляет сборочный чертёж.
+        имя = f'H{i+1}'
+        if cv.put(x + 12, y - 4, len(имя) * 3.4 + 2, 8, SILK):
+            holes.append(mono(x + 12, y + 2, имя, 5, anchor="start", op=0.30))
         # Медное кольцо вокруг отверстия — маска на него не заходит, поэтому оно
         # рыжее. У части отверстий винт с пружинной шайбой.
         holes.append(f'<circle cx="{x}" cy="{y}" r="10.5" fill="none" stroke="rgba(184,115,51,0.34)" stroke-width="3"/>')
@@ -444,6 +450,64 @@ def render(cv):
             holes.append(f'<circle cx="{x}" cy="{y}" r="5.4" fill="#1a232a" stroke="rgba(147,161,161,0.42)"/>')
             holes.append(f'<path d="M{x-3.4} {y} h6.8 M{x} {y-3.4} v6.8" stroke="rgba(147,161,161,0.5)" stroke-width="1.3"/>')
     cv.add('<g class="decor">' + ''.join(holes) + '</g>')
+
+    # ── Наклейка FRU ──────────────────────────────────────────────────────
+    # Самая узнаваемая бумажка на серверной плате: белый прямоугольник со
+    # штрих-кодом и партномером сменного узла. По ней плату и заказывают —
+    # инженер не переписывает надписи с чипов, он сканирует эту наклейку.
+    # Без неё плата выглядит инженерным образцом, а не изделием.
+    #
+    # Место ищется тем же обходом, что и у крупной рассыпухи: наклейку клеят
+    # туда, где осталось поле, и на живых платах она каждый раз в новом углу.
+    FRU_W, FRU_H = 96, 42
+    def fru(x, y):
+        строки = (f'FRU P/N {BOARD_SN}', f'EC {BOARD_REV}A', 'MADE IN CHINA')
+        out = [f'<rect x="{x}" y="{y}" width="{FRU_W}" height="{FRU_H}" rx="1.5" '
+               f'fill="#d9d3c1" fill-opacity="0.55" stroke="rgba(147,161,161,0.34)"/>',
+               barcode(x + 5, y + 4, BOARD_SN, 14, bars=22, pitch=3.9,
+                       thin=1.1, thick=2.2)]
+        for k, t in enumerate(строки):
+            out.append(f'<text x="{x + 5}" y="{y + 26 + k * 6}" fill="rgba(10,20,23,0.66)" '
+                       f'font-family="ui-monospace, Menlo, monospace" font-size="4.6">{t}</text>')
+        return ''.join(out)
+
+    поздние = len(parts)
+    place(FRU_W + 6, FRU_H + 6, lambda x, y: fru(x + 3, y + 3), 'наклейка FRU',
+          PART, (BOARD, MAJOR, PART, SILK, MINOR, RESERVE, COVER))
+
+    # ── Знаки соответствия ────────────────────────────────────────────────
+    # Их печатают на каждой плате, и они не украшение: без свинца, соответствие
+    # директивам, раздельный сбор. Стоят кучкой у кромки, мелко и глухо — их
+    # читают, только когда специально ищут.
+    def знаки(x, y):
+        out = [f'<circle cx="{x+7}" cy="{y+7}" r="6.4" fill="none" '
+               f'stroke="rgba(147,161,161,0.34)" stroke-width="0.9"/>',
+               mono(x + 7, y + 9.4, 'Pb', 5.5, op=0.34),
+               # Перечёркнутый бак: раздельный сбор.
+               f'<rect x="{x+20}" y="{y+2.6}" width="8" height="9" rx="1" fill="none" '
+               f'stroke="rgba(147,161,161,0.34)" stroke-width="0.9"/>',
+               f'<path d="M{x+21} {y+1.4} h6 M{x+18} {y+13} l12 -12" fill="none" '
+               f'stroke="rgba(147,161,161,0.34)" stroke-width="0.9"/>',
+               mono(x + 40, y + 9.4, 'CE', 6.5, op=0.34)]
+        return ''.join(out)
+
+    ЧИСТО = (BOARD, MAJOR, PART, SILK, MINOR, RESERVE, COVER)
+    place(52, 18, lambda x, y: знаки(x + 2, y + 2), 'знаки соответствия',
+          SILK, ЧИСТО)
+
+    # ── Предохранитель ────────────────────────────────────────────────────
+    # На живой плате он один и подписан прямо на текстолите — номинал печатают
+    # рядом, потому что менять его будут по этой надписи, а не по документации.
+    def предохранитель(x, y):
+        return (f'<rect x="{x}" y="{y}" width="18" height="9" rx="4.5" fill="#2a3238" '
+                f'stroke="rgba(147,161,161,0.36)"/>'
+                + pad(x - 2.4, y + 1, 4, 7) + pad(x + 16.4, y + 1, 4, 7)
+                + mono(x, y + 17, 'F560 4A/32V', 4.6, anchor="start", op=0.32))
+
+    place(46, 24, lambda x, y: предохранитель(x + 2, y + 2), 'предохранитель',
+          PART, ЧИСТО)
+
+    cv.add('<g class="decor parts">' + ''.join(parts[поздние:]) + '</g>')
 
     # Марка изготовителя. Стояла вертикально по правой кромке кеглем в 44 — и
     # не читалась: кромку пересекают три бирки ссылок, а они непрозрачные, и

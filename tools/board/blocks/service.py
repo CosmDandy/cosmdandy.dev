@@ -10,7 +10,7 @@ service zone
 # рамка лишь описывает, сколько блок занимает.
 BOUNDS = (821, 98, 187, 740)
 
-from board.geom import LID_BTN, X_SVC
+from board.geom import LID_BTN, SVC_SW, X_SVC
 from board.ink import hit, mono, silk_boxed, silk_inverse
 from board.palette import SILVER, SILVER_DIM, SILVER_LIT
 
@@ -272,7 +272,7 @@ def render(cv):
     # Место задано владельцем числами: x=825, y=570 при ширине 114. На прежних
     # 616 переключатель попадал ровно под бирки Twitter и Email, которые лежат
     # поверх всего. От X_SVC он теперь не считается: это точка, а не отступ.
-    sx, sy, sw, sh = 825, 570, 114, 54
+    sx, sy, sw, sh = SVC_SW
     # Обе кнопки занимают своё место в реестре: рассыпуха и позиционные
     # обозначения кладутся туда, где свободно, а на кнопку им нельзя — она
     # непрозрачная, и всё, что нарисовано позже, ложится прямо на неё.
