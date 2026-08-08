@@ -8,11 +8,17 @@ service zone
 # числам владельца, x=825, и его зона нажатия начинается на 821. Это тот случай,
 # когда двигать надо рамку, а не фигуру: место у детали назначено снаружи, а
 # рамка лишь описывает, сколько блок занимает.
-BOUNDS = (821, 98, 187, 740)
+# Верхняя кромка поднята к самому текстолиту: над разъёмами питания оставалась
+# полоса в восемьдесят единиц, занятая безымянной рассыпухой, и именно туда
+# встали отладочные гребёнки и лампы платы. Это их законное место — они
+# относятся к служебной зоне, а не к полю обвязки.
+BOUNDS = (821, 20, 187, 818)
 
+from board.canvas import SILK
 from board.geom import LID_BTN, SVC_SW, X_SVC
-from board.ink import hit, mono, silk_boxed, silk_inverse
+from board.ink import barcode, hit, mono, silk_boxed, silk_inverse
 from board.palette import SILVER, SILVER_DIM, SILVER_LIT
+from board.spec import FIRMWARE
 
 # Позолота контакта. Тот же тон, что у ножей в слоте памяти: золото на плате
 # одно, и разъём, нарисованный своим оттенком, читается чужой деталью.
@@ -48,46 +54,105 @@ def dip_switch(x, y, n=4, on=(1, 3)):
                      f'fill="#e8e3d5" stroke="#8d979a" stroke-width="0.6"/>')
         parts.append(mono(cx + sw_w / 2, y + body_h - 1, str(i + 1), 4.5, op=0.4))
     return f'<g class="decor dip-switch">{"".join(parts)}</g>'
-from board.metal import pad, relief
+from board.lamps import lamp
+from board.metal import idc_header, pad, relief
 
 
-def jumper_table(x, y, title, rows):
+def jumper_table(x, y, title, rows, size=9):
     """Jumper legend table: frame, grid, contact positions.
 
     One like this is printed right on the laminate next to the jumper itself —
     it is how you tell primary from backup without opening the manual.
+
+    Третьим полем строки — умолчание. На живой плате его помечают звёздочкой
+    прямо в таблице, и это не украшение: перемычку возвращают в исходное
+    положение по ней, а не по документации, которой под рукой нет.
+
+    Кегль задаётся снаружи. Легенда J29 стоит в своей колонке и может быть
+    крупной, а таблица функций переключателей влезает в разрыв между узлами в
+    сорок шесть единиц — и там читаемость упирается в место, а не в желание.
     """
     # Развёрнута во весь свободный столбец: кнопка крышки стояла прямо на ней и
     # держала легенду в размере, при котором её читать было нечем. Ширину всё
     # равно ограничивает марка вендора по правой кромке, поэтому растёт она
     # прежде всего вниз — строками и кеглем.
-    col1_w, row_h, pad, title_h = 42, 24, 10, 22
-    label_w = max(70, max((len(r[1]) for r in rows), default=0) * 8 * 0.6 + 12)
-    body_w = max(col1_w + label_w, len(title) * 9 * 0.6 + 18)
+    k = size / 9
+    col1_w, row_h, pad, title_h = 42 * k, 24 * k, 10 * k, 22 * k
+    label_w = max(70 * k, max((len(r[1]) + 2 for r in rows), default=0) * size * 0.6 + 12 * k)
+    body_w = max(col1_w + label_w, len(title) * size * 0.6 + 18 * k)
     body_h = title_h + len(rows) * row_h + pad
     STROKE = 'rgba(232,227,213,0.55)'
     TEXT = 'rgba(232,227,213,0.62)'
     parts = [
-        f'<rect x="{x}" y="{y}" width="{body_w:.1f}" height="{body_h}" rx="1" '
+        f'<rect x="{x}" y="{y}" width="{body_w:.1f}" height="{body_h:.1f}" rx="1" '
         f'fill="none" stroke="{STROKE}" stroke-width="1"/>',
-        f'<text x="{x+body_w/2:.1f}" y="{y+title_h-7}" text-anchor="middle" fill="{TEXT}" '
-        f'font-family="ui-monospace, Menlo, monospace" font-size="9" '
+        f'<text x="{x+body_w/2:.1f}" y="{y+title_h-7*k:.1f}" text-anchor="middle" fill="{TEXT}" '
+        f'font-family="ui-monospace, Menlo, monospace" font-size="{size}" '
         f'font-weight="600" letter-spacing="0.02em">{title}</text>',
-        f'<line x1="{x}" y1="{y+title_h}" x2="{x+body_w:.1f}" y2="{y+title_h}" '
+        f'<line x1="{x}" y1="{y+title_h:.1f}" x2="{x+body_w:.1f}" y2="{y+title_h:.1f}" '
         f'stroke="{STROKE}" stroke-width="0.8"/>',
-        f'<line x1="{x+col1_w}" y1="{y+title_h}" x2="{x+col1_w}" y2="{y+body_h}" '
+        f'<line x1="{x+col1_w:.1f}" y1="{y+title_h:.1f}" x2="{x+col1_w:.1f}" y2="{y+body_h:.1f}" '
         f'stroke="{STROKE}" stroke-width="0.8"/>',
     ]
-    for i, (pos, label) in enumerate(rows):
+    for i, row in enumerate(rows):
+        pos, label = row[0], row[1]
+        # Звёздочка стоит в самой строке, а не сноской под таблицей: под
+        # таблицей на плате места нет, а знать, какое положение исходное, надо
+        # ровно в тот момент, когда смотришь на строку.
+        if len(row) > 2 and row[2]:
+            label += ' *'
         ry = y + title_h + i * row_h
         if i:
-            parts.append(f'<line x1="{x}" y1="{ry}" x2="{x+body_w:.1f}" y2="{ry}" '
+            parts.append(f'<line x1="{x}" y1="{ry:.1f}" x2="{x+body_w:.1f}" y2="{ry:.1f}" '
                          f'stroke="{STROKE}" stroke-width="0.6" stroke-opacity="0.6"/>')
-        parts.append(f'<text x="{x+col1_w/2}" y="{ry+row_h-7}" text-anchor="middle" fill="{TEXT}" '
-                     f'font-family="ui-monospace, Menlo, monospace" font-size="8.5">{pos}</text>')
-        parts.append(f'<text x="{x+col1_w+8}" y="{ry+row_h-7}" fill="{TEXT}" '
-                     f'font-family="ui-monospace, Menlo, monospace" font-size="8.5">{label}</text>')
+        parts.append(f'<text x="{x+col1_w/2:.1f}" y="{ry+row_h-7*k:.1f}" text-anchor="middle" fill="{TEXT}" '
+                     f'font-family="ui-monospace, Menlo, monospace" font-size="{size*0.94:.1f}">{pos}</text>')
+        parts.append(f'<text x="{x+col1_w+8*k:.1f}" y="{ry+row_h-7*k:.1f}" fill="{TEXT}" '
+                     f'font-family="ui-monospace, Menlo, monospace" font-size="{size*0.94:.1f}">{label}</text>')
     return f'<g class="decor jumper-table">{"".join(parts)}</g>'
+
+
+def jumper(x, y, pins=3, on=(1, 2), pitch=7):
+    """Перемычка: гребёнка штырей и колпачок на паре из них.
+
+    Колпачок — единственная деталь на плате, которую переставляют пальцами и
+    без инструмента, и узнают её именно по нему: чёрный кубик, надетый на два
+    штыря из трёх. Штырь под колпачком не виден, и это тоже признак — по нему
+    и читают, в каком положении перемычка стоит.
+    """
+    w, h = (pins - 1) * pitch + 8, 11
+    out = [f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="1" fill="#12191d" '
+           f'stroke="rgba(147,161,161,0.34)" stroke-width="1"/>']
+    for k in range(pins):
+        px = x + 4 + k * pitch
+        if k + 1 in on:
+            continue
+        out.append(f'<rect x="{px-1.6:.1f}" y="{y+2.6}" width="3.2" height="5.8" rx="0.5" '
+                   f'fill="{GOLD}" fill-opacity="0.72"/>')
+    if on:
+        cx = x + 4 + (min(on) - 1) * pitch
+        out.append(f'<rect x="{cx-3:.1f}" y="{y+1.4}" width="{(len(on)-1)*pitch+6:.1f}" '
+                   f'height="{h-2.8}" rx="1" fill="#0a0e11" '
+                   f'stroke="rgba(147,161,161,0.42)" stroke-width="0.8"/>')
+    out.append(''.join(pad(x + 2 + k * pitch, y + h - 1.6, 4, 3.2, 0.4) for k in range(pins)))
+    out.append(relief(x, y, w, h, 1))
+    return ''.join(out)
+
+
+def mac_label(x, y, mac, w=104, h=26):
+    """Наклейка с адресом контроллера управления.
+
+    Отдельная от паспорта платы нарочно: адрес у BMC свой, и наклеивают его
+    отдельной бумажкой — плату меняют, а адрес в списках остаётся, и его
+    переписывают именно отсюда. Штрих-код считается от самой надписи, как и
+    на наклейке FRU: иначе он рано или поздно разойдётся с текстом.
+    """
+    return (f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="1.5" fill="#d9d3c1" '
+            f'fill-opacity="0.55" stroke="rgba(147,161,161,0.34)"/>'
+            + barcode(x + 5, y + 4, mac, 10, bars=26, pitch=3.4, thin=0.9, thick=1.8)
+            + f'<text x="{x + 5}" y="{y + 22}" fill="rgba(10,20,23,0.70)" '
+              f'font-family="ui-monospace, Menlo, monospace" font-size="5.4">'
+              f'BMC MAC {mac}</text>')
 
 
 def power_conn(x, y, w=52, h=26, cols=4):
@@ -277,8 +342,61 @@ def render(cv):
     unit(dip_switch(X_SVC + 66, 396, 4, on=(2,)), X_SVC + 66, 396, 37, 25)
     svc.append(silk_boxed(X_SVC + 85, 436, "SW4", 6))
     svc.append(jumper_table(X_SVC + 6, 466, "J29 BIOS BOOT FROM",
-                            [("1-2", "PRIMARY BIOS"), ("2-3", "BACKUP BIOS")]))
+                            [("1-2", "PRIMARY BIOS", True), ("2-3", "BACKUP BIOS")]))
     cv.busy(X_SVC + 6, 466, 150, 80)
+
+    # ── Отладочные гребёнки ───────────────────────────────────────────────
+    # На живой плате их несколько, и безымянными они не бывают: к ним ходят
+    # осциллографом и логическим анализатором, а значит подпись обязана
+    # сказать, к какому узлу гребёнка ведёт. Полоса над разъёмами питания —
+    # их место: она в служебной зоне и до сих пор стояла пустой.
+    for hx, pins, label in ((X_SVC + 18, 10, "TERRA DEBUG"),
+                            (X_SVC + 92, 8, "VOLTERRA DEBUG")):
+        svc.append(idc_header(hx, 28, pins, label))
+        cv.busy(hx - 2, 26, (pins // 2) * 4.4 + 12, 17)
+        cv.busy(hx - 12, 45, len(label) * 3.6, 9, kind=SILK)
+
+    # ── Лампы самой платы ─────────────────────────────────────────────────
+    # Их две, и обе горят там, где смотреть больше некуда: PLANAR — отказ
+    # системной платы, RISER2 MISSING — райзер не опознан. На живой машине
+    # это единственный способ отличить «плата умерла» от «карту не увидели»,
+    # не поднимая консоли: лампу видно, как только снял крышку.
+    for lx, cls, color, text in ((X_SVC + 24, 'led-planar', '#dc322f', 'PLANAR'),
+                                 (X_SVC + 96, 'led-riser2', '#b58900', 'RISER2 MISS')):
+        svc.append(lamp(cls, lx, 74, 4, color))
+        svc.append(mono(lx + 9, 76, text, 5, anchor="start", op=0.42))
+        cv.busy(lx - 7, 67, 16 + len(text) * 3.2, 15)
+
+    # ── Наклейка с адресом контроллера управления ─────────────────────────
+    svc.append(mac_label(X_SVC + 18, 238, FIRMWARE['mac']))
+    cv.busy(X_SVC + 18, 238, 104, 26)
+
+    # ── Вторая перемычка ──────────────────────────────────────────────────
+    # Ею загрузку BMC переводят на вторую половину микросхемы — тем и чинят
+    # машину, у которой не поднялся сам контроллер управления. Легенда стоит
+    # рядом: перемычку переставляют пальцем, и лезть за документацией ради
+    # двух положений никто не будет.
+    # Ниже перечня позиций рамки «PLATFORM I/O»: тот печатается по её нижней
+    # кромке на 344, и легенда, поставленная выше, ложилась прямо на него.
+    svc.append(jumper(X_SVC + 20, 360, 3, on=()))
+    svc.append(mono(X_SVC + 20, 382, "J147", 5, anchor="start", op=0.42))
+    cv.busy(X_SVC + 18, 358, 30, 28)
+    svc.append(jumper_table(
+        X_SVC + 48, 352, "J147 iBMC_SPI_HALFROM_EN_N",
+        [("OPEN", "NORMAL BOOT TO TOP OF ROM", True),
+         ("1-2", "BOOT TO HALF WAY POINT")], size=4.6))
+    cv.busy(X_SVC + 48, 352, 106, 42)
+
+    # ── Что делают переключатели ──────────────────────────────────────────
+    # Таблицей на четыре строки, как на живой плате, легенда сюда не влезает:
+    # между узлами остаётся двадцать шесть единиц, а строка таблицы с полями
+    # занимает двенадцать. Поэтому то же самое набрано в две строки —
+    # назначение каждого положения и звёздочка у исходного.
+    for k, text in enumerate((
+            "SW3  1 CLR CMOS · 2 BMC RST · 3 PWR ON * · 4 —",
+            "SW4  1 SPI WP * · 2 ME DIS · 3 — · 4 —")):
+        svc.append(mono(X_SVC + 18, 448 + k * 10, text, 4.6, anchor="start", op=0.42))
+    cv.busy(X_SVC + 16, 440, 138, 24, kind=SILK)
     cv.add('<g class="decor">' + ''.join(svc) + '</g>')
 
     # Тумблер остался на своём месте и только подрос: он шире кнопки крышки, и

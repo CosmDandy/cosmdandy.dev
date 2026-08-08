@@ -255,7 +255,7 @@ def render(cv):
           <path class="latch latch-l" d="M{X_CORE-7} {y+1} h6 v{SLOT_H-2} h-6 a2 2 0 0 1 -2 -2 v{-(SLOT_H-6)} a2 2 0 0 1 2 -2 Z"/>
           <path class="latch latch-r" d="M{X_CORE+DIMM_W+1} {y+1} h6 a2 2 0 0 1 2 2 v{SLOT_H-6} a2 2 0 0 1 -2 2 h-6 Z"/>
           {silk_inverse(X_CORE + DIMM_W + 18, y + (SLOT_H - 12.5) / 2, f"DIMM {letters[i]}", 6.5)}
-          {mono(X_CORE + DIMM_W + 56, y + 11, f"J{first_ref + i}", 4.5, anchor="start", op=0.34)}
+          {mono(X_CORE + DIMM_W + 2, y + 11, f"J{first_ref + i}", 4.2, anchor="start", op=0.34)}
         </g>''')
             # Краска банка занимает место, и сказать об этом надо вслух. Плашка
             # с буквой канала лежит правее гнезда, у самой кромки служебной
@@ -263,7 +263,7 @@ def render(cv):
             # встало прямо на «DIMM E». Гнездо своё место держит, плашка
             # держалась ничем.
             cv.busy(X_CORE + DIMM_W + 16, y + (SLOT_H - 12.5) / 2 - 1,
-                    58, 14.5, pad=0, kind=SILK)
+                    36, 14.5, pad=0, kind=SILK)
         return f'''<g class="unit" data-unit="dimm-{code}" data-group="dimm" data-href="https://blog.cosmdandy.dev">
       {hit(X_CORE-8, y0-4, SOCK_W + 42, n * PITCH + 6)}
       {''.join(slots)}

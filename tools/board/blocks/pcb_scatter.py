@@ -497,10 +497,10 @@ def render(cv):
         # лестница длинная и встаёт только там, где свободна вся полоса —
         # одной попытки у начала пучка не хватает ни разу.
         run = abs(by - ay if vert else bx - ax)
-        for gap in (8, 20, 32, 44, 56):
+        for gap in (8, 16, 24, 32, 40, 48, 56, 64, 72):
             done = False
             for sign in (1, -1):
-                for start in range(10, max(11, int(run - LADDER_N * LADDER_PITCH)), 12):
+                for start in range(8, max(9, int(run - LADDER_N * LADDER_PITCH)), 8):
                     if vert:
                         done = ladder(ax + sign * (span / 2 + gap), min(ay, by) + start, False)
                     else:
