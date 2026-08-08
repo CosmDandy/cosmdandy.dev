@@ -11,6 +11,13 @@ SRC = str(Path(__file__).parent / "board-v17.svg.part")
 s = open(SRC, encoding="utf-8").read()
 
 # Decor only: the interactive units are laid out by hand.
+#
+# Отрезок возвращается вместе со своим началом в файле. Порядок рисования —
+# это порядок в разметке, и сравнивать позиции из разных отрезков по их
+# внутреннему смещению нельзя: у последней группы «краска» смещения начинаются
+# с нуля, и любая фигура из первой группы оказывалась «нарисованной позже».
+# Так репер «F» в углу текстолита числился накрытым лапками разъёма,
+# отстоящими от него на шесть сотен единиц.
 def spans(tag_open):
     out, i = [], 0
     while True:
@@ -29,11 +36,11 @@ def spans(tag_open):
             else:
                 depth -= 1
                 j = cg + 4
-        out.append(s[i:j])
+        out.append((i, s[i:j]))
         i = j
 
 blocks = spans('<g class="decor parts">') + spans('<g class="decor silk">')
-print("decor blocks:", len(blocks), "totalling", sum(len(b) for b in blocks), "chars")
+print("decor blocks:", len(blocks), "totalling", sum(len(b) for _at, b in blocks), "chars")
 
 TEXT = re.compile(
     r'<text ([^>]*?)>([^<]*)</text>')
@@ -50,7 +57,7 @@ def num(d, k, dflt=0.0):
         return dflt
 
 texts, shapes = [], []
-for b in blocks:
+for at, b in blocks:
     for m in TEXT.finditer(b):
         d, body = attrs(m.group(1)), m.group(2)
         size = num(d, "font-size", 10)
@@ -62,13 +69,13 @@ for b in blocks:
         if "rotate(-90" in d.get("transform", ""):
             # rotation about (x,y): the width goes upwards
             box = (x - size * 0.72, y - w, size * 0.72, w)
-        texts.append((box, body, m.start(), size))
+        texts.append((box, body, at + m.start(), size))
     for m in RECT.finditer(b):
         d = attrs(m.group(1))
         if d.get("fill", "") in ("none", ""):
             continue
         shapes.append(((num(d, "x"), num(d, "y"), num(d, "width"), num(d, "height")),
-                       "rect " + d.get("fill", ""), m.start(), float(d.get("fill-opacity", 1))))
+                       "rect " + d.get("fill", ""), at + m.start(), float(d.get("fill-opacity", 1))))
     for m in CIRC.finditer(b):
         d = attrs(m.group(1))
         if d.get("fill", "") in ("none", ""):
@@ -80,7 +87,7 @@ for b in blocks:
             continue
         r = num(d, "r")
         shapes.append(((num(d, "cx") - r, num(d, "cy") - r, 2 * r, 2 * r),
-                       "circle " + d.get("fill", ""), m.start(), float(d.get("fill-opacity", 1))))
+                       "circle " + d.get("fill", ""), at + m.start(), float(d.get("fill-opacity", 1))))
 
 print("texts:", len(texts), " opaque shapes:", len(shapes))
 

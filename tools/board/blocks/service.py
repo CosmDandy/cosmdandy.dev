@@ -239,25 +239,46 @@ def microsd_slot(x, y, w=66, h=22):
 
 
 def render(cv):
-    svc = [
-        coin_cell(X_SVC + 34, 300, 20),
-        silk_boxed(X_SVC + 34, 338, "CMOS", 7),
-        microsd_slot(X_SVC + 84, 288),
-        silk_boxed(X_SVC + 117, 324, "microSD", 7),
-        power_conn(X_SVC + 12, 120),
-        power_conn(X_SVC + 90, 120),
-        silk_boxed(X_SVC + 78, 110, "P1 / P2", 7),
-        # Switches and the jumper legend: what one goes under the cover for
-        dip_switch(X_SVC + 10, 396, 4, on=(1, 3)),
-        silk_boxed(X_SVC + 29, 436, "SW3", 6),
-        dip_switch(X_SVC + 66, 396, 4, on=(2,)),
-        silk_boxed(X_SVC + 85, 436, "SW4", 6),
-        jumper_table(X_SVC + 6, 466, "J29 BIOS BOOT FROM",
-                     [("1-2", "PRIMARY BIOS"), ("2-3", "BACKUP BIOS")]),
-    ]
+    # Номер по схеме объявляется там же, где стоит сам разъём, и одними и теми
+    # же числами. Печатает его блок marks — он идёт в очереди почти последним и
+    # только там известно, с какой стороны у гнезда осталось поле.
+    #
+    # Прежняя общая подпись «P1 / P2» на две колодки отсюда убрана: одна
+    # надпись на два разъёма не отвечает на вопрос, какой из них какой, а
+    # именно за этим номер и печатают.
+    svc = []
+
+    def unit(frag, x, y, w, h, ref=None):
+        """Корпус на своём месте: рисуем, занимаем поле, объявляем номер.
+
+        Три вещи одними и теми же числами. Полосу под служебную колонку
+        держит `pcb_zones` бронью — она не пускает туда объём, — а вот краску
+        от самого разъёма держит только эта отметка: под корпусом печатать
+        нечего, надпись окажется скрыта им ещё на монтаже.
+        """
+        svc.append(frag)
+        cv.busy(x, y, w, h)
+        if ref:
+            cv.refdes(x, y, w, h, ref)
+
+    for px, ref in ((X_SVC + 12, "P1"), (X_SVC + 90, "P2")):
+        unit(power_conn(px, 120), px, 120, 52, 26, ref)
     for i in range(3):
-        svc.append(slimsas_port(X_SVC + 8 + i * 48, 188))
+        px = X_SVC + 8 + i * 48
+        unit(slimsas_port(px, 188), px, 188, 42, 26, f'J3{i}')
     svc.append(silk_inverse(X_SVC + 26, 226, "SLIMSAS → BP", 6))
+    unit(coin_cell(X_SVC + 34, 300, 20), X_SVC + 8, 276, 52, 50, "BAT1")
+    svc.append(silk_boxed(X_SVC + 34, 338, "CMOS", 7))
+    unit(microsd_slot(X_SVC + 84, 288), X_SVC + 84, 288, 66, 22, "J14")
+    svc.append(silk_boxed(X_SVC + 117, 324, "microSD", 7))
+    # Switches and the jumper legend: what one goes under the cover for
+    unit(dip_switch(X_SVC + 10, 396, 4, on=(1, 3)), X_SVC + 10, 396, 37, 25)
+    svc.append(silk_boxed(X_SVC + 29, 436, "SW3", 6))
+    unit(dip_switch(X_SVC + 66, 396, 4, on=(2,)), X_SVC + 66, 396, 37, 25)
+    svc.append(silk_boxed(X_SVC + 85, 436, "SW4", 6))
+    svc.append(jumper_table(X_SVC + 6, 466, "J29 BIOS BOOT FROM",
+                            [("1-2", "PRIMARY BIOS"), ("2-3", "BACKUP BIOS")]))
+    cv.busy(X_SVC + 6, 466, 150, 80)
     cv.add('<g class="decor">' + ''.join(svc) + '</g>')
 
     # Тумблер остался на своём месте и только подрос: он шире кнопки крышки, и
@@ -268,7 +289,7 @@ def render(cv):
     # Блик: выключенный тумблер — тёмный прямоугольник на тёмной плате, и его
     # приходилось искать глазом. Раз в несколько секунд по нему проходит
     # полоса — тот же приём, что у бирок-ссылок, только повторяющийся: там блик
-    # представляет узел один раз, здесь — зовёт нажать, пока не нажали.
+    # представляет unit один раз, здесь — зовёт нажать, пока не нажали.
     # Место задано владельцем числами: x=825, y=570 при ширине 114. На прежних
     # 616 переключатель попадал ровно под бирки Twitter и Email, которые лежат
     # поверх всего. От X_SVC он теперь не считается: это точка, а не отступ.
