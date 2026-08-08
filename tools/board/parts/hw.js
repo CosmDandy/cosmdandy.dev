@@ -157,9 +157,24 @@
     run: function (ctx) {
       const out = counts('.fan.pulled');
       const dimm = dimmState();
+      // Датчик живёт в самом процессоре, и у вынутого спрашивать нечего. Пока
+      // строка печаталась безусловно, sensors бодро показывал температуру
+      // сокета, с которого на схеме снят радиатор, — а /proc/cpuinfo этот же
+      // сокет честно пропускал. Две команды об одной машине расходились на
+      // глазах.
+      const снят = function (n) {
+        const s = rig.querySelector('.cpu-slot[data-cpu="' + n + '"]');
+        return !!(s && s.classList.contains('pulled'));
+      };
+      const темп = function (n, dv) {
+        return снят(n)
+          ? { t: 'CPU' + n + ' Temp      — · радиатор снят', c: 'muted' }
+          : { t: 'CPU' + n + ' Temp      ' + Math.round(metric('temp').v - dv) + ' °C',
+              c: out ? 'warn' : 'ok' };
+      };
       const rows = [
-        { t: 'CPU0 Temp      ' + Math.round(metric('temp').v) + ' °C', c: out ? 'warn' : 'ok' },
-        { t: 'CPU1 Temp      ' + Math.round(metric('temp').v - 2) + ' °C', c: out ? 'warn' : 'ok' },
+        темп(0, 0),
+        темп(1, 2),
         { t: 'Inlet Temp     ' + (21 + Math.round(Math.random() * 2)) + ' °C', c: 'ok' },
         { t: 'Fan Speed      ' + (fanRpmNow(ctx.nv) + out * 1800) + ' RPM', c: out ? 'warn' : 'ok' },
         { t: 'Fan Policy     ' + fanPolicyNow(ctx.nv), c: 'muted' },
