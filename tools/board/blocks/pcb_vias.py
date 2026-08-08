@@ -66,18 +66,18 @@ def outline(x, y, w, h, gap=6, step=13):
     периода, и при пересборке рисунок тот же.
     """
     ring = []
-    def густо(px, py):
+    def dense(px, py):
         # Три числа в свёртке: без третьего сетка давала полосы по диагонали.
         return (int(px) * 73 + int(py) * 149 + int(px * py) % 17) % 100 < 62
     for k in range(int(w // step) + 1):
         px = x + k * step
         for py in (y - gap, y + h + gap):
-            if густо(px, py):
+            if dense(px, py):
                 ring.append((px, py))
     for k in range(int(h // step) + 1):
         py = y + k * step
         for px in (x - gap, x + w + gap):
-            if густо(px, py):
+            if dense(px, py):
                 ring.append((px, py))
     return ring
 
@@ -236,11 +236,11 @@ def render(cv):
     # самой миллиметровки. Полоса говорит ровно то же самое и занимает ровно
     # то же место.
     CELL = 36
-    занято = set()
+    busy = set()
     for vx, vy in big_vias + small_vias:
-        занято.add((int(vx // CELL), int(vy // CELL)))
-    for gy in sorted({gy for _gx, gy in занято}):
-        row = sorted(gx for gx, y in занято if y == gy)
+        busy.add((int(vx // CELL), int(vy // CELL)))
+    for gy in sorted({gy for _gx, gy in busy}):
+        row = sorted(gx for gx, y in busy if y == gy)
         start = prev = row[0]
         for gx in row[1:] + [None]:
             if gx == prev + 1:

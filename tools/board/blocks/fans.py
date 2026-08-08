@@ -33,7 +33,7 @@ from board.rotor import HUB_R, rotor_disc, rotor_streaks, impeller
 from board.spec import FAN as FAN_SPEC
 
 
-def подпись(cv, x, y, text, size):
+def held_label(cv, x, y, text, size):
     """Строка на текстолите, которая занимает своё место.
 
     mono() только рисует; чтобы поверх не легло обозначение узла, место надо
@@ -44,7 +44,7 @@ def подпись(cv, x, y, text, size):
     return mono(x, y, text, size, anchor="start", op=0.34)
 
 
-def фикс(cv, x, y, text, size):
+def held_plate(cv, x, y, text, size):
     """Подпись на плате, чьё место надо удержать.
 
     silk_inverse рисует плашку с текстом, но в регистр не пишет ничего, и
@@ -186,7 +186,7 @@ def render(cv):
                 # плате каждый разъём: имя цепи и слово CONN. Без него колодка
                 # у кромки читается просто чёрным прямоугольником, а на машине
                 # по этой надписи и находят, куда воткнуть вентилятор.
-                + подпись(cv, sx + 12, fy + 11, f'FAN{i+1} CONN', 4.5))
+                + held_label(cv, sx + 12, fy + 11, f'FAN{i+1} CONN', 4.5))
 
         # The shell: from above a real module shows a closed plastic cover with
         # a seam between the two sections, not bare impellers. It is drawn over
@@ -235,6 +235,6 @@ def render(cv):
         <g class="cables">{wires}</g>
         {foot}
       </g>
-      {фикс(cv, sx + 30, fy + FAN_LAMP_DY - 6, 'FAN FAULT', 6)}
+      {held_plate(cv, sx + 30, fy + FAN_LAMP_DY - 6, 'FAN FAULT', 6)}
       {fault_at(cv, sx + 18, fy + FAN_LAMP_DY, 5)}
     </g>''')
