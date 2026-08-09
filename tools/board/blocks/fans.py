@@ -27,13 +27,13 @@ from board.geom import (
 from board.canvas import SILK
 from board.ink import mono, silk_inverse
 from board.lamps import fault_at, jitter
-from board.palette import ROTOR_BLADE, ROTOR_EDGE, ROTOR_PAD
+from board.palette import HOT, ROTOR_BLADE, ROTOR_EDGE, ROTOR_PAD
 from board.revision import stamp
 from board.rotor import HUB_R, rotor_disc, rotor_streaks, impeller
 from board.spec import FAN as FAN_SPEC
 
 
-def подпись(cv, x, y, text, size):
+def held_label(cv, x, y, text, size):
     """Строка на текстолите, которая занимает своё место.
 
     mono() только рисует; чтобы поверх не легло обозначение узла, место надо
@@ -44,7 +44,7 @@ def подпись(cv, x, y, text, size):
     return mono(x, y, text, size, anchor="start", op=0.34)
 
 
-def фикс(cv, x, y, text, size):
+def held_plate(cv, x, y, text, size):
     """Подпись на плате, чьё место надо удержать.
 
     silk_inverse рисует плашку с текстом, но в регистр не пишет ничего, и
@@ -138,7 +138,8 @@ def render(cv):
         # are drawn before the body: a tab is recessed into the frame, and only
         # half of it sticks out.
         tabs = ''.join(
-            f'<rect x="{tx}" y="{y+h/2-19}" width="16" height="38" rx="2" fill="#cb4b16" '
+            # Язычок терракотовый по коду замены: вентилятор вынимают на ходу.
+            f'<rect x="{tx}" y="{y+h/2-19}" width="16" height="38" rx="2" fill="{HOT}" '
             f'stroke="rgba(238,232,213,0.55)" stroke-width="1.2"/>'
             f'<rect x="{tx+4}" y="{y+h/2-13}" width="6" height="26" rx="1" fill="rgba(238,232,213,0.22)"/>'
             for tx in (X_FAN - 8, X_FAN + FAN_W - 8))
@@ -162,6 +163,12 @@ def render(cv):
         # the mating part on the board. The leg and the wires are part of the
         # fan: pull it and they go with it, detaching from the board. The lamp
         # stays on the board though: what lights up is not the fan but its seat.
+        #
+        # Ответная колодка на плате — тоже не часть вентилятора, и лежит она
+        # рядом с лампой, а не внутри pick-body. Пока она стояла внутри, вместе
+        # с модулем уезжала и она, и напечатанная рядом с ней «FAN1 CONN»: на
+        # живой машине вентилятор вынимают, а разъём и краска остаются в плате.
+        # Провода при этом честно отходят от колодки — они-то на модуле.
         # The connector is in the top corner of the module, which is where it
         # stands on a real fan. The mating header on the board, however, comes
         # opposite the middle of the module: the seat lamp has to be across
@@ -186,7 +193,7 @@ def render(cv):
                 # плате каждый разъём: имя цепи и слово CONN. Без него колодка
                 # у кромки читается просто чёрным прямоугольником, а на машине
                 # по этой надписи и находят, куда воткнуть вентилятор.
-                + подпись(cv, sx + 12, fy + 11, f'FAN{i+1} CONN', 4.5))
+                + held_label(cv, sx + 12, fy + 11, f'FAN{i+1} CONN', 4.5))
 
         # The shell: from above a real module shows a closed plastic cover with
         # a seam between the two sections, not bare impellers. It is drawn over
@@ -233,8 +240,8 @@ def render(cv):
         {mono(X_FAN + FAN_W / 2, y + 8, f"FAN{i+1}", 7, op=0.42)}
         {mono(X_FAN + FAN_W / 2, y + h - 2, f"{FAN_SPEC['rpm_max']} RPM", 7, op=0.30)}
         <g class="cables">{wires}</g>
-        {foot}
       </g>
-      {фикс(cv, sx + 30, fy + FAN_LAMP_DY - 6, 'FAN FAULT', 6)}
+      {foot}
+      {held_plate(cv, sx + 30, fy + FAN_LAMP_DY - 6, 'FAN FAULT', 6)}
       {fault_at(cv, sx + 18, fy + FAN_LAMP_DY, 5)}
     </g>''')

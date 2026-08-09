@@ -67,6 +67,27 @@ def rails():
     return '<g class="decor rack-rail">' + ''.join(studs) + '</g>'
 
 
+def emboss(x, y, text, size=6):
+    """Тиснение на стали: та же строка дважды, тень и блик.
+
+    На поддоне партномер не печатают краской, а выдавливают штампом вместе с
+    самим листом: краска на несущей детали облезет за первую же переборку, а
+    рельеф останется. Читается он одним — тенью снизу и бликом сверху, и
+    больше ничем: своего цвета у тиснения нет.
+    """
+    def line(dy, fill):
+        # Класс не косметический: проверки «надпись не залезает на кромку
+        # текстолита» по нему и отличают сталь от платы. Тиснение обязано быть
+        # за кромкой — там и есть поддон.
+        return (f'<text class="emboss-line" x="{x}" y="{y + dy}" fill="{fill}" '
+                f'font-family="ui-monospace, Menlo, monospace" font-size="{size}" '
+                f'letter-spacing="0.08em">{text}</text>')
+    return ('<g class="decor emboss">'
+            + line(0.7, 'rgba(0,0,0,0.55)')
+            + line(-0.3, 'rgba(223,232,234,0.16)')
+            + '</g>')
+
+
 def render(cv):
     # The lamp glow gradients are shared by the whole drawing, so they are
     # declared in the very first block: everyone who places a lamp refers to
@@ -82,3 +103,8 @@ def render(cv):
     cv.add(rack_ears())
     cv.add(f'<rect x="4" y="4" width="{W-8}" height="{H-8}" rx="14" fill="{CHASSIS}" '
            f'stroke="rgba(147,161,161,0.30)"/>')
+    # Партномер поддона — на самом поддоне, а не на плате. Полоса стали вдоль
+    # нижней кромки шириной в четырнадцать единиц это всё, что от него видно
+    # сверху: остальное закрыто текстолитом и узлами. На живой машине надпись
+    # выдавлена именно там, у края, где лист ничем не занят.
+    cv.add(emboss(600, 856, 'P/N 43V6943 · SHEET P/N: 60700-49Y6943-04', 6))

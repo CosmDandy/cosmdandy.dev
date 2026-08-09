@@ -40,7 +40,8 @@ KEY_AT = 0.64
 CHIP_H = SLOT_H - 8          # чипы занимают всё, что осталось под кромкой
 
 from board.geom import dimm_seat
-from board.ink import barcode, hit, silk_inverse
+from board.canvas import SILK
+from board.ink import barcode, hit, mono, silk_inverse
 from board.revision import BOARD_SHA, stamp
 from board.spec import DIMM
 
@@ -145,7 +146,7 @@ def sticker(x, y):
 _DEFS_Y = Y_BANK_L
 
 
-def _slot_static(y, первый=False):
+def _slot_static(y, first=False):
     """Гнездо модуля и его hit-зона — то, что остаётся на плате при вынутой
     плашке.
 
@@ -165,12 +166,12 @@ def _slot_static(y, первый=False):
     # прямо на плате: две планки в один канал работают медленнее, чем те же две
     # в разные. У нас все двадцать четыре гнезда были одинаково чёрными, и
     # порядок заселения нельзя было прочесть ниоткуда.
-    корпус = '#2a1f14' if первый else '#05090b'
-    борт = 'rgba(203,75,22,0.34)' if первый else 'rgba(147,161,161,0.26)'
+    body = '#2a1f14' if first else '#05090b'
+    edge = 'rgba(203,75,22,0.34)' if first else 'rgba(147,161,161,0.26)'
     return (f'<rect class="hit" x="{X_CORE-8}" y="{y-1}" width="{SOCK_W+28}" height="{PITCH}" '
             f'fill="#000" fill-opacity="0.001"/>'
             f'<rect x="{X_CORE-2}" y="{y-1}" width="{SOCK_W}" height="{SLOT_H+2}" rx="1" '
-            f'fill="{корпус}" stroke="{борт}"/>'
+            f'fill="{body}" stroke="{edge}"/>'
             + ''.join(f'<line x1="{X_CORE+8+c*4}" y1="{y+2}" x2="{X_CORE+8+c*4}" '
                       f'y2="{y+SLOT_H-2}" stroke="rgba(206,168,58,0.62)" '
                       f'stroke-width="1"/>'
@@ -210,7 +211,7 @@ def _defs():
     """
     return (f'<defs>'
             f'<g id="dimm-static">{_slot_static(_DEFS_Y)}</g>'
-            f'<g id="dimm-static-1">{_slot_static(_DEFS_Y, первый=True)}</g>'
+            f'<g id="dimm-static-1">{_slot_static(_DEFS_Y, first=True)}</g>'
             f'<g id="dimm-body-0">{_slot_body(_DEFS_Y, 0)}</g>'
             f'<g id="dimm-body-1">{_slot_body(_DEFS_Y, 1)}</g>'
             f'</defs>')
@@ -221,7 +222,7 @@ def render(cv):
     # first slot of every channel on both processors, then the second. That is
     # why the middle bank is filled from both ends — its halves belong to
     # different processors.
-    def bank(y0, n, code, letters, wave2):
+    def bank(y0, n, code, letters, first_ref, wave2):
         slots = []
         for i in range(n):
             y = y0 + i * PITCH
@@ -254,7 +255,15 @@ def render(cv):
           <path class="latch latch-l" d="M{X_CORE-7} {y+1} h6 v{SLOT_H-2} h-6 a2 2 0 0 1 -2 -2 v{-(SLOT_H-6)} a2 2 0 0 1 2 -2 Z"/>
           <path class="latch latch-r" d="M{X_CORE+DIMM_W+1} {y+1} h6 a2 2 0 0 1 2 2 v{SLOT_H-6} a2 2 0 0 1 -2 2 h-6 Z"/>
           {silk_inverse(X_CORE + DIMM_W + 18, y + (SLOT_H - 12.5) / 2, f"DIMM {letters[i]}", 6.5)}
+          {mono(X_CORE + DIMM_W + 2, y + 11, f"J{first_ref + i}", 4.2, anchor="start", op=0.34)}
         </g>''')
+            # Краска банка занимает место, и сказать об этом надо вслух. Плашка
+            # с буквой канала лежит правее гнезда, у самой кромки служебной
+            # колонки, а регистр о ней не знал — и обозначение колодки питания
+            # встало прямо на «DIMM E». Гнездо своё место держит, плашка
+            # держалась ничем.
+            cv.busy(X_CORE + DIMM_W + 16, y + (SLOT_H - 12.5) / 2 - 1,
+                    36, 14.5, pad=0, kind=SILK)
         return f'''<g class="unit" data-unit="dimm-{code}" data-group="dimm" data-href="https://blog.cosmdandy.dev">
       {hit(X_CORE-8, y0-4, SOCK_W + 42, n * PITCH + 6)}
       {''.join(slots)}
@@ -277,12 +286,12 @@ def render(cv):
     # прошивка: у процессора двенадцать каналов A–L, по модулю на канал, и
     # «DIMM 17» не говорит ни о канале, ни о процессоре. Буквы берутся из
     # паспорта банка, где уже написано, какие каналы в нём лежат.
-    cv.add(bank(Y_BANK_L, BANK_N, "L", "ABCDEFGH", lambda i: False))
+    cv.add(bank(Y_BANK_L, BANK_N, "L", "ABCDEFGH", 41, lambda i: False))
     # The upper half of the middle bank is CPU0's second slots, the lower one
     # is CPU1's first slots: the former go in the second wave, the latter in
     # the first.
-    cv.add(bank(Y_BANK_C, BANK_N, "C", "IJKLABCD", lambda i: i < half))
-    cv.add(bank(Y_BANK_R, BANK_N, "R", "EFGHIJKL", lambda i: True))
+    cv.add(bank(Y_BANK_C, BANK_N, "C", "IJKLABCD", 49, lambda i: i < half))
+    cv.add(bank(Y_BANK_R, BANK_N, "R", "EFGHIJKL", 57, lambda i: True))
     # The middle bank is shared by both processors: half of its channels go to
     # one, half to the other. Twelve modules per processor is the usual layout
     # for 1U, where there is no board room left for all eight channels.

@@ -21,6 +21,7 @@
 # нет — там только вынутая деталь.
 BOUNDS = (-220, 194, 400, 664)
 
+from board.palette import HOT
 from board.geom import (
     BAY_N,
     BAY_NUM_H,
@@ -308,7 +309,11 @@ def render(cv):
         lab_y = hy + hh - LABEL_H - 4
         handle = (f'<rect x="{hx}" y="{hy}" width="{hw}" height="{hh}" rx="3" '
                   f'fill="#0d1317" stroke="rgba(147,161,161,0.30)" stroke-width="1.2"/>'
-                  f'<rect x="{hx+3}" y="{hy+4}" width="{hw-6}" height="9" rx="2" fill="#cb4b16" '
+                  # Терракота на ручке — не цвет каддика, а код замены: диск
+                  # меняют на ходу. Тон берётся из палитры, где он и объяснён,
+                  # а не набирается числом: пока он стоял числом, язык кода
+                  # держался на том, что три блока написали одно и то же.
+                  f'<rect x="{hx+3}" y="{hy+4}" width="{hw-6}" height="9" rx="2" fill="{HOT}" '
                   f'stroke="rgba(238,232,213,0.45)" stroke-width="1"/>'
                   # вентиляционные окна: воздух идёт к диску сквозь ручку
                   + vent_slots(hx + 4, hy + 19, hw - 8, lab_y - hy - 25, n=2))

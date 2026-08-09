@@ -31,7 +31,10 @@ callouts stuck together into one plate and the address could not be read.
 # Own rectangle: the build checks that the block did not leave it. The block
 # now owns the whole rear border, from the upper power supply to the lower
 # one: the steel of the wall is drawn here.
-BOUNDS = (1100, 166, 212, 528)
+# Левая кромка сдвинута к 1080: лампы второго гигабитного порта стоят на
+# текстолите между PHY и магнитопроводами, а не на самой панели. Они её узла,
+# а не соседнего: гнездо, его магнитопровод и его индикация — одна вещь.
+BOUNDS = (1080, 166, 232, 528)
 
 from board.geom import (
     BRACKET_W,
@@ -347,10 +350,26 @@ def render(cv):
     # из трёх она относится.
     gap_mid = (jack_mid(0) + jack_mid(1)) / 2
     gap_mid2 = (jack_mid(1) + jack_mid(2)) / 2
+    # Лампы второго гигабитного порта. Стоят они на плате, а не в гнезде: у
+    # встроенной пары светодиоды разведены на текстолит, и по ним смотрят
+    # состояние линка, когда в гнездо воткнут кабель и самого гнезда не видно.
+    # Первому порту такие не нужны — его состояние видно в самой розетке.
+    enet = []
+    for dy, cls, color, text in ((-13, 'led-enet2-lnk', '#268bd2', 'ENET2 LINK'),
+                                 (13, 'led-enet2-act', '#859900', 'ENET2 ACTIVE')):
+        # Место у блока своё: он сам объявил его через IO_BOARD, и спрашивать
+        # разрешения у собственной брони незачем. Между гигабитным PHY слева
+        # (кончается на 1074) и магнитопроводами справа (начинаются на 1140)
+        # остаётся полоса, и лампы с подписями встают ровно в неё.
+        lx, ly = X_IO_END - 122, jack_mid(1) + dy
+        enet.append(lamp(cls, lx, ly, 3.4, color))
+        enet.append(mono(lx + 8, ly + 2, text, 4.8, anchor="start", op=0.42))
+
     cv.add('<g class="decor">'
            + ''.join(magnetics(jack_mid(k), "PA0515.321NL") for k in range(3))
            + mono(X_IO_END - 43, gap_mid + 3, PORTS['eth'], 7, op=0.5)
            + mono(X_IO_END - 43, gap_mid2 + 3, PORTS['mgmt'], 7, op=0.5)
+           + ''.join(enet)
            + '</g>')
 
     # Два гигабитных гнезда — две разные ссылки. Общая группа остаётся: пара

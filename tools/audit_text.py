@@ -11,6 +11,13 @@ SRC = str(Path(__file__).parent / "board-v17.svg.part")
 s = open(SRC, encoding="utf-8").read()
 
 # Decor only: the interactive units are laid out by hand.
+#
+# Отрезок возвращается вместе со своим началом в файле. Порядок рисования —
+# это порядок в разметке, и сравнивать позиции из разных отрезков по их
+# внутреннему смещению нельзя: у последней группы «краска» смещения начинаются
+# с нуля, и любая фигура из первой группы оказывалась «нарисованной позже».
+# Так репер «F» в углу текстолита числился накрытым лапками разъёма,
+# отстоящими от него на шесть сотен единиц.
 def spans(tag_open):
     out, i = [], 0
     while True:
@@ -29,11 +36,56 @@ def spans(tag_open):
             else:
                 depth -= 1
                 j = cg + 4
-        out.append(s[i:j])
+        out.append((i, s[i:j]))
         i = j
 
 blocks = spans('<g class="decor parts">') + spans('<g class="decor silk">')
-print("decor blocks:", len(blocks), "totalling", sum(len(b) for b in blocks), "chars")
+print("decor blocks:", len(blocks), "totalling", sum(len(b) for _at, b in blocks), "chars")
+
+# ── Повёрнутые группы ─────────────────────────────────────────────────────
+# Поворот на схеме задаётся двумя способами: атрибутом самой фигуры и обёрткой
+# <g transform="rotate(-90 cx cy)"> вокруг нескольких. Второй способ нужен там,
+# где поворачивается не надпись, а плашка вместе с ней — обозначение разъёма
+# нарисовано рамкой и текстом, и врозь их поворачивать нельзя.
+#
+# Пока аудит читал transform только у самой фигуры, всё внутри такой обёртки он
+# мерил неповёрнутым: плашка в 60 единиц длиной числилась лежащей поперёк, и
+# находки выходили обе стороны неверными — и ложные, и пропущенные.
+SPIN = re.compile(r'<g transform="rotate\(-90 (-?[\d.]+) (-?[\d.]+)\)">')
+
+
+def spins(b):
+    """Повёрнутые области отрезка: (начало, конец, cx, cy), внутренние позже."""
+    out = []
+    for m in SPIN.finditer(b):
+        depth, j = 1, m.end()
+        while depth:
+            ng, cg = b.find('<g', j), b.find('</g>', j)
+            if cg < 0:
+                break
+            if 0 <= ng < cg:
+                depth += 1
+                j = ng + 2
+            else:
+                depth -= 1
+                j = cg + 4
+        out.append((m.end(), j, float(m.group(1)), float(m.group(2))))
+    return out
+
+
+def turn(box, at, areas):
+    """Габарит с учётом поворота той области, внутри которой фигура лежит.
+
+    Поворот на -90° вокруг (cx, cy) переводит точку (x, y) в
+    (cx + (y - cy), cy - (x - cx)): ширина ложится на высоту.
+    """
+    x, y, w, h = box
+    for a, b, cx, cy in areas:
+        if a <= at < b:
+            x, y = cx + (y - cy), cy - (x - cx) - w
+            w, h = h, w
+    return (x, y, w, h)
+
 
 TEXT = re.compile(
     r'<text ([^>]*?)>([^<]*)</text>')
@@ -50,7 +102,8 @@ def num(d, k, dflt=0.0):
         return dflt
 
 texts, shapes = [], []
-for b in blocks:
+for at, b in blocks:
+    areas = spins(b)
     for m in TEXT.finditer(b):
         d, body = attrs(m.group(1)), m.group(2)
         size = num(d, "font-size", 10)
@@ -62,13 +115,14 @@ for b in blocks:
         if "rotate(-90" in d.get("transform", ""):
             # rotation about (x,y): the width goes upwards
             box = (x - size * 0.72, y - w, size * 0.72, w)
-        texts.append((box, body, m.start(), size))
+        texts.append((turn(box, m.start(), areas), body, at + m.start(), size))
     for m in RECT.finditer(b):
         d = attrs(m.group(1))
         if d.get("fill", "") in ("none", ""):
             continue
-        shapes.append(((num(d, "x"), num(d, "y"), num(d, "width"), num(d, "height")),
-                       "rect " + d.get("fill", ""), m.start(), float(d.get("fill-opacity", 1))))
+        shapes.append((turn((num(d, "x"), num(d, "y"), num(d, "width"), num(d, "height")),
+                            m.start(), areas),
+                       "rect " + d.get("fill", ""), at + m.start(), float(d.get("fill-opacity", 1))))
     for m in CIRC.finditer(b):
         d = attrs(m.group(1))
         if d.get("fill", "") in ("none", ""):
@@ -79,8 +133,9 @@ for b in blocks:
         if "halo" in d.get("class", ""):
             continue
         r = num(d, "r")
-        shapes.append(((num(d, "cx") - r, num(d, "cy") - r, 2 * r, 2 * r),
-                       "circle " + d.get("fill", ""), m.start(), float(d.get("fill-opacity", 1))))
+        shapes.append((turn((num(d, "cx") - r, num(d, "cy") - r, 2 * r, 2 * r),
+                            m.start(), areas),
+                       "circle " + d.get("fill", ""), at + m.start(), float(d.get("fill-opacity", 1))))
 
 print("texts:", len(texts), " opaque shapes:", len(shapes))
 

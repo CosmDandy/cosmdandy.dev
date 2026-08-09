@@ -30,6 +30,7 @@ from board.geom import (
     X_CORE,
     X_PCB,
     X_SOCK,
+    X_VRM,
     Y_BANK_C,
     Y_BANK_L,
     Y_BANK_R,
@@ -66,20 +67,80 @@ def outline(x, y, w, h, gap=6, step=13):
     периода, и при пересборке рисунок тот же.
     """
     ring = []
-    def густо(px, py):
+    def dense(px, py):
         # Три числа в свёртке: без третьего сетка давала полосы по диагонали.
         return (int(px) * 73 + int(py) * 149 + int(px * py) % 17) % 100 < 62
     for k in range(int(w // step) + 1):
         px = x + k * step
         for py in (y - gap, y + h + gap):
-            if густо(px, py):
+            if dense(px, py):
                 ring.append((px, py))
     for k in range(int(h // step) + 1):
         py = y + k * step
         for px in (x - gap, x + w + gap):
-            if густо(px, py):
+            if dense(px, py):
                 ring.append((px, py))
     return ring
+
+
+def fanout(x, y, w, h, pitch=4, rows=1):
+    """Веер из-под корпуса: мелкая регулярная зернь по его периметру.
+
+    У шарикового корпуса выводы стоят сеткой под ним, и вывести их наружу
+    можно только вниз — по переходному отверстию на каждый. Наружу это выходит
+    двумя-тремя рядами частых отверстий, обнимающих корпус.
+
+    Три вещи, без которых веер читается сыпью, а не разводкой.
+
+    Первая: отверстия мелкие. Крупным кольцом отмечают узел разводки — место,
+    где меняет слой целая шина, — и таких на плате десятки. Веер же считается
+    сотнями, и нарисованный теми же кольцами он забивает собой всё вокруг
+    корпуса. Здесь идёт тот же мелкий калибр, что и у прошивки полигонов.
+
+    Вторая: ряд регулярен. Прореживание по сетке, которым лечили слипание,
+    превращало решётку в случайную россыпь — то есть в ровно то, на что
+    жалуются: и густо, и без порядка.
+
+    Третья: ряд идёт за концами выводов, а не под ними. Вывод припаян к
+    площадке, и сверлить в ней нечего; отверстие уходит сразу за неё. Поле под
+    самим корпусом не рисуется вовсе — корпус непрозрачен, и всё, что под ним,
+    это узлы разметки, которых никто не увидит.
+
+    Ряд один. Второй удваивает зернь вокруг каждого корпуса, и вместе они
+    читаются уже не разводкой, а грязью — ровно тем, от чего уходили.
+    """
+    out = []
+    # Отступ считается от кромки зоны, в которой меди нет вовсе (KEEP_OUT —
+    # корпус плюс восемь), а не от самого корпуса: ряд, поставленный ближе,
+    # молча отфильтровался бы вместе с медью под контактным полем, и «два ряда»
+    # в коде означали бы один на плате.
+    lead = 10
+    for r in range(rows):
+        far = lead + r * pitch
+        for k in range(int(w // pitch) + 1):
+            px = x + k * pitch
+            out.append((px, y - far))
+            out.append((px, y + h + far))
+        for k in range(int(h // pitch) + 1):
+            py = y + k * pitch
+            out.append((x - far, py))
+            out.append((x + w + far, py))
+    return out
+
+
+def thermal(x, y, w, h):
+    """Рыжая площадка теплоотвода: медь, с которой снята маска.
+
+    Под силовым корпусом её делают широкой нарочно — тепло уходит в плату
+    через неё, а не через выводы, — и решето отверстий в ней уводит его на
+    внутренние слои. На живой плате это самое крупное рыжее пятно.
+    """
+    holes = ''.join(f'<circle cx="{x + 5 + kx * 6:.0f}" cy="{y + 5 + ky * 6:.0f}" r="1.2" '
+                    f'fill="none" stroke="rgba(184,115,51,0.5)" stroke-width="1"/>'
+                    for kx in range(int((w - 6) // 6)) for ky in range(int((h - 6) // 6)))
+    return (f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="1.5" '
+            f'fill="rgba(184,115,51,0.20)" stroke="rgba(184,115,51,0.42)" '
+            f'stroke-width="0.8"/>{holes}')
 
 
 KAPPA = 4 / 3 * (2 ** 0.5 - 1)  # смещение опорной точки для кубической дуги в четверть круга
@@ -188,6 +249,10 @@ def render(cv):
     vias = [(x, y) for x, y in cv.share['knots'] if clear(x, y)]
     for x, y, w, h in KEEP_OUT:
         vias.extend(outline(x, y, w, h))
+    # Веер из-под каждого шарикового корпуса.
+    fans = []
+    for _n, _s, x, y, w, h in CHIPS:
+        fans.extend(fanout(x, y, w, h))
     field = []
     for i in range(430):
         # three manners: in rows along traces, in clumps by packages, at random
@@ -216,7 +281,7 @@ def render(cv):
             kx, ky = cv.share['knots'][i % len(cv.share['knots'])]
             sx, sy = kx + (i % 5) * 4 - 8, ky + ((i // 5) % 3) * 4 - 4
         small_vias.append((sx, sy))
-    small_vias = thin(small_vias, 8)
+    small_vias = thin(small_vias, 8) + fans
     # Обрезка по контуру текстолита. Медь есть только там, где есть плата:
     # контур вокруг блока считается с запасом и у крайних банков выходил за
     # кромку — переходные отверстия оказывались нарисованными на шасси.
@@ -236,11 +301,11 @@ def render(cv):
     # самой миллиметровки. Полоса говорит ровно то же самое и занимает ровно
     # то же место.
     CELL = 36
-    занято = set()
+    busy = set()
     for vx, vy in big_vias + small_vias:
-        занято.add((int(vx // CELL), int(vy // CELL)))
-    for gy in sorted({gy for _gx, gy in занято}):
-        row = sorted(gx for gx, y in занято if y == gy)
+        busy.add((int(vx // CELL), int(vy // CELL)))
+    for gy in sorted({gy for _gx, gy in busy}):
+        row = sorted(gx for gx, y in busy if y == gy)
         start = prev = row[0]
         for gx in row[1:] + [None]:
             if gx == prev + 1:
@@ -250,8 +315,13 @@ def render(cv):
                     pad=0, kind=COPPER)
             start = prev = gx
 
+    # Площадки теплоотвода у питания ядра. Рисуются здесь, а не в vrm: это
+    # медь на текстолите, и лежать она обязана под деталью, а не поверх неё —
+    # блок питания ядра идёт много позже и накрывает их своими дросселями.
+    pads = ''.join(thermal(X_VRM - 4, y0 + 2, 26, SOCKET_H) for y0 in (Y_CPU0, Y_CPU1))
+
     ring_groups = via_groups(big_vias, 2 * 1.6 + 1.1)
-    cv.add('<g class="decor vias" clip-path="url(#pcb-clip)">'
+    cv.add('<g class="decor vias" clip-path="url(#pcb-clip)">' + pads
         + ''.join(f'<path class="via-ring" fill="none" stroke="rgba(184,115,51,0.34)" '
                   f'stroke-width="1.1" d="{via_ring(g, 1.6)}"/>' for g in ring_groups)
         # The small ones as a single path: half a thousand separate circles

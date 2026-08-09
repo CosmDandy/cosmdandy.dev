@@ -218,6 +218,16 @@ def render(cv):
 
     tiers = {k: [] for k in TIERS}
     knots = []
+    # Магистрали — соседям. Вдоль широкой шины на живой плате стоит лестница
+    # согласующих резисторов: по одному на проводник, все в ряд и все одной
+    # ориентации. Ряд этот сам по себе нигде не выдумывается — он идёт вдоль
+    # конкретного пучка, поэтому пучок и объявляется.
+    # Магистрали первыми: лестница у широкой шины осмысленнее, чем у тонкой,
+    # и место она выбирает в этом же порядке.
+    cv.share['buses'] = sorted(
+        ((ax, ay, bx, by, n * pitch, vert)
+         for ax, ay, bx, by, n, pitch, tier, vert in LINKS if tier != 'fine'),
+        key=lambda b: -b[4])
     for ax, ay, bx, by, n, pitch, tier, vert in LINKS:
         paths, kn = bundle(ax, ay, bx, by, n, pitch, vert)
         tiers[tier].extend(paths)

@@ -399,12 +399,12 @@ def reserve_report(cv, report, fill=0.25):
             h = min(y2, by2) - max(y1, by1)
             if w > 0 and h > 0:
                 busy += w * h
-        доля = busy / area
-        if доля < fill:
+        fraction = busy / area
+        if fraction < fill:
             out.append(
                 f'БРОНЬ ПОЧТИ ПУСТА: {by} держит {area:.0f} единиц '
                 f'({x1:.0f},{y1:.0f})–({x2:.0f},{y2:.0f}), '
-                f'корпусами занято {доля * 100:.0f}%')
+                f'корпусами занято {fraction * 100:.0f}%')
     return out
 
 # ── Слои ──────────────────────────────────────────────────────────────────

@@ -168,12 +168,45 @@ def render(cv):
                          f'fill="rgba(10,20,23,0.62)"/>' for k in range(18))
                + f'<text x="{lx+lw-8}" y="{ly+18}" text-anchor="end" fill="rgba(10,20,23,0.66)" '
                  f'font-family="ui-monospace, Menlo, monospace" font-size="7">P/N 41Y9033</text>'
-               + f'<text x="{lx+lw/2}" y="{ly+36}" text-anchor="middle" fill="rgba(10,20,23,0.58)" '
-                 f'font-family="ui-monospace, Menlo, monospace" font-size="6">PUSH WHILE ROTATING LEVER</text>'
-               + f'<text x="{lx+lw/2}" y="{ly+48}" text-anchor="middle" fill="rgba(10,20,23,0.4)" '
-                 f'font-family="ui-monospace, Menlo, monospace" font-size="6">{MADE}</text>')
+               + push_icon(lx + 7, ly + 26, 17)
+               # Предупреждение набрано темнее и жирнее остального: на живой
+               # наклейке так и есть, и разница не декоративная — эта строка
+               # про испорченное железо, а не про сведения.
+               + f'<text x="{lx+30}" y="{ly+38}" fill="#5a1a0c" fill-opacity="0.88" '
+                 f'font-family="ui-monospace, Menlo, monospace" font-size="5.6" '
+                 f'font-weight="700">Attention: PUSH ON HEAT SINK</text>'
+               + f'<text x="{lx+30}" y="{ly+46}" fill="#5a1a0c" fill-opacity="0.88" '
+                 f'font-family="ui-monospace, Menlo, monospace" font-size="5.6" '
+                 f'font-weight="700">WHILE ROTATING LEVER</text>'
+               + f'<text x="{lx+lw-8}" y="{ly+52}" text-anchor="end" fill="rgba(10,20,23,0.4)" '
+                 f'font-family="ui-monospace, Menlo, monospace" font-size="5.4">{MADE}</text>')
         return (f'<g class="pick-body heatsink"><rect x="{x}" y="{y}" width="{SOCKET_W}" height="{SOCKET_H}" rx="6" '
                 f'fill="#26333a" stroke="rgba(147,161,161,0.38)"/>{fins}{tag}{screws}</g>')
+
+    def push_icon(x, y, s):
+        """Пиктограмма «жми на радиатор, поворачивая рычаг».
+
+    На живой наклейке она и есть главное: текст читают те, кто уже понял по
+    рисунку, а рисунок понимают и без английского. Три знака — брусок
+    радиатора, стрелка вниз на него и дуга поворота рычага сбоку.
+    """
+        ink = 'rgba(10,20,23,0.72)'
+        return (
+            # радиатор в профиль с рёбрами
+            f'<rect x="{x}" y="{y+s*0.46:.1f}" width="{s:.1f}" height="{s*0.34:.1f}" rx="1" '
+            f'fill="none" stroke="{ink}" stroke-width="1"/>'
+            + ''.join(f'<line x1="{x+s*(0.2+0.2*k):.1f}" y1="{y+s*0.5:.1f}" '
+                      f'x2="{x+s*(0.2+0.2*k):.1f}" y2="{y+s*0.76:.1f}" '
+                      f'stroke="{ink}" stroke-width="0.7"/>' for k in range(4))
+            # ладонь давит сверху: стрелка в радиатор
+            + f'<path d="M{x+s*0.5:.1f} {y} v{s*0.32:.1f} m{-s*0.14:.1f} {-s*0.12:.1f} '
+              f'l{s*0.14:.1f} {s*0.12:.1f} {s*0.14:.1f} {-s*0.12:.1f}" fill="none" '
+              f'stroke="{ink}" stroke-width="1.4" stroke-linecap="round"/>'
+            # рычаг поворачивается: дуга со стрелкой у левого торца
+            + f'<path d="M{x-s*0.16:.1f} {y+s*0.86:.1f} a{s*0.42:.1f} {s*0.42:.1f} 0 0 1 '
+              f'{s*0.40:.1f} {-s*0.40:.1f}" fill="none" stroke="{ink}" stroke-width="1.1"/>'
+            + f'<path d="M{x+s*0.24:.1f} {y+s*0.46:.1f} l{-s*0.14:.1f} {-s*0.02:.1f} '
+              f'l{s*0.06:.1f} {s*0.14:.1f} Z" fill="{ink}"/>')
 
     def ilm(x, y):
         """Прижимная скоба сокета: она приклёпана к плате и радиатор не уносит.

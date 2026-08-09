@@ -232,7 +232,7 @@ def hexgrid(x, y, w, h, s=6, gap=4.4, fill='rgba(2,7,9,0.42)',
             parts.append(f'Q{n(px)} {n(py)} {n(ex)} {n(ey)}')
         return ''.join(parts) + 'z'
 
-    def занята(cx, cy):
+    def taken(cx, cy):
         """Сота попадает в зону, которую перфорация обходит."""
         return any(kx - s <= cx <= kx + kw + s and ky - s <= cy <= ky + kh + s
                    for kx, ky, kw, kh in skip)
@@ -244,7 +244,7 @@ def hexgrid(x, y, w, h, s=6, gap=4.4, fill='rgba(2,7,9,0.42)',
     while cy < y + h - s:
         cx = x + s + (dx / 2 if row % 2 else 0)
         while cx < x + w - s * 0.9:
-            if not занята(cx, cy):
+            if not taken(cx, cy):
                 d.append(hexagon(cx, cy))
             cx += dx
         cy += dy
