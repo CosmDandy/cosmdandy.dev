@@ -109,6 +109,18 @@ jobs:
       - name: Clear build stamp
         run: python3 tools/stamp_build.py _site/index.html _site/404.html --clear
 
+      # Отладочные слои — границы занятости, наслоения и координатная сетка —
+      # нужны только тому, кто правит плату. Панель, которой они переключаются,
+      # на продакшен и так не попадает: она появляется по отметке о сборке, а
+      # её только что стёрли. Сами слои — часть разметки, и уезжали всегда:
+      # 1 435 элементов и 105 КБ, 23 % фигур схемы.
+      #
+      # Режется здесь, а не в генераторе, потому что _site собирается один раз
+      # на оба стенда: только тут известно, что стенд — продакшен. На превью
+      # слои остаются, там они и нужны.
+      - name: Strip debug layers
+        run: python3 tools/strip_debug.py _site/index.html
+
       # Secrets cannot be checked in if: — the secrets context is not available
       # there. Without this step a missing token looks like an inscrutable
       # error inside wrangler, and it is unclear whether the deploy broke or
