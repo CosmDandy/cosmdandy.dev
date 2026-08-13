@@ -11,6 +11,27 @@
 # The file is copied into _site/ by the build step in
 # .github/workflows/deploy.yaml.
 
+# Стили и скрипт: ссылка на них несёт версию — `?v=<хэш содержимого>`, — и
+# поэтому кэшировать их можно навсегда. Поменялся файл, поменялся хэш, у
+# браузера это другой адрес, которого он ещё не видел. Не поменялся — берётся
+# из кэша, не спрашивая: до этой правки на каждый повторный заход приходилось
+# четыре условных запроса, и два из них до первого кадра.
+#
+# Голый адрес без версии тоже попадает под правило, и это безопасно: браузер
+# кэширует по полному адресу, и версионированный ключ с ним не пересекается.
+# А страница переспрашивается всегда и всегда несёт текущий хэш.
+/style.css
+  Cache-Control: public, max-age=31536000, immutable
+
+/server.css
+  Cache-Control: public, max-age=31536000, immutable
+
+/server.js
+  Cache-Control: public, max-age=31536000, immutable
+
+/tg/style.css
+  Cache-Control: public, max-age=31536000, immutable
+
 /fonts/*
   Cache-Control: public, max-age=31536000, immutable
 
