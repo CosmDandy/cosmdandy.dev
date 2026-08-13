@@ -44,10 +44,12 @@ is exactly what the "the entire background went black" bug looked like.
 import hashlib
 import importlib
 import json
+import os
 import re
 from pathlib import Path
 
 from board.canvas import AVOID, Canvas
+from board.flatten import flatten
 from board.geom import H, W
 from board.ink import callout_box
 from board.revision import SN_SLOT
@@ -75,8 +77,14 @@ ORDER = [
     'vrm',           # core power, right up against the sockets
     'front_panel',   # control panel on the front
     'drives',        # 2.5″ cage
-    'backplane',
     'fans',
+    # Бэкплейн идёт ПОСЛЕ стены вентиляторов, а не до неё. Дело в жгуте: он
+    # проходит просветами стены, и лежит он на кожухе, а не под ним — кабель
+    # прокладывают по собранной машине, последним. Пока блок стоял раньше,
+    # лента ныряла под посадочные места и читалась разводкой по текстолиту, а
+    # не проводом. Сама плата бэкплейна при этом ни с чем не пересекается: она
+    # стоит перед стеной, в своей полосе.
+    'backplane',
     'memory',
     'service',       # battery, microSD, toggle switch, jumper table
     'psu',
@@ -580,6 +588,22 @@ def main():
     for kind, want in EXPECT.items():
         assert drawn[kind] == want, (
             f'passport promises {want} ({kind}), the board draws {drawn[kind]}')
+
+    # Слияние неподвижной краски — последний шаг, и делается он только над тем,
+    # что уходит в страницу. Отрезок .svg.part остаётся несклеенным нарочно: по
+    # нему сверяют картинку `diff_ref` и наложения `audit_text`, а обе проверки
+    # читают фигуры по их собственным атрибутам. Склей мы эталон — audit_text
+    # перестал бы видеть подложки под подписями и молчал бы на настоящих
+    # наложениях.
+    # NO_FLATTEN=1 собирает страницу без слияния. Нужно не для отладки самого
+    # слияния, а чтобы было с чем сверять пиксели: эталон снимается с несклеенной
+    # сборки, иначе проверка сравнивает склейку сама с собой и молчит.
+    if os.environ.get('NO_FLATTEN') == '1':
+        print('слияние краски: выключено (NO_FLATTEN=1)')
+    else:
+        svg, was, now = flatten(svg)
+        print(f'слияние краски: {was} фигур → {now} '
+              f'({100 * (was - now) // max(was, 1)}% меньше в странице)')
 
     page = HERE.parent / 'index.html'
     if page.exists():

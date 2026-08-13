@@ -31,7 +31,19 @@ from board.revision import BOARD_REV, BOARD_SN
 from board.spec import CPU, ram_label
 
 
+# Реперы по углам текстолита: их окна бронируются раньше всего, что рассыпается
+# по плате. Иначе мелочь садится прямо в рамку — репер её краской не сгоняет,
+# краска поверх мелочи законна, — и в рамке репера оказывается конденсатор.
+# Автомат установки читает репер оптикой, и деталь в его окне ослепляет его
+# ровно так же, как царапина.
 def render(cv):
+    # Считаются они из тех же чисел, что и рисуются, поэтому список здесь, а не
+    # в константе: X_PCB и H — импорт этого модуля.
+    fid = ((X_PCB + 30, 26, 'A'), (X_REAR - 46, 26, 'F'),
+           (X_PCB + 30, H - 40, 'G'), (X_REAR - 46, H - 40, 'H'))
+    for rx, ry, _letter in fid:
+        cv.busy(rx - 1, ry - 1, 17, 17, kind=PART)
+
     def fit(text, avail, size):
         """Кегль, при котором строка влезает в отведённую ширину.
 
@@ -823,11 +835,8 @@ def render(cv):
                 f'stroke="rgba(147,161,161,0.30)" stroke-width="0.8"/>'
                 + mono(x + 6.5, y + 9.5, letter, 7, op=0.34))
 
-    fiducials = []
-    for (rx, ry, letter) in ((X_PCB + 30, 26, 'A'), (X_REAR - 46, 26, 'F'),
-                            (X_PCB + 30, H - 40, 'G'), (X_REAR - 46, H - 40, 'H')):
-        if cv.put(rx, ry, 15, 15, SILK):
-            fiducials.append(fiducial(rx, ry, letter))
+    # Место под них взято в начале блока — здесь только рисуем.
+    fiducials = [fiducial(rx, ry, letter) for rx, ry, letter in fid]
     cv.add('<g class="decor silk">' + ''.join(fiducials) + '</g>')
 
     cv.add('<g class="decor parts">' + ''.join(parts[late:]) + '</g>')

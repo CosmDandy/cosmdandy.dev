@@ -16,10 +16,18 @@ W, H = 1314, 863
 # ── depth: from the front to the rear wall ───────────────────────────────
 X_FRONT  = 6      # front: control panel on top, drive bays below it
 X_BP     = 166    # backplane — right behind the cage, past the bay grille
-X_FAN    = 198    # fan wall
-FAN_N    = 8      # modules in the wall; pitch and height below, traces need them
-FAN_W    = 132    # the wall shrinks from its right edge: the left one stays put
-                  # and the freed depth goes to the board
+# Стена вентиляторов заходит на текстолит — но только планками с дальней
+# стороны модулей, а не вся. Так она и стоит в машине: пластиковые планки выше
+# платы и ложатся на её переднюю кромку вместе с рассыпухой под ними —
+# рассыпуха никуда не девается, её просто не видно, и блок рисуется после неё
+# именно за этим. Само поле крыльчаток при этом остаётся перед платой: стена,
+# наехавшая на текстолит целиком, съедала полосу шириной с модуль.
+#
+# Отсюда и число: BODY_X1 (дальняя кромка корпуса модуля) обязано совпасть с
+# кромкой платы, а X_FAN — это она минус глубина модуля без планки.
+X_FAN    = 208    # fan wall — its rear rails lap onto the board
+FAN_N    = 4      # hot-swap modules in the wall
+FAN_W    = 152    # depth of a module: handle, two fans, rail
 X_PCB    = 346    # the board comes right up to the wall: exactly enough gap
                   # for the fan power harnesses to read
 X_CORE   = 504    # memory slots
@@ -27,10 +35,42 @@ X_SVC    = 842    # service area: battery, microSD, M.2
 X_REAR   = 1004   # PSU bays
 X_IO     = 1214   # rear panel
 
-# The fan wall pitch is not the wall's business alone: every module's header
-# gets its own power bus, and the traces must land on the same point.
-FAN_STEP = (H - 52) / FAN_N
-FAN_H    = FAN_STEP - 8
+# Модуль — это два вентилятора под одной ручкой, и вынимаются они вместе: на
+# живой машине ручка и есть деталь, а два корпуса под ней с неё не снимаются.
+# Крыльчаток в стене по-прежнему шестнадцать, а узлов, которые вынимаются,
+# четыре, не восемь.
+FAN_PER_MOD = 2   # вентиляторов под одной ручкой
+FAN_ROTORS  = 4   # крыльчаток в модуле: два вентилятора по два колеса
+
+# Стена стоит не вплотную к кромкам, и просветы у неё не декоративные: через них
+# шлейфы бэкплейна переходят с той стороны стены на плату. Просветов три —
+# сверху, по центру и снизу, — и середина появилась ровно оттого, что модули
+# сжались попарно. Числа держатся друг за друга: что не ушло в модули, то и есть
+# просветы.
+FAN_GAP  = 26     # просвет у верхней и у нижней кромки
+FAN_MID  = 31     # просвет посередине стены, между парами модулей
+FAN_H    = (H - 36 - 2 * FAN_GAP - FAN_MID) / FAN_N
+
+
+def fan_y(i):
+    """Верхняя кромка модуля i: первая пара, просвет, вторая пара."""
+    return 18 + FAN_GAP + i * FAN_H + (FAN_MID if i >= FAN_N // 2 else 0)
+
+
+def fan_gaps():
+    """Середины трёх просветов стены: сверху, по центру и снизу."""
+    return (18 + FAN_GAP / 2,
+            fan_y(1) + FAN_H + FAN_MID / 2,
+            fan_y(3) + FAN_H + FAN_GAP / 2)
+
+
+# Три порта SlimSAS стоят у передней кромки платы, прямо за просветами стены.
+# Стояли они в служебной колонке, у дальнего края, и это была единственная
+# неправда во всей разводке: шлейф от корзины пришлось бы тянуть через всю
+# плату, поверх обоих процессоров и всей памяти. На живой машине эти разъёмы
+# ставят ровно сюда и ровно за этим — чтобы шлейф был короткий.
+X_SAS = X_FAN + FAN_W + 8
+SAS_W, SAS_H = 44, 24
 
 
 # Колодка на плате стоит не строго против середины модуля, а выше её. Причина
@@ -43,8 +83,8 @@ FAN_LAMP_DY = 22          # лампа отсека — настолько же 
 
 
 def fan_foot_y(i):
-    """Y of fan i's header on the board — above the middle of the module."""
-    return 26 + i * FAN_STEP + FAN_H / 2 - 8 - FAN_FOOT_LIFT
+    """Y of module i's header on the board — above the middle of the module."""
+    return fan_y(i) + FAN_H / 2 - FAN_FOOT_LIFT
 
 
 FRONT_W  = 156    # caddies plus a grille of the same width

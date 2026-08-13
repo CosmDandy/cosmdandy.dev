@@ -190,48 +190,6 @@ def power_conn(x, y, w=52, h=26, cols=4):
     return ''.join(out)
 
 
-def slimsas_port(x, y, w=42, h=26):
-    """Гнездо SlimSAS x8 (SFF-8654) — к нему шлейфом приходит бэкплейн корзины.
-
-    Диски в лоб не подключаются: они сидят в бэкплейне, а бэкплейн кабелем
-    заходит сюда. Восемь отсеков U.2 NVMe требуют именно такого разъёма, и
-    от SATA он отличается ровно тем, что глазу и надо показать: щель во всю
-    ширину корпуса и частая гребёнка ножей вместо семи толстых.
-
-    Ключ — не форма корпуса, а разрыв в гребёнке: он стоит не по центру, и
-    вилка входит одной стороной.
-    """
-    # Стенки у такого разъёма тонкие: сверху он почти весь — щель, и лишний
-    # запас пластика вокруг превращал его обратно в прямоугольник.
-    sx, sw = x + 4, w - 8
-    sy, sh = y + 7, 10
-    pitch, key_at = sw / 21, 7            # разрыв на седьмом ноже — он и ключ
-    out = [(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="1.5" fill="#12191d" '
-            f'stroke="rgba(147,161,161,0.34)" stroke-width="1.2"/>'),
-           (f'<rect x="{sx}" y="{sy}" width="{sw}" height="{sh}" rx="0.8" fill="#05090b" '
-            f'stroke="rgba(0,0,0,0.5)" stroke-width="0.8"/>')]
-    for k in range(21):
-        if k == key_at:
-            continue
-        out.append(f'<rect x="{sx + 1 + k * pitch:.1f}" y="{sy+1.4}" width="{pitch-0.7:.1f}" '
-                   f'height="{sh-2.8}" fill="{GOLD}" fill-opacity="0.68"/>')
-    out.append(f'<rect x="{sx + 1 + key_at * pitch:.1f}" y="{sy+0.8}" width="{pitch-0.7:.1f}" '
-               f'height="{sh-1.6}" rx="0.4" fill="#1c262b" '
-               f'stroke="rgba(147,161,161,0.24)" stroke-width="0.4"/>')
-    # Зацепы по торцам щели: вилку держат они, тянут её за язычок.
-    for lx in (sx - 1.6, sx + sw - 0.4):
-        out.append(f'<rect x="{lx:.1f}" y="{sy+2}" width="2" height="4" rx="0.6" '
-                   f'fill="#1c262b" stroke="rgba(147,161,161,0.30)" stroke-width="0.5"/>')
-    # Поясок отливки по низу корпуса — по нему разъём и садится на плату.
-    out.append(f'<path d="M{x+4} {y+h-4.5} H{x+w-4}" stroke="rgba(223,232,234,0.14)" '
-               f'stroke-width="1.1"/>')
-    # Лапки, которыми корпус припаян: ими гнездо и держится, кабель выдёргивают
-    # не глядя.
-    for px in (x + 2, x + w - 8):
-        out.append(pad(px, y + h - 3, 6, 3.4, 0.5))
-    out.append(relief(x, y, w, h, 1.5))
-    return ''.join(out)
-
 
 def coin_cell(cx, cy, r=20):
     """CR2032 в держателе: обойма, лапка-прижим и сама таблетка.
@@ -326,12 +284,19 @@ def render(cv):
         if ref:
             cv.refdes(x, y, w, h, ref)
 
+    # Номер печатается прямо над своей колодкой, а не отдаётся общему поиску
+    # места. Тот ставит рамку туда, где свободно, и у двух соседних разъёмов
+    # одинакового вида она вставала по-разному: у одного сверху вдоль, у
+    # другого сбоку поперёк. Для пары одинаковых деталей это читается не
+    # разной обстановкой, а ошибкой.
     for px, ref in ((X_SVC + 12, "P1"), (X_SVC + 90, "P2")):
-        unit(power_conn(px, 120), px, 120, 52, 26, ref)
-    for i in range(3):
-        px = X_SVC + 8 + i * 48
-        unit(slimsas_port(px, 188), px, 188, 42, 26, f'J3{i}')
-    svc.append(silk_inverse(X_SVC + 26, 226, "SLIMSAS → BP", 6))
+        unit(power_conn(px, 120), px, 120, 52, 26)
+        svc.append(mono(px + 26, 114, ref, 6, op=0.44))
+        cv.busy(px + 12, 106, 28, 10, kind=SILK)
+    # Три порта SlimSAS отсюда уехали к передней кромке платы, за просветы
+    # стены вентиляторов: шлейф от корзины идёт к ним двадцать четыре единицы,
+    # а не через всю плату поверх процессоров. Рисует их теперь backplane —
+    # там же, где и сам жгут, потому что это одна деталь машины, а не две.
     unit(coin_cell(X_SVC + 34, 300, 20), X_SVC + 8, 276, 52, 50, "BAT1")
     svc.append(silk_boxed(X_SVC + 34, 338, "CMOS", 7))
     unit(microsd_slot(X_SVC + 84, 288), X_SVC + 84, 288, 66, 22, "J14")
@@ -361,8 +326,15 @@ def render(cv):
     # системной платы, RISER2 MISSING — райзер не опознан. На живой машине
     # это единственный способ отличить «плата умерла» от «карту не увидели»,
     # не поднимая консоли: лампу видно, как только снял крышку.
-    for lx, cls, color, text in ((X_SVC + 24, 'led-planar', '#dc322f', 'PLANAR'),
-                                 (X_SVC + 96, 'led-riser2', '#b58900', 'RISER2 MISS')):
+    #
+    # Both are fault lamps, and on a healthy machine both are dark. The class
+    # they need is the one the rest of the fault indication uses: `led-planar`
+    # and `led-riser2` meant nothing to the styles, and a lamp no rule reaches
+    # keeps fill-opacity 1 — so both burned around the clock, on a dead board
+    # included. The socket from lamp() stays either way: a lamp that is out is
+    # still visible where it stands.
+    for lx, cls, color, text in ((X_SVC + 24, 'fault led-planar', '#dc322f', 'PLANAR'),
+                                 (X_SVC + 96, 'fault led-riser2', '#b58900', 'RISER2 MISS')):
         svc.append(lamp(cls, lx, 74, 4, color))
         svc.append(mono(lx + 9, 76, text, 5, anchor="start", op=0.42))
         cv.busy(lx - 7, 67, 16 + len(text) * 3.2, 15)

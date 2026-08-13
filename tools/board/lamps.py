@@ -24,7 +24,7 @@ from board.palette import GLOW_STOPS, GLOW_TINT
 # changes in any frame, and the price is the same throughout. On the common
 # beat there are exactly twenty repaints a second — however many lamps there
 # are and whatever monitor is standing there.
-TICK = 0.05
+TICK = 0.1
 
 
 def quant(v):

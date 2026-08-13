@@ -34,7 +34,11 @@ from board.geom import (
     Y_PSU_BOT,
     Y_PSU_TOP,
     H,
+    SAS_H,
+    SAS_W,
+    X_SAS,
     fan_foot_y,
+    fan_gaps,
 )
 
 
@@ -90,6 +94,11 @@ def render(cv):
     # small parts fits between the headers, yet everything was taken.
     for i in range(FAN_N):
         cv.busy(X_PCB, fan_foot_y(i) - 8, 82, 34, kind=COVER)
+    # SlimSAS к бэкплейну: три разъёма у самой кромки, каждый против своего
+    # просвета в стене. Место держится здесь, а не в блоке, который их рисует:
+    # тот идёт после рассыпухи, и к его очереди у кромки уже стояла бы мелочь.
+    for gy in fan_gaps():
+        cv.busy(X_SAS - 4, gy - SAS_H / 2 - 4, SAS_W + 8, SAS_H + 8, kind=COVER)
     # Riser brackets: they are drawn much later, but claim their space now —
     # otherwise a large package lands in the pocket between the power supplies
     # and hides under the steel of the bracket. That is how the BMC went missing
@@ -131,7 +140,11 @@ def render(cv):
                            (X_SVC + 16, 232, 140, 40),   # наклейка с MAC
                            (X_SVC + 16, 352, 140, 44),   # перемычка J147 и её легенда
                            (X_SVC + 16, 438, 140, 28),   # что делают переключатели
-                           (X_SVC + 2, 180, 150, 62),    # SlimSAS to the backplane
+                           # Полоса, где стоял SlimSAS, освободилась: разъёмы
+                           # уехали к передней кромке платы, ближе к корзине.
+                           # Бронь снята вместе с ними — иначе сборка держала бы
+                           # пустой карман в самом плотном месте платы, и
+                           # рассыпухе туда было бы нельзя.
                            (X_SVC + 6, 272, 150, 74),    # CMOS and microSD
                            (X_SVC + 6, 392, 146, 48),    # SW3/SW4
                            (X_SVC + 130, 296, 46, 388),  # silkscreen along the edge

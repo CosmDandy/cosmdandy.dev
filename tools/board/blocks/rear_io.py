@@ -354,15 +354,24 @@ def render(cv):
     # встроенной пары светодиоды разведены на текстолит, и по ним смотрят
     # состояние линка, когда в гнездо воткнут кабель и самого гнезда не видно.
     # Первому порту такие не нужны — его состояние видно в самой розетке.
+    #
+    # They carry the same classes as the lamps inside the jack, not classes of
+    # their own. Classes of their own is exactly why they burned around the
+    # clock: `led-enet2-lnk` and `led-enet2-act` meant nothing to the styles,
+    # and a lamp no rule reaches keeps fill-opacity 1 — so link and traffic
+    # shone equally bright on a machine that was off. Link comes up on
+    # `.rig.net`, activity blinks on `.rig.on`, exactly as in the jack beside
+    # them: it is the same pair, brought out onto the laminate.
     enet = []
-    for dy, cls, color, text in ((-13, 'led-enet2-lnk', '#268bd2', 'ENET2 LINK'),
-                                 (13, 'led-enet2-act', '#859900', 'ENET2 ACTIVE')):
+    for i, (dy, color, text) in enumerate(((-13, '#268bd2', 'ENET2 LINK'),
+                                           (13, '#859900', 'ENET2 ACTIVE'))):
         # Место у блока своё: он сам объявил его через IO_BOARD, и спрашивать
         # разрешения у собственной брони незачем. Между гигабитным PHY слева
         # (кончается на 1074) и магнитопроводами справа (начинаются на 1140)
         # остаётся полоса, и лампы с подписями встают ровно в неё.
         lx, ly = X_IO_END - 122, jack_mid(1) + dy
-        enet.append(lamp(cls, lx, ly, 3.4, color))
+        enet.append(lamp('led-link', lx, ly, 3.4, color) if i == 0
+                    else act_led(9, lx, ly, 3.4, color, salt=13))
         enet.append(mono(lx + 8, ly + 2, text, 4.8, anchor="start", op=0.42))
 
     cv.add('<g class="decor">'

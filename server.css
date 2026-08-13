@@ -204,6 +204,7 @@ body:has(.rig.assembly) .assemble-btn { filter: opacity(0.45); pointer-events: n
         background   var(--theme-fade),
         border-color var(--theme-fade),
         box-shadow   var(--theme-fade),
+        opacity      var(--theme-fade),
         /* Как у лупы и пересборки: в режиме лупы плитка растёт и переезжает,
            и без перехода по размеру и месту она перескакивала. */
         width        0.42s cubic-bezier(0.22, 1, 0.36, 1),
@@ -241,6 +242,24 @@ body.view-rig .sfx-btn { display: grid; }
 .sfx-btn:hover { transform: translate3d(0, -1px, 0); }
 .sfx-btn:active { transform: translate3d(0, 0, 0) scale(0.96); }
 .sfx-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+
+/* Молчащая кнопка выглядит молчащей. Плитка у неё общая с темой, лупой и
+   пересборкой — ярко-светлая, и на схеме это самое светлое пятно; у трёх
+   соседей она значит «этим сейчас пользуются», а здесь обещала звук, которого
+   нет. Гасим целиком, а не один значок: между четырьмя одинаковыми плитками
+   разницу видно только материалом.
+
+   Прозрачностью, а не подменой красок: тогда значок гаснет вместе с подложкой
+   и остаётся читаемым на ней в обеих темах — знать палитру для этого не надо.
+   На наведении плитка почти оживает: выключенная — не значит неисправная, и
+   рука должна видеть, что нажать её можно. */
+.sfx-btn[aria-pressed="false"] {
+    opacity: 0.42;
+    box-shadow: none;
+}
+
+.sfx-btn[aria-pressed="false"]:hover,
+.sfx-btn[aria-pressed="false"]:focus-visible { opacity: 0.72; }
 
 /* Молчит — динамик перечёркнут; звучит — идут волны. Обе части лежат в одной
    иконке друг на друге и меняются прозрачностью: перерисовывать svg целиком
@@ -495,7 +514,15 @@ body.view-rig .sfx-btn { display: grid; }
   color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
-.rig *, .rig *::before, .rig *::after { box-sizing: border-box; }
+/* Сброса box-sizing здесь больше нет: ровно то же правило стоит в style.css на
+   весь документ, и это была вторая копия, а не запас. К фигурам SVG свойство
+   всё равно не относится.
+
+   Убрано как дубль, не ради скорости: универсальный селектор на одиннадцати
+   тысячах узлов выглядит дорого, но замер этого не подтвердил — 494 и 485 мс
+   пересчёта с ним против 472 и 495 без, то есть разница внутри разброса.
+   Записано здесь, чтобы никто не пришёл сюда за той же оптимизацией второй
+   раз. */
 
 /* Name and status are visible in both views — this is a personal card, not
    only a schematic. */
@@ -838,41 +865,37 @@ body.view-rig .sfx-btn { display: grid; }
   .led-act.aux { animation: act var(--blink) steps(1, end) infinite; }
   .fan-blades.aux { animation-play-state: running; }
 
-  /* The blink pattern. Every switching point is a multiple of 5% of the
-     period, and the period is a multiple of a second — so any change falls on
-     the common tick of a tenth of a second. The numbers here are not
-     cosmetic: shift one by a per cent and the lamp starts repainting the
-     stage on frames of its own. */
+  /* The blink pattern. Every switching point is a multiple of the common tick,
+     and the numbers are not cosmetic: shift one by a per cent and the lamp
+     starts repainting the stage on frames of its own.
+
+     Такт вдвое реже прежнего — десять ступеней в секунду вместо двадцати.
+     Двадцать стояли не ради глаза, а по привычке считать, что мельче он не
+     различает; платили же за них не глазом, а пересчётом стиля на дереве в
+     тринадцать тысяч узлов. Замерено: в покое схема тратила 128 мс на каждые
+     две секунды — тридцать шесть пересчётов, — и это при том, что смотреть на
+     неё в этот момент никто не обязан. Мигание на десяти ступенях читается
+     тем же миганием, а счёт вдвое меньше.
+
+     Крыльчаток это не касается: они крутятся своим периодом --spin в слое
+     компоновщика, к сетке индикации отношения не имеют и остались как были —
+     ступенчатое вращение стало бы видно сразу. */
   @keyframes act {
     0.00% { fill-opacity: 1 }
-    3.57% { fill-opacity: 1 }
     7.14% { fill-opacity: 1 }
-    10.71% { fill-opacity: 0.1 }
     14.29% { fill-opacity: 0.1 }
-    17.86% { fill-opacity: 0.1 }
     21.43% { fill-opacity: 0.1 }
-    25.00% { fill-opacity: 1 }
     28.57% { fill-opacity: 1 }
-    32.14% { fill-opacity: 0.1 }
     35.71% { fill-opacity: 0.1 }
-    39.29% { fill-opacity: 1 }
     42.86% { fill-opacity: 1 }
-    46.43% { fill-opacity: 1 }
     50.00% { fill-opacity: 1 }
-    53.57% { fill-opacity: 1 }
     57.14% { fill-opacity: 0.1 }
-    60.71% { fill-opacity: 0.1 }
     64.29% { fill-opacity: 1 }
-    67.86% { fill-opacity: 1 }
     71.43% { fill-opacity: 0.1 }
-    75.00% { fill-opacity: 0.1 }
     78.57% { fill-opacity: 0.1 }
-    82.14% { fill-opacity: 1 }
     85.71% { fill-opacity: 1 }
-    89.29% { fill-opacity: 0.1 }
     92.86% { fill-opacity: 0.1 }
-    96.43% { fill-opacity: 1 }
-    100% { fill-opacity: 1 }
+    100.00% { fill-opacity: 1 }
   }
   /* The phase arrives inline from the generator, the period is shared. The
      halo snaps together with the core rather than crawling across smoothly: a
@@ -1501,6 +1524,24 @@ body.view-rig .sfx-btn { display: grid; }
   }
   .fan-blades.aux { animation-duration: var(--spin-aux); }
   .rig.on .fan-blades { animation-play-state: running; }
+
+  /* In the magnifier the promise is taken back, and that is not a
+     micro-optimisation — it is the fix for a broken picture.
+
+     There the scene is dragged across a field several times the window: at
+     x2.4 it is some eight thousand points wide. The compositor only keeps
+     raster for what is near the window and throws the rest away; come back to
+     a fan that had been dragged far off and it is rebuilt — but the sixteen
+     layers this promise carved out of the parent are not rebuilt with it. The
+     holes are exactly the rotor parts that do not spin: the barrel, its rim,
+     the hub. They stay missing until the pointer lands on the module — hover
+     hangs a filter on the body, a filter flattens the layers back into one,
+     and the picture repairs itself.
+
+     Nothing is lost by dropping it here. A layer buys smooth rotation of
+     sixteen impellers at once; in the magnifier one or two are on screen, and
+     what they cost the main thread is bounded by the window, not by the wall. */
+  .rig.zoom .fan-blades { will-change: auto; }
 
   /* Blades or blur. Past a few thousand rpm an impeller is a translucent disc
      and nothing else — a blade crosses any given point faster than the eye

@@ -21,7 +21,7 @@ The rule of three layers that keeps the output honest:
 No literals are left in the commands: every number comes from one of the three.
 """
 
-from board.geom import BANK_N, BAY_N, CHIPS, FAN_N, PSU_Y
+from board.geom import BANK_N, BAY_N, CHIPS, FAN_N, FAN_ROTORS, PSU_Y
 from board.revision import BOARD_REV, BOARD_SN
 from board.rotor import BLADE_N
 
@@ -69,7 +69,11 @@ BAYS = tuple(
 # лопасти × об/мин ÷ 60, и синтезатор берёт её отсюда, а не из своей константы.
 # Иначе появилось бы второе место, знающее устройство вентилятора, и однажды
 # схема запела бы не на своей ноте.
-FAN = {'n': FAN_N, 'model': '40×56 dual-rotor', 'blades': BLADE_N,
+FAN = {'n': FAN_N, 'model': 'twin 40×56 dual-rotor', 'blades': BLADE_N,
+       # Крыльчаток в модуле четыре: два вентилятора по два колеса под одной
+       # ручкой. Вынимается ручка, то есть модуль целиком, — поэтому в паспорте
+       # их четыре, а не восемь, и лампа отсека у каждого своя.
+       'rotors': FAN_ROTORS,
        'rpm_nom': 12100, 'rpm_max': 18000,
        # Политика оборотов живёт не в BIOS, а в контроллере управления — там же,
        # где она стоит на живой машине: Cooling в меню IMM, а не Advanced в
