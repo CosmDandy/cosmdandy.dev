@@ -7,17 +7,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Тема — одним файлом на весь сайт: и выключатель светлой, и выбор
+         темы до первой отрисовки. Ключ тот же, что на визитке: тема
+         выбирается один раз на весь сайт, и переход сюда её не сбрасывает. -->
+    <script src="/theme.js"></script>
     <script>
-        // До отрисовки, иначе на долю секунды мелькнёт не та тема. Ключ тот же,
-        // что на визитке: тема выбирается один раз на весь сайт, и переход сюда
-        // не должен её сбрасывать.
-        (function () {
-            var saved = null;
-            try { saved = localStorage.getItem('theme'); } catch (e) {}
-            if (saved !== 'light' && saved !== 'dark') saved = null;
-            var system = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
-            document.documentElement.setAttribute('data-theme', saved || system);
-        })();
+        // Пришли переездом внутри сайта. Играть своё появление странице в этот
+        // момент нельзя, и дело не в «два раза красиво»: снимок нового
+        // состояния браузер берёт на первом кадре, а на первом кадре имя
+        // смещено на восемь точек вниз и прозрачно. Строка летела ровно туда —
+        // мимо своего места и в никуда, — а потом появлялась заново уже сама.
+        //
+        // pagereveal приходит до первой отрисовки, поэтому заглушка успевает.
+        // Событие есть не везде; где его нет, страница ведёт себя как раньше.
+        window.addEventListener('pagereveal', function (e) {
+            if (e.viewTransition) document.documentElement.classList.add('vt-in');
+        });
     </script>
     <title>Telegram — cosmdandy</title>
     <meta name="description" content="Написать Тимофею Кондрашину в Telegram: @cosmdandy. Прямая ссылка на личные сообщения, хендл для копирования и QR-код.">
@@ -50,16 +55,6 @@
 </head>
 <body>
 
-<!-- Путь назад. Ссылка, а не кнопка с историей: на страницу попадают не только
-     с визитки — по прямому адресу, из QR, из чужого сообщения, — и «назад» у
-     такого гостя вело бы наружу сайта или никуда. Здесь адрес известен всегда,
-     а тем, кто пришёл переездом, браузер и так вернёт кнопкой назад. -->
-<a class="back-btn" href="/" aria-label="На визитку">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M15.5 5.5 9 12l6.5 6.5"/>
-    </svg>
-</a>
-
 <button class="theme-btn" id="theme-btn" type="button" aria-label="Переключить тему">
     <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>
@@ -70,15 +65,24 @@
     </svg>
 </button>
 
-<!-- Обычная ссылка, а не кнопка со скриптом: имя переезжает обратно тем же
+<!-- Путь назад. Ссылка, а не кнопка с историей: на страницу попадают не только
+     с визитки — по прямому адресу, из QR, из чужого сообщения, — и «назад» у
+     такого гостя вело бы наружу сайта или никуда. Здесь адрес известен всегда,
+     а тем, кто пришёл переездом, браузер и так вернёт кнопкой назад.
+
+     Обычная ссылка, а не кнопка со скриптом: имя переезжает обратно тем же
      штатным переходом, и для него важно, чтобы это была настоящая навигация
      в этой же вкладке. Стоит зеркально переключателю темы — угол, в котором
-     на визитке ничего нет, так что возврат не спорит с ним за место. -->
+     на визитке ничего нет, так что возврат не спорит с ним за место.
+
+     Кнопка ровно одна, и это не мелочь: их тут было две, и обе рисовались в
+     одном углу друг на друге. Ни одна из них не работала как задумано — у
+     `view-transition-name` имя обязано быть единственным на кадр, а его несли
+     обе, и переезд между страницами ломался целиком. -->
 <a class="back-btn" href="/" aria-label="Вернуться на визитку">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M15.5 5 8.5 12l7 7"/>
+        <path d="M15.5 5.5 9 12l6.5 6.5"/>
     </svg>
-    <span>Визитка</span>
 </a>
 
 <div class="dots"></div>
@@ -158,7 +162,10 @@
     // Атрибут к этому моменту уже стоит — его выставил скрипт в <head>, —
     // поэтому читаем его, а не опрашиваем систему второй раз. Ключ общий с
     // визиткой: тема выбирается один раз на весь сайт.
-    document.getElementById('theme-btn').addEventListener('click', function () {
+    // Пока светлая выключена, слушать некого и незачем: кнопка вела бы
+    // страницу туда, где её нет. Сам код остаётся рабочим — включается вместе
+    // с THEME_CHOICE в /theme.js.
+    if (THEME_CHOICE) document.getElementById('theme-btn').addEventListener('click', function () {
         var next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
         root.setAttribute('data-theme', next);
         try { localStorage.setItem('theme', next); } catch (e) {}
