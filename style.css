@@ -965,7 +965,11 @@ h1     { animation-delay: 0ms; }
     background: linear-gradient(180deg, var(--card-from) 0%, var(--card-to) 100%);
     border: 1px solid var(--card-border);
     border-left: none;
-    backdrop-filter: blur(25px);
+    /* Без размытия фона, в отличие от карточек ссылок. Панель висит поверх
+       страницы во всю её высоту, а backdrop-filter означает «возьми растр
+       всего, что подо мной, и размой»: любое движение схемы под ней — а в
+       лупе схема движется постоянно — заставляет пересобирать этот растр.
+       Инструмент разработчика не должен искажать то, что им же и смотрят. */
     box-shadow: var(--card-shadow);
 }
 
