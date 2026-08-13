@@ -21,23 +21,23 @@
   .fan-blades.aux { animation-duration: var(--spin-aux); }
   .rig.on .fan-blades { animation-play-state: running; }
 
-  /* In the magnifier the promise is taken back, and that is not a
-     micro-optimisation — it is the fix for a broken picture.
+  /* Здесь когда-то стояло `.rig.zoom .fan-blades { will-change: auto }` —
+     снятое обещание слоя в лупе. Диагноз был верный, виновник назван неверно.
 
-     There the scene is dragged across a field several times the window: at
-     x2.4 it is some eight thousand points wide. The compositor only keeps
-     raster for what is near the window and throws the rest away; come back to
-     a fan that had been dragged far off and it is rebuilt — but the sixteen
-     layers this promise carved out of the parent are not rebuilt with it. The
-     holes are exactly the rotor parts that do not spin: the barrel, its rim,
-     the hub. They stay missing until the pointer lands on the module — hover
-     hangs a filter on the body, a filter flattens the layers back into one,
-     and the picture repairs itself.
+     Картинка в лупе рвалась потому, что слоем было САМО ШАССИ: у него
+     осталось will-change: transform, хотя в лупе наклон снят и трансформа нет
+     вовсе. Слой размером с приближённую плату, композитор держит растр рядом
+     с окном, остальное выбрасывает — отсюда и дыры, и то, что их чинит
+     наведение. Крыльчатки были не причиной, а соседями по слою.
 
-     Nothing is lost by dropping it here. A layer buys smooth rotation of
-     sixteen impellers at once; in the magnifier one or two are on screen, and
-     what they cost the main thread is bounded by the window, not by the wall. */
-  .rig.zoom .fan-blades { will-change: auto; }
+     Сняв обещание с них, мы вылечили не ту половину и нажили вторую беду:
+     вращение шестнадцати роторов, которое композитор делал даром, вернулось
+     в перерисовку общего слоя — и схему начало передёргивать само по себе.
+
+     Теперь ложное обещание снято с шасси (см. .rig.zoom .chassis в base.css),
+     а роторам оно возвращено, и это уже не компромисс: слой есть у того, что
+     движется, и только у него. Слои роторов маленькие и самодостаточные,
+     вокруг них нечего выбрасывать. */
 
   /* Blades or blur. Past a few thousand rpm an impeller is a translucent disc
      and nothing else — a blade crosses any given point faster than the eye
