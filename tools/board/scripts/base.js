@@ -1238,26 +1238,36 @@
     const from = ZOOM_STEPS[zoomStep], to = ZOOM_STEPS[step];
     zoomStep = step;
     rig.classList.toggle('zoom-max', step === ZOOM_STEPS.length - 1);
-    const r = rigBody.getBoundingClientRect();
-    // Точка под курсором в координатах самой схемы: она и обязана остаться
-    // неподвижной, как бы ни менялся масштаб.
-    const ax = cx - r.left, ay = cy - r.top;
-    const px = (rigBody.scrollLeft + ax) / from, py = (rigBody.scrollTop + ay) / from;
     const stage = rigBody.querySelector('.stage');
+    if (!stage) return;
+
+    // Точка под курсором — в координатах самой сцены, от её левого верхнего
+    // угла. Через getBoundingClientRect, а не через offsetLeft: сцена стоит с
+    // отступами и выровнена по центру, и её собственная система координат не
+    // совпадает с системой прокручиваемого поля. Именно на этом расхождении
+    // схема и прыгала — ход держал точку по одному счёту, а приход ставил
+    // прокрутку по другому.
+    const sr0 = stage.getBoundingClientRect();
+    const ox = cx - sr0.left, oy = cy - sr0.top;
+    const k = to / from;
 
     // Приход: настоящая ширина и прокрутка под неё. Одна перерисовка на весь
     // ход вместо двадцати.
+    //
+    // Прокрутка считается по факту, а не по формуле: ставим ширину, спрашиваем
+    // у сцены, куда уехала наша точка, и двигаем поле на эту самую разницу.
+    // Формула здесь врала бы ровно на отступы сцены — они не масштабируются.
     function settle() {
-      if (stage) {
-        stage.style.transform = '';
-        stage.style.transformOrigin = '';
-      }
+      stage.style.transform = '';
+      stage.style.transformOrigin = '';
       rig.classList.remove('zscale');
       rig.style.setProperty('--zoom', to);
-      panTo(px * to - ax, py * to - ay);
+      const sr = stage.getBoundingClientRect();
+      panTo(rigBody.scrollLeft + (sr.left + ox * k) - cx,
+            rigBody.scrollTop + (sr.top + oy * k) - cy);
     }
 
-    if (reduced || !stage) { settle(); return; }
+    if (reduced) { settle(); return; }
 
     // Ход ведём растяжением, а не шириной, и это не косметика.
     //
@@ -1275,8 +1285,6 @@
     //
     // Точка под курсором держится не прокруткой, а началом координат
     // растяжения: вокруг неё и тянем, поэтому она стоит на месте сама.
-    const ox = rigBody.scrollLeft + ax - stage.offsetLeft;
-    const oy = rigBody.scrollTop + ay - stage.offsetTop;
     stage.style.transformOrigin = ox + 'px ' + oy + 'px';
 
     // Ход отдан переходу целиком, и это принципиально. Веди мы его руками,
@@ -1287,7 +1295,7 @@
     rig.classList.add('zscale');
     stage.getBoundingClientRect();      // чтобы переход увидел, откуда стартует
     stage.style.transition = 'transform ' + ZOOM_MS + 'ms cubic-bezier(0.22, 1, 0.36, 1)';
-    stage.style.transform = 'scale(' + (to / from) + ')';
+    stage.style.transform = 'scale(' + k + ')';
 
     let done = false;
     function land(e) {
