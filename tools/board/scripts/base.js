@@ -1195,6 +1195,9 @@
   // кадре — а значит вести обе руками.
   const ZOOM_MS = 340;
   let zoomAnim = null;
+  // Завершитель текущего хода. Второй щелчок обязан сперва довести первый:
+  // иначе растяжение снимется, а ширина останется от прошлой ступени.
+  let zoomLand = null;
 
   // Границы возят по самой схеме, а не по прокручиваемой области. Область
   // шире машины: перспектива и подписи рисуются за габарит сцены, и браузер
@@ -1229,6 +1232,9 @@
   }, { passive: true });
 
   function zoomTo(step, cx, cy) {
+    // Прежний ход доводим до конца, а не обрываем: щёлкнули дважды подряд —
+    // вторая ступень должна считаться от первой, доехавшей.
+    if (zoomLand) zoomLand();
     const from = ZOOM_STEPS[zoomStep], to = ZOOM_STEPS[step];
     zoomStep = step;
     rig.classList.toggle('zoom-max', step === ZOOM_STEPS.length - 1);
@@ -1237,17 +1243,68 @@
     // неподвижной, как бы ни менялся масштаб.
     const ax = cx - r.left, ay = cy - r.top;
     const px = (rigBody.scrollLeft + ax) / from, py = (rigBody.scrollTop + ay) / from;
-    if (zoomAnim) cancelAnimationFrame(zoomAnim);
-    const t0 = performance.now();
-    (function tick(now) {
-      const p = reduced ? 1 : Math.min(1, (now - t0) / ZOOM_MS);
-      // Кубическое торможение: масштаб набирается сразу и мягко доводится.
-      // Линейный ход читался рывком ровно в конце, когда движение обрывалось.
-      const k = from + (to - from) * (1 - Math.pow(1 - p, 3));
-      rig.style.setProperty('--zoom', k);
-      panTo(px * k - ax, py * k - ay);
-      zoomAnim = p < 1 ? requestAnimationFrame(tick) : null;
-    })(t0);
+    const stage = rigBody.querySelector('.stage');
+
+    // Приход: настоящая ширина и прокрутка под неё. Одна перерисовка на весь
+    // ход вместо двадцати.
+    function settle() {
+      if (stage) {
+        stage.style.transform = '';
+        stage.style.transformOrigin = '';
+      }
+      rig.classList.remove('zscale');
+      rig.style.setProperty('--zoom', to);
+      panTo(px * to - ax, py * to - ay);
+    }
+
+    if (reduced || !stage) { settle(); return; }
+
+    // Ход ведём растяжением, а не шириной, и это не косметика.
+    //
+    // Ширина — это раскладка: меняешь её кадр за кадром, и браузер каждый раз
+    // заново считает раскладку и заново растеризует весь чертёж в новом
+    // масштабе. Пять тысяч фигур, двадцать кадров подряд — плитки не
+    // успевают, и на их месте видно пустоту. Отсюда «при зуме плата
+    // обновляется слоями», и на отдалении хуже всего: там сразу нужны все
+    // плитки поля, а не те немногие, что помещались в окно.
+    //
+    // Растяжение — работа композитора: он берёт УЖЕ готовый растр и тянет
+    // его. Ход стоит почти ничего и идёт мимо главного потока; платим за это
+    // мягкостью картинки на те триста миллисекунд, что он длится. В конце
+    // ширина встаёт настоящей, и чертёж растеризуется начисто — один раз.
+    //
+    // Точка под курсором держится не прокруткой, а началом координат
+    // растяжения: вокруг неё и тянем, поэтому она стоит на месте сама.
+    const ox = rigBody.scrollLeft + ax - stage.offsetLeft;
+    const oy = rigBody.scrollTop + ay - stage.offsetTop;
+    stage.style.transformOrigin = ox + 'px ' + oy + 'px';
+
+    // Ход отдан переходу целиком, и это принципиально. Веди мы его руками,
+    // кадр за кадром выставляя scale, — браузер на каждом кадре видел бы новый
+    // масштаб и растеризовал содержимое под него: та же беда, только сбоку.
+    // Переход по transform он умеет исполнять на композиторе: растр берётся
+    // один раз и тянется, главный поток при этом свободен.
+    rig.classList.add('zscale');
+    stage.getBoundingClientRect();      // чтобы переход увидел, откуда стартует
+    stage.style.transition = 'transform ' + ZOOM_MS + 'ms cubic-bezier(0.22, 1, 0.36, 1)';
+    stage.style.transform = 'scale(' + (to / from) + ')';
+
+    let done = false;
+    function land(e) {
+      if (done || (e && e.propertyName !== 'transform')) return;
+      done = true;
+      zoomLand = null;
+      stage.removeEventListener('transitionend', land);
+      clearTimeout(zoomAnim);
+      zoomAnim = null;
+      stage.style.transition = '';
+      settle();
+    }
+    zoomLand = land;
+    stage.addEventListener('transitionend', land);
+    // Страховка: переход, начавшийся на невидимой вкладке, событием не
+    // отзовётся, а масштаб остался бы недоведённым.
+    zoomAnim = setTimeout(land, ZOOM_MS + 90);
   }
 
   rigBody.addEventListener('click', function (e) {
