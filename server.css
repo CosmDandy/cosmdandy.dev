@@ -514,7 +514,15 @@ body.view-rig .sfx-btn { display: grid; }
   color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
-.rig *, .rig *::before, .rig *::after { box-sizing: border-box; }
+/* Сброса box-sizing здесь больше нет: ровно то же правило стоит в style.css на
+   весь документ, и это была вторая копия, а не запас. К фигурам SVG свойство
+   всё равно не относится.
+
+   Убрано как дубль, не ради скорости: универсальный селектор на одиннадцати
+   тысячах узлов выглядит дорого, но замер этого не подтвердил — 494 и 485 мс
+   пересчёта с ним против 472 и 495 без, то есть разница внутри разброса.
+   Записано здесь, чтобы никто не пришёл сюда за той же оптимизацией второй
+   раз. */
 
 /* Name and status are visible in both views — this is a personal card, not
    only a schematic. */
