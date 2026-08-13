@@ -65,7 +65,7 @@ jobs:
       - name: Build _site
         run: |
           mkdir -p _site
-          cp index.html 404.html style.css server.css server.js theme.js _site/
+          cp index.html 404.html style.css server.css server.js _site/
           cp robots.txt sitemap.xml site.webmanifest _headers _site/
           cp -r assets fonts _site/
           cp -r history _site/
