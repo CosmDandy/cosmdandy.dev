@@ -28,7 +28,7 @@ BOUNDS = (312, 18, 442, 836)
 from board.geom import (
     BANK_N,
     FAN_H,
-    FAN_STEP,
+    fan_y,
     FAN_W,
     PITCH,
     SLOT_H,
@@ -54,8 +54,8 @@ EDGE = "rgba(147,161,161,0.26)"
 # оба процессора — половина каналов у одного, половина у другого.
 BANKS = (
     ('l', Y_BANK_L, (0,), "ABCDEFGH", "CPU 0"),
-    ('c', Y_BANK_C, (3, 4), "IJKLABCD", "CPU 0 / CPU 1"),
-    ('r', Y_BANK_R, (7,), "EFGHIJKL", "CPU 1"),
+    ('c', Y_BANK_C, (1, 2), "IJKLABCD", "CPU 0 / CPU 1"),
+    ('r', Y_BANK_R, (3,), "EFGHIJKL", "CPU 1"),
 )
 
 
@@ -122,7 +122,7 @@ def chip_mark(x, y, text):
 
 def render(cv):
     def fan_span(i):
-        y = 26 + i * FAN_STEP
+        y = fan_y(i)
         return y, y + FAN_H
 
     bank_h = (BANK_N - 1) * PITCH + SLOT_H + 2
