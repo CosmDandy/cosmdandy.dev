@@ -119,16 +119,30 @@ def render(cv):
     # какой они сделаны на борту, здесь мало: под крышкой мигают лампы гнёзд, и
     # владелец просил, чтобы сквозь перфорацию было видно именно их. Поэтому
     # лист пробивается маской, а поверх остаётся только кромка отверстия.
-    cv.add('<defs><mask id="lid-perf" maskUnits="userSpaceOnUse">'
+    # Решётка описывается один раз и подставляется дважды. Обе роли ей нужны
+    # по-настоящему — чёрной в маске, чтобы пробить лист, и контуром поверх,
+    # чтобы у отверстия осталась кромка, — но геометрия у них одна и та же, и
+    # выписанная дважды она стоила 94 807 знаков: три пути шли парами байт в
+    # байт, почти половина всего рисунка крышки.
+    #
+    # Краски у самой решётки нет: заливку и обводку задают ссылки, и приходят
+    # они внутрь по наследству. Поэтому и `fill="none"` у контура работает —
+    # он не перекрывается изнутри.
+    ids = [f'lid-perf-{k}' for k in range(len(PERF))]
+
+    def use(**paint):
+        attrs = ''.join(f' {k.replace("_", "-")}="{v}"' for k, v in paint.items())
+        return ''.join(f'<use href="#{i}"{attrs}/>' for i in ids)
+
+    cv.add('<defs>'
+           + ''.join(hexgrid(*z, s=6, gap=5, ident=i) for z, i in zip(PERF, ids))
+           + '<mask id="lid-perf" maskUnits="userSpaceOnUse">'
            f'<rect x="{LID_X}" y="0" width="{W-LID_X}" height="{H}" fill="#fff"/>'
-           + ''.join(hexgrid(*z, s=6, gap=5, fill="#000", stroke="none") for z in PERF)
+           + use(fill="#000", stroke="none")
            + '</mask></defs>')
     cv.add(f'<path d="{body}" fill="#161f24" stroke="rgba(147,161,161,0.30)" '
            f'stroke-width="1.4" mask="url(#lid-perf)"/>')
-    cv.add('<g class="decor">'
-           + ''.join(hexgrid(*z, s=6, gap=5, fill="none",
-                             stroke="rgba(147,161,161,0.26)") for z in PERF)
-           + '</g>')
+    cv.add('<g class="decor">' + use(fill="none", stroke="rgba(147,161,161,0.26)") + '</g>')
 
     # память и процессоры — с назначением, а не с маркировкой. Рамка банка
     # обводит ровно сокеты: X_CORE-2 и BANK_N·PITCH — те же числа, которыми
