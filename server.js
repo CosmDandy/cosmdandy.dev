@@ -2777,8 +2777,27 @@
   // 1440×950 и третьей ступени: схема кончается на 1809, прокрутка пускала до
   // 3969 — две тысячи точек, на которых нет ничего, кроме фона. Оттуда и
   // «сдвинул влево, справа пусто».
+  // Пауза на время движения поля — любого, а не только протяжки мышью.
+  //
+  // Правило .dragging ловит руку на кнопке, а поле возят ещё и двумя пальцами
+  // по тачпаду, и колесом, и стрелками: всё это идёт прямо в прокрутку, мимо
+  // pointerdown. Оттуда и осталось: «вожу двумя пальцами — мерцает память,
+  // процессоры, надпись» — то есть ровно те места, где что-то анимировано.
+  // Пока плитки под ними въезжают из-за кромки, анимация требует их же
+  // перерисовать, и на это уже не хватает.
+  //
+  // Снимаем по затишью, а не по концу жеста: у прокрутки нет «отпустил».
+  let panIdle = null;
+  function panning() {
+    if (!rig.classList.contains('zoom')) return;
+    rig.classList.add('panning');
+    clearTimeout(panIdle);
+    panIdle = setTimeout(function () { rig.classList.remove('panning'); }, 160);
+  }
+
   rigBody.addEventListener('scroll', function () {
     if (!rig.classList.contains('zoom')) return;
+    panning();
     const [mx, my] = scrollMax();
     if (rigBody.scrollLeft > mx) rigBody.scrollLeft = mx;
     if (rigBody.scrollTop > my) rigBody.scrollTop = my;
