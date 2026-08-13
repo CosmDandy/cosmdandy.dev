@@ -44,6 +44,7 @@ is exactly what the "the entire background went black" bug looked like.
 import hashlib
 import importlib
 import json
+import os
 import re
 from pathlib import Path
 
@@ -594,9 +595,15 @@ def main():
     # читают фигуры по их собственным атрибутам. Склей мы эталон — audit_text
     # перестал бы видеть подложки под подписями и молчал бы на настоящих
     # наложениях.
-    svg, was, now = flatten(svg)
-    print(f'слияние краски: {was} фигур → {now} '
-          f'({100 * (was - now) // max(was, 1)}% меньше в странице)')
+    # NO_FLATTEN=1 собирает страницу без слияния. Нужно не для отладки самого
+    # слияния, а чтобы было с чем сверять пиксели: эталон снимается с несклеенной
+    # сборки, иначе проверка сравнивает склейку сама с собой и молчит.
+    if os.environ.get('NO_FLATTEN') == '1':
+        print('слияние краски: выключено (NO_FLATTEN=1)')
+    else:
+        svg, was, now = flatten(svg)
+        print(f'слияние краски: {was} фигур → {now} '
+              f'({100 * (was - now) // max(was, 1)}% меньше в странице)')
 
     page = HERE.parent / 'index.html'
     if page.exists():

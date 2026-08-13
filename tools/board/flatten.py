@@ -20,10 +20,18 @@
 ссылка. Всё остальное остаётся ровно там, где стояло.
 
 Копится это по группам, а не по всей схеме: группа `decor` — естественная
-граница, за которой начинается чужая краска. Слитый путь встаёт на место
-ПЕРВОЙ фигуры своей корзины: так порядок отрисовки меняется настолько мало,
-насколько это вообще возможно, — а меняется он неизбежно, и проверяется это не
-рассуждением, а `visual_ref.mjs`: пять состояний, пиксель в пиксель.
+граница, за которой начинается чужая краска.
+
+Порядок отрисовки при этом не меняется вообще — и это не обещание, а
+устройство. Слитый путь встаёт на место первой фигуры корзины, а фигура
+попадает в корзину, только если между ней и предыдущей участницей не было
+ничего, что её задевает. Появилось — корзина закрывается, и следующая такая же
+краска начинает новую, на своём месте.
+
+Без этого правила слияние молча ломало картинку: площадка пайки у батарейки
+совпала цветом с контактами, нарисованными до держателя, попала в их корзину и
+уехала под держатель. Пиксельная проверка это ловит только если знать, куда
+смотреть, — а правило не даёт этому случиться вовсе.
 
 Направление обхода у всех подпутей одно (по часовой). Это не педантизм: у
 `fill-rule: nonzero` два вложенных подпути противоположного направления дают
@@ -142,7 +150,13 @@ def translucent(d):
 
 
 def bbox(tag, d):
-    """Габарит фигуры. None — посчитать честно нельзя."""
+    """Габарит фигуры. None — посчитать честно нельзя.
+
+    У путей честного габарита по числам не выходит: дуга выпирает за свои
+    опорные точки, а относительные команды — это не координаты. Такой путь и
+    не сливается, и закрывает все открытые корзины: неизвестный габарит — это
+    габарит во всю группу.
+    """
     if tag == 'rect':
         x, y, w, h = _f(d, 'x'), _f(d, 'y'), _f(d, 'width'), _f(d, 'height')
         box = (x, y, x + w, y + h)
@@ -167,20 +181,52 @@ def _hits(a, b):
     return not (a[2] <= b[0] or b[2] <= a[0] or a[3] <= b[1] or b[3] <= a[1])
 
 
+def _union(a, b):
+    if a is None:
+        return b
+    if b is None:
+        return a
+    return (min(a[0], b[0]), min(a[1], b[1]), max(a[2], b[2]), max(a[3], b[3]))
+
+
+class _Bucket:
+    __slots__ = ('paint', 'pieces', 'boxes', 'since', 'see_through')
+
+    def __init__(self, paint, see_through):
+        self.paint = paint
+        self.pieces = []
+        self.boxes = []       # габариты участниц — нужны только сквозной краске
+        self.since = None     # что нарисовано после последней участницы
+        self.see_through = see_through
+
+
 class _Group:
-    __slots__ = ('buckets', 'boxes')
+    __slots__ = ('open',)
 
     def __init__(self):
-        self.buckets = {}   # ключ корзины → список кусков пути
-        self.boxes = {}     # ключ корзины → габариты, если краска сквозная
+        self.open = {}        # раскраска → открытая корзина
+
+    def note(self, box, skip=None):
+        """Между участницами корзин появилась фигура: запоминаем её габарит."""
+        for paint, b in list(self.open.items()):
+            if b is skip:
+                continue
+            if box is None:
+                del self.open[paint]      # габарит неизвестен — закрываем всё
+            else:
+                b.since = _union(b.since, box)
 
 
 def flatten(svg):
     """Возвращает (разметка, сколько фигур было, сколько стало)."""
-    out = []            # ячейки вывода: строка или ('bucket', группа, ключ)
+    out = []            # ячейки вывода: строка или корзина
     stack = []
     opaque = 0
     was = now = 0
+
+    def note_all(box):
+        for g in stack:
+            g.note(box)
 
     pos = 0
     for m in TOKEN.finditer(svg):
@@ -194,11 +240,16 @@ def flatten(svg):
             if not self_close:
                 opaque += -1 if close else 1
             out.append(whole)
+            note_all(None)
             continue
         if opaque > 0:
             out.append(whole)
             continue
         if tag == 'g':
+            # Вложенная группа может нести что угодно и переносить систему
+            # координат: для всех открытых корзин снаружи это неизвестный
+            # габарит.
+            note_all(None)
             if close:
                 if stack:
                     stack.pop()
@@ -208,59 +259,56 @@ def flatten(svg):
             continue
         if tag not in SHAPES:
             out.append(whole)
+            note_all(None)
             continue
 
         was += 1
+        d = dict(ATTR.findall(attrs))
+        box = bbox(tag, d)
         if not stack or any(k in attrs for k in OWNED):
             out.append(whole)
             now += 1
+            note_all(box)
             continue
-        d = dict(ATTR.findall(attrs))
         piece = to_path(tag, d)
-        if piece is None:
+        if piece is None or box is None:
             out.append(whole)
             now += 1
+            note_all(box)
             continue
+
         paint = tuple((k, d[k]) for k in PAINT if k in d)
-        g = stack[-1]
         see_through = translucent(d)
-        box = bbox(tag, d)
-        if see_through and box is None:
-            out.append(whole)
+        g = stack[-1]
+        b = g.open.get(paint)
+        if b is not None:
+            # Корзина принимает фигуру, только если между ними ничего не
+            # вклинилось; сквозная краска — ещё и если не наложится на своих.
+            blocked = b.since is not None and _hits(box, b.since)
+            if not blocked and see_through:
+                blocked = any(_hits(box, o) for o in b.boxes)
+            if blocked:
+                del g.open[paint]
+                b = None
+        if b is None:
+            b = _Bucket(paint, see_through)
+            g.open[paint] = b
+            out.append(b)
             now += 1
-            continue
-        # У сквозной краски корзина принимает фигуру, только пока габариты не
-        # пересекаются: иначе пропадёт уплотнение на наложении. Пересеклись —
-        # заводим следующую корзину с тем же цветом.
-        key = None
+        b.pieces.append(piece)
+        b.since = None
         if see_through:
-            k = 0
-            while (paint, k) in g.buckets:
-                if not any(_hits(box, b) for b in g.boxes[(paint, k)]):
-                    key = (paint, k)
-                    break
-                k += 1
-            if key is None:
-                key = (paint, k)
-        else:
-            key = (paint, 0)
-        if key not in g.buckets:
-            g.buckets[key] = []
-            g.boxes[key] = []
-            out.append(('bucket', g, key))
-            now += 1
-        g.buckets[key].append(piece)
-        if see_through:
-            g.boxes[key].append(box)
+            b.boxes.append(box)
+        # Для чужих корзин эта фигура — помеха.
+        for gg in stack:
+            gg.note(box, skip=b)
     out.append(svg[pos:])
 
     parts = []
     for cell in out:
-        if isinstance(cell, tuple):
-            _, g, key = cell
-            pieces = g.buckets[key]
-            attrs = ''.join(f' {k}="{v}"' for k, v in key[0])
-            parts.append(f'<path d="{"".join(pieces)}"{attrs}/>')
+        if isinstance(cell, _Bucket):
+            attrs = ''.join(f' {k}="{v}"' for k, v in cell.paint)
+            parts.append(f'<path d="{"".join(cell.pieces)}"{attrs}/>')
         else:
             parts.append(cell)
     return ''.join(parts), was, now
