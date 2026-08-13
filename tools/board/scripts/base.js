@@ -789,6 +789,46 @@
   }
   document.addEventListener('visibilitychange', dormancy);
 
+  // Та же бережливость на ступень мельче — по узлам, а не по всей схеме.
+  //
+  // В лупе схема втрое шире окна, и её дальняя половина живёт вслепую: лампы
+  // мигают, крыльчатки крутятся там, куда никто не смотрит. Браузер честно всё
+  // это перерисовывает — плитки под ними он держит, — и на протяжке этой
+  // работы как раз не хватает тем плиткам, что въезжают из-за кромки.
+  //
+  // Цели берём у самого браузера: document.getAnimations() одним вызовом
+  // отдаёт всё, что сейчас движется, и остаётся спросить у каждой, к чему она
+  // приложена. Список по классам пришлось бы править вслед за каждой новой
+  // лампой, а блоки схемы для этого не годятся вовсе — .blk делит рисунок по
+  // слоям, а не по месту, и самый нижний накрывает плату целиком.
+  //
+  // Запас в 200 точек — чтобы узел ожил до того, как покажется, а не на
+  // глазах у гостя. Список пересобирается на каждый вход в лупу: между
+  // заходами машину успевают выключить, разобрать и собрать заново.
+  const rigBodyBox = document.querySelector('.rig-body');
+  let awayWatch = null;
+
+  function watchAway(on) {
+    if (awayWatch) {
+      awayWatch.disconnect();
+      rig.querySelectorAll('.away').forEach(function (el) { el.classList.remove('away'); });
+      awayWatch = null;
+    }
+    if (!on || !rigBodyBox || !('IntersectionObserver' in window) || !document.getAnimations) return;
+    awayWatch = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) { e.target.classList.toggle('away', !e.isIntersecting); });
+    }, { root: rigBodyBox, rootMargin: '200px', threshold: 0 });
+    const seen = new Set();
+    document.getAnimations().forEach(function (a) {
+      const el = a.effect && a.effect.target;
+      // Псевдоэлементу класс не повесишь — его паузит правило на родителе.
+      if (el && !seen.has(el) && el.classList && rig.contains(el)) {
+        seen.add(el);
+        awayWatch.observe(el);
+      }
+    });
+  }
+
   // ── Uptime ─────────────────────────────────────────────────────────────
   let t0 = Date.now();
   const uptimeEl = document.getElementById('uptime');
@@ -1102,6 +1142,9 @@
         landParts();
         rig.classList.remove('zooming', 'zoom-shift');
         flying = false;
+        // После перелёта, а не до: пока он идёт, в списке анимаций стоит он
+        // сам, а узлы ещё не на местах — наблюдатель запомнил бы не те.
+        watchAway(on);
       });
     });
   }
