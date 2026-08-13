@@ -23,7 +23,12 @@
 это отдельный ключ кэша, и отравить им версионированный нельзя.
 
 Работает поверх собранных страниц и повторяется без вреда: старый `?v=` в
-ссылке заменяется новым.
+ссылке заменяется новым. Корень можно указать аргументом — в конвейере это
+_site, уже минифицированный: хэш обязан считаться от того, что реально уедет
+по проводу, иначе правка одного лишь минификатора не сдвинет ссылку и до
+вернувшегося гостя не дойдёт никогда — заголовок обещает год.
+
+    python3 tools/stamp_assets.py [корень]
 """
 
 import hashlib
@@ -31,7 +36,7 @@ import re
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+HERE = Path(__file__).resolve().parent.parent
 
 # Что версионируем и на каких страницах. Пути относительные — такими они и
 # стоят в разметке, и такими же ищутся на диске рядом со страницей.
@@ -45,10 +50,11 @@ def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()[:8]
 
 
-def main():
+def main(argv):
+    root = Path(argv[0]) if argv else HERE
     changed = []
     for name in PAGES:
-        page = ROOT / name
+        page = root / name
         if not page.exists():
             continue
         html = page.read_text(encoding="utf-8")
@@ -67,7 +73,7 @@ def main():
             changed.append(name)
     marks = []
     for asset in ASSETS:
-        src = ROOT / asset
+        src = root / asset
         if src.exists():
             marks.append(f"{asset}={digest(src)}")
     print(f"версии статики: {' '.join(marks)}"
@@ -75,4 +81,4 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(sys.argv[1:]))
