@@ -48,6 +48,7 @@ import re
 from pathlib import Path
 
 from board.canvas import AVOID, Canvas
+from board.flatten import flatten
 from board.geom import H, W
 from board.ink import callout_box
 from board.revision import SN_SLOT
@@ -586,6 +587,16 @@ def main():
     for kind, want in EXPECT.items():
         assert drawn[kind] == want, (
             f'passport promises {want} ({kind}), the board draws {drawn[kind]}')
+
+    # Слияние неподвижной краски — последний шаг, и делается он только над тем,
+    # что уходит в страницу. Отрезок .svg.part остаётся несклеенным нарочно: по
+    # нему сверяют картинку `diff_ref` и наложения `audit_text`, а обе проверки
+    # читают фигуры по их собственным атрибутам. Склей мы эталон — audit_text
+    # перестал бы видеть подложки под подписями и молчал бы на настоящих
+    # наложениях.
+    svg, was, now = flatten(svg)
+    print(f'слияние краски: {was} фигур → {now} '
+          f'({100 * (was - now) // max(was, 1)}% меньше в странице)')
 
     page = HERE.parent / 'index.html'
     if page.exists():
