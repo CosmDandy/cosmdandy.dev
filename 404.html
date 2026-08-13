@@ -7,45 +7,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script>
-        // Светлая тема выключена. Не удалена: палитра, ручной выбор, его
-        // протухание через четыре часа и слежение за системой — всё на месте и
-        // работает. Погашена только сама возможность выбрать, и возвращается
-        // она одним true вот здесь. Почему — расписано в index.html.
-        var THEME_CHOICE = false;
-
-        // Before the first paint, otherwise the wrong theme flashes for a
-        // fraction of a second. An empty store means "follow the system", so
-        // only what the user picked by hand is written here.
-        //
-        // Живёт этот выбор недолго и уступает системе: рядом с ним лежит
-        // отметка, когда его сделали и какая тема была тогда у системы. Если
-        // система с тех пор передумала — скажем, наступила ночь и она ушла в
-        // тёмную — или если выбор просто отлежал свои часы, он снимается, и
-        // страница снова идёт за системой.
-        (function () {
-            var LIFE = 4 * 60 * 60 * 1000;
-            var system = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
-            var saved = null;
-            try {
-                if (+localStorage.getItem('theme-at') > Date.now() - LIFE
-                    && localStorage.getItem('theme-sys') === system) {
-                    saved = localStorage.getItem('theme');
-                } else {
-                    localStorage.removeItem('theme');
-                    localStorage.removeItem('theme-at');
-                    localStorage.removeItem('theme-sys');
-                }
-            } catch (e) {}
-            if (saved !== 'light' && saved !== 'dark') saved = null;
-            // Атрибут ставится всегда, и этого довольно, чтобы светлые правила
-            // не сработали: `:root[data-theme="light"]` не совпадёт, а
-            // системное написано на `:root:not([data-theme])`.
-            document.documentElement.setAttribute('data-theme',
-                THEME_CHOICE ? (saved || system) : 'dark');
-            if (!THEME_CHOICE) document.documentElement.classList.add('theme-locked');
-        })();
-    </script>
+    <!-- Тема — одним файлом на весь сайт: и выключатель светлой, и выбор
+         темы до первой отрисовки. Синхронно, иначе мелькнёт не та. -->
+    <script src="/theme.js"></script>
     <title>404 · Timofey Kondrashin</title>
     <meta name="description" content="Page not found">
     <!-- Пока светлая выключена, полоса браузера тоже держится тёмной: её
@@ -58,7 +22,7 @@
     <!-- Отметка о сборке: какой стенд, из чего собран и когда развёрнут.
          Значение ставит тот пайплайн, который развёртывает (tools/stamp_build.py),
          локально — sync.sh. Здесь стоит то, что видно, если не ставил никто. -->
-    <meta name="build" content="env=local;repo=CosmDandy/cosmdandy.dev;ref=feat/board-realism;sha=421022e+;at=2026-08-08T20:46:41Z">
+    <meta name="build" content="env=local;repo=CosmDandy/cosmdandy.dev;ref=feat/board-realism;sha=2c63db0+;at=2026-08-13T13:04:13Z">
     <meta name="robots" content="noindex">
     <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
     <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">

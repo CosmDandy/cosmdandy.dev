@@ -1502,6 +1502,24 @@ body.view-rig .sfx-btn { display: grid; }
   .fan-blades.aux { animation-duration: var(--spin-aux); }
   .rig.on .fan-blades { animation-play-state: running; }
 
+  /* In the magnifier the promise is taken back, and that is not a
+     micro-optimisation — it is the fix for a broken picture.
+
+     There the scene is dragged across a field several times the window: at
+     x2.4 it is some eight thousand points wide. The compositor only keeps
+     raster for what is near the window and throws the rest away; come back to
+     a fan that had been dragged far off and it is rebuilt — but the sixteen
+     layers this promise carved out of the parent are not rebuilt with it. The
+     holes are exactly the rotor parts that do not spin: the barrel, its rim,
+     the hub. They stay missing until the pointer lands on the module — hover
+     hangs a filter on the body, a filter flattens the layers back into one,
+     and the picture repairs itself.
+
+     Nothing is lost by dropping it here. A layer buys smooth rotation of
+     sixteen impellers at once; in the magnifier one or two are on screen, and
+     what they cost the main thread is bounded by the window, not by the wall. */
+  .rig.zoom .fan-blades { will-change: auto; }
+
   /* Blades or blur. Past a few thousand rpm an impeller is a translucent disc
      and nothing else — a blade crosses any given point faster than the eye
      takes it in. So a running wall shows the disc, and that is the default
