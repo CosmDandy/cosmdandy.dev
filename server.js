@@ -2775,6 +2775,7 @@
 
   function openUnit(unit, href) {
     if (opening) { skipOpening(); return; }
+    warm(href);
     const scene = OPENERS.find(function (s) { return s.test(unit); });
     // Сцены нет — уходим сразу. На prefers-reduced-motion её нет ни у одного
     // узла: это не украшение, от которого можно оставить половину.
@@ -2820,6 +2821,103 @@
     if (e.key === 'Escape' && opening) skipOpening();
   });
 
+  // ── Прогрев сети ───────────────────────────────────────────────────────
+  // Пролог длится две-три секунды, и всё это время сеть простаивала: браузер
+  // принимался узнавать адрес и жать руку серверу только после того, как сцена
+  // доиграла. Замер: полсекунды на соединение и первый ответ — ровно столько
+  // гость ждал сверх анимации, глядя на пустой экран.
+  //
+  // Греем в два захода. На наведении — потому что между «мышь пришла на узел»
+  // и щелчком проходит несколько десятых секунды, и их хватает на имя с
+  // рукопожатием. На щелчке — потому что курсора может и не быть вовсе:
+  // клавиатура, палец, чтение с экрана.
+  //
+  // Три уровня, и они разной силы:
+  //   соединение   работает для любого адреса, включая чужие: рукопожатие не
+  //                зависит от того, разрешит ли сервер переиспользовать ответ;
+  //   документ     правилами показа, а не тегом prefetch: кеш разделён по
+  //                верхнему сайту, и положенное в него со своей страницы на
+  //                чужой уже не видно. На чужой сайт запрос идёт без печенья —
+  //                значит поможет лишь тому, кто там не вошёл;
+  //   отрисовка    только для своего origin: соседние поддомены пускают к себе
+  //                предварительный показ лишь по собственному заголовку
+  //                Supports-Loading-Mode, а чужие сайты — никогда.
+  //
+  // Прогрев соединения замером подтвердить не удалось: рукопожатие с github
+  // занимало те же девяносто миллисекунд и с ним, и без него. Оставлен потому,
+  // что вреда от него нет, а на медленной сети и на своих поддоменах он должен
+  // работать; но если однажды померите и там ноль — сносите не думая.
+  const warmed = { conn: {}, doc: {}, pre: {} };
+
+  function head(rel, href) {
+    // Проверяем, не греет ли это уже кто-то другой: страница сама подтягивает
+    // резюме на наведении, и наш такой же тег означал бы второй запрос за тем
+    // же документом. Свой список тут не поможет — тег чужой.
+    const sel = 'link[rel="' + rel + '"]';
+    for (const link of document.head.querySelectorAll(sel)) {
+      if (link.href === href || link.href === href + '/') return;
+    }
+    const tag = document.createElement('link');
+    tag.rel = rel;
+    tag.href = href;
+    document.head.appendChild(tag);
+  }
+
+  function warm(href) {
+    let url;
+    try { url = new URL(href, location.href); } catch (e) { return; }
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
+
+    if (!warmed.conn[url.origin]) {
+      warmed.conn[url.origin] = true;
+      // Без crossorigin — и это не небрежность, а условие работы. Переход по
+      // ссылке браузер делает запросом с учётными данными, а preconnect с
+      // crossorigin="anonymous" греет соединение без них: пулы разные, и
+      // документ пойдёт по своему, заново пожав руку. Замер это и показал —
+      // с anonymous выигрыш был нулевой, соединение как занимало треть
+      // секунды, так и занимало.
+      head('preconnect', url.origin);
+      head('dns-prefetch', url.origin);
+    }
+
+    // Документ просим правилами показа, а не тегом prefetch. Тег греет общий
+    // кеш, а кеш в нынешних браузерах разделён по тому, какой сайт открыт
+    // сверху: положенное туда со своей страницы при переходе на чужую уже не
+    // видно. MDN говорит об этом прямо — «cache partitioning makes
+    // <link rel=prefetch> useless for resources intended for use by different
+    // top-level sites», — и наш замер это подтвердил: с тегом и без него
+    // GitHub отвечал одинаково. Правила показа сделаны именно для перехода и
+    // раздел обходят.
+    //
+    // Чего они не сделают, знать тоже надо: на чужой сайт запрос уходит без
+    // печенья, и если гость там уже вошёл, браузер предзагруженное не
+    // применит. Для github, linkedin и x это значит «поможет только тому, кто
+    // туда не залогинен», и обещать больше нечего.
+    if (!warmed.doc[url.href]
+        && HTMLScriptElement.supports && HTMLScriptElement.supports('speculationrules')) {
+      warmed.doc[url.href] = true;
+      rule('prefetch', url.href);
+    }
+
+    // Отрисовать страницу заранее можно только у себя: свой origin — без
+    // уговора, соседний поддомен — лишь если он сам разрешит это заголовком
+    // Supports-Loading-Mode, а чужой сайт не разрешит никогда.
+    if (url.origin === location.origin && !warmed.pre[url.href]
+        && HTMLScriptElement.supports && HTMLScriptElement.supports('speculationrules')) {
+      warmed.pre[url.href] = true;
+      rule('prerender', url.pathname + url.search);
+    }
+  }
+
+  function rule(kind, href) {
+    const tag = document.createElement('script');
+    tag.type = 'speculationrules';
+    const body = {};
+    body[kind] = [{ source: 'list', urls: [href] }];
+    tag.textContent = JSON.stringify(body);
+    document.head.appendChild(tag);
+  }
+
   // Тяжёлое сцена готовит заранее, пока гость только ведёт курсор к узлу.
   // Внутри самой сцены на это нет свободного кадра: построить две сотни фигур
   // и рассчитать их стили — это пятая доля секунды, и приходится она ровно на
@@ -2829,10 +2927,11 @@
   rig.addEventListener('mouseover', function (e) {
     const unit = e.target.closest('.unit[data-href]');
     if (!unit || prepped.has(unit) || !linksLive()) return;
-    const scene = OPENERS.find(function (s) { return s.test(unit); });
-    if (!scene || !scene.prep) return;
     prepped.add(unit);
-    scene.prep(unit);
+    // Греем всегда, даже если сцены у узла нет: адрес всё равно откроется.
+    warm(unit.dataset.href);
+    const scene = OPENERS.find(function (s) { return s.test(unit); });
+    if (scene && scene.prep) scene.prep(unit);
   });
 
   // Подпись-выноска ведёт туда же, куда её узел, и обязана открываться так же.
