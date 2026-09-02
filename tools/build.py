@@ -108,6 +108,11 @@ ORDER = [
     'cpu',
     'callouts',      # link labels — on top of everything
     'lightpath',     # pull-out diagnostics panel
+    # Шкаф с коммутаторами. Он не на плате и за место ни с кем не спорит:
+    # весь его рисунок лежит выше рамки просмотра. Последним он идёт из-за
+    # кабеля — тот тянется от гнезда наружу и обязан лежать поверх задней
+    # панели, а не под её сталью.
+    'rack',          # стойка над машиной: два коммутатора и патч-корды
 ]
 
 
@@ -138,6 +143,7 @@ BLOCK_RU = {
     'cpu': 'процессоры',
     'callouts': 'бирки-ссылки',
     'lightpath': 'панель диагностики',
+    'rack': 'шкаф с коммутаторами',
 }
 
 
@@ -444,6 +450,10 @@ LAYERS = [
     ('tags', 'callouts'),
     # Приборы: выдвижная панель диагностики.
     ('probe', 'lightpath'),
+    # Шкаф над машиной. Слой свой, потому что чужого нет: он не палуба, не
+    # железо машины, не её подписи и не прибор. Приписанный к любому из
+    # четырёх, он гаснул бы в панели слоёв вместе с тем, чем не является.
+    ('rack', 'rack'),
 ]
 
 
@@ -584,7 +594,8 @@ def main():
     # than lie to the visitor in the console.
     drawn = {'dimm': svg.count('data-dimm="'), 'fan': svg.count('data-fan="'),
              'bay': svg.count('data-unit="hdd'), 'psu': svg.count('data-psu="'),
-             'riser': svg.count('data-riser="'), 'cpu': svg.count('data-cpu="')}
+             'riser': svg.count('data-riser="'), 'cpu': svg.count('data-cpu="'),
+             'swport': svg.count('data-swport="')}
     for kind, want in EXPECT.items():
         assert drawn[kind] == want, (
             f'passport promises {want} ({kind}), the board draws {drawn[kind]}')
