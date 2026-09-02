@@ -1585,7 +1585,7 @@ body.view-rig .sfx-btn { display: grid; }
     transition: transform var(--snap);
   }
 
-  /* Assembly: the fan is lowered into the wall from above — in 1U it goes in
+  /* Assembly: the fan is lowered into the wall from above — it goes in
      vertically, between the cage upright and the board there is no room for any
      other movement. The moment of seating is set by --seat, which the generator
      writes: the schedule for the whole assembly lives in geom, and only "from

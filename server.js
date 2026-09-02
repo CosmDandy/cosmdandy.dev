@@ -3705,7 +3705,7 @@
       }),
       motd: fsFile(function () {
         return [
-          { t: 'Welcome to ' + (board.model || 'CD93') + ' (' + (board.form || '1U') + ')' },
+          { t: 'Welcome to ' + (board.model || 'CD93') + ' (' + (board.form || '2U') + ')' },
           { t: 'CosmDandy homelab · this box is a prop, the numbers are real' },
         ];
       }),

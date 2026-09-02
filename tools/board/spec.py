@@ -25,7 +25,7 @@ from board.geom import BANK_N, BAY_N, CHIPS, FAN_N, FAN_ROTORS, PSU_Y
 from board.revision import BOARD_REV, BOARD_SN
 from board.rotor import BLADE_N
 
-BOARD = {'model': 'CD93-FS1', 'form': '1U', 'vendor': 'CodeKVT'}
+BOARD = {'model': 'CD93-FS1', 'form': '2U', 'vendor': 'CodeKVT'}
 
 # Two EPYC 9965: 192 Zen 5c cores per socket — the density limit of x86. Twelve
 # memory channels per processor explain our twenty-four slots exactly: one DIMM
@@ -69,12 +69,14 @@ BAYS = tuple(
 # лопасти × об/мин ÷ 60, и синтезатор берёт её отсюда, а не из своей константы.
 # Иначе появилось бы второе место, знающее устройство вентилятора, и однажды
 # схема запела бы не на своей ноте.
-FAN = {'n': FAN_N, 'model': 'twin 40×56 dual-rotor', 'blades': BLADE_N,
-       # Крыльчаток в модуле четыре: два вентилятора по два колеса под одной
-       # ручкой. Вынимается ручка, то есть модуль целиком, — поэтому в паспорте
-       # их четыре, а не восемь, и лампа отсека у каждого своя.
+FAN = {'n': FAN_N, 'model': '60×56 single-rotor', 'blades': BLADE_N,
+       # Крыльчатка в модуле одна: шестидесятка под своей ручкой. Вынимается
+       # ручка, то есть модуль целиком, и лампа отсека у каждого своя.
        'rotors': FAN_ROTORS,
-       'rpm_nom': 12100, 'rpm_max': 18000,
+       # Обороты ниже прежних сорокамиллиметровых: колесо крупнее, и тот же
+       # расход оно даёт медленнее. Это и есть выигрыш второго юнита — не
+       # запас по продуву, а тишина при том же продуве.
+       'rpm_nom': 9800, 'rpm_max': 15000,
        # Политика оборотов живёт не в BIOS, а в контроллере управления — там же,
        # где она стоит на живой машине: Cooling в меню IMM, а не Advanced в
        # Setup. Обороты каждого режима здесь, потому что их спрашивают трое
@@ -82,13 +84,18 @@ FAN = {'n': FAN_N, 'model': 'twin 40×56 dual-rotor', 'blades': BLADE_N,
        # и команда fans. Разъедься они, и машина завертелась бы на одной ноте,
        # а отчиталась о другой.
        'policy': (
-           {'id': 'Acoustic', 'rpm': 3025},
-           {'id': 'Efficiency', 'rpm': 6050},
-           {'id': 'Balanced', 'rpm': 12100},
-           {'id': 'Performance', 'rpm': 18000},
+           {'id': 'Acoustic', 'rpm': 2450},
+           {'id': 'Efficiency', 'rpm': 4900},
+           {'id': 'Balanced', 'rpm': 9800},
+           {'id': 'Performance', 'rpm': 15000},
        ),
        'policy_default': 'Balanced'}
-PSU = {'n': len(PSU_Y), 'watt': 1300, 'model': 'CRPS 80 PLUS Titanium'}
+# Мощность блока считается не по среднему потреблению, а по тому, что должен
+# вывезти один блок, когда второй умер: два процессора по 500 Вт, двадцать
+# четыре плашки, корзина и стена вентиляторов — под полторы тысячи на пике.
+# Прежние 1300 держали машину только вдвоём, то есть резервирования не было
+# вовсе, и в 1U взять блок крупнее было неоткуда: карман блока по высоте юнита.
+PSU = {'n': len(PSU_Y), 'watt': 1800, 'model': 'CRPS 80 PLUS Titanium'}
 
 RISERS = (
     {'slot': 1, 'link': 'PCIe Gen5 ×16', 'card': '2× 10G SFP+', 'empty': False},

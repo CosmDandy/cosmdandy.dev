@@ -17,8 +17,8 @@ def rack_ears():
 
     An ear bolts to the chassis side wall and reaches past it — otherwise it
     cannot meet the rack posts, which stand to either side of the machine.
-    They used to point forward, the same way the drives slide out, and a 1U
-    built like that mounts in no rack at all.
+    They used to point forward, the same way the drives slide out, and a
+    machine built like that mounts in no rack at all.
 
     Top view: just the plate outline and the darker recess inside it.
     """

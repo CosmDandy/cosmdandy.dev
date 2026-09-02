@@ -19,7 +19,7 @@ def render(cv):
                        f'fill="#1a2429" stroke="rgba(147,161,161,0.20)"/>')
             vrm.append(f'<rect x="{X_VRM-22}" y="{y+1}" width="15" height="8" rx="1" fill="rgba(147,161,161,0.16)"/>')
         # A heatsink bar over the chokes: the power switches run hotter than
-        # the core per unit of area, and in 1U they are covered by one common
+        # the core per unit of area, and they are covered by one common
         # low-profile heatsink along the whole row. Fins along the airflow, as
         # on the processor heatsink.
         sink_y = y0 + 2

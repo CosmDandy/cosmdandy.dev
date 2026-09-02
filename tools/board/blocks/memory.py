@@ -293,8 +293,8 @@ def render(cv):
     cv.add(bank(Y_BANK_C, BANK_N, "C", "IJKLABCD", 49, lambda i: i < half))
     cv.add(bank(Y_BANK_R, BANK_N, "R", "EFGHIJKL", 57, lambda i: True))
     # The middle bank is shared by both processors: half of its channels go to
-    # one, half to the other. Twelve modules per processor is the usual layout
-    # for 1U, where there is no board room left for all eight channels.
+    # one, half to the other. Twelve modules per processor is one per channel:
+    # for a second module on each there is no board room left.
     # The bank designation is printed on its frame — see blocks/frames.py.
     #
     # Партномер — в нижнем правом углу рамки банка, по одному на банк. Заголовок

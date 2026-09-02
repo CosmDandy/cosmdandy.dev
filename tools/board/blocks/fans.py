@@ -1,9 +1,14 @@
-"""fans: four twin modules in a common wall.
+"""fans: six single modules in a common wall.
 
-A module is what the hand takes hold of: one orange handle, and under it two
-fans of two impellers each. They do not come apart — the handle is the part,
-and it is the module that goes in and out of the wall, not a single fan. Hence
-four hot-swap units over sixteen impellers.
+A module is what the hand takes hold of: one orange handle, and under it one
+60 mm fan. The handle is the part, and it is the module that goes in and out of
+the wall. Hence six hot-swap units over six impellers.
+
+Twin 40 mm modules stood here while the machine was 1U: a 60 mm impeller does
+not fit that height, so the airflow was made up with the number of wheels and
+the revs. In 2U the bay is twice as tall, one wheel gives the same flow at
+lower revs, and the wall comes out simpler — six things that turn instead of
+sixteen.
 
 The wall laps onto the board with its far edge. The cage stands higher than
 the laminate and covers its front strip along with the passives on it; the
@@ -22,6 +27,7 @@ from board.geom import (
     FAN_LAMP_DY,
     FAN_N,
     FAN_PER_MOD,
+    FAN_ROTORS,
     FAN_W,
     H,
     X_FAN,
@@ -47,8 +53,13 @@ RAIL_W = 14       # чёрная планка с прорезями вдоль �
 BODY_X0 = X_FAN + HANDLE_W
 BODY_X1 = X_FAN + FAN_W - RAIL_W
 BODY_W = BODY_X1 - BODY_X0
-ROTOR_R = BODY_W / 3.5
-# Насколько два вентилятора модуля сдвинуты друг к другу от своих четвертей.
+# Колесо занимает отсек целиком, и упирается оно в ту сторону, которой меньше:
+# в глубину модуля между ручкой и планкой или в его высоту. У шестидесятки
+# рамка квадратная, и по обеим сторонам она садится с одинаковым зазором —
+# отсюда и min, а не деление глубины на постоянное число.
+FAN_CLEAR = 6     # зазор между кромкой рамки и стенкой отсека
+ROTOR_R = min(BODY_W / (2 * FAN_ROTORS), FAN_H / 2) - FAN_CLEAR
+# Насколько вентиляторы модуля сдвинуты друг к другу от своих четвертей.
 #
 # Не на глаз и не константой: сдвиг такой, при котором три просвета модуля
 # равны — поле сверху, поле между колёсами и поле снизу. Это и есть «колёса
@@ -56,12 +67,9 @@ ROTOR_R = BODY_W / 3.5
 # уравнением: поле сверху q + p − r равно полю между колёсами 2q − 2p − 2r,
 # откуда p = (q − r) / 3, где q — четверть модуля, r — радиус колеса.
 #
-# По четвертям (p = 0) между колёсами оставалась полоса вдвое шире полей, и
-# модуль читался двумя вентиляторами в одной коробке — а он один. С большим
-# сдвигом они слипались посередине, и поля уходили под кромки. Формула снимает
-# оба спора разом и переживает правку габаритов: поменяется глубина стены —
-# сдвиг поедет за радиусом сам.
-FAN_PINCH = (FAN_H / 4 - ROTOR_R) / 3
+# В модуле с одним вентилятором сдвигать нечего: колесо стоит по середине
+# отсека, и любой сдвиг увёл бы его к кромке.
+FAN_PINCH = (FAN_H / 4 - ROTOR_R) / 3 if FAN_PER_MOD > 1 else 0
 
 # Наклейка на ручке. На живой машине она говорит, какого класса вентилятор
 # стоит, и по ней же в сервисе понимают, что модуль не перепутан с обычным.
@@ -247,16 +255,19 @@ def render(cv):
         rotors = []
         for f in range(FAN_PER_MOD):
             cy = y + h * (2 * f + 1) / (2 * FAN_PER_MOD) + (-FAN_PINCH if f else FAN_PINCH)
-            for k in range(2):
-                cx = BODY_X0 + BODY_W / 4 + k * (BODY_W / 2)
+            for k in range(FAN_ROTORS):
+                cx = BODY_X0 + BODY_W * (2 * k + 1) / (2 * FAN_ROTORS)
                 rotors.append(rotor(cx, cy, i * FAN_PER_MOD + f, k))
 
         # Перемычка между двумя вентиляторами модуля: тонкая, штампованная. На
         # фотографии живой машины именно она отличает границу внутри модуля от
-        # границы между модулями — та вдвое толще.
+        # границы между модулями — та вдвое толще. В модуле с одним
+        # вентилятором делить нечего, и полоса поперёк рамки читалась бы швом
+        # там, где у живой шестидесятки сплошной корпус.
         my = y + h / 2
         divider = (f'<rect x="{BODY_X0}" y="{my - 2}" width="{BODY_W}" height="4" rx="1" '
-                   f'fill="#0a1215" stroke="rgba(147,161,161,0.22)" stroke-width="0.8"/>')
+                   f'fill="#0a1215" stroke="rgba(147,161,161,0.22)" stroke-width="0.8"/>'
+                   if FAN_PER_MOD > 1 else '')
 
         # The module seat: the guides and the mating header stay in the wall
         # when the fan is pulled out. Without them the wall looked, during the
@@ -274,7 +285,7 @@ def render(cv):
         # The vibration mounts do not sit in the corners on their own: a stud
         # runs through the module, and rubber bushings are fitted on its ends.
         # The motor is decoupled from the frame by that rubber — otherwise the
-        # hum of eight fans goes into the rack.
+        # hum of six fans goes into the rack.
         mounts = ''.join(
             f'<line x1="{mx}" y1="{y + 7}" x2="{mx}" y2="{y + h - 7}" '
             f'stroke="rgba(147,161,161,0.16)" stroke-width="2.6"/>'
@@ -286,7 +297,12 @@ def render(cv):
             f'fill-opacity="0.55" stroke="rgba(147,161,161,0.30)"/>'
             f'<circle cx="{mx}" cy="{my2}" r="2.4" fill="#070d10" stroke="rgba(147,161,161,0.22)"/>'
             for mx in (BODY_X0 + 10, BODY_X1 - 10)
-            for my2 in (y + 7, y + h / 2, y + h - 7))
+            # Втулок на шпильке столько, сколько у неё опор: по одной на каждую
+            # кромку рамки. Средняя держала стык двух рамок в сдвоенном модуле —
+            # у одиночной шестидесятки стыка нет, и втулка повисла бы посреди
+            # ровного корпуса.
+            for my2 in ((y + 7, y + h / 2, y + h - 7) if FAN_PER_MOD > 1
+                        else (y + 7, y + h - 7)))
 
         # Power: a header on the body, and from it a leg with a harness down to
         # the mating part on the board. The leg and the wires are part of the
