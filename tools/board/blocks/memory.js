@@ -59,11 +59,16 @@
 
   OPENERS.push({
     test: function (el) { return el.dataset.group === 'dimm'; },
+    // Корпуса раскладываются на наведении — по той же причине, что и кремний
+    // процессора: внутри сцены на эту работу нет свободного кадра.
+    prep: function (el) { buildCells(el); },
     play: function (el, done) {
       const code = (el.dataset.unit || '').split('-')[1] || 'L';
       const spec = (HW.dimm.banks || []).find(function (b) { return b.code === code; })
                    || HW.dimm.banks[0];
       buildCells(el);
+      // Лишнее гаснет до наезда, а не во время него: см. narrowView.
+      narrowView(frameOf(el, 26));
 
       camera(frameOf(el, 26), 760);
       line('dimm ' + code + ': банк ' + spec.ch + ' · ' + spec.n + '× '

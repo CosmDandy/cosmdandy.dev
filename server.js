@@ -1922,6 +1922,13 @@
     return [b.x + b.width / 2 - w / 2, b.y + b.height / 2 - h / 2, w, h];
   }
 
+  // Камера двигает окно, а не содержимое, и это ради чёткости. Перенос
+  // композитный и потому дешёвый, но он растягивает уже отрисованное: полсекунды
+  // наезда идут мылом, а смотрят именно на них. Окно перерисовывает схему
+  // вектором на каждом кадре, и на месте, и в движении.
+  //
+  // Платить за это перерисовкой шести тысяч фигур не приходится: то, чего в
+  // кадре не будет, снимается заранее — см. narrowView ниже.
   function camera(to, ms, done) {
     if (camAnim) { cancelAnimationFrame(camAnim); camAnim = null; }
     if (reduced || !ms) { putView(to); if (done) done(); return; }
@@ -1936,6 +1943,39 @@
       camAnim = p < 1 ? requestAnimationFrame(tick) : null;
       if (p >= 1 && done) done();
     })(t0);
+  }
+
+  // Сужение внимания. Всё, что не заденет кадр наезда, гаснет и снимается с
+  // отрисовки: на подходе к процессору мимо кадра остаётся сорок с лишним
+  // процентов схемы — вентиляторы, корзина дисков, блоки питания, задняя
+  // панель. Браузер обходит их при каждой перерисовке, а перерисовок тут
+  // шестьдесят в секунду.
+  //
+  // Зовётся заранее, до первого движения камеры: у сцены на это есть та самая
+  // пауза, за которую снимается радиатор. Гашение занимает четверть секунды и
+  // читается сужением внимания к узлу, а не пропажей половины платы.
+  //
+  // Прячем целыми блоками и только те, что не задевают кадр вовсе: наполовину
+  // срезанный блок — это дыра на картинке, а не экономия. Рассыпуха и краска
+  // лежат по всей плате и остаются всегда: они и есть то, что видно вокруг узла.
+  function narrowView(to) {
+    const wide = !to || to[2] >= VIEW0[2] * 0.98;
+    board.querySelectorAll('[data-blk]').forEach(function (g) {
+      if (wide) { g.classList.remove('far', 'gone'); return; }
+      let b;
+      try { b = g.getBBox(); } catch (e) { return; }
+      const miss = b.x > to[0] + to[2] || b.x + b.width < to[0]
+                || b.y > to[1] + to[3] || b.y + b.height < to[1];
+      g.classList.toggle('far', miss);
+    });
+    if (wide) return;
+    // Снимаем с отрисовки только после того, как они догасли: display:none
+    // посреди перехода — это скачок, а не исчезновение.
+    sceneWait(280, function () {
+      board.querySelectorAll('[data-blk].far').forEach(function (g) {
+        g.classList.add('gone');
+      });
+    });
   }
 
 
@@ -2006,11 +2046,16 @@
 
   OPENERS.push({
     test: function (el) { return el.dataset.group === 'dimm'; },
+    // Корпуса раскладываются на наведении — по той же причине, что и кремний
+    // процессора: внутри сцены на эту работу нет свободного кадра.
+    prep: function (el) { buildCells(el); },
     play: function (el, done) {
       const code = (el.dataset.unit || '').split('-')[1] || 'L';
       const spec = (HW.dimm.banks || []).find(function (b) { return b.code === code; })
                    || HW.dimm.banks[0];
       buildCells(el);
+      // Лишнее гаснет до наезда, а не во время него: см. narrowView.
+      narrowView(frameOf(el, 26));
 
       camera(frameOf(el, 26), 760);
       line('dimm ' + code + ': банк ' + spec.ch + ' · ' + spec.n + '× '
@@ -2191,11 +2236,20 @@
 
   OPENERS.push({
     test: function (el) { return el.dataset.group === 'cpu'; },
+    // Кремний строится на наведении, а не по щелчку: две сотни фигур и первый
+    // расчёт их стилей стоят пятой доли секунды, и в сцене этого кадра нет.
+    prep: function (el) {
+      const slot = el.querySelector('.cpu-slot');
+      if (slot) buildCores(slot, slot.querySelector('.ihs'));
+    },
     play: function (el, done) {
       const slot = el.querySelector('.cpu-slot');
       const lid = slot.querySelector('.ihs');
       const n = slot.dataset.cpu;
       buildCores(slot, lid);
+      // Лишнее гаснет сразу, пока снимается радиатор: к началу наезда схема уже
+      // облегчена, и кадры движения достаются дешевле.
+      narrowView(frameOf(lid, 22));
 
       // Радиатор снимается тем же движением, что и в сервисном режиме: он
       // стоит на винтах, и снять его иначе нельзя.
@@ -2203,22 +2257,33 @@
       sfxMove(slot, 'out');
       line('cpu' + n + ': радиатор снят', 'warn');
 
-      sceneWait(420, function () {
-        camera(frameOf(lid, 22), 760);
+      // Камера трогается не сразу, и это не пауза ради паузы. Радиатор уходит
+      // вправо на две с лишним сотни единиц — дальше, чем весь кадр наезда, —
+      // и камера, пущенная вдогонку, обгоняет его: снятие происходит уже за
+      // границей кадра, и со стороны читается, что радиатор не снялся вовсе.
+      // Полсекунды — это его собственный ход по --glide, ровно столько и ждём.
+      sceneWait(520, function () {
+        camera(frameOf(lid, 22), 700);
         line('cpu' + n + ': ' + HW.cpu.model + ' · ' + HW.cpu.socket, 'muted');
       });
 
-      sceneWait(1100, function () {
+      // Кремний открывается, едва камера пришла. Прежде он ждал до 1100 мс, а
+      // проступал ещё полсекунды — и к своей полной яркости приходил за сотню
+      // миллисекунд до ухода. Смотреть было не на что: всю сцену занимал блик
+      // по крышке, ради которого её никто не открывал.
+      sceneWait(700, function () {
         slot.classList.add('probing');
         line('cpu' + n + ': ' + HW.cpu.ccd + ' кристаллов · '
              + HW.cpu.cores + ' ядер · ' + HW.cpu.threads + ' потоков', 'ok');
       });
 
-      sceneWait(1900, function () {
+      sceneWait(2200, function () {
         line('cpu' + n + ': нагрузка по всем ядрам · открываю резюме', 'ok');
       });
 
-      sceneWait(2300, done);
+      // Волна кончается около 2100 мс, и после неё кремний стоит открытым ещё
+      // почти секунду: это и есть тот кадр, ради которого сцена затевалась.
+      sceneWait(2950, done);
     },
   });
   PICKS.push({
@@ -2341,6 +2406,7 @@
     rig.classList.remove('opening', 'leaving');
     rig.querySelectorAll('.scene').forEach(function (el) { el.classList.remove('scene'); });
     camera(VIEW0, 0);
+    narrowView(null);
     leave(href);
   }
 
@@ -2353,6 +2419,21 @@
 
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && opening) skipOpening();
+  });
+
+  // Тяжёлое сцена готовит заранее, пока гость только ведёт курсор к узлу.
+  // Внутри самой сцены на это нет свободного кадра: построить две сотни фигур
+  // и рассчитать их стили — это пятая доля секунды, и приходится она ровно на
+  // начало движения камеры, то есть на самое заметное место. Тем же приёмом
+  // страница подтягивает резюме на наведении — здесь просто своя ноша.
+  const prepped = new WeakSet();
+  rig.addEventListener('mouseover', function (e) {
+    const unit = e.target.closest('.unit[data-href]');
+    if (!unit || prepped.has(unit) || !linksLive()) return;
+    const scene = OPENERS.find(function (s) { return s.test(unit); });
+    if (!scene || !scene.prep) return;
+    prepped.add(unit);
+    scene.prep(unit);
   });
 
   // Подпись-выноска ведёт туда же, куда её узел, и обязана открываться так же.
@@ -2375,6 +2456,7 @@
     rig.classList.remove('opening', 'leaving');
     rig.querySelectorAll('.scene').forEach(function (el) { el.classList.remove('scene'); });
     camera(VIEW0, 0);
+    narrowView(null);
   });
 
   // The callouts are real <a> elements; service mode hides them in css. This
