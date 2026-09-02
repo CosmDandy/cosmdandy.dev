@@ -51,6 +51,9 @@ if (!CHROME) { console.error('chromium not found in /nix/store'); process.exit(1
 const SCENES = {
   cpu: {
     unit: '.unit[data-group="cpu"]',
+    // Куда наводить курсор: середина всего узла приходится на подписи и лампы,
+    // а человек целится в саму крышку.
+    aim: '.cpu-slot .ihs',
     goes: 'cv.cosmdandy.dev',
     shows: { sel: '.cores', held: 900 },
     // Радиатор обязан уехать, и уехать на глазах. Мерка появилась не от
@@ -218,6 +221,25 @@ for (const name of names) {
   if (!has) { fail(`узла ${sc.unit} нет на плате`); await page.close(); continue; }
 
   const view0 = await view(page);
+  const clickedAt0 = Date.now();
+  // Наводим курсор и щёлкаем мышью по координатам, а не шлём событие в узел.
+  // Разница не формальная: под курсором работает :hover, и его правила спорят
+  // со сценическими при равной силе. Ровно на этом сцена процессора и стояла —
+  // событие в элемент курсор не наводит, и проверка честно видела движение
+  // там, где человек видел неподвижную деталь. Пять раз подряд.
+  const aim = await page.evaluate(sel => {
+    const b = document.querySelector(sel).getBoundingClientRect();
+    return { x: Math.round(b.x + b.width / 2), y: Math.round(b.y + b.height / 2) };
+  }, sc.aim || sc.unit);
+  await page.mouse.move(aim.x, aim.y);
+  // С запасом: на наведении сцена строит своё тяжёлое, и щелчок в упор
+  // приходится в занятый главный поток. Человек так и водит мышью — сперва
+  // наводит, потом жмёт.
+  await page.waitForTimeout(450);
+
+  // Трек заводим здесь, а не раньше: до наведения того, что показывает сцена,
+  // в разметке ещё нет, и трек каждый кадр обыскивал бы весь документ впустую.
+  // Он же и тормозил старт детали — мерка снова мешала измеряемому.
   // Дорожка движения: снимаем собственный сдвиг детали и кадр схемы подряд,
   // чтобы потом сказать, когда тронулась деталь и когда — камера.
   if (sc.moves || sc.shows) {
@@ -235,30 +257,50 @@ for (const name of names) {
       // Видимость — то, что решает глаз: прозрачность вместе с visibility, и у
       // всех предков тоже. Своя единица не спасает, если группа над тобой
       // погашена, а именно так эти сцены и устроены.
-      const seen = () => {
-        if (!o.shows) return 0;
-        const el = document.querySelector(o.shows.sel);
-        if (!el) return 0;
-        let node = el, k = 1;
-        while (node && node.nodeType === 1) {
-          const cs = getComputedStyle(node);
-          if (cs.visibility === 'hidden' || cs.display === 'none') return 0;
+      // Цепочку предков собираем один раз — но лениво, при первом появлении
+      // элемента: то, что показывают сцены, строится скриптом уже по ходу дела,
+      // и собранная заранее цепочка вышла бы пустой. На этом мерка показа и
+      // отчиталась, что кристаллы не видны ни одной миллисекунды.
+      let chain = null;
+      const links = () => {
+        if (chain) return chain;
+        const el = o.shows ? document.querySelector(o.shows.sel) : null;
+        if (!el) return null;
+        chain = [];
+        for (let n = el; n && n.nodeType === 1; n = n.parentNode) chain.push(n);
+        return chain;
+      };
+      // И считаем видимость не каждый кадр, а раз в полсотни миллисекунд.
+      // Мерка обязана мешать измеряемому как можно меньше: с обходом на каждом
+      // кадре она отъедала первые кадры сцены и показывала, что деталь
+      // трогается на сто миллисекунд позже, чем на самом деле. Проверка,
+      // меняющая то, что меряет, — это не проверка.
+      let seenAt = -1e9, seenVal = 0;
+      const seen = now => {
+        const c = links();
+        if (!c || !c.length) return 0;
+        if (now - seenAt < 50) return seenVal;
+        seenAt = now;
+        let k = 1;
+        for (const n of c) {
+          const cs = getComputedStyle(n);
+          if (cs.visibility === 'hidden' || cs.display === 'none') { k = 0; break; }
           k *= parseFloat(cs.opacity);
-          node = node.parentNode;
         }
+        seenVal = k;
         return k;
       };
       window.__track = [];
       const t0 = performance.now();
       (function tick() {
-        window.__track.push({ t: performance.now() - t0, shift: shift(),
-                              seen: seen(), view: board.getAttribute('viewBox') });
+        const now = performance.now();
+        window.__track.push({ t: now - t0, shift: shift(),
+                              seen: seen(now), view: board.getAttribute('viewBox') });
         if (performance.now() - t0 < 4200) requestAnimationFrame(tick);
       })();
     }, { moves: sc.moves || null, shows: sc.shows || null });
   }
-  await page.evaluate(sel => document.querySelector(sel)
-    .dispatchEvent(new MouseEvent('click', { bubbles: true })), sc.unit);
+  await page.mouse.click(aim.x, aim.y);
 
   // Сразу после щелчка уход ещё не должен состояться: между ними сцена.
   await page.waitForTimeout(140);

@@ -161,8 +161,15 @@
      он показывает поле контактов сокета, а кремний остаётся у него на
      изнанке. Мы не разбираем, а смотрим внутрь — и это единственное
      условное место во всей сцене. */
+  /* Через .pick-body, а не просто по имени детали: общий файл гасит подъём от
+     наведения правилом .rig.opening .pick:hover .pick-body, у него ровно та же
+     специфичность, и лежит оно ниже — блочные стили вставляются раньше общего
+     хвоста. Спор при равной силе решает порядок строк, и радиатор под курсором
+     получал transform: none. Со стороны это выглядело просто: щёлкаешь мышью —
+     он не снимается; шлёшь событие в элемент, не наводя курсор, — снимается.
+     Лишний класс в селекторе поднимает силу и снимает спор вовсе. */
   .rig.opening .cpu-slot.pulled .pick-body { transform: none; }
-  .rig.opening .cpu-slot.pulled .heatsink { transform: translate(232px, -75px); }
+  .rig.opening .cpu-slot.pulled .pick-body.heatsink { transform: translate(232px, -75px); }
   .rig.opening .cpu-slot.pulled .die {
     visibility: visible; opacity: 1;
     transition: opacity var(--fade), transform var(--glide), visibility 0s;
