@@ -942,6 +942,12 @@
   // кадре не будет, снимается заранее — см. narrowView ниже.
   function camera(to, ms, done) {
     if (camAnim) { cancelAnimationFrame(camAnim); camAnim = null; }
+    // Наклон снимается здесь, а не в начале сцены. Он держится 3D-слоем, и его
+    // снятие — перерисовка всей схемы; поставленное на щелчок, оно занимало
+    // главный поток ровно тогда, когда с места должна трогаться деталь. Мерка
+    // движения показала это числом: радиатор ждал лишние восемьдесят
+    // миллисекунд. Камере же выпрямление и нужно — ради вектора на наезде.
+    rig.classList.add('flat');
     if (reduced || !ms) { putView(to); if (done) done(); return; }
     const from = board.getAttribute('viewBox').trim().split(/\s+/).map(Number);
     const t0 = performance.now();
@@ -1093,6 +1099,7 @@
     rig.querySelectorAll('.scene').forEach(function (el) { el.classList.remove('scene'); });
     camera(VIEW0, 0);
     narrowView(null);
+    rig.classList.remove('flat');
     leave(href);
   }
 
@@ -1143,6 +1150,7 @@
     rig.querySelectorAll('.scene').forEach(function (el) { el.classList.remove('scene'); });
     camera(VIEW0, 0);
     narrowView(null);
+    rig.classList.remove('flat');
   });
 
   // The callouts are real <a> elements; service mode hides them in css. This

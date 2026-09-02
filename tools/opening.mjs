@@ -52,6 +52,25 @@ const SCENES = {
   cpu: {
     unit: '.unit[data-group="cpu"]',
     goes: 'cv.cosmdandy.dev',
+    shows: { sel: '.cores', held: 900 },
+    // Радиатор обязан уехать, и уехать на глазах. Мерка появилась не от
+    // хорошей жизни: сцена проходила все прежние проверки — класс вставал,
+    // правило подходило, адрес был верный, — а деталь со стороны стояла.
+    // Триста миллисекунд её держал занятый главный поток, а остаток пути она
+    // проделывала уже за краем кадра, вместе с наездом камеры. Ни одна мерка
+    // этого не видела: все спрашивали про состояние, ни одна — про движение.
+    //
+    // Мерить надо собственный transform детали, а не её место на экране:
+    // экранное место растёт и от наезда, и такой мерке довольно камеры, чтобы
+    // отчитаться об успехе, пока деталь стоит.
+    moves: {
+      sel: '.cpu-slot .heatsink',
+      // Тронуться не позже: столько занимает первый кадр перехода.
+      startsBy: 260,
+      // И пройти почти весь путь до того, как тронется камера, — иначе
+      // движение уедет за границу кадра и его никто не увидит.
+      doneAtCamera: 0.9,
+    },
     // Кремний строится скриптом по паспорту, и число ядер обязано совпасть.
     counts: { '.cores .core': spec => spec.cpu.cores,
               '.cores .ccd-box': spec => spec.cpu.ccd },
@@ -60,6 +79,7 @@ const SCENES = {
   hdd: {
     unit: '.unit[data-group="hdd"]',
     goes: 'github.com/cosmdandy',
+    shows: { sel: '.bay-graph', held: 900 },
     // counts у этой сцены нет нарочно: форма графа календарная, а не из
     // паспорта, и подписывать её «как в паспорте» значило бы соврать в
     // выводе проверки. Обе величины спрашиваем пробой, где подпись своя.
@@ -86,6 +106,7 @@ const SCENES = {
   dimm: {
     unit: '.unit[data-group="dimm"]',
     goes: 'blog.cosmdandy.dev',
+    shows: { sel: '.bank-cells', held: 900 },
     // Корпусов на планке столько, сколько выходит из разрядности: шина с
     // коррекцией — 72 бита, чип отдаёт восемь. Считаем так же, как сцена.
     counts: { '.bank-cells .cell': spec =>
@@ -100,6 +121,7 @@ const SCENES = {
   ocp: {
     unit: '.unit[data-group="ocp"]',
     goes: 'linkedin.com/in/cosmdandy',
+    shows: { sel: '.sw[data-sw="sw10"]', held: 700 },
     // Гнёзд на морде столько же, сколько в паспорте: врать на схеме нельзя и
     // про то, чего в машине нет.
     counts: { '.sw[data-sw="sw10"] .swport':
@@ -111,6 +133,7 @@ const SCENES = {
   eth: {
     unit: '.unit[data-group="eth"]',
     goes: '/tg/',
+    shows: { sel: '.sw[data-sw="sw1"]', held: 700 },
     counts: { '.sw[data-sw="sw1"] .swport':
       spec => spec.net.sw.find(w => w.id === 'sw1').ports },
     lands: 'sw1',
@@ -120,6 +143,7 @@ const SCENES = {
   tw: {
     unit: '.unit[data-group="tw"]',
     goes: 'x.com/cosmdandy',
+    shows: { sel: '.sw[data-sw="sw1"]', held: 700 },
     lands: 'sw1',
     escapeAt: 2400,
     span: 3200,
@@ -194,6 +218,45 @@ for (const name of names) {
   if (!has) { fail(`узла ${sc.unit} нет на плате`); await page.close(); continue; }
 
   const view0 = await view(page);
+  // Дорожка движения: снимаем собственный сдвиг детали и кадр схемы подряд,
+  // чтобы потом сказать, когда тронулась деталь и когда — камера.
+  if (sc.moves || sc.shows) {
+    await page.evaluate(o => {
+      const board = document.getElementById('board');
+      const moved = o.moves ? document.querySelector(o.moves.sel) : null;
+      // Сдвиг берём собственный, из transform детали, а не её место на экране:
+      // экранное место растёт и от наезда камеры, и такой мерке довольно
+      // камеры, чтобы отчитаться об успехе над неподвижной деталью.
+      const shift = () => {
+        if (!moved) return 0;
+        const n = /matrix\(([^)]+)\)/.exec(getComputedStyle(moved).transform);
+        return n ? Math.abs(parseFloat(n[1].split(',')[4])) : 0;
+      };
+      // Видимость — то, что решает глаз: прозрачность вместе с visibility, и у
+      // всех предков тоже. Своя единица не спасает, если группа над тобой
+      // погашена, а именно так эти сцены и устроены.
+      const seen = () => {
+        if (!o.shows) return 0;
+        const el = document.querySelector(o.shows.sel);
+        if (!el) return 0;
+        let node = el, k = 1;
+        while (node && node.nodeType === 1) {
+          const cs = getComputedStyle(node);
+          if (cs.visibility === 'hidden' || cs.display === 'none') return 0;
+          k *= parseFloat(cs.opacity);
+          node = node.parentNode;
+        }
+        return k;
+      };
+      window.__track = [];
+      const t0 = performance.now();
+      (function tick() {
+        window.__track.push({ t: performance.now() - t0, shift: shift(),
+                              seen: seen(), view: board.getAttribute('viewBox') });
+        if (performance.now() - t0 < 4200) requestAnimationFrame(tick);
+      })();
+    }, { moves: sc.moves || null, shows: sc.shows || null });
+  }
   await page.evaluate(sel => document.querySelector(sel)
     .dispatchEvent(new MouseEvent('click', { bubbles: true })), sc.unit);
 
@@ -224,6 +287,51 @@ for (const name of names) {
     else if (!inside) fail(`кадр мимо узла: ${view1} против габарита ${box.map(Math.round).join(' ')}`);
     else okay(`камера навелась: ${w0.toFixed(0)} → ${w.toFixed(0)} единиц ширины`);
   }
+
+  if (sc.moves || sc.shows) {
+    await page.waitForTimeout(Math.max(2100, (sc.span || 0) + 400));
+    const track = await page.evaluate(() => window.__track);
+    const view00 = track[0].view;
+
+    // Показ: главное сцены обязано побыть на экране, а не мелькнуть перед
+    // уходом. Мерка нужна потому, что ровно так и было: кристаллы доходили до
+    // полной яркости за сотню миллисекунд до перехода, и гость видел не
+    // раскладку кремния, ради которой всё затевалось, а блик по крышке.
+    if (sc.shows) {
+      const lit = track.filter(p => p.seen > 0.9);
+      const held = lit.length ? lit[lit.length - 1].t - lit[0].t : 0;
+      if (held < sc.shows.held) {
+        fail(`${sc.shows.sel}: видно ${Math.round(held)} мс, надо ${sc.shows.held} — `
+             + 'главное сцены мелькает и пропадает');
+      } else {
+        okay(`${sc.shows.sel}: видно ${Math.round(held)} мс`);
+      }
+    }
+    if (!sc.moves) { /* дальше только про движение */ } else {
+    const full = Math.max(...track.map(p => p.shift));
+    const started = track.find(p => p.shift > full * 0.05);
+    const camera = track.find(p => p.view !== view00);
+    if (!full) {
+      fail(`${sc.moves.sel}: не сдвинулась вовсе за всю сцену`);
+    } else if (!started || started.t > sc.moves.startsBy) {
+      fail(`${sc.moves.sel}: тронулась на ${started ? Math.round(started.t) : '—'} мс, `
+           + `а должна была к ${sc.moves.startsBy} — со стороны деталь стоит`);
+    } else if (camera) {
+      const at = track.find(p => p.t >= camera.t) || track[track.length - 1];
+      const done = at.shift / full;
+      if (done < sc.moves.doneAtCamera) {
+        fail(`${sc.moves.sel}: к старту камеры прошла ${(done * 100).toFixed(0)}% пути, `
+             + `надо ${(sc.moves.doneAtCamera * 100).toFixed(0)}% — остаток уедет за кадр`);
+      } else {
+        okay(`${sc.moves.sel}: тронулась на ${Math.round(started.t)} мс, `
+             + `к наезду прошла ${(done * 100).toFixed(0)}% пути`);
+      }
+    } else {
+      okay(`${sc.moves.sel}: тронулась на ${Math.round(started.t)} мс`);
+    }
+    }
+  }
+
 
   for (const [sel, want] of Object.entries(sc.counts || {})) {
     const n = await page.$$eval(sel, els => els.length).catch(() => 0);

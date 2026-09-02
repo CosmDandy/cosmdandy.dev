@@ -1811,7 +1811,10 @@ body.view-rig .sfx-btn { display: grid; }
 
      Плашки при этом не двигаются. Память не разбирают, чтобы прочитать, —
      наоборот, читать можно только пока она стоит в гнезде. */
-  .bank-cells { opacity: 0; transition: opacity 0.4s ease; pointer-events: none; }
+  /* Проступает быстро: на четырёх десятых секунды корпуса набирали полную
+     яркость почти к самому уходу, и мерка показа поймала это числом — восемьсот
+     сорок миллисекунд видимости вместо девятисот. */
+  .bank-cells { opacity: 0; transition: opacity 0.22s ease; pointer-events: none; }
   .unit.refreshing .bank-cells { opacity: 1; }
 
   /* Чип на своём месте виден краем: это корпус на текстолите, а не окно.
@@ -3603,7 +3606,7 @@ body.zoom .zoom-btn[aria-pressed="true"] {
 
    Наклон уходит не рывком: у .chassis свой переход по transform, и
    выпрямление читается как продолжение наезда, а не как подмена картинки. */
-.rig.opening .chassis {
+.rig.flat .chassis {
     transform: none;
     will-change: auto;
     backface-visibility: visible;
@@ -3612,7 +3615,7 @@ body.zoom .zoom-btn[aria-pressed="true"] {
 /* Свечение под машиной на время пролога гаснет. Это blur(140px) во весь
    экран, и держать его, пока идёт наезд, значит платить тяжёлым фильтром за
    каждый кадр камеры — ровно там, где кадров больше всего. */
-.rig.opening .rig-glow { opacity: 0; }
+.rig.flat .rig-glow { opacity: 0; }
 
 /* Блок, не попавший в кадр наезда, сперва гаснет, а потом снимается с
    отрисовки совсем. Двумя шагами, а не одним: display:none посреди движения —

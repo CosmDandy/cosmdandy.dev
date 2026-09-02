@@ -1931,6 +1931,12 @@
   // кадре не будет, снимается заранее — см. narrowView ниже.
   function camera(to, ms, done) {
     if (camAnim) { cancelAnimationFrame(camAnim); camAnim = null; }
+    // Наклон снимается здесь, а не в начале сцены. Он держится 3D-слоем, и его
+    // снятие — перерисовка всей схемы; поставленное на щелчок, оно занимало
+    // главный поток ровно тогда, когда с места должна трогаться деталь. Мерка
+    // движения показала это числом: радиатор ждал лишние восемьдесят
+    // миллисекунд. Камере же выпрямление и нужно — ради вектора на наезде.
+    rig.classList.add('flat');
     if (reduced || !ms) { putView(to); if (done) done(); return; }
     const from = board.getAttribute('viewBox').trim().split(/\s+/).map(Number);
     const t0 = performance.now();
@@ -2072,7 +2078,7 @@
              + ' ГБ обойдено · открываю записи', 'ok');
       });
 
-      sceneWait(2100, done);
+      sceneWait(2450, done);
     },
   });
   // A drive comes out in two moves, the way hands do it: first the handle
@@ -2401,23 +2407,34 @@
       const slot = el.querySelector('.cpu-slot');
       const lid = slot.querySelector('.ihs');
       const n = slot.dataset.cpu;
-      buildCores(slot, lid);
-      // Лишнее гаснет сразу, пока снимается радиатор: к началу наезда схема уже
-      // облегчена, и кадры движения достаются дешевле.
-      narrowView(frameOf(lid, 22));
-
-      // Радиатор снимается тем же движением, что и в сервисном режиме: он
-      // стоит на винтах, и снять его иначе нельзя.
+      // Радиатор трогается первым, и первым же в этом кадре: всё тяжёлое —
+      // постройка кремния и обход блоков — уходит за него. Пока они шли до
+      // него, переход не успевал начаться: замер показывал ноль на трёхстах
+      // миллисекундах, деталь стояла, а гость видел неподвижный радиатор.
       slot.classList.add('pulled');
       sfxMove(slot, 'out');
       line('cpu' + n + ': радиатор снят', 'warn');
+
+      // Кремний строится здесь только если не успели на наведении, а сужение
+      // кадра — следом. Кадр отсчитан дважды нарочно: обработчик rAF работает
+      // перед отрисовкой, и тяжёлая работа в первом же из них задерживает ровно
+      // тот кадр, который обязан показать тронувшийся радиатор. Мерка это и
+      // поймала — деталь трогалась на 338 мс вместо 260. Во втором кадре
+      // переход уже отдан композитору, и занятый главный поток ему не помеха.
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          if (!lid.isConnected) return;
+          buildCores(slot, lid);
+          narrowView(frameOf(lid, 22));
+        });
+      });
 
       // Камера трогается не сразу, и это не пауза ради паузы. Радиатор уходит
       // вправо на две с лишним сотни единиц — дальше, чем весь кадр наезда, —
       // и камера, пущенная вдогонку, обгоняет его: снятие происходит уже за
       // границей кадра, и со стороны читается, что радиатор не снялся вовсе.
       // Полсекунды — это его собственный ход по --glide, ровно столько и ждём.
-      sceneWait(520, function () {
+      sceneWait(900, function () {
         camera(frameOf(lid, 22), 700);
         line('cpu' + n + ': ' + HW.cpu.model + ' · ' + HW.cpu.socket, 'muted');
       });
@@ -2426,19 +2443,19 @@
       // проступал ещё полсекунды — и к своей полной яркости приходил за сотню
       // миллисекунд до ухода. Смотреть было не на что: всю сцену занимал блик
       // по крышке, ради которого её никто не открывал.
-      sceneWait(700, function () {
+      sceneWait(1080, function () {
         slot.classList.add('probing');
         line('cpu' + n + ': ' + HW.cpu.ccd + ' кристаллов · '
              + HW.cpu.cores + ' ядер · ' + HW.cpu.threads + ' потоков', 'ok');
       });
 
-      sceneWait(2200, function () {
+      sceneWait(2600, function () {
         line('cpu' + n + ': нагрузка по всем ядрам · открываю резюме', 'ok');
       });
 
       // Волна кончается около 2100 мс, и после неё кремний стоит открытым ещё
       // почти секунду: это и есть тот кадр, ради которого сцена затевалась.
-      sceneWait(2950, done);
+      sceneWait(3350, done);
     },
   });
   PICKS.push({
@@ -2641,6 +2658,7 @@
     rig.querySelectorAll('.scene').forEach(function (el) { el.classList.remove('scene'); });
     camera(VIEW0, 0);
     narrowView(null);
+    rig.classList.remove('flat');
     leave(href);
   }
 
@@ -2691,6 +2709,7 @@
     rig.querySelectorAll('.scene').forEach(function (el) { el.classList.remove('scene'); });
     camera(VIEW0, 0);
     narrowView(null);
+    rig.classList.remove('flat');
   });
 
   // The callouts are real <a> elements; service mode hides them in css. This
