@@ -1069,6 +1069,7 @@
 
   function openUnit(unit, href) {
     if (opening) { skipOpening(); return; }
+    warm(href);
     const scene = OPENERS.find(function (s) { return s.test(unit); });
     // Сцены нет — уходим сразу. На prefers-reduced-motion её нет ни у одного
     // узла: это не украшение, от которого можно оставить половину.
@@ -1114,6 +1115,78 @@
     if (e.key === 'Escape' && opening) skipOpening();
   });
 
+  // ── Прогрев сети ───────────────────────────────────────────────────────
+  // Пролог длится две-три секунды, и всё это время сеть простаивала: браузер
+  // принимался узнавать адрес и жать руку серверу только после того, как сцена
+  // доиграла. Замер: полсекунды на соединение и первый ответ — ровно столько
+  // гость ждал сверх анимации, глядя на пустой экран.
+  //
+  // Греем в два захода. На наведении — потому что между «мышь пришла на узел»
+  // и щелчком проходит несколько десятых секунды, и их хватает на имя с
+  // рукопожатием. На щелчке — потому что курсора может и не быть вовсе:
+  // клавиатура, палец, чтение с экрана.
+  //
+  // Три уровня, и они разной силы:
+  //   соединение   работает для любого адреса, включая чужие: рукопожатие не
+  //                зависит от того, разрешит ли сервер переиспользовать ответ;
+  //   документ     для своих страниц ложится в кеш целиком, для чужих — как
+  //                позволит их cache-control, и обещать тут нечего;
+  //   отрисовка    только для своего origin: соседние поддомены пускают к себе
+  //                предварительный показ лишь по собственному заголовку, а
+  //                чужие сайты — никогда.
+  const warmed = { conn: {}, doc: {}, pre: {} };
+
+  function head(rel, href) {
+    // Проверяем, не греет ли это уже кто-то другой: страница сама подтягивает
+    // резюме на наведении, и наш такой же тег означал бы второй запрос за тем
+    // же документом. Свой список тут не поможет — тег чужой.
+    const sel = 'link[rel="' + rel + '"]';
+    for (const link of document.head.querySelectorAll(sel)) {
+      if (link.href === href || link.href === href + '/') return;
+    }
+    const tag = document.createElement('link');
+    tag.rel = rel;
+    tag.href = href;
+    document.head.appendChild(tag);
+  }
+
+  function warm(href) {
+    let url;
+    try { url = new URL(href, location.href); } catch (e) { return; }
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
+
+    if (!warmed.conn[url.origin]) {
+      warmed.conn[url.origin] = true;
+      // Без crossorigin — и это не небрежность, а условие работы. Переход по
+      // ссылке браузер делает запросом с учётными данными, а preconnect с
+      // crossorigin="anonymous" греет соединение без них: пулы разные, и
+      // документ пойдёт по своему, заново пожав руку. Замер это и показал —
+      // с anonymous выигрыш был нулевой, соединение как занимало треть
+      // секунды, так и занимало.
+      head('preconnect', url.origin);
+      head('dns-prefetch', url.origin);
+    }
+
+    if (!warmed.doc[url.href]) {
+      warmed.doc[url.href] = true;
+      head('prefetch', url.href);
+    }
+
+    // Свой origin — единственное место, где можно отрисовать страницу заранее
+    // без уговора с той стороной. Правила показа умеют не все браузеры;
+    // остальные просто не увидят этот блок, и всё останется как было.
+    if (url.origin === location.origin && !warmed.pre[url.href]
+        && HTMLScriptElement.supports && HTMLScriptElement.supports('speculationrules')) {
+      warmed.pre[url.href] = true;
+      const rules = document.createElement('script');
+      rules.type = 'speculationrules';
+      rules.textContent = JSON.stringify({
+        prerender: [{ source: 'list', urls: [url.pathname + url.search] }],
+      });
+      document.head.appendChild(rules);
+    }
+  }
+
   // Тяжёлое сцена готовит заранее, пока гость только ведёт курсор к узлу.
   // Внутри самой сцены на это нет свободного кадра: построить две сотни фигур
   // и рассчитать их стили — это пятая доля секунды, и приходится она ровно на
@@ -1123,10 +1196,11 @@
   rig.addEventListener('mouseover', function (e) {
     const unit = e.target.closest('.unit[data-href]');
     if (!unit || prepped.has(unit) || !linksLive()) return;
-    const scene = OPENERS.find(function (s) { return s.test(unit); });
-    if (!scene || !scene.prep) return;
     prepped.add(unit);
-    scene.prep(unit);
+    // Греем всегда, даже если сцены у узла нет: адрес всё равно откроется.
+    warm(unit.dataset.href);
+    const scene = OPENERS.find(function (s) { return s.test(unit); });
+    if (scene && scene.prep) scene.prep(unit);
   });
 
   // Подпись-выноска ведёт туда же, куда её узел, и обязана открываться так же.
