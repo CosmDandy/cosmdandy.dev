@@ -898,6 +898,58 @@
   // shared file.
   const PICKS = [];
 
+  // ── Открытие раздела ───────────────────────────────────────────────────
+  // Щелчок по узлу уводит на его раздел, и раньше уводил сразу. Теперь у
+  // перехода есть пролог: машина сперва показывает, чем этот раздел является
+  // в её собственных понятиях — процессор считает, память вспоминает. Сцену
+  // объявляет сам блок, здесь только общий ход: кадр, занавес и уход.
+  //
+  // Регистр устроен как PICKS и по той же причине: сцена принадлежит узлу, а
+  // не общему файлу, и живёт в его собственном скрипте.
+  const OPENERS = [];
+
+  // Камера — это viewBox самой схемы, а не transform поверх неё, и это не
+  // вкус. Наезд через transform ломает разом две вещи: обрезка кристалла
+  // задана в пользовательских координатах и уезжает вместе с группой (ровно
+  // та цветная полоса поверх вентиляторов, из-за которой правило вынесли на
+  // сам .die), а наклон сцены складывается с масштабом и уводит кадр вбок.
+  // У окна нет ни того, ни другого: меняется рамка, а не содержимое, и всё
+  // внутри — обрезки, градиенты, наклон — остаётся при своём.
+  const VIEW0 = board.getAttribute('viewBox').trim().split(/\s+/).map(Number);
+  const VIEW_AR = VIEW0[2] / VIEW0[3];
+  let camAnim = null;
+
+  function putView(v) {
+    board.setAttribute('viewBox', v.map(function (n) { return n.toFixed(1); }).join(' '));
+  }
+
+  // Кадр по узлу: его габарит, раздутый до пропорций схемы. Пропорции держать
+  // обязательно — высоту картинки браузер считает из viewBox при height:auto,
+  // и кадр другой формы менял бы высоту страницы прямо посреди наезда.
+  function frameOf(el, pad) {
+    const b = el.getBBox();
+    let w = b.width + 2 * pad, h = b.height + 2 * pad;
+    if (w / h < VIEW_AR) w = h * VIEW_AR; else h = w / VIEW_AR;
+    return [b.x + b.width / 2 - w / 2, b.y + b.height / 2 - h / 2, w, h];
+  }
+
+  function camera(to, ms, done) {
+    if (camAnim) { cancelAnimationFrame(camAnim); camAnim = null; }
+    if (reduced || !ms) { putView(to); if (done) done(); return; }
+    const from = board.getAttribute('viewBox').trim().split(/\s+/).map(Number);
+    const t0 = performance.now();
+    (function tick(now) {
+      const p = Math.min(1, (now - t0) / ms);
+      // Та же кривая, что у лупы: масштаб набирается сразу и мягко доводится.
+      // Линейный ход читается рывком ровно в конце, когда движение обрывается.
+      const k = 1 - Math.pow(1 - p, 3);
+      putView(from.map(function (v, i) { return v + (to[i] - v) * k; }));
+      camAnim = p < 1 ? requestAnimationFrame(tick) : null;
+      if (p >= 1 && done) done();
+    })(t0);
+  }
+
+
   // @block: fans
   // @block: memory
   // @block: drives
@@ -945,14 +997,94 @@
     // состояниях подсказка с адресом уже не показывается, а сам переход
     // оставался: узел под закрытой крышкой молча уводил на другой сайт.
     if (!linksLive() || rig.classList.contains('zoom')) return;
-    const href = unit.dataset.href;
+    openUnit(unit, unit.dataset.href);
+  });
+
+  // ── Пролог перед уходом ────────────────────────────────────────────────
+  // Уход всегда в этой же вкладке, и это условие пролога, а не вкус: после
+  // анимации window.open в новую вкладку уже не пустит — жест к тому времени
+  // остыл, и блокировщик всплывающих окон съест переход молча. Заодно это
+  // единственный способ довезти имя до соседней страницы: переезд между
+  // документами живёт внутри одной вкладки.
+  //
+  // Зовём именно window.open, а не location: страница подменяет его собой и
+  // адрес резюме перехватывает — там имя уезжает своим переездом. Всё
+  // остальное подменённая функция передаёт браузеру с той же целью.
+  function leave(href) {
     if (href.startsWith('mailto:')) { window.location.href = href; return; }
-    // Свой раздел открываем здесь же: имя переезжает на соседнюю страницу
-    // штатным переходом браузера, а он возможен только внутри одной вкладки.
-    // В новой вкладке документ начинается с чистого листа, и переносить в нём
-    // нечего — анимация молча пропадала, хотя обе страницы её объявляли.
-    if (href.startsWith('/')) { window.location.href = href; return; }
-    window.open(href, '_blank', 'noopener');
+    window.open(href, '_self');
+  }
+
+  // Пока идёт пролог, машина занята: щелчок по ней и escape означают «не
+  // тяни», а не «покажи ещё раз». Ждать сцену до конца обязан только тот, кто
+  // сам её не прерывал.
+  let opening = null;
+
+  function openUnit(unit, href) {
+    if (opening) { skipOpening(); return; }
+    const scene = OPENERS.find(function (s) { return s.test(unit); });
+    // Сцены нет — уходим сразу. На prefers-reduced-motion её нет ни у одного
+    // узла: это не украшение, от которого можно оставить половину.
+    if (!scene || reduced) { leave(href); return; }
+    opening = { href: href, timers: [] };
+    rig.classList.add('opening');
+    scene.play(unit, function () { closeOpening(); });
+  }
+
+  // Занавес общий для всех сцен: чем бы ни кончился пролог, страница гаснет
+  // одинаково, и следующий документ принимает переход с той же темноты.
+  function closeOpening() {
+    if (!opening) return;
+    const href = opening.href;
+    rig.classList.add('leaving');
+    opening.timers.push(wait(340, function () { leave(href); }));
+  }
+
+  // Прерывание: камера возвращается на место, а уход происходит немедленно.
+  // Возврат нужен на случай, когда уходить некуда — почта открывается
+  // почтовиком, и страница остаётся стоять там, где её бросили.
+  function skipOpening() {
+    if (!opening) return;
+    const href = opening.href;
+    opening.timers.forEach(clearTimeout);
+    opening = null;
+    rig.classList.remove('opening', 'leaving');
+    rig.querySelectorAll('.scene').forEach(function (el) { el.classList.remove('scene'); });
+    camera(VIEW0, 0);
+    leave(href);
+  }
+
+  // Ждать внутри сцены надо через это: свои таймеры она не собирает, а
+  // прерывание обязано снять их все разом.
+  function sceneWait(ms, fn) {
+    if (!opening) return;
+    opening.timers.push(wait(ms, function () { if (opening) fn(); }));
+  }
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && opening) skipOpening();
+  });
+
+  // Подпись-выноска ведёт туда же, куда её узел, и обязана открываться так же.
+  // Слушаем на .rig, а не на самих бирках: лента ревизий переписывает плату
+  // целиком, и обработчики на подписях ушли бы вместе с ней.
+  rig.addEventListener('click', function (e) {
+    const co = e.target.closest('a.callout[data-for]');
+    if (!co || !linksLive() || rig.classList.contains('zoom')) return;
+    const unit = rig.querySelector('.unit[data-group="' + co.dataset.for + '"]');
+    if (!unit || !OPENERS.some(function (s) { return s.test(unit); })) return;
+    e.preventDefault();
+    openUnit(unit, co.getAttribute('href'));
+  });
+
+  // Возврат «назад» отдаёт страницу из кеша ровно в том виде, в каком её
+  // оставили, — то есть в затемнении и с камерой, наехавшей на узел.
+  window.addEventListener('pageshow', function (e) {
+    if (!e.persisted) return;
+    opening = null;
+    rig.classList.remove('opening', 'leaving');
+    rig.querySelectorAll('.scene').forEach(function (el) { el.classList.remove('scene'); });
+    camera(VIEW0, 0);
   });
 
   // The callouts are real <a> elements; service mode hides them in css. This

@@ -1887,6 +1887,58 @@
   // shared file.
   const PICKS = [];
 
+  // ── Открытие раздела ───────────────────────────────────────────────────
+  // Щелчок по узлу уводит на его раздел, и раньше уводил сразу. Теперь у
+  // перехода есть пролог: машина сперва показывает, чем этот раздел является
+  // в её собственных понятиях — процессор считает, память вспоминает. Сцену
+  // объявляет сам блок, здесь только общий ход: кадр, занавес и уход.
+  //
+  // Регистр устроен как PICKS и по той же причине: сцена принадлежит узлу, а
+  // не общему файлу, и живёт в его собственном скрипте.
+  const OPENERS = [];
+
+  // Камера — это viewBox самой схемы, а не transform поверх неё, и это не
+  // вкус. Наезд через transform ломает разом две вещи: обрезка кристалла
+  // задана в пользовательских координатах и уезжает вместе с группой (ровно
+  // та цветная полоса поверх вентиляторов, из-за которой правило вынесли на
+  // сам .die), а наклон сцены складывается с масштабом и уводит кадр вбок.
+  // У окна нет ни того, ни другого: меняется рамка, а не содержимое, и всё
+  // внутри — обрезки, градиенты, наклон — остаётся при своём.
+  const VIEW0 = board.getAttribute('viewBox').trim().split(/\s+/).map(Number);
+  const VIEW_AR = VIEW0[2] / VIEW0[3];
+  let camAnim = null;
+
+  function putView(v) {
+    board.setAttribute('viewBox', v.map(function (n) { return n.toFixed(1); }).join(' '));
+  }
+
+  // Кадр по узлу: его габарит, раздутый до пропорций схемы. Пропорции держать
+  // обязательно — высоту картинки браузер считает из viewBox при height:auto,
+  // и кадр другой формы менял бы высоту страницы прямо посреди наезда.
+  function frameOf(el, pad) {
+    const b = el.getBBox();
+    let w = b.width + 2 * pad, h = b.height + 2 * pad;
+    if (w / h < VIEW_AR) w = h * VIEW_AR; else h = w / VIEW_AR;
+    return [b.x + b.width / 2 - w / 2, b.y + b.height / 2 - h / 2, w, h];
+  }
+
+  function camera(to, ms, done) {
+    if (camAnim) { cancelAnimationFrame(camAnim); camAnim = null; }
+    if (reduced || !ms) { putView(to); if (done) done(); return; }
+    const from = board.getAttribute('viewBox').trim().split(/\s+/).map(Number);
+    const t0 = performance.now();
+    (function tick(now) {
+      const p = Math.min(1, (now - t0) / ms);
+      // Та же кривая, что у лупы: масштаб набирается сразу и мягко доводится.
+      // Линейный ход читается рывком ровно в конце, когда движение обрывается.
+      const k = 1 - Math.pow(1 - p, 3);
+      putView(from.map(function (v, i) { return v + (to[i] - v) * k; }));
+      camAnim = p < 1 ? requestAnimationFrame(tick) : null;
+      if (p >= 1 && done) done();
+    })(t0);
+  }
+
+
   // Fan: in the log they are numbered from one, as on the chassis, but in the
   // markup from zero.
   PICKS.push({
@@ -1896,6 +1948,87 @@
   PICKS.push({
     test: function (el) { return el.dataset.dimm !== undefined; },
     name: function (el) { return 'dimm ' + el.dataset.dimm; },
+  });
+
+  // ── Сцена: открытие блога ──────────────────────────────────────────────
+  // Блог открывается памятью: записи лежат в ней, и достать их можно только
+  // тем, чем память вообще занята, — обходом строк. Камера наводится на банк,
+  // и по нему идёт цикл обновления.
+  const MEM_NS = 'http://www.w3.org/2000/svg';
+
+  // Микросхемы на модулях. В разметке их нет и не должно быть: это сцена для
+  // одного банка из трёх, и платить за неё разметкой обязан тот, кто её
+  // открыл, а не каждый гость.
+  //
+  // Сколько их — считается, а не выбирается. У модуля 2Rx8 разрядность чипа
+  // восемь бит, шина с коррекцией — семьдесят два: девять корпусов на ранг,
+  // и столько же видно с одной стороны планки. Соврать тут нельзя ровно так
+  // же, как в консоли: обе цифры приходят из одного паспорта.
+  function buildCells(bank) {
+    if (bank.querySelector('.bank-cells')) return;
+    const width = parseInt(/x(\d+)/i.exec((HW.dimm && HW.dimm.ranks) || '2Rx8')[1], 10);
+    const chips = Math.round(72 / width);
+    const dimms = [...bank.querySelectorAll('.dimm')];
+
+    const g = document.createElementNS(MEM_NS, 'g');
+    g.setAttribute('class', 'bank-cells');
+
+    dimms.forEach(function (dimm, row) {
+      const b = dimm.querySelector('.pick-body').getBBox();
+      // Корпуса сидят в ряд по длине планки, отступив от краёв: у самой
+      // кромки стоит не память, а ключ и контакты.
+      const padX = b.width * 0.10, padY = b.height * 0.24;
+      const w = (b.width - 2 * padX) / chips;
+      for (let i = 0; i < chips; i++) {
+        const r = document.createElementNS(MEM_NS, 'rect');
+        // Обход идёт по строкам, а строки лежат поперёк банка: волна
+        // проходит планку за планкой и по каждой слева направо. Задержка
+        // складывается из обоих слагаемых, поэтому фронт идёт наискось —
+        // так контроллер память и обходит, а не всю разом.
+        const c = row * chips + i;
+        r.setAttribute('class', 'cell' + (held(row, i) ? ' held' : ''));
+        r.setAttribute('x', (b.x + padX + i * w + 0.6).toFixed(2));
+        r.setAttribute('y', (b.y + padY).toFixed(2));
+        r.setAttribute('width', Math.max(0.6, w - 1.2).toFixed(2));
+        r.setAttribute('height', Math.max(0.6, b.height - 2 * padY).toFixed(2));
+        r.setAttribute('style', '--c:' + c);
+        g.appendChild(r);
+      }
+    });
+    bank.appendChild(g);
+  }
+
+  // Какие страницы заняты. Раскладка обязана быть одной и той же от показа к
+  // показу: мигающая наугад память читается неисправной, а не заполненной.
+  function held(row, i) {
+    return ((row * 7 + i * 3) % 11) < 4;
+  }
+
+  OPENERS.push({
+    test: function (el) { return el.dataset.group === 'dimm'; },
+    play: function (el, done) {
+      const code = (el.dataset.unit || '').split('-')[1] || 'L';
+      const spec = (HW.dimm.banks || []).find(function (b) { return b.code === code; })
+                   || HW.dimm.banks[0];
+      buildCells(el);
+
+      camera(frameOf(el, 26), 760);
+      line('dimm ' + code + ': банк ' + spec.ch + ' · ' + spec.n + '× '
+           + HW.dimm.size_gb + ' ГБ ' + HW.dimm.kind, 'muted');
+
+      sceneWait(700, function () {
+        el.classList.add('refreshing');
+        line('dimm ' + code + ': refresh · ' + HW.dimm.speed + ' MT/s · '
+             + HW.dimm.ranks, 'ok');
+      });
+
+      sceneWait(1700, function () {
+        line('dimm ' + code + ': ' + spec.n * HW.dimm.size_gb
+             + ' ГБ обойдено · открываю записи', 'ok');
+      });
+
+      sceneWait(2100, done);
+    },
   });
   // A drive comes out in two moves, the way hands do it: first the handle
   // unlatches, then the caddy slides out. A third click puts it back — and it
@@ -1979,6 +2112,115 @@
       }
     },
   });
+
+  // ── Сцена: открытие резюме ─────────────────────────────────────────────
+  // Резюме открывается процессором, и открывается им не случайно: это то
+  // место машины, где что-то происходит само. Сцена показывает ровно это —
+  // снимает радиатор, наводит камеру на крышку и раскладывает под ней
+  // кремний, по которому проходит нагрузка.
+  const NS = 'http://www.w3.org/2000/svg';
+
+  // Кристаллы под крышкой. В разметке их нет и быть не должно: сто девяносто
+  // два прямоугольника — это двадцать семь килобайт, которые качает каждый
+  // гость ради сцены, которую откроет один из ста. Скрипт строит раскладку
+  // один раз, в тот миг, когда её собрались показать.
+  //
+  // Раскладка честная: Turin собран из кристаллов-чиплетов, разложенных
+  // вокруг общего кристалла ввода-вывода, и оба числа — сколько кристаллов и
+  // сколько на них ядер — приходят из паспорта. Врать тут нечем: столько же
+  // ядер печатает консоль и столько же выбито на самой крышке.
+  function buildCores(slot, lid) {
+    if (slot.querySelector('.cores')) return;
+    const ccd = (HW.cpu && HW.cpu.ccd) || 12;
+    const per = Math.round(((HW.cpu && HW.cpu.cores) || 192) / ccd);
+    const b = lid.getBBox();
+    const pad = 3.4;
+    const x0 = b.x + pad, y0 = b.y + pad;
+    const w = b.width - 2 * pad, h = b.height - 2 * pad;
+
+    // Кристаллы стоят двумя рядами, между ними — кристалл ввода-вывода во всю
+    // ширину. Так этот процессор и устроен: считает не одна пластина, а
+    // дюжина, и связывает их середина.
+    const perRow = Math.ceil(ccd / 2);
+    const iodH = h * 0.20;
+    const rowH = (h - iodH) / 2 - 1.2;
+    const colW = w / perRow - 1.2;
+    // Сетка ядер внутри кристалла — настолько квадратная, насколько выходит.
+    const cols = Math.ceil(Math.sqrt(per));
+    const rows = Math.ceil(per / cols);
+
+    const g = document.createElementNS(NS, 'g');
+    g.setAttribute('class', 'cores');
+
+    function rect(cls, x, y, rw, rh, style) {
+      const r = document.createElementNS(NS, 'rect');
+      r.setAttribute('class', cls);
+      r.setAttribute('x', x.toFixed(2));
+      r.setAttribute('y', y.toFixed(2));
+      r.setAttribute('width', Math.max(0.4, rw).toFixed(2));
+      r.setAttribute('height', Math.max(0.4, rh).toFixed(2));
+      if (style) r.setAttribute('style', style);
+      g.appendChild(r);
+      return r;
+    }
+
+    rect('iod-box', x0, y0 + rowH + 1.2, w, iodH - 0.4);
+
+    for (let k = 0; k < ccd; k++) {
+      const row = k < perRow ? 0 : 1;
+      const col = k % perRow;
+      const cx = x0 + col * (colW + 1.2);
+      const cy = y0 + (row ? rowH + iodH + 2 : 0);
+      rect('ccd-box', cx, cy, colW, rowH);
+      for (let i = 0; i < per; i++) {
+        const ix = i % cols, iy = (i / cols) | 0;
+        const cw = (colW - 2.2) / cols, ch = (rowH - 2.2) / rows;
+        const ex = cx + 1.1 + ix * cw, ey = cy + 1.1 + iy * ch;
+        // Задержка берётся из места ядра по горизонтали, а не из его номера:
+        // фронт нагрузки идёт по кремнию слева направо ровной волной, а по
+        // номеру он шёл бы кристаллами — сперва весь верхний ряд, потом весь
+        // нижний, и читалось бы это двумя вспышками вместо одной волны.
+        const c = Math.round((ex - x0) / w * 140);
+        rect('core', ex, ey, cw - 0.5, ch - 0.5, '--c:' + c);
+      }
+    }
+
+    const die = slot.querySelector('.die');
+    if (die) die.after(g); else slot.appendChild(g);
+  }
+
+  OPENERS.push({
+    test: function (el) { return el.dataset.group === 'cpu'; },
+    play: function (el, done) {
+      const slot = el.querySelector('.cpu-slot');
+      const lid = slot.querySelector('.ihs');
+      const n = slot.dataset.cpu;
+      buildCores(slot, lid);
+
+      // Радиатор снимается тем же движением, что и в сервисном режиме: он
+      // стоит на винтах, и снять его иначе нельзя.
+      slot.classList.add('pulled');
+      sfxMove(slot, 'out');
+      line('cpu' + n + ': радиатор снят', 'warn');
+
+      sceneWait(420, function () {
+        camera(frameOf(lid, 22), 760);
+        line('cpu' + n + ': ' + HW.cpu.model + ' · ' + HW.cpu.socket, 'muted');
+      });
+
+      sceneWait(1100, function () {
+        slot.classList.add('probing');
+        line('cpu' + n + ': ' + HW.cpu.ccd + ' кристаллов · '
+             + HW.cpu.cores + ' ядер · ' + HW.cpu.threads + ' потоков', 'ok');
+      });
+
+      sceneWait(1900, function () {
+        line('cpu' + n + ': нагрузка по всем ядрам · открываю резюме', 'ok');
+      });
+
+      sceneWait(2300, done);
+    },
+  });
   PICKS.push({
     test: function (el) { return el.dataset.riser !== undefined; },
     name: function (el) { return 'riser ' + el.dataset.riser; },
@@ -2045,14 +2287,94 @@
     // состояниях подсказка с адресом уже не показывается, а сам переход
     // оставался: узел под закрытой крышкой молча уводил на другой сайт.
     if (!linksLive() || rig.classList.contains('zoom')) return;
-    const href = unit.dataset.href;
+    openUnit(unit, unit.dataset.href);
+  });
+
+  // ── Пролог перед уходом ────────────────────────────────────────────────
+  // Уход всегда в этой же вкладке, и это условие пролога, а не вкус: после
+  // анимации window.open в новую вкладку уже не пустит — жест к тому времени
+  // остыл, и блокировщик всплывающих окон съест переход молча. Заодно это
+  // единственный способ довезти имя до соседней страницы: переезд между
+  // документами живёт внутри одной вкладки.
+  //
+  // Зовём именно window.open, а не location: страница подменяет его собой и
+  // адрес резюме перехватывает — там имя уезжает своим переездом. Всё
+  // остальное подменённая функция передаёт браузеру с той же целью.
+  function leave(href) {
     if (href.startsWith('mailto:')) { window.location.href = href; return; }
-    // Свой раздел открываем здесь же: имя переезжает на соседнюю страницу
-    // штатным переходом браузера, а он возможен только внутри одной вкладки.
-    // В новой вкладке документ начинается с чистого листа, и переносить в нём
-    // нечего — анимация молча пропадала, хотя обе страницы её объявляли.
-    if (href.startsWith('/')) { window.location.href = href; return; }
-    window.open(href, '_blank', 'noopener');
+    window.open(href, '_self');
+  }
+
+  // Пока идёт пролог, машина занята: щелчок по ней и escape означают «не
+  // тяни», а не «покажи ещё раз». Ждать сцену до конца обязан только тот, кто
+  // сам её не прерывал.
+  let opening = null;
+
+  function openUnit(unit, href) {
+    if (opening) { skipOpening(); return; }
+    const scene = OPENERS.find(function (s) { return s.test(unit); });
+    // Сцены нет — уходим сразу. На prefers-reduced-motion её нет ни у одного
+    // узла: это не украшение, от которого можно оставить половину.
+    if (!scene || reduced) { leave(href); return; }
+    opening = { href: href, timers: [] };
+    rig.classList.add('opening');
+    scene.play(unit, function () { closeOpening(); });
+  }
+
+  // Занавес общий для всех сцен: чем бы ни кончился пролог, страница гаснет
+  // одинаково, и следующий документ принимает переход с той же темноты.
+  function closeOpening() {
+    if (!opening) return;
+    const href = opening.href;
+    rig.classList.add('leaving');
+    opening.timers.push(wait(340, function () { leave(href); }));
+  }
+
+  // Прерывание: камера возвращается на место, а уход происходит немедленно.
+  // Возврат нужен на случай, когда уходить некуда — почта открывается
+  // почтовиком, и страница остаётся стоять там, где её бросили.
+  function skipOpening() {
+    if (!opening) return;
+    const href = opening.href;
+    opening.timers.forEach(clearTimeout);
+    opening = null;
+    rig.classList.remove('opening', 'leaving');
+    rig.querySelectorAll('.scene').forEach(function (el) { el.classList.remove('scene'); });
+    camera(VIEW0, 0);
+    leave(href);
+  }
+
+  // Ждать внутри сцены надо через это: свои таймеры она не собирает, а
+  // прерывание обязано снять их все разом.
+  function sceneWait(ms, fn) {
+    if (!opening) return;
+    opening.timers.push(wait(ms, function () { if (opening) fn(); }));
+  }
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && opening) skipOpening();
+  });
+
+  // Подпись-выноска ведёт туда же, куда её узел, и обязана открываться так же.
+  // Слушаем на .rig, а не на самих бирках: лента ревизий переписывает плату
+  // целиком, и обработчики на подписях ушли бы вместе с ней.
+  rig.addEventListener('click', function (e) {
+    const co = e.target.closest('a.callout[data-for]');
+    if (!co || !linksLive() || rig.classList.contains('zoom')) return;
+    const unit = rig.querySelector('.unit[data-group="' + co.dataset.for + '"]');
+    if (!unit || !OPENERS.some(function (s) { return s.test(unit); })) return;
+    e.preventDefault();
+    openUnit(unit, co.getAttribute('href'));
+  });
+
+  // Возврат «назад» отдаёт страницу из кеша ровно в том виде, в каком её
+  // оставили, — то есть в затемнении и с камерой, наехавшей на узел.
+  window.addEventListener('pageshow', function (e) {
+    if (!e.persisted) return;
+    opening = null;
+    rig.classList.remove('opening', 'leaving');
+    rig.querySelectorAll('.scene').forEach(function (el) { el.classList.remove('scene'); });
+    camera(VIEW0, 0);
   });
 
   // The callouts are real <a> elements; service mode hides them in css. This
