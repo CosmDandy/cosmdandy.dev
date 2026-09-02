@@ -956,6 +956,7 @@
   // @block: cpu
   // @block: risers
   // @block: psu
+  // @block: rack
 
   function unitName(el) {
     const kind = PICKS.find(function (k) { return k.test(el); });

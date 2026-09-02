@@ -64,6 +64,38 @@ const SCENES = {
       spec.dimm.banks[0].n * Math.round(72 / parseInt(/x(\d+)/i.exec(spec.dimm.ranks)[1], 10)) },
     span: 2700,
   },
+  // Сетевые гнёзда. Все три сцены об одном — куда уходит трафик, — и потому
+  // у них есть своя мерка, `lands`: камера обязана доехать до СВОЕГО
+  // коммутатора. Десятигигабитная карта и гигабитная пара висят на разных
+  // железках, и свести их к одной значит потерять ровно то, ради чего сцену
+  // рисовали. На снимке этого не видно: оба коммутатора выглядят одинаково.
+  ocp: {
+    unit: '.unit[data-group="ocp"]',
+    goes: 'linkedin.com/in/cosmdandy',
+    // Гнёзд на морде столько же, сколько в паспорте: врать на схеме нельзя и
+    // про то, чего в машине нет.
+    counts: { '.sw[data-sw="sw10"] .swport':
+      spec => spec.net.sw.find(w => w.id === 'sw10').ports },
+    lands: 'sw10',
+    escapeAt: 2400,
+    span: 3200,
+  },
+  eth: {
+    unit: '.unit[data-group="eth"]',
+    goes: '/tg/',
+    counts: { '.sw[data-sw="sw1"] .swport':
+      spec => spec.net.sw.find(w => w.id === 'sw1').ports },
+    lands: 'sw1',
+    escapeAt: 2400,
+    span: 3200,
+  },
+  tw: {
+    unit: '.unit[data-group="tw"]',
+    goes: 'x.com/cosmdandy',
+    lands: 'sw1',
+    escapeAt: 2400,
+    span: 3200,
+  },
 };
 
 const only = process.argv[2];
@@ -178,6 +210,34 @@ for (const name of names) {
   if (!left.length) fail('сцена не кончилась уходом');
   else if (!left[0].includes(sc.goes)) fail(`ушли не туда: ${left[0]}, ждали ${sc.goes}`);
   else okay(`ушли на ${sc.goes}`);
+
+  // Куда доехала камера. Мерка своя, потому что общая её не ловит: «кадр стал
+  // уже» и «кадр накрыл узел» одинаково верны и для того коммутатора, и для
+  // соседнего. Спрашиваем прямо — середина нужной железки обязана оказаться
+  // внутри кадра, а отмеченной сценой обязана быть она одна.
+  if (sc.lands) {
+    const box = await page.evaluate(id => {
+      const e = document.querySelector(`.sw[data-sw="${id}"]`);
+      if (!e) return null;
+      const b = e.getBBox();
+      return [b.x + b.width / 2, b.y + b.height / 2];
+    }, sc.lands);
+    if (!box) fail(`коммутатора ${sc.lands} нет на схеме`);
+    else {
+      const [x, y, w, h] = (await view(page)).trim().split(/\s+/).map(Number);
+      const inside = box[0] > x && box[0] < x + w && box[1] > y && box[1] < y + h;
+      if (!inside) fail(`камера не доехала до ${sc.lands}: кадр ${x.toFixed(0)} `
+                        + `${y.toFixed(0)} ${w.toFixed(0)} ${h.toFixed(0)}`);
+      else okay(`камера доехала до ${sc.lands}`);
+    }
+    // И горит при этом ровно один коммутатор. Зажечь оба — то же враньё, что
+    // лампа линка на обесточенной машине: путь трафика на схеме один.
+    const lit = await page.evaluate(() =>
+      Array.from(document.querySelectorAll('.sw.scene')).map(e => e.dataset.sw));
+    if (lit.length !== 1 || lit[0] !== sc.lands)
+      fail(`отмечены коммутаторы [${lit}], а ждали один ${sc.lands}`);
+    else okay(`горит один коммутатор — ${sc.lands}`);
+  }
   await page.close();
 
   // Прерывание: escape уводит немедленно и возвращает камеру на место.
@@ -185,7 +245,10 @@ for (const name of names) {
   const base = await view(p2);
   await p2.evaluate(sel => document.querySelector(sel)
     .dispatchEvent(new MouseEvent('click', { bubbles: true })), sc.unit);
-  await p2.waitForTimeout(900);
+  // Когда жать escape. У сетевых сцен шкаф показывается поздно, и на
+  // общих девятистах миллисекундах прерывать было бы нечего: проверка
+  // всегда попадала бы в момент, когда шкафа ещё нет.
+  await p2.waitForTimeout(sc.escapeAt || 900);
   await p2.keyboard.press('Escape');
   await p2.waitForTimeout(120);
   const after = await p2.evaluate(() => ({
@@ -202,6 +265,22 @@ for (const name of names) {
   else if (after.opening) fail('escape увёл, но плата осталась занятой');
   else if (!same(await view(p2), base)) fail('escape увёл, но камера осталась наехавшей');
   else okay('escape прерывает: уход сразу, камера на месте');
+
+  // И ничего не осталось догорать. Камера вернулась тем же кадром, а всё, что
+  // сцена рисовала выше рамки, эти полсекунды лежало бы поверх страницы: у
+  // схемы overflow: visible, и за рамкой ничего не отсекается.
+  if (sc.lands) {
+    const ghost = await p2.evaluate(() => {
+      const r = document.querySelector('.rack');
+      if (!r) return null;
+      const cs = getComputedStyle(r);
+      return { vis: cs.visibility, op: cs.opacity };
+    });
+    if (!ghost) fail('шкафа нет на схеме вовсе');
+    else if (ghost.vis !== 'hidden' || Number(ghost.op) > 0.01)
+      fail(`после escape шкаф ещё виден: ${ghost.vis} / ${ghost.op}`);
+    else okay('после escape шкаф погашен сразу');
+  }
   await p2.close();
 
   // На prefers-reduced-motion сцены нет вовсе.
