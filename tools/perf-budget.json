@@ -1,0 +1,57 @@
+{
+  "phone-slow": {
+    "cold": {
+      "bytes": 356582,
+      "painted": 2637,
+      "tti": 4651
+    },
+    "warm": {
+      "bytes": 399,
+      "tti": 1515
+    }
+  },
+  "phone": {
+    "cold": {
+      "bytes": 356582,
+      "painted": 2551,
+      "tti": 4170
+    },
+    "warm": {
+      "bytes": 399,
+      "tti": 1087
+    }
+  },
+  "tablet": {
+    "cold": {
+      "bytes": 356582,
+      "painted": 877,
+      "tti": 1039
+    },
+    "warm": {
+      "bytes": 399,
+      "tti": 626
+    }
+  },
+  "laptop": {
+    "cold": {
+      "bytes": 356582,
+      "painted": 425,
+      "tti": 1770
+    },
+    "warm": {
+      "bytes": 399,
+      "tti": 1393
+    }
+  },
+  "desktop": {
+    "cold": {
+      "bytes": 356582,
+      "painted": 325,
+      "tti": 1813
+    },
+    "warm": {
+      "bytes": 399,
+      "tti": 1518
+    }
+  }
+}

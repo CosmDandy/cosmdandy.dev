@@ -24,9 +24,10 @@ import { extname, join, resolve } from 'node:path';
 import { globSync } from 'node:fs';
 
 const brotli = promisify(brotliCompress);
+const ROOT = resolve(import.meta.dirname, '..');
 
 const SITES = {
-  visitka: { root: '/workspaces/cosmdandy.dev', origin: 'https://cosmdandy.dev' },
+  visitka: { root: ROOT, origin: 'https://cosmdandy.dev' },
   cv: { root: '/workspaces/cv.cosmdandy.dev/pages', origin: 'https://cv.cosmdandy.dev' },
   blog: { root: '/workspaces/kvt-blog-cosmdandy-dev-main/public', origin: 'https://blog.cosmdandy.dev' },
 };
@@ -52,7 +53,7 @@ const MIME = {
 const COMPRESSIBLE = new Set(['.html', '.css', '.js', '.svg', '.webmanifest', '.xml', '.json', '.txt']);
 
 let chromium;
-for (const dir of ['/workspaces/.pw/', '/workspaces/cosmdandy.dev/']) {
+for (const dir of ['/workspaces/.pw/', ROOT + '/']) {
   try { ({ chromium } = createRequire(dir)('playwright')); break; } catch { /* next */ }
 }
 if (!chromium) { console.error('no playwright'); process.exit(1); }

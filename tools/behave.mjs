@@ -6,17 +6,13 @@
 // JS into blocks changes the order of the code, and the order of the code
 // changes behaviour — without this test only a human clicking a node would
 // notice the breakage.
-import { createRequire } from 'node:module';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, resolve } from 'node:path';
+import { launch } from './browser.mjs';
 
 const ROOT = resolve(import.meta.dirname, '..');
-const require = createRequire('/workspaces/.pw/');
-const { chromium } = require('playwright');
-const { globSync } = await import('node:fs');
-const CHROME = globSync('/nix/store/*chromium-1[0-9][0-9]*/bin/chromium')
-  .filter(p => !p.includes('unwrapped') && !p.includes('sandbox'))[0];
+
 
 const MIME = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript',
   '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.png': 'image/png',
@@ -32,7 +28,7 @@ const server = createServer(async (req, res) => {
 await new Promise(ok => server.listen(0, '127.0.0.1', ok));
 const url = `http://127.0.0.1:${server.address().port}/index.html`;
 
-const browser = await chromium.launch({ executablePath: CHROME, args: ['--no-sandbox'] });
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
 const errors = [];
 page.on('pageerror', e => errors.push(String(e)));
@@ -684,8 +680,7 @@ await p3.close();
 // политикой автозапуска — только там голоса действительно строятся, и видно,
 // падает ли что-нибудь внутри них.
 const errBefore = errors.length;
-const loud = await chromium.launch({ executablePath: CHROME,
-  args: ['--no-sandbox', '--autoplay-policy=no-user-gesture-required'] });
+const loud = await launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
 const p4 = await loud.newPage({ viewport: { width: 1600, height: 1000 } });
 p4.on('pageerror', e => errors.push(String(e)));
 await p4.addInitScript(() => document.addEventListener('DOMContentLoaded',
