@@ -62,6 +62,11 @@ if [ "$browser" = 1 ]; then
   while pgrep -f 'chromium.*--headless' > /dev/null 2>&1; do sleep 1; done
   sleep 3
   run "скорость по устройствам" node tools/perf-matrix.mjs
+  # Разбор по анимациям стоит полторы минуты, поэтому в общем прогоне идёт
+  # быстрый режим: только «сцена в работе» против «сцены без анимаций». Кто
+  # именно виноват, спрашивают отдельно — node tools/perf-attrib.mjs.
+  while pgrep -f 'chromium.*--headless' > /dev/null 2>&1; do sleep 1; done
+  run "плавность схемы" node tools/perf-attrib.mjs --quick
 fi
 
 # ── Живые ─────────────────────────────────────────────────────────────────

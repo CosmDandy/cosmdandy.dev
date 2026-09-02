@@ -1502,18 +1502,25 @@ body.view-rig .sfx-btn { display: grid; }
     animation: none;
   }
   /* ── fans ──────────────────────────────── */
-  /* Rotation went back to smooth, and the steps are gone.
+  /* Rotation is smooth, and it is the most expensive thing on the page.
    *
-   * They were there for a real reason: animation in a large SVG is not
-   * composited, so a turn made the browser rasterise the area and reassemble
-   * the scene on every frame the monitor drew. Twenty steps a second instead
-   * of a hundred and forty-four was worth the jerk.
+   * The steps that used to be here were there for a real reason: a turn makes
+   * the browser rasterise the area and reassemble the scene on every frame the
+   * monitor draws. They were dropped on the belief that will-change had made
+   * that free — the layer tree does gain layers, so the promise is kept.
    *
-   * will-change changes the deal. It lifts each rotor into a layer of its own
-   * — checked, not assumed: with it the layer tree gains exactly sixteen
-   * layers the size of an impeller, and without it none. A transform on a
-   * layer is the compositor's job and does not touch the main thread, so
-   * smooth costs what stepped used to and looks like nothing at all.
+   * The layer is real and it does not help. Measured with perf-attrib: idle
+   * scene 30 frames a second, the same scene with animations paused 60, and
+   * the whole difference is this rule. Were the rotors truly composited, one
+   * spinning impeller and two would cost the same; instead one costs nothing
+   * and two of them — the pair in the power supplies, 674 units apart — cost
+   * ten milliseconds a frame. What is paid for is not the turn but the
+   * rectangle the browser has to repaint around everything that moved.
+   *
+   * So the choice here is a choice about looks, not an optimisation that was
+   * missed. Numbers for every variant tried are in SPECS.md, «Крыльчатки: за
+   * что платит сцена»; the check that keeps this from getting worse is
+   * tools/perf-attrib.mjs.
    *
    * The grid the lamps blink on does not apply here any more, and with it goes
    * the rule that a period had to divide into whole seconds. */
