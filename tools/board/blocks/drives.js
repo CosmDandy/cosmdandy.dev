@@ -91,121 +91,268 @@
     // Выходные тише буднего дня. Без этого выходит ровный шум: узнают граф
     // как раз по недельному ритму, а не по самим квадратам.
     const q = (day === 0 || day === DAYS - 1) ? h - 30 : h;
-    // Ступени разведены неровно: пустых дней на графе больше всего, ярких —
-    // единицы. Ровное деление на пять давало сплошную зелень, в которой не
-    // видно ни ритма, ни пауз, — а читается граф как раз по ним.
-    return q < 46 ? 0 : q < 70 ? 1 : q < 85 ? 2 : q < 95 ? 3 : 4;
+    // Ступени разведены неровно, как на живом графе: пустых больше всего,
+    // ярких — единицы. Точные доли года (две трети пустых) пробовали и убрали:
+    // на графе такой год читается нормально, потому что он лежит узкой лентой,
+    // а во весь экран те же доли дают серое поле с редкой зеленью. Здесь
+    // заливка, а не отчёт, и ей нужна плотность — пустых чуть больше трети.
+    return q < 36 ? 0 : q < 66 ? 1 : q < 84 ? 2 : q < 94 ? 3 : 4;
   }
 
   // Клетки строит скрипт в тот миг, когда их собрались показать. Триста
   // семьдесят один прямоугольник в статике — это те же десятки килобайт на
   // каждого гостя ради сцены, которую откроет один из ста, что и кремний под
   // крышкой процессора.
-  function buildGraph(cage) {
-    const had = cage.querySelector('.bay-graph');
-    if (had) return had;
+  // Пропорции клетки сняты с настоящего графа, а не подобраны на глаз: на
+  // github.com/users/<login>/contributions клетка десять точек в поперечнике
+  // при зазоре в три, то есть занимает ровно десять тринадцатых шага, а
+  // скругление у неё — пятая часть стороны.
+  const CELL_FILL = 10 / 13;
+  const CELL_ROUND = 0.2;
+  // Шаг в точках экрана. Клетка крупнее гитхабовской, но ненамного: на графе
+  // она лежит в колонке шириной с ладонь, а здесь занимает весь экран, и
+  // десятиточечный квадрат читался бы пылью.
+  const CELL_STEP = 25;
 
-    // Занятые отсеки — из паспорта, а не по рисунку: заглушке нечего отдавать,
-    // и в чередование она не входит.
-    const live = HW.bay.filter(function (b) { return !b.filler; });
-    const slots = [].map.call(cage.querySelectorAll('.bay-slot'),
-                              function (s) { return s.getBBox(); });
+  // Заливка рисуется на холсте, а не выкладывается элементами, и это не выбор
+  // из двух равных. Элементами её уже пробовали: две с половиной тысячи клеток,
+  // у каждой своя анимация прозрачности и масштаба — свойства композитные, всё
+  // по учебнику, а замер показал двадцать девять кадров за три секунды при
+  // медиане в восемьдесят три миллисекунды. Столько отдельных анимаций браузер
+  // не тянет независимо от того, какие свойства в них двигаются: цена не в
+  // отрисовке, а в самом их количестве.
+  //
+  // На холсте это один элемент и один цикл на кадр. Заодно решается плотность:
+  // под каждой клеткой закрашивается её шаг целиком, поэтому между соседями не
+  // остаётся ни просветов, ни тёмных углов на стыках.
+  //
+  // Слой лежит поверх страницы, а не внутри схемы: у схемы есть поля, и клетки
+  // внутри неё оставляли по краям пустые рамки, а окно закрывать надо целиком.
+  const FLOOD_MS = 950;      // сколько идёт фронт от корзины до дальнего угла
+  const FLOOD_CELL_MS = 280; // сколько поднимается одна клетка
+  const FLOOD_BG = '#0d1117';
+  const FLOOD_LV = ['#161b22', '#0e4429', '#006d32', '#26a641', '#39d353'];
 
-    // Поле графа — зеркало корзины. Передняя глубина машины поделена ровно
-    // пополам: половину занимает корзина из двух отсеков в глубину, половину —
-    // вентиляционное поле за ней, через которое к дискам идёт воздух (geom:
-    // FRONT_W = 2 × BAY_DEPTH). Граф встаёт во вторую половину, встык за
-    // дальней кромкой корзины: рядом с дисками, а не поверх них — иначе лампы,
-    // ради которых сцена и затевалась, оказались бы под ним.
-    const pitch = slots[1].x - slots[0].x;
-    const gx = slots[0].x + 2 * pitch;
-    const gw = slots[1].x + slots[1].width - slots[0].x;
+  let floodRun = null;
 
-    // По длине корзины граф ровно там, где есть что читать: от первого занятого
-    // отсека до последнего. Нижняя пара — заглушки, и тянуть граф по ним значило
-    // бы показывать данные, которых там нет.
-    const top = slots[live[0].bay];
-    const bot = slots[live[live.length - 1].bay];
-    const gy = top.y, gh = bot.y + bot.height - top.y;
+  function buildFlood(cage) {
+    let cv = document.querySelector('.bay-graph');
+    if (cv && cv.__cells) return cv;
 
-    const g = document.createElementNS(BAY_NS, 'g');
-    g.setAttribute('class', 'bay-graph');
+    cv = cv || document.createElement('canvas');
+    cv.className = 'bay-graph';
 
-    function rect(cls, x, y, w, h) {
-      const r = document.createElementNS(BAY_NS, 'rect');
-      r.setAttribute('class', cls);
-      r.setAttribute('x', x.toFixed(2));
-      r.setAttribute('y', y.toFixed(2));
-      r.setAttribute('width', Math.max(0.6, w).toFixed(2));
-      r.setAttribute('height', Math.max(0.6, h).toFixed(2));
-      r.setAttribute('rx', '0.9');
-      return r;
-    }
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const w = window.innerWidth, h = window.innerHeight;
+    cv.width = Math.ceil(w * dpr);
+    cv.height = Math.ceil(h * dpr);
 
-    // Подложка под клетками: без неё граф ложится прямо на перфорацию, и
-    // пустые дни не отличить от дырок в листе.
-    g.appendChild(rect('graph-bed', gx - 3, gy - 3, gw + 6, gh + 6));
+    // Откуда расходится заливка — середина корзины на экране, а полуоси фронта
+    // взяты у неё же. Фронт идёт не кругом, а эллипсом её пропорций: корзина
+    // узкая и высокая, значит поле уходит вверх и вниз заметно быстрее, чем
+    // вбок. Круговой фронт от корзины у левой кромки читался заливкой из угла —
+    // он и шёл из угла, потому что корзина там стоит.
+    const cols = Math.ceil(w / CELL_STEP) + 1;
+    const rows = Math.ceil(h / CELL_STEP) + 1;
+    const n = cols * rows;
 
-    const cw = gw / DAYS, ch = gh / WEEKS;
-    for (let w = 0; w < WEEKS; w++) {
-      // Чей это блок. Массив читается вперемешку, очередной блок берётся у
-      // следующего накопителя — то самое чередование; заглушки в очереди нет.
-      const week = document.createElementNS(BAY_NS, 'g');
-      week.setAttribute('class', 'week');
-      week.setAttribute('data-bay', String(live[w % live.length].bay));
-      // Задержка стоит на неделе, а не на клетке: фронт идёт вдоль корзины,
-      // неделя за неделей, и все семь дней поднимаются разом — блок читается
-      // целиком, а не по байту.
-      week.setAttribute('style', '--w:' + w);
-      for (let d = 0; d < DAYS; d++) {
-        const day = rect('day', gx + d * cw + 0.7, gy + w * ch + 0.7,
-                         cw - 1.4, ch - 1.4);
-        day.setAttribute('data-l', String(level(w, d)));
-        week.appendChild(day);
+    // Раскладка лежит в плоских массивах: перебирать их на каждом кадре дешевле,
+    // чем обходить объекты, а кадров тут шестьдесят в секунду.
+    const cell = { x: new Float32Array(n), y: new Float32Array(n),
+                   t: new Float32Array(n), l: new Uint8Array(n), n: n,
+                   cols: cols, rows: rows, step: CELL_STEP,
+                   size: CELL_STEP * CELL_FILL, dpr: dpr,
+                   order: new Uint32Array(n) };
+    let i = 0;
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++, i++) {
+        cell.x[i] = c * CELL_STEP;
+        cell.y[i] = r * CELL_STEP;
+        cell.l[i] = level(c, r);
       }
-      g.appendChild(week);
     }
-    cage.appendChild(g);
-    return g;
+    cv.__cells = cell;
+    if (!cv.isConnected) document.body.appendChild(cv);
+    return cv;
+  }
+
+  // Куда и как расходиться — считается в момент старта, а не при постройке
+  // поля. Это не мелочь: поле строится на наведении, когда камера ещё не
+  // тронулась, и корзина стоит совсем в другом месте экрана. Раскладка,
+  // посчитанная тогда, разгоняла фронт из точки, где дисков уже нет, — со
+  // стороны это читалось заливкой из угла, сколько ни правь кадр.
+  //
+  // Фронт идёт не кругом, а эллипсом по пропорциям корзины: она узкая и
+  // высокая, значит поле уходит вверх и вниз заметно быстрее, чем вбок.
+  function floodAim(cv, cage) {
+    const c = cv.__cells;
+    const slots = cage.querySelectorAll('.bay-slot');
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const s of slots) {
+      const b = s.getBoundingClientRect();
+      x0 = Math.min(x0, b.left); y0 = Math.min(y0, b.top);
+      x1 = Math.max(x1, b.right); y1 = Math.max(y1, b.bottom);
+    }
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+    const ax = Math.max(1, (x1 - x0) / 2), ay = Math.max(1, (y1 - y0) / 2);
+    const reach = (px, py) => Math.hypot((px - cx) / ax, (py - cy) / ay);
+
+    const w = window.innerWidth, h = window.innerHeight;
+    let far = 0;
+    for (const px of [0, w]) for (const py of [0, h]) far = Math.max(far, reach(px, py));
+
+    for (let i = 0; i < c.n; i++) {
+      const d = reach(c.x[i] + c.size / 2, c.y[i] + c.size / 2) / far;
+      // Рваный край. Ровное кольцо фронта читается циркулем, а не заполнением.
+      // Разброс берётся из места клетки, а не из random: заливка обязана
+      // повторяться в точности, иначе она мигает наугад.
+      const q = bayNoise(i % c.cols, (i / c.cols) | 0);
+      let t = d + (q % 24 - 12) / 100;
+      // Разведчики: каждая двенадцатая вспыхивает заметно раньше фронта —
+      // впереди сплошного поля появляются одиночки, и промежутки между ними
+      // заполняются уже потом.
+      if (q % 12 === 0) t -= 0.2;
+      c.t[i] = Math.max(0, t);
+      c.order[i] = i;
+    }
+    // Порядок обхода — по времени старта. С ним кадр идёт окном: доросшее
+    // остаётся на холсте нетронутым, а не начавшееся не стоит ни одной
+    // операции. Без порядка кадр перебирал бы поле целиком — ровно то, что
+    // держало заливку на тридцати кадрах в секунду.
+    Array.prototype.sort.call(c.order, function (a, b) { return c.t[a] - c.t[b]; });
+  }
+
+  // Кадр рисует только фронт. Холст не очищается: доросшая клетка остаётся на
+  // нём навсегда, и переписывать её незачем — она уже такая, какой будет.
+  //
+  // Прозрачности в появлении нет нарочно. С ней пришлось бы держать под каждой
+  // клеткой чистый фон и перерисовывать её целиком на каждом кадре, потому что
+  // полупрозрачное поверх полупрозрачного копит яркость. Клетка просто растёт
+  // из маленькой — плитка, а не туман; подложка же встаёт сразу во весь шаг,
+  // поэтому поле плотное с первого кадра клетки, а не с последнего.
+  function floodDraw(cv, from) {
+    const c = cv.__cells;
+    const g = cv.getContext('2d');
+    const round = c.size * CELL_ROUND;
+    const back = (c.step - c.size) / 2;
+    // Ниже этого места всё дорисовано: указатель идёт по порядку и назад не
+    // возвращается.
+    let head = 0;
+
+    const step = (now) => {
+      const passed = now - from;
+      g.setTransform(c.dpr, 0, 0, c.dpr, 0, 0);
+
+      let i = head;
+      let moved = head;
+      for (; i < c.n; i++) {
+        const idx = c.order[i];
+        const p = (passed - c.t[idx] * FLOOD_MS) / FLOOD_CELL_MS;
+        // Дальше по порядку время старта только больше — значит и они ещё не
+        // начинались. Обрываем обход.
+        if (p <= 0) break;
+
+        const k = p >= 1 ? 1 : p;
+        if (k >= 1 && moved === i) moved = i + 1;
+
+        g.fillStyle = FLOOD_BG;
+        g.fillRect(c.x[idx] - back, c.y[idx] - back, c.step, c.step);
+
+        const size = c.size * (0.35 + 0.65 * k);
+        const off = (c.size - size) / 2;
+        g.fillStyle = FLOOD_LV[c.l[idx]];
+        g.beginPath();
+        g.roundRect(c.x[idx] + off, c.y[idx] + off, size, size, round * (size / c.size));
+        g.fill();
+      }
+      head = moved;
+
+      floodRun = head < c.n ? requestAnimationFrame(step) : null;
+    };
+    floodRun = requestAnimationFrame(step);
+  }
+
+  function floodStop() {
+    if (floodRun) { cancelAnimationFrame(floodRun); floodRun = null; }
+    const cv = document.querySelector('.bay-graph');
+    if (cv && cv.getContext) cv.getContext('2d').clearRect(0, 0, cv.width, cv.height);
+  }
+
+  // Мешалка для разброса. Та же уловка, что у level: число зависит от места, а
+  // не от случая, поэтому заливка повторяется в точности.
+  function bayNoise(c, r) {
+    let h = (c * 374761393) ^ (r * 668265263);
+    h = Math.imul(h ^ (h >>> 13), 1274126177);
+    return ((h ^ (h >>> 16)) >>> 0) % 1000;
+  }
+
+  // Куда наводится камера. Считаем по самим отсекам, а не по габариту блока:
+  // после первой постройки габарит раздувается на всё, что в него положено.
+  // Кадр, посчитанный по нему, отъезжал от машины вместо того, чтобы наехать.
+  const FLOOD_VIEW = 640;
+
+  function frameFor(cage) {
+    const slots = cage.querySelectorAll('.bay-slot');
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const s of slots) {
+      const b = s.getBBox();
+      x0 = Math.min(x0, b.x); y0 = Math.min(y0, b.y);
+      x1 = Math.max(x1, b.x + b.width); y1 = Math.max(y1, b.y + b.height);
+    }
+    const w = FLOOD_VIEW, h = w / (VIEW0[2] / VIEW0[3]);
+    // Корзина стоит чуть левее середины кадра. Ровно посередине заливке есть
+    // куда идти в обе стороны, но слева, за кромкой текстолита, открывается
+    // слишком много пустоты — машина кончается, а кадр нет. Сорок два процента
+    // ширины: расходиться всё ещё есть куда, а пустого поля видно меньше.
+    // Прижимать корзину к краю нельзя вовсе — пробовали с обеих сторон, и
+    // фронт каждый раз читался движением из угла в угол.
+    return [(x0 + x1) / 2 - w * 0.42, (y0 + y1) / 2 - h / 2, w, h];
   }
 
   OPENERS.push({
     test: function (el) { return el.dataset.group === 'hdd'; },
+    // Слой строится на наведении: полторы тысячи узлов и первый расчёт их
+    // стилей стоят заметной доли секунды, и в сцене этого кадра нет.
+    prep: function (el) {
+      const cage = el.closest('.blk');
+      if (cage) buildFlood(cage);
+    },
     play: function (el, done) {
       // Сцена про корзину целиком, а щёлкают по одному отсеку — и по выноске
-      // приходит первый. За кадром и за графом идём к блоку, в котором лежат
+      // приходит первый. За кадром и за заливкой идём к блоку, в котором лежат
       // все восемь.
       const cage = el.closest('.blk');
-      const graph = buildGraph(cage);
       const live = HW.bay.filter(function (b) { return !b.filler; });
       // Парк стандартизован: во всех занятых отсеках стоит одно и то же, и
       // модель берётся у первого, а не перечисляется по отсекам.
       const drive = live[0];
+      const layer = buildFlood(cage);
 
-      // Кадр считает frameOf, а окно сдвигаем. Корзина стоит у самой кромки
-      // текстолита, и окно, построенное по её середине, наполовину уходит за
-      // край платы — половина кадра была бы пустым фоном. Высоту и пропорции
-      // берём готовые, а левый край прижимаем к корзине: за ней остаётся
-      // машина.
-      const box = frameOf(graph, 14);
-      box[0] = cage.getBBox().x - 14;
-      camera(box, 780);
+      camera(frameFor(cage), 720);
       line('hdd: ' + HW.bay.length + ' отсеков, занято ' + live.length
            + ' · ' + drive.model, 'muted');
 
-      sceneWait(460, function () {
-        cage.classList.add('scene');
+      // Заливка начинается, когда камера уже приехала. Совмещать её с наездом
+      // нельзя: наезд перерисовывает схему на каждом кадре, и полторы тысячи
+      // клеток, поднимающихся поверх, отнимают у него ровно те кадры, на
+      // которых видно движение.
+      // Признак сцены — сразу: по нему уходит шапка с именем, а уйти она должна
+      // заранее. Прежде она пропадала под наезжающей платой и выныривала из-под
+      // неё же — движение, которого никто не заказывал.
+      cage.classList.add('scene');
+
+      sceneWait(780, function () {
+        layer.classList.add('lit');
+        floodAim(layer, cage);
+        floodDraw(layer, performance.now());
         line('hdd: чтение блоками · чередование по ' + live.length
              + ' накопителям · ' + (live.length * drive.tb).toFixed(1) + ' ТБ', 'ok');
       });
 
-      sceneWait(2180, function () {
-        // Число после существительного, а не перед: склонять его тут нечем,
-        // а «371 блоков» — это ошибка, которую видно в консоли каждому.
-        line('hdd: блоков поднято ' + WEEKS * DAYS + ' · год по неделям'
-             + ' · открываю github', 'ok');
+      sceneWait(2280, function () {
+        line('hdd: год поднят с дисков · открываю github', 'ok');
       });
 
-      sceneWait(2560, done);
+      sceneWait(2600, done);
     },
   });
