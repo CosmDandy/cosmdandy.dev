@@ -1129,11 +1129,18 @@
   // Три уровня, и они разной силы:
   //   соединение   работает для любого адреса, включая чужие: рукопожатие не
   //                зависит от того, разрешит ли сервер переиспользовать ответ;
-  //   документ     для своих страниц ложится в кеш целиком, для чужих — как
-  //                позволит их cache-control, и обещать тут нечего;
+  //   документ     правилами показа, а не тегом prefetch: кеш разделён по
+  //                верхнему сайту, и положенное в него со своей страницы на
+  //                чужой уже не видно. На чужой сайт запрос идёт без печенья —
+  //                значит поможет лишь тому, кто там не вошёл;
   //   отрисовка    только для своего origin: соседние поддомены пускают к себе
-  //                предварительный показ лишь по собственному заголовку, а
-  //                чужие сайты — никогда.
+  //                предварительный показ лишь по собственному заголовку
+  //                Supports-Loading-Mode, а чужие сайты — никогда.
+  //
+  // Прогрев соединения замером подтвердить не удалось: рукопожатие с github
+  // занимало те же девяносто миллисекунд и с ним, и без него. Оставлен потому,
+  // что вреда от него нет, а на медленной сети и на своих поддоменах он должен
+  // работать; но если однажды померите и там ноль — сносите не думая.
   const warmed = { conn: {}, doc: {}, pre: {} };
 
   function head(rel, href) {
@@ -1167,24 +1174,42 @@
       head('dns-prefetch', url.origin);
     }
 
-    if (!warmed.doc[url.href]) {
+    // Документ просим правилами показа, а не тегом prefetch. Тег греет общий
+    // кеш, а кеш в нынешних браузерах разделён по тому, какой сайт открыт
+    // сверху: положенное туда со своей страницы при переходе на чужую уже не
+    // видно. MDN говорит об этом прямо — «cache partitioning makes
+    // <link rel=prefetch> useless for resources intended for use by different
+    // top-level sites», — и наш замер это подтвердил: с тегом и без него
+    // GitHub отвечал одинаково. Правила показа сделаны именно для перехода и
+    // раздел обходят.
+    //
+    // Чего они не сделают, знать тоже надо: на чужой сайт запрос уходит без
+    // печенья, и если гость там уже вошёл, браузер предзагруженное не
+    // применит. Для github, linkedin и x это значит «поможет только тому, кто
+    // туда не залогинен», и обещать больше нечего.
+    if (!warmed.doc[url.href]
+        && HTMLScriptElement.supports && HTMLScriptElement.supports('speculationrules')) {
       warmed.doc[url.href] = true;
-      head('prefetch', url.href);
+      rule('prefetch', url.href);
     }
 
-    // Свой origin — единственное место, где можно отрисовать страницу заранее
-    // без уговора с той стороной. Правила показа умеют не все браузеры;
-    // остальные просто не увидят этот блок, и всё останется как было.
+    // Отрисовать страницу заранее можно только у себя: свой origin — без
+    // уговора, соседний поддомен — лишь если он сам разрешит это заголовком
+    // Supports-Loading-Mode, а чужой сайт не разрешит никогда.
     if (url.origin === location.origin && !warmed.pre[url.href]
         && HTMLScriptElement.supports && HTMLScriptElement.supports('speculationrules')) {
       warmed.pre[url.href] = true;
-      const rules = document.createElement('script');
-      rules.type = 'speculationrules';
-      rules.textContent = JSON.stringify({
-        prerender: [{ source: 'list', urls: [url.pathname + url.search] }],
-      });
-      document.head.appendChild(rules);
+      rule('prerender', url.pathname + url.search);
     }
+  }
+
+  function rule(kind, href) {
+    const tag = document.createElement('script');
+    tag.type = 'speculationrules';
+    const body = {};
+    body[kind] = [{ source: 'list', urls: [href] }];
+    tag.textContent = JSON.stringify(body);
+    document.head.appendChild(tag);
   }
 
   // Тяжёлое сцена готовит заранее, пока гость только ведёт курсор к узлу.

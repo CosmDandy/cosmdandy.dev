@@ -43,10 +43,18 @@ const TARGETS = {
   // будут на живом домене. Мерить выигрыш надо там, где мерить можно.
   // Целимся в зону захвата узла: середина его габарита приходится на пустое
   // место между гнёздами, и щелчок туда не попадает ни во что.
+  // Единственная цель, лежащая на том же хосте, что и сама страница. Ради неё
+  // мерка и умеет ходить на живой адрес: там есть настоящая сеть и при этом
+  // свой origin, то есть работают все три уровня прогрева разом.
   eth:  { unit: '.unit[data-group="eth"]', aim: '.unit[data-group="eth"] .body',
-          host: '127.0.0.1', path: '/tg/' },
+          self: true, path: '/tg/' },
 };
 
+// Куда ходить: по умолчанию поднимаем свой сервер, но можно указать живой
+// адрес — превью или прод. Локально прогрев не показать в принципе: 127.0.0.1
+// отвечает мгновенно, экономить нечего, а внешние цели отсюда выглядят чужим
+// сайтом. На живом адресе всё иначе, и особенно на цели того же origin.
+const AT = (process.argv.find(a => a.startsWith('--at=')) || '').slice(5);
 const only = process.argv[2];
 // Сколько держать курсор перед щелчком. Ноль — прогрев не успевает, и это
 // наша точка отсчёта; полторы секунды — успевает целиком. Разница между двумя
@@ -77,8 +85,13 @@ const server = createServer(async (req, res) => {
     res.end(body);
   } catch { res.writeHead(404).end('no such file'); }
 });
-await new Promise(ok => server.listen(0, '127.0.0.1', ok));
-const HOME = `http://127.0.0.1:${server.address().port}/index.html`;
+let HOME;
+if (AT) {
+  HOME = AT;
+} else {
+  await new Promise(ok => server.listen(0, '127.0.0.1', ok));
+  HOME = `http://127.0.0.1:${server.address().port}/index.html`;
+}
 
 const browser = await chromium.launch({ executablePath: CHROME, args: ['--no-sandbox'] });
 
@@ -141,7 +154,9 @@ for (const name of names) {
       const u = new URL(page.url());
       // hostname, а не host: у локального сервера в host входит порт, и
       // сравнение с «127.0.0.1» не совпадало никогда.
-      if (u.hostname.endsWith(t.host) && (!t.path || u.pathname === t.path)) break;
+      const home = new URL(HOME);
+      const hit = t.self ? u.hostname === home.hostname : u.hostname.endsWith(t.host);
+      if (hit && (!t.path || u.pathname === t.path)) break;
       if (Date.now() > until) throw new Error('перехода не дождались');
       await page.waitForTimeout(50);
     }
@@ -164,7 +179,7 @@ for (const name of names) {
     continue;
   }
 
-  console.log(`── ${name} → ${t.host}${t.path || ''} · наведение ${HOVER} мс`
+  console.log(`── ${name} → ${t.self ? 'свой хост' : t.host}${t.path || ''} · наведение ${HOVER} мс`
               + (COLD ? ' · без предзагрузки' : '') + ' ──');
   if (!nav) { console.log('  тайминги недоступны'); await ctx.close(); continue; }
   const scene = leftAt ? leftAt - clicked : 0;
@@ -180,4 +195,4 @@ for (const name of names) {
 }
 
 await browser.close();
-server.close();
+if (!AT) server.close();
