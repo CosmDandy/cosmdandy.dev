@@ -98,6 +98,14 @@ jobs:
       # год кэша, и хэш обязан быть хэшем того, что реально уедет по проводу.
       # Иначе правка одного лишь минификатора не сдвинет ссылку, и до
       # вернувшегося гостя новая сборка не дойдёт вовсе.
+      # Политика перечисляет встроенные скрипты по хэшам — считать их надо от
+      # тех тел, что реально уедут, то есть после минификации. Посчитанные до
+      # неё, они не сошлись бы ни с одним скриптом на странице, и браузер
+      # отказался бы выполнить их все разом: тема, схема и консоль просто не
+      # завелись бы.
+      - name: Content Security Policy
+        run: python3 tools/csp.py _site
+
       - name: Version assets
         run: python3 tools/stamp_assets.py _site
 
@@ -132,7 +140,7 @@ jobs:
       # не ставить её нельзя: в закоммиченной странице лежит штамп локальной
       # сборки, и без стирания на продакшен уехало бы «локально».
       - name: Clear build stamp
-        run: python3 tools/stamp_build.py _site/index.html _site/404.html --clear
+        run: python3 tools/stamp_build.py _site/index.html _site/404.html _site/tg/index.html --clear
 
       # Отладочные слои — границы занятости, наслоения и координатная сетка —
       # нужны только тому, кто правит плату. Панель, которой они переключаются,
@@ -168,6 +176,20 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy
+
+      # Между репозиторием и гостем стоят четыре шага этого же пайплайна:
+      # минификация, пересчёт версий, стирание отметки и вырезание отладочных
+      # слоёв. Каждый из них может не сработать молча — страница откроется и
+      # будет выглядеть правильно. Проверка ходит на живой адрес и спрашивает
+      # у него то, чего локально не спросить ни у кого: какие заголовки ставит
+      # воркер, сжимает ли он ответ и то ли содержимое лежит под версией из
+      # ссылки.
+      #
+      # Стоит после выкатки, а не до: до неё проверять нечего. Красная
+      # проверка здесь означает, что выкатка прошла, а развернулось не то, —
+      # и об этом надо узнать сразу, а не от гостя.
+      - name: Проверить, что развернулось
+        run: node tools/live-check.mjs --url https://cosmdandy.dev
 
   preview:
     name: preview
@@ -207,7 +229,7 @@ jobs:
           REF: ${{ github.event.pull_request.head.ref }}
           PR: ${{ github.event.pull_request.number }}
         run: |
-          python3 tools/stamp_build.py _site/index.html _site/404.html \
+          python3 tools/stamp_build.py _site/index.html _site/404.html _site/tg/index.html \
             --env cloudflare --sha "$SHA" --ref "$REF" --pr "$PR"
 
       # versions upload and not deploy: a new version of the worker is uploaded
@@ -250,3 +272,19 @@ jobs:
           # current one.
           gh pr comment "$PR" --body "$body" --edit-last \
             || gh pr comment "$PR" --body "$body"
+
+      # Тот же набор проверок, что и на проде, но с обратным ожиданием: на
+      # превью отметка о сборке и отладочные слои обязаны быть на месте — этим
+      # стенд и отличается от продакшена, и молчаливая потеря панели слоёв
+      # обнаружилась бы только руками.
+      - name: Проверить превью
+        env:
+          OUTPUT: ${{ steps.upload.outputs.command-output }}
+        run: |
+          url=$(printf '%s' "$OUTPUT" \
+            | grep -oE 'https://[A-Za-z0-9.-]+\.workers\.dev' | head -1 || true)
+          if [ -z "$url" ]; then
+            echo "::warning::адрес превью не найден в выводе wrangler, проверять нечего"
+            exit 0
+          fi
+          node tools/live-check.mjs --url "$url" --preview

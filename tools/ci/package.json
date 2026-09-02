@@ -1,0 +1,11 @@
+{
+  "name": "cosmdandy-dev-checks",
+  "private": true,
+  "description": "Browser and worker deps for the checks in CI. Not part of the site: the site itself has no build step and no node_modules.",
+  "dependencies": {
+    "playwright": "1.62.1",
+    "pngjs": "7.0.0",
+    "axe-core": "4.13.0",
+    "wrangler": "4.128.0"
+  }
+}

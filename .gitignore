@@ -373,3 +373,8 @@ tools/.pixdiff/
 /PROGRESS.md
 /PROGRESS.*.md
 /TODO.*.md
+
+# Зависимости браузерных проверок: ставятся в CI по tools/ci/package-lock.json
+# и на машине разработчика в /workspaces/.pw. В репозитории им места нет — как
+# и любому node_modules на статическом сайте без сборки.
+tools/ci/node_modules/
