@@ -2259,8 +2259,12 @@ body.view-rig .sfx-btn { display: grid; }
      Лишний класс в селекторе поднимает силу и снимает спор вовсе. */
   .rig.opening .cpu-slot.pulled .pick-body { transform: none; }
   .rig.opening .cpu-slot.pulled .pick-body.heatsink { transform: translate(232px, -75px); }
+  /* Яркость тут не задаётся нарочно: её держит правило гашения ниже. Пока
+     здесь стояло opacity: 1, оно побеждало гашение по специфичности — пять
+     классов против четырёх, — и блик светил на полную все три секунды сцены.
+     Правило гашения при этом выглядело рабочим и было мёртвым. */
   .rig.opening .cpu-slot.pulled .die {
-    visibility: visible; opacity: 1;
+    visibility: visible;
     transition: opacity var(--fade), transform var(--glide), visibility 0s;
   }
 
@@ -2274,6 +2278,7 @@ body.view-rig .sfx-btn { display: grid; }
      же полоса — цветной прямоугольник во весь кадр, и крышка перестаёт
      читаться металлом. Всю дорогу до кремния гость смотрел именно на него. */
   .rig.opening .cpu-slot .die { opacity: 0.18; }
+  .rig.opening .cpu-slot.pulled .die { opacity: 0.18; }
   .cpu-slot.probing .die { opacity: 0.18; }
   /* Блик не просто гаснет, а останавливается: под крышкой смотрят на
      кристаллы, а полоса градиента продолжала ездить и перерисовываться

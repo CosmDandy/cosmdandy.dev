@@ -2054,6 +2054,13 @@
     test: function (el) { return el.dataset.group === 'dimm'; },
     // Корпуса раскладываются на наведении — по той же причине, что и кремний
     // процессора: внутри сцены на эту работу нет свободного кадра.
+    // Обновление — метка сцены, а не состояние машины: снимаем за собой, иначе
+    // после возврата «назад» банк остаётся с проступившими корпусами.
+    reset: function () {
+      document.querySelectorAll('.unit.refreshing').forEach(function (el) {
+        el.classList.remove('refreshing');
+      });
+    },
     prep: function (el) { buildCells(el); },
     play: function (el, done) {
       const code = (el.dataset.unit || '').split('-')[1] || 'L';
@@ -2546,6 +2553,13 @@
     test: function (el) { return el.dataset.group === 'cpu'; },
     // Кремний строится на наведении, а не по щелчку: две сотни фигур и первый
     // расчёт их стилей стоят пятой доли секунды, и в сцене этого кадра нет.
+    // Метки сцены живут на гнезде, а не на плате, и общий код о них не знает.
+    // Снимаем сами — иначе после возврата «назад» процессор остаётся разобран.
+    reset: function () {
+      document.querySelectorAll('.cpu-slot').forEach(function (slot) {
+        slot.classList.remove('pulled', 'probing');
+      });
+    },
     prep: function (el) {
       const slot = el.querySelector('.cpu-slot');
       if (slot) buildCores(slot, slot.querySelector('.ihs'));
@@ -2803,11 +2817,25 @@
     opening.timers.forEach(clearTimeout);
     opening = null;
     rig.classList.remove('opening', 'leaving');
-    rig.querySelectorAll('.scene').forEach(function (el) { el.classList.remove('scene'); });
+    resetScenes();
     camera(VIEW0, 0);
     narrowView(null);
     rig.classList.remove('flat');
     leave(href);
+  }
+
+  // Прибрать за сценами. Общий класс .scene снимается тут же, но у сцены могут
+  // быть и свои метки на узлах — процессор помечает гнездо снятым и
+  // просвеченным, память ставит банку обновление. Их не видно в этом файле, и
+  // потому каждая сцена убирает за собой сама.
+  //
+  // Без этого метки переживали и уход, и возврат «назад» из кеша: машина
+  // возвращалась с разобранным процессором, лампа неисправности горела
+  // защёлкнутой, а повторный показ сцены проходил вхолостую — кремний уже был
+  // открыт. Обычнее пути, чем кнопка «назад», у гостя нет.
+  function resetScenes() {
+    rig.querySelectorAll('.scene').forEach(function (el) { el.classList.remove('scene'); });
+    OPENERS.forEach(function (s) { if (s.reset) s.reset(); });
   }
 
   // Ждать внутри сцены надо через это: свои таймеры она не собирает, а
@@ -2822,9 +2850,9 @@
   });
 
   // ── Прогрев сети ───────────────────────────────────────────────────────
-  // Пролог длится две-три секунды, и всё это время сеть простаивала: браузер
-  // принимался узнавать адрес и жать руку серверу только после того, как сцена
-  // доиграла. Замер: полсекунды на соединение и первый ответ — ровно столько
+  // Пролог длится от трёх до четырёх секунд, и всё это время сеть простаивала:
+  // браузер принимался узнавать адрес и жать руку серверу только после того,
+  // как сцена доиграла. Замер: полсекунды на соединение и первый ответ — ровно столько
   // гость ждал сверх анимации, глядя на пустой экран.
   //
   // Греем в два захода. На наведении — потому что между «мышь пришла на узел»
@@ -2952,7 +2980,7 @@
     if (!e.persisted) return;
     opening = null;
     rig.classList.remove('opening', 'leaving');
-    rig.querySelectorAll('.scene').forEach(function (el) { el.classList.remove('scene'); });
+    resetScenes();
     camera(VIEW0, 0);
     narrowView(null);
     rig.classList.remove('flat');

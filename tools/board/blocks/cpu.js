@@ -105,6 +105,13 @@
     test: function (el) { return el.dataset.group === 'cpu'; },
     // Кремний строится на наведении, а не по щелчку: две сотни фигур и первый
     // расчёт их стилей стоят пятой доли секунды, и в сцене этого кадра нет.
+    // Метки сцены живут на гнезде, а не на плате, и общий код о них не знает.
+    // Снимаем сами — иначе после возврата «назад» процессор остаётся разобран.
+    reset: function () {
+      document.querySelectorAll('.cpu-slot').forEach(function (slot) {
+        slot.classList.remove('pulled', 'probing');
+      });
+    },
     prep: function (el) {
       const slot = el.querySelector('.cpu-slot');
       if (slot) buildCores(slot, slot.querySelector('.ihs'));

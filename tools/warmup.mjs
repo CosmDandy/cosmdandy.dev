@@ -3,9 +3,9 @@
 //   node tools/warmup.mjs           все сцены, у которых есть адрес
 //   node tools/warmup.mjs cpu       одна
 //
-// Пролог длится две-три секунды, и всё это время сеть простаивает: браузер
-// узнаёт адрес, устанавливает соединение и качает документ только после того,
-// как сцена доиграла. Мерка показывает, сколько на это уходит на самом деле —
+// Пролог длится от трёх до четырёх секунд вместе с занавесом, и всё это время
+// сеть простаивает: браузер узнаёт адрес, устанавливает соединение и качает
+// документ только после того, как сцена доиграла. Мерка показывает, сколько на это уходит на самом деле —
 // отдельно на имя, отдельно на рукопожатие, отдельно на сам ответ.
 //
 // Числа отсюда — не про скорость сайта, а про разницу между «греем заранее» и
@@ -37,6 +37,7 @@ const TARGETS = {
   dimm: { unit: '.unit[data-group="dimm"]', host: 'blog.cosmdandy.dev' },
   hdd:  { unit: '.unit[data-group="hdd"]',  host: 'github.com' },
   ocp:  { unit: '.unit[data-group="ocp"]',  host: 'linkedin.com' },
+  tw:   { unit: '.unit[data-group="tw"]',   host: 'x.com' },
   // Своя страница, и на ней прогрев виден без оговорок: остальные цели лежат
   // на соседних хостах, а локально страница отдаётся с 127.0.0.1 — для
   // браузера это чужой сайт, и правила переиспользования у него строже, чем
@@ -128,9 +129,10 @@ for (const name of names) {
   // другом уже не прочитать. Первая версия мерки печатала из-за этого нули.
   let leftAt = 0;
   page.on('framenavigated', f => {
-    if (f === page.mainFrame() && !leftAt && !f.url().startsWith('http://127.0.0.1')) {
-      leftAt = Date.now();
-    }
+    // Сравниваем с адресом, откуда ушли, а не с «не локальный хост»: цель eth
+    // лежит на том же origin, и прежнее условие не ловило её никогда — мерка
+    // печатала ноль ровно для той сцены, ради которой писалась.
+    if (f === page.mainFrame() && !leftAt && f.url() !== HOME) leftAt = Date.now();
   });
 
   const aim = await page.evaluate(sel => {
@@ -164,6 +166,10 @@ for (const name of names) {
     nav = await page.evaluate(() => {
       const e = performance.getEntriesByType('navigation')[0];
       if (!e) return null;
+      // Заранее отрисованная страница отсчитывает свои отметки от момента
+      // активации, и разности выходят отрицательными. Это не ошибка замера, а
+      // признак того, что предпоказ сработал, — говорим об этом словами, а не
+      // минусом в графе «сеть».
       return {
         dns: e.domainLookupEnd - e.domainLookupStart,
         conn: e.connectEnd - e.connectStart,
@@ -171,6 +177,7 @@ for (const name of names) {
         wait: e.responseStart - e.requestStart,
         body: e.responseEnd - e.responseStart,
         load: e.loadEventEnd - e.startTime,
+        prerendered: e.activationStart > 0,
       };
     });
   } catch (e) {
@@ -189,7 +196,12 @@ for (const name of names) {
   console.log(`  соединение       ${ms(nav.conn)} мс  из них tls ${ms(nav.tls)}`);
   console.log(`  ждали ответа     ${ms(nav.wait)} мс`);
   console.log(`  тело ответа      ${ms(nav.body)} мс`);
-  console.log(`  ─ сеть до байтов ${ms(net)} мс — вот это и прячется под сцену`);
+  if (nav.prerendered) {
+    console.log('  ─ страница была отрисована заранее: сеть отработала под сцену целиком,');
+    console.log('    отметки ниже нуля тут норма — они отсчитаны от момента показа');
+  } else {
+    console.log(`  ─ сеть до байтов ${ms(net)} мс — вот это и прячется под сцену`);
+  }
   console.log(`  до load целиком  ${ms(nav.load)} мс`);
   await ctx.close();
 }

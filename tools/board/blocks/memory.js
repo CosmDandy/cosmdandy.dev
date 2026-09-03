@@ -61,6 +61,13 @@
     test: function (el) { return el.dataset.group === 'dimm'; },
     // Корпуса раскладываются на наведении — по той же причине, что и кремний
     // процессора: внутри сцены на эту работу нет свободного кадра.
+    // Обновление — метка сцены, а не состояние машины: снимаем за собой, иначе
+    // после возврата «назад» банк остаётся с проступившими корпусами.
+    reset: function () {
+      document.querySelectorAll('.unit.refreshing').forEach(function (el) {
+        el.classList.remove('refreshing');
+      });
+    },
     prep: function (el) { buildCells(el); },
     play: function (el, done) {
       const code = (el.dataset.unit || '').split('-')[1] || 'L';
