@@ -33,3 +33,16 @@ After DNS propagates, enable **Enforce HTTPS** in Settings → Pages.
 ```bash
 python3 -m http.server 8080
 ```
+
+## Copyright
+
+© 2026 Timofey Kondrashin. All rights reserved.
+
+This repository is published so the site can be built in the open and its
+history inspected, not as a template. Nothing here is licensed for reuse:
+the page design, texts, images, the server schematic and the code that
+generates it (`tools/`) may not be copied, modified or redistributed without
+written permission.
+
+Third-party assets keep their own licences: the Inter font under the
+[SIL Open Font License 1.1](https://openfontlicense.org).
