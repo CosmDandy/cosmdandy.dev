@@ -898,12 +898,111 @@
   // shared file.
   const PICKS = [];
 
+  // ── Открытие раздела ───────────────────────────────────────────────────
+  // Щелчок по узлу уводит на его раздел, и раньше уводил сразу. Теперь у
+  // перехода есть пролог: машина сперва показывает, чем этот раздел является
+  // в её собственных понятиях — процессор считает, память вспоминает. Сцену
+  // объявляет сам блок, здесь только общий ход: кадр, занавес и уход.
+  //
+  // Регистр устроен как PICKS и по той же причине: сцена принадлежит узлу, а
+  // не общему файлу, и живёт в его собственном скрипте.
+  const OPENERS = [];
+
+  // Камера — это viewBox самой схемы, а не transform поверх неё, и это не
+  // вкус. Наезд через transform ломает разом две вещи: обрезка кристалла
+  // задана в пользовательских координатах и уезжает вместе с группой (ровно
+  // та цветная полоса поверх вентиляторов, из-за которой правило вынесли на
+  // сам .die), а наклон сцены складывается с масштабом и уводит кадр вбок.
+  // У окна нет ни того, ни другого: меняется рамка, а не содержимое, и всё
+  // внутри — обрезки, градиенты, наклон — остаётся при своём.
+  const VIEW0 = board.getAttribute('viewBox').trim().split(/\s+/).map(Number);
+  const VIEW_AR = VIEW0[2] / VIEW0[3];
+  let camAnim = null;
+
+  function putView(v) {
+    board.setAttribute('viewBox', v.map(function (n) { return n.toFixed(1); }).join(' '));
+  }
+
+  // Кадр по узлу: его габарит, раздутый до пропорций схемы. Пропорции держать
+  // обязательно — высоту картинки браузер считает из viewBox при height:auto,
+  // и кадр другой формы менял бы высоту страницы прямо посреди наезда.
+  function frameOf(el, pad) {
+    const b = el.getBBox();
+    let w = b.width + 2 * pad, h = b.height + 2 * pad;
+    if (w / h < VIEW_AR) w = h * VIEW_AR; else h = w / VIEW_AR;
+    return [b.x + b.width / 2 - w / 2, b.y + b.height / 2 - h / 2, w, h];
+  }
+
+  // Камера двигает окно, а не содержимое, и это ради чёткости. Перенос
+  // композитный и потому дешёвый, но он растягивает уже отрисованное: полсекунды
+  // наезда идут мылом, а смотрят именно на них. Окно перерисовывает схему
+  // вектором на каждом кадре, и на месте, и в движении.
+  //
+  // Платить за это перерисовкой шести тысяч фигур не приходится: то, чего в
+  // кадре не будет, снимается заранее — см. narrowView ниже.
+  function camera(to, ms, done) {
+    if (camAnim) { cancelAnimationFrame(camAnim); camAnim = null; }
+    // Наклон снимается здесь, а не в начале сцены. Он держится 3D-слоем, и его
+    // снятие — перерисовка всей схемы; поставленное на щелчок, оно занимало
+    // главный поток ровно тогда, когда с места должна трогаться деталь. Мерка
+    // движения показала это числом: радиатор ждал лишние восемьдесят
+    // миллисекунд. Камере же выпрямление и нужно — ради вектора на наезде.
+    rig.classList.add('flat');
+    if (reduced || !ms) { putView(to); if (done) done(); return; }
+    const from = board.getAttribute('viewBox').trim().split(/\s+/).map(Number);
+    const t0 = performance.now();
+    (function tick(now) {
+      const p = Math.min(1, (now - t0) / ms);
+      // Та же кривая, что у лупы: масштаб набирается сразу и мягко доводится.
+      // Линейный ход читается рывком ровно в конце, когда движение обрывается.
+      const k = 1 - Math.pow(1 - p, 3);
+      putView(from.map(function (v, i) { return v + (to[i] - v) * k; }));
+      camAnim = p < 1 ? requestAnimationFrame(tick) : null;
+      if (p >= 1 && done) done();
+    })(t0);
+  }
+
+  // Сужение внимания. Всё, что не заденет кадр наезда, гаснет и снимается с
+  // отрисовки: на подходе к процессору мимо кадра остаётся сорок с лишним
+  // процентов схемы — вентиляторы, корзина дисков, блоки питания, задняя
+  // панель. Браузер обходит их при каждой перерисовке, а перерисовок тут
+  // шестьдесят в секунду.
+  //
+  // Зовётся заранее, до первого движения камеры: у сцены на это есть та самая
+  // пауза, за которую снимается радиатор. Гашение занимает четверть секунды и
+  // читается сужением внимания к узлу, а не пропажей половины платы.
+  //
+  // Прячем целыми блоками и только те, что не задевают кадр вовсе: наполовину
+  // срезанный блок — это дыра на картинке, а не экономия. Рассыпуха и краска
+  // лежат по всей плате и остаются всегда: они и есть то, что видно вокруг узла.
+  function narrowView(to) {
+    const wide = !to || to[2] >= VIEW0[2] * 0.98;
+    board.querySelectorAll('[data-blk]').forEach(function (g) {
+      if (wide) { g.classList.remove('far', 'gone'); return; }
+      let b;
+      try { b = g.getBBox(); } catch (e) { return; }
+      const miss = b.x > to[0] + to[2] || b.x + b.width < to[0]
+                || b.y > to[1] + to[3] || b.y + b.height < to[1];
+      g.classList.toggle('far', miss);
+    });
+    if (wide) return;
+    // Снимаем с отрисовки только после того, как они догасли: display:none
+    // посреди перехода — это скачок, а не исчезновение.
+    sceneWait(280, function () {
+      board.querySelectorAll('[data-blk].far').forEach(function (g) {
+        g.classList.add('gone');
+      });
+    });
+  }
+
+
   // @block: fans
   // @block: memory
   // @block: drives
   // @block: cpu
   // @block: risers
   // @block: psu
+  // @block: rack
 
   function unitName(el) {
     const kind = PICKS.find(function (k) { return k.test(el); });
@@ -945,14 +1044,226 @@
     // состояниях подсказка с адресом уже не показывается, а сам переход
     // оставался: узел под закрытой крышкой молча уводил на другой сайт.
     if (!linksLive() || rig.classList.contains('zoom')) return;
-    const href = unit.dataset.href;
+    openUnit(unit, unit.dataset.href);
+  });
+
+  // ── Пролог перед уходом ────────────────────────────────────────────────
+  // Уход всегда в этой же вкладке, и это условие пролога, а не вкус: после
+  // анимации window.open в новую вкладку уже не пустит — жест к тому времени
+  // остыл, и блокировщик всплывающих окон съест переход молча. Заодно это
+  // единственный способ довезти имя до соседней страницы: переезд между
+  // документами живёт внутри одной вкладки.
+  //
+  // Зовём именно window.open, а не location: страница подменяет его собой и
+  // адрес резюме перехватывает — там имя уезжает своим переездом. Всё
+  // остальное подменённая функция передаёт браузеру с той же целью.
+  function leave(href) {
     if (href.startsWith('mailto:')) { window.location.href = href; return; }
-    // Свой раздел открываем здесь же: имя переезжает на соседнюю страницу
-    // штатным переходом браузера, а он возможен только внутри одной вкладки.
-    // В новой вкладке документ начинается с чистого листа, и переносить в нём
-    // нечего — анимация молча пропадала, хотя обе страницы её объявляли.
-    if (href.startsWith('/')) { window.location.href = href; return; }
-    window.open(href, '_blank', 'noopener');
+    window.open(href, '_self');
+  }
+
+  // Пока идёт пролог, машина занята: щелчок по ней и escape означают «не
+  // тяни», а не «покажи ещё раз». Ждать сцену до конца обязан только тот, кто
+  // сам её не прерывал.
+  let opening = null;
+
+  function openUnit(unit, href) {
+    if (opening) { skipOpening(); return; }
+    warm(href);
+    const scene = OPENERS.find(function (s) { return s.test(unit); });
+    // Сцены нет — уходим сразу. На prefers-reduced-motion её нет ни у одного
+    // узла: это не украшение, от которого можно оставить половину.
+    if (!scene || reduced) { leave(href); return; }
+    opening = { href: href, timers: [] };
+    rig.classList.add('opening');
+    scene.play(unit, function () { closeOpening(); });
+  }
+
+  // Занавес общий для всех сцен: чем бы ни кончился пролог, страница гаснет
+  // одинаково, и следующий документ принимает переход с той же темноты.
+  function closeOpening() {
+    if (!opening) return;
+    const href = opening.href;
+    rig.classList.add('leaving');
+    opening.timers.push(wait(340, function () { leave(href); }));
+  }
+
+  // Прерывание: камера возвращается на место, а уход происходит немедленно.
+  // Возврат нужен на случай, когда уходить некуда — почта открывается
+  // почтовиком, и страница остаётся стоять там, где её бросили.
+  function skipOpening() {
+    if (!opening) return;
+    const href = opening.href;
+    opening.timers.forEach(clearTimeout);
+    opening = null;
+    rig.classList.remove('opening', 'leaving');
+    resetScenes();
+    camera(VIEW0, 0);
+    narrowView(null);
+    rig.classList.remove('flat');
+    leave(href);
+  }
+
+  // Прибрать за сценами. Общий класс .scene снимается тут же, но у сцены могут
+  // быть и свои метки на узлах — процессор помечает гнездо снятым и
+  // просвеченным, память ставит банку обновление. Их не видно в этом файле, и
+  // потому каждая сцена убирает за собой сама.
+  //
+  // Без этого метки переживали и уход, и возврат «назад» из кеша: машина
+  // возвращалась с разобранным процессором, лампа неисправности горела
+  // защёлкнутой, а повторный показ сцены проходил вхолостую — кремний уже был
+  // открыт. Обычнее пути, чем кнопка «назад», у гостя нет.
+  function resetScenes() {
+    rig.querySelectorAll('.scene').forEach(function (el) { el.classList.remove('scene'); });
+    OPENERS.forEach(function (s) { if (s.reset) s.reset(); });
+  }
+
+  // Ждать внутри сцены надо через это: свои таймеры она не собирает, а
+  // прерывание обязано снять их все разом.
+  function sceneWait(ms, fn) {
+    if (!opening) return;
+    opening.timers.push(wait(ms, function () { if (opening) fn(); }));
+  }
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && opening) skipOpening();
+  });
+
+  // ── Прогрев сети ───────────────────────────────────────────────────────
+  // Пролог длится от трёх до четырёх секунд, и всё это время сеть простаивала:
+  // браузер принимался узнавать адрес и жать руку серверу только после того,
+  // как сцена доиграла. Замер: полсекунды на соединение и первый ответ — ровно столько
+  // гость ждал сверх анимации, глядя на пустой экран.
+  //
+  // Греем в два захода. На наведении — потому что между «мышь пришла на узел»
+  // и щелчком проходит несколько десятых секунды, и их хватает на имя с
+  // рукопожатием. На щелчке — потому что курсора может и не быть вовсе:
+  // клавиатура, палец, чтение с экрана.
+  //
+  // Три уровня, и они разной силы:
+  //   соединение   работает для любого адреса, включая чужие: рукопожатие не
+  //                зависит от того, разрешит ли сервер переиспользовать ответ;
+  //   документ     правилами показа, а не тегом prefetch: кеш разделён по
+  //                верхнему сайту, и положенное в него со своей страницы на
+  //                чужой уже не видно. На чужой сайт запрос идёт без печенья —
+  //                значит поможет лишь тому, кто там не вошёл;
+  //   отрисовка    только для своего origin: соседние поддомены пускают к себе
+  //                предварительный показ лишь по собственному заголовку
+  //                Supports-Loading-Mode, а чужие сайты — никогда.
+  //
+  // Прогрев соединения замером подтвердить не удалось: рукопожатие с github
+  // занимало те же девяносто миллисекунд и с ним, и без него. Оставлен потому,
+  // что вреда от него нет, а на медленной сети и на своих поддоменах он должен
+  // работать; но если однажды померите и там ноль — сносите не думая.
+  const warmed = { conn: {}, doc: {}, pre: {} };
+
+  function head(rel, href) {
+    // Проверяем, не греет ли это уже кто-то другой: страница сама подтягивает
+    // резюме на наведении, и наш такой же тег означал бы второй запрос за тем
+    // же документом. Свой список тут не поможет — тег чужой.
+    const sel = 'link[rel="' + rel + '"]';
+    for (const link of document.head.querySelectorAll(sel)) {
+      if (link.href === href || link.href === href + '/') return;
+    }
+    const tag = document.createElement('link');
+    tag.rel = rel;
+    tag.href = href;
+    document.head.appendChild(tag);
+  }
+
+  function warm(href) {
+    let url;
+    try { url = new URL(href, location.href); } catch (e) { return; }
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
+
+    if (!warmed.conn[url.origin]) {
+      warmed.conn[url.origin] = true;
+      // Без crossorigin — и это не небрежность, а условие работы. Переход по
+      // ссылке браузер делает запросом с учётными данными, а preconnect с
+      // crossorigin="anonymous" греет соединение без них: пулы разные, и
+      // документ пойдёт по своему, заново пожав руку. Замер это и показал —
+      // с anonymous выигрыш был нулевой, соединение как занимало треть
+      // секунды, так и занимало.
+      head('preconnect', url.origin);
+      head('dns-prefetch', url.origin);
+    }
+
+    // Документ просим правилами показа, а не тегом prefetch. Тег греет общий
+    // кеш, а кеш в нынешних браузерах разделён по тому, какой сайт открыт
+    // сверху: положенное туда со своей страницы при переходе на чужую уже не
+    // видно. MDN говорит об этом прямо — «cache partitioning makes
+    // <link rel=prefetch> useless for resources intended for use by different
+    // top-level sites», — и наш замер это подтвердил: с тегом и без него
+    // GitHub отвечал одинаково. Правила показа сделаны именно для перехода и
+    // раздел обходят.
+    //
+    // Чего они не сделают, знать тоже надо: на чужой сайт запрос уходит без
+    // печенья, и если гость там уже вошёл, браузер предзагруженное не
+    // применит. Для github, linkedin и x это значит «поможет только тому, кто
+    // туда не залогинен», и обещать больше нечего.
+    if (!warmed.doc[url.href]
+        && HTMLScriptElement.supports && HTMLScriptElement.supports('speculationrules')) {
+      warmed.doc[url.href] = true;
+      rule('prefetch', url.href);
+    }
+
+    // Отрисовать страницу заранее можно только у себя: свой origin — без
+    // уговора, соседний поддомен — лишь если он сам разрешит это заголовком
+    // Supports-Loading-Mode, а чужой сайт не разрешит никогда.
+    if (url.origin === location.origin && !warmed.pre[url.href]
+        && HTMLScriptElement.supports && HTMLScriptElement.supports('speculationrules')) {
+      warmed.pre[url.href] = true;
+      rule('prerender', url.pathname + url.search);
+    }
+  }
+
+  function rule(kind, href) {
+    const tag = document.createElement('script');
+    tag.type = 'speculationrules';
+    const body = {};
+    body[kind] = [{ source: 'list', urls: [href] }];
+    tag.textContent = JSON.stringify(body);
+    document.head.appendChild(tag);
+  }
+
+  // Тяжёлое сцена готовит заранее, пока гость только ведёт курсор к узлу.
+  // Внутри самой сцены на это нет свободного кадра: построить две сотни фигур
+  // и рассчитать их стили — это пятая доля секунды, и приходится она ровно на
+  // начало движения камеры, то есть на самое заметное место. Тем же приёмом
+  // страница подтягивает резюме на наведении — здесь просто своя ноша.
+  const prepped = new WeakSet();
+  rig.addEventListener('mouseover', function (e) {
+    const unit = e.target.closest('.unit[data-href]');
+    if (!unit || prepped.has(unit) || !linksLive()) return;
+    prepped.add(unit);
+    // Греем всегда, даже если сцены у узла нет: адрес всё равно откроется.
+    warm(unit.dataset.href);
+    const scene = OPENERS.find(function (s) { return s.test(unit); });
+    if (scene && scene.prep) scene.prep(unit);
+  });
+
+  // Подпись-выноска ведёт туда же, куда её узел, и обязана открываться так же.
+  // Слушаем на .rig, а не на самих бирках: лента ревизий переписывает плату
+  // целиком, и обработчики на подписях ушли бы вместе с ней.
+  rig.addEventListener('click', function (e) {
+    const co = e.target.closest('a.callout[data-for]');
+    if (!co || !linksLive() || rig.classList.contains('zoom')) return;
+    const unit = rig.querySelector('.unit[data-group="' + co.dataset.for + '"]');
+    if (!unit || !OPENERS.some(function (s) { return s.test(unit); })) return;
+    e.preventDefault();
+    openUnit(unit, co.getAttribute('href'));
+  });
+
+  // Возврат «назад» отдаёт страницу из кеша ровно в том виде, в каком её
+  // оставили, — то есть в затемнении и с камерой, наехавшей на узел.
+  window.addEventListener('pageshow', function (e) {
+    if (!e.persisted) return;
+    opening = null;
+    rig.classList.remove('opening', 'leaving');
+    resetScenes();
+    camera(VIEW0, 0);
+    narrowView(null);
+    rig.classList.remove('flat');
   });
 
   // The callouts are real <a> elements; service mode hides them in css. This
