@@ -41,3 +41,24 @@
 # и тем же файлам, и на второй проход каждая должна браться из кэша.
 /history/*.svg
   Cache-Control: public, max-age=31536000, immutable
+
+# CSP:BEGIN
+# Сгенерировано tools/csp.py по собранным страницам — правится там, а не здесь.
+# Хэши перечисляют встроенные скрипты поимённо: любой другой браузер выполнять
+# откажется. Считать их надо после минификации, иначе они не от тех тел.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'sha256-060CGAjRay2CwqTWYAPE1thtjjYZIFk8U6U3FsvPzd4=' 'sha256-EslpH1HwOhX7CxcW9x8NKQChSMnppMS2I0E4v1sAlDA=' 'sha256-F+1f6ja19n+VltT5nZR5eJNNk9gfTIcXu39GqsAz3YM=' 'sha256-LDuMXSkQ4ccPZFMjNf8+P+kWttGBOQHCSTnWhP3W20k=' 'sha256-TNaTK80SuNBHU2/jkMMc/MIICB7kROo6Blljshzccys=' 'sha256-TVg2f/ZTMYcJ/XnLZYw3wHqLzkiaes3wQbMlDGhqG8I=' 'sha256-bawlkInkK3hSX0FDLeHdQRMfK7k9/KAmiF62PjjaOLY=' 'sha256-jOkqQ05xINdH10Z6kNaUXw1yKnNxeU+i9LcUj1T14s8=' 'sha256-l6S+Jzzei+tdPLONrFgsce2+TihI09GpqSYyndxty7s=' 'sha256-pymAwj0Nv8ZrHg/OSdTibjeNgE44XFu0mJptuvUIN7Y=' 'sha256-xvzSCqkREpS17s934zUIGI9aZzl8UcA3W1Q2JGn+1SY='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'; object-src 'none'
+  # Первый заход по http можно перехватить; после него браузер год ходит
+  # только по https, не спрашивая.
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  # Без него браузер угадывает тип файла по содержимому и может выполнить
+  # картинку как скрипт.
+  X-Content-Type-Options: nosniff
+  # По умолчанию на чужой сайт уезжает полный адрес страницы, с которой ушли.
+  # Здесь уедет только имя домена, и только по https.
+  Referrer-Policy: strict-origin-when-cross-origin
+  # Ничего из этого сайту не нужно, и просить это от его имени не должен никто.
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+  # Вкладка изолируется от той, что её открыла.
+  Cross-Origin-Opener-Policy: same-origin
+# CSP:END

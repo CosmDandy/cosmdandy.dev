@@ -23,7 +23,13 @@ python3 inline_theme.py
 # а штамп меняет только страницу, на хэши стилей и скрипта не влияя.
 python3 stamp_assets.py
 
-python3 stamp_build.py ../index.html ../404.html | tail -1
+# Политика перечисляет встроенные скрипты по хэшам, поэтому считается после
+# всех, кто эти скрипты правит: вставки темы и мерок. Локально она сходится с
+# исходниками; в конвейере пересчитывается заново — там тела уже
+# минифицированы, и хэши от них другие.
+python3 csp.py
+
+python3 stamp_build.py ../index.html ../404.html ../tg/index.html | tail -1
 
 python3 audit_text.py | tail -1
 

@@ -260,6 +260,11 @@ def grid_layer(step=GRID_STEP):
 BOUNDS_INK = {
     'board':  ('#dc322f', 'вырезы и края текстолита', 'E'),
     'reserve': ('#6c71c4', 'бронь под будущий узел', 'R'),
+    # Бронь, которую узел накроет целиком. Своей строки у неё долго не было, и
+    # видно это было только в панели: восемнадцать прямоугольников с буквой «?»
+    # и подписью «cover» вместо названия. При том, что треть всех наслоений —
+    # именно её: краска, легшая под то, что её накроет.
+    'cover':  ('#8b5cf6', 'бронь под накрывающий узел', 'V'),
     'major':  ('#cb4b16', 'узлы: разъёмы, гнёзда, корпуса', 'B'),
     'part':   ('#d33682', 'крупная рассыпуха', 'D'),
     'silk':   ('#b58900', 'подписи и шелкография', 'S'),
@@ -337,19 +342,21 @@ def broken(a, b, by_a, by_b):
     return b in AVOID[a] or a in AVOID[b]
 
 
-def overlap_layer(cv, least=OVERLAP_MIN):
+def overlaps(cv, least=OVERLAP_MIN):
+    """Находки наслоений: где пришедший позже встал на то, чего избегает.
+
+    Отделено от слоя нарочно. Слой рисует находки для глаза, а проверка
+    сверяет их с базой — и считать их дважды значило бы завести второй
+    источник правды, который разойдётся с первым в первую же правку.
+    """
     taken = cv.bounds()
     kinds = sorted(taken)
-    out = []
     for n, a in enumerate(kinds):
         for b in kinds[n:]:
             # Пара видов, где ни один не избегает другого ни при каком порядке,
             # перебирать незачем: наслоения там законны по определению.
             if b not in AVOID[a] and a not in AVOID[b]:
                 continue
-            ink, _title, la = BOUNDS_INK.get(a, ('#93a1a1', a, '?'))
-            _ink, _t, lb = BOUNDS_INK.get(b, ('#93a1a1', b, '?'))
-            body = []
             for i, (x1, y1, x2, y2, by) in enumerate(taken[a], 1):
                 # Внутри одного вида пара считается один раз: список тот же, и
                 # второй проход дал бы каждое наслоение дважды.
@@ -364,14 +371,33 @@ def overlap_layer(cv, least=OVERLAP_MIN):
                         continue
                     if not broken(a, b, by, who):
                         continue
-                    body.append(
-                        f'<rect data-pair="{la}{i}+{lb}{j}" '
-                        f'data-by="{by or "?"} + {who or "?"}" x="{max(x1, u1):.0f}" '
-                        f'y="{max(y1, v1):.0f}" width="{w:.0f}" height="{h:.0f}"/>')
-            if body:
-                out.append(f'<g class="ovl ovl-{a}-{b}" data-kind="{a}+{b}" '
-                           f'data-count="{len(body)}" fill="{ink}" stroke="{ink}">'
-                           + ''.join(body) + '</g>')
+                    yield {
+                        'kinds': (a, b), 'by': (by, who), 'nums': (i, j),
+                        'rect': (max(x1, u1), max(y1, v1), w, h),
+                        'share': w * h / least_area,
+                    }
+
+
+def overlap_layer(cv, least=OVERLAP_MIN):
+    groups = {}
+    for hit in overlaps(cv, least):
+        groups.setdefault(hit['kinds'], []).append(hit)
+    out = []
+    for (a, b), hits in groups.items():
+        ink, _title, la = BOUNDS_INK.get(a, ('#93a1a1', a, '?'))
+        _ink, _t, lb = BOUNDS_INK.get(b, ('#93a1a1', b, '?'))
+        body = []
+        for hit in hits:
+            i, j = hit['nums']
+            by, who = hit['by']
+            x, y, w, h = hit['rect']
+            body.append(
+                f'<rect data-pair="{la}{i}+{lb}{j}" '
+                f'data-by="{by or "?"} + {who or "?"}" x="{x:.0f}" '
+                f'y="{y:.0f}" width="{w:.0f}" height="{h:.0f}"/>')
+        out.append(f'<g class="ovl ovl-{a}-{b}" data-kind="{a}+{b}" '
+                   f'data-count="{len(body)}" fill="{ink}" stroke="{ink}">'
+                   + ''.join(body) + '</g>')
     return '<g class="lyr-overlap" aria-hidden="true">' + ''.join(out) + '</g>'
 
 

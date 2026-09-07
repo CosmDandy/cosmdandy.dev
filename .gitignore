@@ -310,6 +310,11 @@ package-lock.json
 yarn.lock
 pnpm-lock.yaml
 
+# Кроме файла блокировки у проверок: на нём стоит их установка в CI, и без
+# него `npm ci` падает, не начавшись. Сам сайт по-прежнему без зависимостей —
+# это единственное исключение, и оно про инструменты, а не про страницу.
+!tools/ci/package-lock.json
+
 # Nix
 result
 result-*
@@ -373,3 +378,8 @@ tools/.pixdiff/
 /PROGRESS.md
 /PROGRESS.*.md
 /TODO.*.md
+
+# Зависимости браузерных проверок: ставятся в CI по tools/ci/package-lock.json
+# и на машине разработчика в /workspaces/.pw. В репозитории им места нет — как
+# и любому node_modules на статическом сайте без сборки.
+tools/ci/node_modules/
