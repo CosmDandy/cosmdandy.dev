@@ -789,6 +789,46 @@
   }
   document.addEventListener('visibilitychange', dormancy);
 
+  // Та же бережливость на ступень мельче — по узлам, а не по всей схеме.
+  //
+  // В лупе схема втрое шире окна, и её дальняя половина живёт вслепую: лампы
+  // мигают, крыльчатки крутятся там, куда никто не смотрит. Браузер честно всё
+  // это перерисовывает — плитки под ними он держит, — и на протяжке этой
+  // работы как раз не хватает тем плиткам, что въезжают из-за кромки.
+  //
+  // Цели берём у самого браузера: document.getAnimations() одним вызовом
+  // отдаёт всё, что сейчас движется, и остаётся спросить у каждой, к чему она
+  // приложена. Список по классам пришлось бы править вслед за каждой новой
+  // лампой, а блоки схемы для этого не годятся вовсе — .blk делит рисунок по
+  // слоям, а не по месту, и самый нижний накрывает плату целиком.
+  //
+  // Запас в 200 точек — чтобы узел ожил до того, как покажется, а не на
+  // глазах у гостя. Список пересобирается на каждый вход в лупу: между
+  // заходами машину успевают выключить, разобрать и собрать заново.
+  const rigBodyBox = document.querySelector('.rig-body');
+  let awayWatch = null;
+
+  function watchAway(on) {
+    if (awayWatch) {
+      awayWatch.disconnect();
+      rig.querySelectorAll('.away').forEach(function (el) { el.classList.remove('away'); });
+      awayWatch = null;
+    }
+    if (!on || !rigBodyBox || !('IntersectionObserver' in window) || !document.getAnimations) return;
+    awayWatch = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) { e.target.classList.toggle('away', !e.isIntersecting); });
+    }, { root: rigBodyBox, rootMargin: '200px', threshold: 0 });
+    const seen = new Set();
+    document.getAnimations().forEach(function (a) {
+      const el = a.effect && a.effect.target;
+      // Псевдоэлементу класс не повесишь — его паузит правило на родителе.
+      if (el && !seen.has(el) && el.classList && rig.contains(el)) {
+        seen.add(el);
+        awayWatch.observe(el);
+      }
+    });
+  }
+
   // ── Uptime ─────────────────────────────────────────────────────────────
   let t0 = Date.now();
   const uptimeEl = document.getElementById('uptime');
@@ -1102,6 +1142,9 @@
         landParts();
         rig.classList.remove('zooming', 'zoom-shift');
         flying = false;
+        // После перелёта, а не до: пока он идёт, в списке анимаций стоит он
+        // сам, а узлы ещё не на местах — наблюдатель запомнил бы не те.
+        watchAway(on);
       });
     });
   }
@@ -1152,6 +1195,9 @@
   // кадре — а значит вести обе руками.
   const ZOOM_MS = 340;
   let zoomAnim = null;
+  // Завершитель текущего хода. Второй щелчок обязан сперва довести первый:
+  // иначе растяжение снимется, а ширина останется от прошлой ступени.
+  let zoomLand = null;
 
   // Границы возят по самой схеме, а не по прокручиваемой области. Область
   // шире машины: перспектива и подписи рисуются за габарит сцены, и браузер
@@ -1178,33 +1224,114 @@
   // 1440×950 и третьей ступени: схема кончается на 1809, прокрутка пускала до
   // 3969 — две тысячи точек, на которых нет ничего, кроме фона. Оттуда и
   // «сдвинул влево, справа пусто».
+  // Пауза на время движения поля — любого, а не только протяжки мышью.
+  //
+  // Правило .dragging ловит руку на кнопке, а поле возят ещё и двумя пальцами
+  // по тачпаду, и колесом, и стрелками: всё это идёт прямо в прокрутку, мимо
+  // pointerdown. Оттуда и осталось: «вожу двумя пальцами — мерцает память,
+  // процессоры, надпись» — то есть ровно те места, где что-то анимировано.
+  // Пока плитки под ними въезжают из-за кромки, анимация требует их же
+  // перерисовать, и на это уже не хватает.
+  //
+  // Снимаем по затишью, а не по концу жеста: у прокрутки нет «отпустил».
+  let panIdle = null;
+  function panning() {
+    if (!rig.classList.contains('zoom')) return;
+    rig.classList.add('panning');
+    clearTimeout(panIdle);
+    panIdle = setTimeout(function () { rig.classList.remove('panning'); }, 160);
+  }
+
   rigBody.addEventListener('scroll', function () {
     if (!rig.classList.contains('zoom')) return;
+    panning();
     const [mx, my] = scrollMax();
     if (rigBody.scrollLeft > mx) rigBody.scrollLeft = mx;
     if (rigBody.scrollTop > my) rigBody.scrollTop = my;
   }, { passive: true });
 
   function zoomTo(step, cx, cy) {
+    // Прежний ход доводим до конца, а не обрываем: щёлкнули дважды подряд —
+    // вторая ступень должна считаться от первой, доехавшей.
+    if (zoomLand) zoomLand();
     const from = ZOOM_STEPS[zoomStep], to = ZOOM_STEPS[step];
     zoomStep = step;
     rig.classList.toggle('zoom-max', step === ZOOM_STEPS.length - 1);
-    const r = rigBody.getBoundingClientRect();
-    // Точка под курсором в координатах самой схемы: она и обязана остаться
-    // неподвижной, как бы ни менялся масштаб.
-    const ax = cx - r.left, ay = cy - r.top;
-    const px = (rigBody.scrollLeft + ax) / from, py = (rigBody.scrollTop + ay) / from;
-    if (zoomAnim) cancelAnimationFrame(zoomAnim);
-    const t0 = performance.now();
-    (function tick(now) {
-      const p = reduced ? 1 : Math.min(1, (now - t0) / ZOOM_MS);
-      // Кубическое торможение: масштаб набирается сразу и мягко доводится.
-      // Линейный ход читался рывком ровно в конце, когда движение обрывалось.
-      const k = from + (to - from) * (1 - Math.pow(1 - p, 3));
-      rig.style.setProperty('--zoom', k);
-      panTo(px * k - ax, py * k - ay);
-      zoomAnim = p < 1 ? requestAnimationFrame(tick) : null;
-    })(t0);
+    const stage = rigBody.querySelector('.stage');
+    if (!stage) return;
+
+    // Точка под курсором — в координатах самой сцены, от её левого верхнего
+    // угла. Через getBoundingClientRect, а не через offsetLeft: сцена стоит с
+    // отступами и выровнена по центру, и её собственная система координат не
+    // совпадает с системой прокручиваемого поля. Именно на этом расхождении
+    // схема и прыгала — ход держал точку по одному счёту, а приход ставил
+    // прокрутку по другому.
+    const sr0 = stage.getBoundingClientRect();
+    const ox = cx - sr0.left, oy = cy - sr0.top;
+    const k = to / from;
+
+    // Приход: настоящая ширина и прокрутка под неё. Одна перерисовка на весь
+    // ход вместо двадцати.
+    //
+    // Прокрутка считается по факту, а не по формуле: ставим ширину, спрашиваем
+    // у сцены, куда уехала наша точка, и двигаем поле на эту самую разницу.
+    // Формула здесь врала бы ровно на отступы сцены — они не масштабируются.
+    function settle() {
+      stage.style.transform = '';
+      stage.style.transformOrigin = '';
+      rig.classList.remove('zscale');
+      rig.style.setProperty('--zoom', to);
+      const sr = stage.getBoundingClientRect();
+      panTo(rigBody.scrollLeft + (sr.left + ox * k) - cx,
+            rigBody.scrollTop + (sr.top + oy * k) - cy);
+    }
+
+    if (reduced) { settle(); return; }
+
+    // Ход ведём растяжением, а не шириной, и это не косметика.
+    //
+    // Ширина — это раскладка: меняешь её кадр за кадром, и браузер каждый раз
+    // заново считает раскладку и заново растеризует весь чертёж в новом
+    // масштабе. Пять тысяч фигур, двадцать кадров подряд — плитки не
+    // успевают, и на их месте видно пустоту. Отсюда «при зуме плата
+    // обновляется слоями», и на отдалении хуже всего: там сразу нужны все
+    // плитки поля, а не те немногие, что помещались в окно.
+    //
+    // Растяжение — работа композитора: он берёт УЖЕ готовый растр и тянет
+    // его. Ход стоит почти ничего и идёт мимо главного потока; платим за это
+    // мягкостью картинки на те триста миллисекунд, что он длится. В конце
+    // ширина встаёт настоящей, и чертёж растеризуется начисто — один раз.
+    //
+    // Точка под курсором держится не прокруткой, а началом координат
+    // растяжения: вокруг неё и тянем, поэтому она стоит на месте сама.
+    stage.style.transformOrigin = ox + 'px ' + oy + 'px';
+
+    // Ход отдан переходу целиком, и это принципиально. Веди мы его руками,
+    // кадр за кадром выставляя scale, — браузер на каждом кадре видел бы новый
+    // масштаб и растеризовал содержимое под него: та же беда, только сбоку.
+    // Переход по transform он умеет исполнять на композиторе: растр берётся
+    // один раз и тянется, главный поток при этом свободен.
+    rig.classList.add('zscale');
+    stage.getBoundingClientRect();      // чтобы переход увидел, откуда стартует
+    stage.style.transition = 'transform ' + ZOOM_MS + 'ms cubic-bezier(0.22, 1, 0.36, 1)';
+    stage.style.transform = 'scale(' + k + ')';
+
+    let done = false;
+    function land(e) {
+      if (done || (e && e.propertyName !== 'transform')) return;
+      done = true;
+      zoomLand = null;
+      stage.removeEventListener('transitionend', land);
+      clearTimeout(zoomAnim);
+      zoomAnim = null;
+      stage.style.transition = '';
+      settle();
+    }
+    zoomLand = land;
+    stage.addEventListener('transitionend', land);
+    // Страховка: переход, начавшийся на невидимой вкладке, событием не
+    // отзовётся, а масштаб остался бы недоведённым.
+    zoomAnim = setTimeout(land, ZOOM_MS + 90);
   }
 
   rigBody.addEventListener('click', function (e) {

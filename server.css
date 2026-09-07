@@ -690,7 +690,6 @@ body.view-rig .sfx-btn { display: grid; }
      as though the part had already been pulled; three read as a response. */
   .pick:hover .pick-body { transform: translateY(-3px); filter: brightness(1.2) saturate(1.08); }
   .pick .pick-body { transition: transform var(--glide), filter var(--fade); }
-
   /* The tag lives next to its unit and does not run past the edge of the
      picture. There are deliberately no shadows on the SVG any more: in Safari
      a filter inside preserve-3d floods the stage white — that was the "white
@@ -1525,23 +1524,23 @@ body.view-rig .sfx-btn { display: grid; }
   .fan-blades.aux { animation-duration: var(--spin-aux); }
   .rig.on .fan-blades { animation-play-state: running; }
 
-  /* In the magnifier the promise is taken back, and that is not a
-     micro-optimisation — it is the fix for a broken picture.
+  /* Здесь когда-то стояло `.rig.zoom .fan-blades { will-change: auto }` —
+     снятое обещание слоя в лупе. Диагноз был верный, виновник назван неверно.
 
-     There the scene is dragged across a field several times the window: at
-     x2.4 it is some eight thousand points wide. The compositor only keeps
-     raster for what is near the window and throws the rest away; come back to
-     a fan that had been dragged far off and it is rebuilt — but the sixteen
-     layers this promise carved out of the parent are not rebuilt with it. The
-     holes are exactly the rotor parts that do not spin: the barrel, its rim,
-     the hub. They stay missing until the pointer lands on the module — hover
-     hangs a filter on the body, a filter flattens the layers back into one,
-     and the picture repairs itself.
+     Картинка в лупе рвалась потому, что слоем было САМО ШАССИ: у него
+     осталось will-change: transform, хотя в лупе наклон снят и трансформа нет
+     вовсе. Слой размером с приближённую плату, композитор держит растр рядом
+     с окном, остальное выбрасывает — отсюда и дыры, и то, что их чинит
+     наведение. Крыльчатки были не причиной, а соседями по слою.
 
-     Nothing is lost by dropping it here. A layer buys smooth rotation of
-     sixteen impellers at once; in the magnifier one or two are on screen, and
-     what they cost the main thread is bounded by the window, not by the wall. */
-  .rig.zoom .fan-blades { will-change: auto; }
+     Сняв обещание с них, мы вылечили не ту половину и нажили вторую беду:
+     вращение шестнадцати роторов, которое композитор делал даром, вернулось
+     в перерисовку общего слоя — и схему начало передёргивать само по себе.
+
+     Теперь ложное обещание снято с шасси (см. .rig.zoom .chassis в base.css),
+     а роторам оно возвращено, и это уже не компромисс: слой есть у того, что
+     движется, и только у него. Слои роторов маленькие и самодостаточные,
+     вокруг них нечего выбрасывать. */
 
   /* Blades or blur. Past a few thousand rpm an impeller is a translucent disc
      and nothing else — a blade crosses any given point faster than the eye
@@ -2436,10 +2435,42 @@ body.zoom { overflow: hidden; }
        под курсором при этом никого не держала. */
 }
 
+/* Пока идёт приближение, сцену тянет композитор — и слой ей на это время
+   нужен, иначе браузер примется растеризовать её заново на каждом кадре, то
+   есть ровно то, от чего мы и уходим. Обещание живёт столько же, сколько сам
+   ход: ставится в zoomTo, снимается в settle. */
+.rig.zscale .stage { will-change: transform; }
+
 /* Схема в этом режиме не наклонена. Наклон — это витрина: он делает машину
    картинкой. Рассматривают её плоской, иначе дальний край втрое мельче
-   ближнего и подписи на нём не читаются. */
-.rig.zoom .chassis { transform: none; }
+   ближнего и подписи на нём не читаются.
+
+   Вместе с наклоном уходит и обещание слоя. will-change: transform выше
+   поднимает шасси в отдельный слой композитора — там это оправдано: наклон
+   меняется на сборке и на перелёте в лупу, и слой избавляет от перерисовки
+   всей платы на каждом кадре. Здесь же transform снят совсем, и обещание
+   становится ложным: слой обещан, но не двигается ни разу.
+
+   Ложное обещание — не пустяк, а причина рваной картинки. Слой в лупе
+   размером с приближённую плату: 3500×2100 на окне 1600×1000, на большом
+   мониторе вдвое больше. Композитор держит растр рядом с окном, остальное
+   выбрасывает, — а вернувшись, восстанавливает не всё, и на схеме зияют
+   дыры. Наведение их чинит: hover вешает на узел фильтр, фильтр схлопывает
+   слои обратно в один, и картинка сходится. Отсюда и вторая половина
+   жалобы — от одного движения мыши мерцает соседнее: слои то схлопываются,
+   то нарезаются заново.
+
+   Раньше то же обещание снимали с крыльчаток — и лечили не ту половину:
+   дыры выпадали из слоя, который нарезало шасси, а вращение, что композитор
+   делал даром, возвращалось в перерисовку. Слой нужен тому, что движется, и
+   только ему (см. fans.css). */
+.rig.zoom .chassis {
+    transform: none;
+    will-change: auto;
+    /* Держать плоскость незачем: без 3D-поворота backface-visibility ничего
+       не решает, а слой поднимает так же, как will-change. */
+    backface-visibility: visible;
+}
 
 /* ── Адрес под курсором ───────────────────────────────────────────────────
  * Наводя на бирку или на узел, гость видит, куда попадёт. Браузер показывает
@@ -2453,8 +2484,19 @@ body.zoom { overflow: hidden; }
     padding: 7px 11px;
     border-radius: 9px;
     border: 1px solid rgba(147, 161, 161, 0.22);
-    background: rgba(6, 22, 27, 0.9);
-    backdrop-filter: blur(6px);
+    /* Без backdrop-filter, и это не мелочь.
+     *
+     * Он означает «возьми растр всего, что подо мной, размой и подложи». А
+     * подсказка едет за курсором и в лупе показывается на каждое движение
+     * мыши — и прячется, стоит курсору попасть на узел. То есть на каждый
+     * чих браузер пересобирал фон под ней, и в Paint flashing от этого
+     * зеленел весь экран: «вожу по памяти — мерцает вся память», «навёл на
+     * плашку — мигнуло всё». Между плашками лежит плата, подсказка там
+     * появляется, на плашке пропадает — и так десятки раз в секунду.
+     *
+     * Видно от него было почти ничего: фон и без того непрозрачен на девять
+     * десятых. */
+    background: rgba(6, 22, 27, 0.94);
     color: rgba(238, 232, 213, 0.92);
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
     font-size: 0.76rem;
@@ -3202,6 +3244,42 @@ a.callout.lit .co-dot { fill: var(--head); }
 .rig.zoom.shifted.zoom-max .rig-body { cursor: zoom-out; }
 .rig.zoom.dragging .rig-body,
 .rig.zoom.shifted.dragging .rig-body { cursor: grabbing; }
+
+/* Пока машину возят, она не мигает.
+ *
+ * Не украшательство, а разгрузка кадра. Протяжка — самая тяжёлая секунда в
+ * лупе: браузер растеризует плитками и держит готовыми только те, что рядом с
+ * окном, поэтому за кромкой их приходится делать на ходу. Пока плитка не
+ * готова, на её месте пусто — это и видно как мерцание. А лампы, свечения и
+ * крыльчатки в это же время заставляют главный поток перекладывать список
+ * отрисовки, и делают это по всей плате, а не только по видимой части.
+ *
+ * Померено на протяжке в лупе: работа отрисовки падает с 330–480 мс до
+ * 220 мс, то есть на треть. Ровно те кадры, которых не хватало плиткам.
+ *
+ * Теряется при этом ничего: пока тащишь схему, смотришь, куда её ведёшь, а не
+ * как мигает лампа. Пауза, а не отмена — отпустил, и лампа продолжит с того
+ * места, где стояла. */
+.rig.dragging *,
+.rig.dragging *::before,
+.rig.dragging *::after,
+.rig.panning *,
+.rig.panning *::before,
+.rig.panning *::after { animation-play-state: paused !important; }
+
+/* То же и для всего, что уехало за кромку окна.
+ *
+ * В лупе схема втрое шире окна, и половина её живёт вслепую: лампы мигают,
+ * крыльчатки крутятся там, куда никто не смотрит, — а плитки под ними
+ * браузер держит и перерисовывает. Замерено при ×1.6: из 126 работающих
+ * анимаций 45 идут за кромкой, и чем ближе к ×2.4, тем эта доля больше.
+ *
+ * Границу сторожит наблюдатель в base.js: он спрашивает у браузера, что
+ * сейчас движется, и вешает .away на то, что вышло из окна. Только в лупе —
+ * в обычном виде схема видна вся. */
+.rig.zoom .away,
+.rig.zoom .away::before,
+.rig.zoom .away::after { animation-play-state: paused !important; }
 
 /* Клавиша в подсказке набрана как клавиша — рамкой. Пока shift зажат, рамка
    загорается: это единственное подтверждение, что машина услышала. */
