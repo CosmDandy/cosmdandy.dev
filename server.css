@@ -3607,6 +3607,24 @@ body.zoom .zoom-btn[aria-pressed="true"] {
 .rig.leaving .stage,
 .rig.leaving .rig-side { opacity: 0; transition: opacity 0.32s cubic-bezier(0.4, 0, 1, 1); }
 
+/* Поверх всего ложится сплошное полотно цвета страницы. Гашения одной сцены
+   мало: под ней остаются карточка, консоль и кнопки, и гость видел не уход, а
+   разбор экрана по частям. Полотно живёт до самого перехода и накрывает то
+   время, пока идёт загрузка, — именно оно и означает «дальше уже не мы».
+   fixed, а не absolute: полотну нужен весь экран, а .rig занимает столько,
+   сколько занимает. */
+.rig.leaving::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: var(--bg);
+  pointer-events: none;
+  animation: curtainDown 0.34s cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+@keyframes curtainDown { from { opacity: 0; } to { opacity: 1; } }
+
 @media (prefers-reduced-motion: reduce) {
     /* Пролога здесь не бывает вовсе — скрипт уходит по адресу сразу. Правило
        стоит на случай, когда класс всё же успел лечь: настройку меняют и при
@@ -3616,6 +3634,7 @@ body.zoom .zoom-btn[aria-pressed="true"] {
     .rig.opening .timeline,
     .rig.leaving .stage,
     .rig.leaving .rig-side { transition: none; }
+    .rig.leaving::after { animation: none; opacity: 1; }
 }
 
 /* Во время пролога машина выпрямляется, и это не ради вида. Наклон — это

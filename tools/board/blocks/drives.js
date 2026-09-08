@@ -353,6 +353,6 @@
         line('hdd: год поднят с дисков · открываю github', 'ok');
       });
 
-      sceneWait(2600, done);
+      sceneWait(2350, done);
     },
   });

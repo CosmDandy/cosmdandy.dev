@@ -2085,7 +2085,7 @@
              + ' ГБ обойдено · открываю записи', 'ok');
       });
 
-      sceneWait(2450, done);
+      sceneWait(2200, done);
     },
   });
   // A drive comes out in two moves, the way hands do it: first the handle
@@ -2443,7 +2443,7 @@
         line('hdd: год поднят с дисков · открываю github', 'ok');
       });
 
-      sceneWait(2600, done);
+      sceneWait(2350, done);
     },
   });
   // The processor comes apart in two moves, as in real life: first the
@@ -2616,7 +2616,9 @@
 
       // Волна кончается около 2100 мс, и после неё кремний стоит открытым ещё
       // почти секунду: это и есть тот кадр, ради которого сцена затевалась.
-      sceneWait(3350, done);
+      // Больше секунды держать нечего — дальше начинается занавес, и под ним
+      // идёт загрузка.
+      sceneWait(3000, done);
     },
   });
   PICKS.push({
@@ -2777,7 +2779,18 @@
   // Зовём именно window.open, а не location: страница подменяет его собой и
   // адрес резюме перехватывает — там имя уезжает своим переездом. Всё
   // остальное подменённая функция передаёт браузеру с той же целью.
+  // Режим показа: с ?stay в адресе уход не происходит вовсе. Сцена играет,
+  // занавес опускается, и через секунду машина возвращается на место — так
+  // пролог можно смотреть подряд, не уезжая каждый раз на соседний сайт и не
+  // возвращаясь кнопкой «назад», которая отдаёт страницу из кеша.
+  const STAY = /[?&]stay(=|&|$)/.test(location.search);
+
   function leave(href) {
+    if (STAY) {
+      console.info('stay: ушли бы на ' + href);
+      wait(900, restore);
+      return;
+    }
     if (href.startsWith('mailto:')) { window.location.href = href; return; }
     window.open(href, '_self');
   }
@@ -2805,7 +2818,13 @@
     if (!opening) return;
     const href = opening.href;
     rig.classList.add('leaving');
-    opening.timers.push(wait(340, function () { leave(href); }));
+    // Уход трогается вместе с занавесом, а не после него. Прежде эти времена
+    // складывались: сперва треть секунды гасили экран, и только потом браузер
+    // принимался за документ — а он к тому времени уже прогрет и приходит за
+    // те же доли секунды. Гость видел ровно то, на что жаловался: сцена
+    // отыграла, картинка потухла, и дальше пустой экран висит всю загрузку.
+    // Теперь загрузка идёт ПОД занавесом, и он же её и закрывает.
+    opening.timers.push(wait(140, function () { leave(href); }));
   }
 
   // Прерывание: камера возвращается на место, а уход происходит немедленно.
@@ -2815,13 +2834,19 @@
     if (!opening) return;
     const href = opening.href;
     opening.timers.forEach(clearTimeout);
+    restore();
+    leave(href);
+  }
+
+  // Вернуть машину в исходное. Нужно двоим: прерыванию и режиму показа, где
+  // уходить некуда и сцену надо просто отыграть назад.
+  function restore() {
     opening = null;
     rig.classList.remove('opening', 'leaving');
     resetScenes();
     camera(VIEW0, 0);
     narrowView(null);
     rig.classList.remove('flat');
-    leave(href);
   }
 
   // Прибрать за сценами. Общий класс .scene снимается тут же, но у сцены могут

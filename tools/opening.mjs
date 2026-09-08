@@ -187,13 +187,13 @@ const okay = (msg) => console.log('  ✔ ' + msg);
 
 // Машина готова к переходам не сразу: сперва она собирается, потом с неё
 // сходит крышка. Спрашиваем у неё самой, а не ждём круглое число секунд.
-async function fresh(reducedMotion) {
+async function fresh(reducedMotion, query) {
   const page = await browser.newPage({ viewport: { width: 1500, height: 950 },
                                        deviceScaleFactor: 1, reducedMotion });
   await page.addInitScript(() => document.addEventListener('DOMContentLoaded',
     () => document.querySelectorAll('input').forEach(el => el.remove())));
   await page.addInitScript(() => { try { localStorage.setItem('rig-view', 'rig'); } catch (e) {} });
-  await page.goto(URL_BASE, { waitUntil: 'load' });
+  await page.goto(URL_BASE + (query || ''), { waitUntil: 'load' });
   await page.evaluate(() => document.body.classList.add('view-rig'));
   // Условие то же, что у самой платы в linksLive: пока идёт самотест, узлы
   // не ссылки, и щелчок по ним не значит ничего. Ждать круглое число секунд
@@ -514,6 +514,86 @@ for (const name of names) {
     await page.keyboard.press('Escape');
     await page.waitForTimeout(120);
   }
+  await page.close();
+}
+
+// Занавес и режим показа. Проверяются один раз, а не на каждую сцену: оба
+// живут в общем каркасе, и сцена о них не знает.
+//
+// Что тут ломается. Занавес прежде был гашением одной схемы: под ней
+// оставались карточка, консоль и кнопки, и уход читался как разбор экрана по
+// частям, а не как уход. Хуже того, загрузка начиналась ПОСЛЕ него — эти
+// времена складывались, и пустой экран висел всю дорогу. Отсюда две мерки:
+// полотно обязано закрыть экран целиком, и оно же обязано лечь раньше, чем
+// начнётся переход.
+{
+  console.log('\n── занавес и режим показа ──');
+  // ?stay — режим показа: уход не происходит, машина возвращается на место.
+  // Он же и позволяет досмотреть занавес: без него страница уехала бы.
+  const page = await fresh('no-preference', '?stay');
+  // Момент ухода ловим по отметке, которую режим показа печатает вместо
+  // перехода: window.open в нём не зовётся вовсе, и ждать его бесполезно.
+  let leftAt = 0;
+  const clicked = { at: 0 };
+  page.on('console', m => {
+    if (!leftAt && clicked.at && m.text().startsWith('stay:')) leftAt = Date.now() - clicked.at;
+  });
+  const url0 = page.url();
+  // Исходный кадр снимаем, а не пишем числом: у схемы своё начало координат.
+  const view0 = await view(page);
+
+  const aim = await page.evaluate(sel => {
+    const b = document.querySelector(sel).getBoundingClientRect();
+    return { x: Math.round(b.x + b.width / 2), y: Math.round(b.y + b.height / 2) };
+  }, SCENES.cpu.aim);
+  await page.mouse.move(aim.x, aim.y);
+  await page.waitForTimeout(450);
+  clicked.at = Date.now();
+  await page.mouse.click(aim.x, aim.y);
+
+  let seen = false, opaque = 0, info = null;
+  const t0 = Date.now();
+  while (Date.now() - t0 < 6000) {
+    const st = await page.evaluate(() => {
+      const rig = document.getElementById('rig');
+      if (!rig.classList.contains('leaving')) return null;
+      const cs = getComputedStyle(rig, '::after');
+      return { op: parseFloat(cs.opacity), pos: cs.position, z: cs.zIndex };
+    });
+    if (st) { seen = true; info = st; opaque = Math.max(opaque, st.op); }
+    if (opaque >= 0.99 && leftAt) break;
+    await page.waitForTimeout(40);
+  }
+  if (!seen) fail('занавеса нет вовсе');
+  else okay('занавес появился');
+  if (opaque < 0.99) fail(`занавес не закрыл экран: дошёл до ${opaque.toFixed(2)}`);
+  else okay('занавес закрыл экран целиком');
+  if (!info || info.pos !== 'fixed' || Number(info.z) < 90)
+    fail(`занавес не поверх всего: ${info ? info.pos + ' z=' + info.z : 'нет'}`);
+  else okay('занавес во весь экран и поверх всего');
+  // Переход обязан тронуться, пока полотно ещё падает. Иначе времена снова
+  // сложатся, и гость опять будет ждать загрузку на пустом экране.
+  if (!leftAt) fail('уход не тронулся вовсе');
+  else if (leftAt > SCENES.cpu.span + 640)
+    fail(`уход тронулся уже после занавеса: ${leftAt} мс от щелчка`);
+  else okay(`уход тронулся под занавесом — ${leftAt} мс от щелчка`);
+
+  await page.waitForTimeout(1800);
+  if (page.url() !== url0) fail(`со ?stay всё равно ушли: ${page.url()}`);
+  else okay('со ?stay перехода не было');
+  const back = await page.evaluate(() => ({
+    cls: document.getElementById('rig').className,
+    pulled: document.querySelectorAll('.cpu-slot.pulled').length,
+  }));
+  if (/opening|leaving|flat/.test(back.cls) || back.pulled)
+    fail(`машина не вернулась: ${back.cls.trim()} pulled=${back.pulled}`);
+  else okay('занавес снят, машина собрана');
+  // Числами, а не строкой: кадр пишется с одним знаком после запятой.
+  const nums = v => v.trim().split(/\s+/).map(Number);
+  const now = nums(await view(page)), was = nums(view0);
+  if (!now.every((n, i) => Math.abs(n - was[i]) < 0.5))
+    fail(`камера не вернулась: ${now.join(' ')} против ${was.join(' ')}`);
+  else okay('камера вернулась в исходный кадр');
   await page.close();
 }
 
