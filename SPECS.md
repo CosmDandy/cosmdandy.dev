@@ -39,6 +39,33 @@ page, counts the nodes and prints console errors. Do not open `index.html` as
 a file: over `file://` the browser cuts off the fonts by CORS, and the console
 is stuffed with errors that have nothing to do with the matter.
 
+### A unit up close
+
+```bash
+node tools/closeup.mjs frame.png "540 180 400 460"    # the processor zone
+node tools/closeup.mjs frame.png "1180 340 180 160"   # the loop outlet
+node tools/closeup.mjs frame.png "540 180 400 460" --pull   # with a unit removed
+```
+
+Coordinates are those of the board — the same ones that live in `geom` — so a
+unit is framed by the numbers it is drawn from, not by guessing at a picture.
+
+Why this and not a crop of a preview frame. `preview` shoots the whole machine:
+1700×1050 for the entire board, and a part the size of a cold plate lands in
+two hundred points of it. Blown up in an image editor it turns to mush, and
+edits inside it are made blind. Here the schematic gets a new `viewBox`, the
+browser redraws the vector, and the same plate arrives over a thousand points
+wide: the chamfer, the ferrule and the angle the hose leaves the fitting at are
+all visible.
+
+The perspective is killed for the same reason: the machine stands tilted on the
+page, and a tilted frame cannot be measured — the scale differs across it. What
+a comparison against a photograph of a live machine needs is a flat view.
+
+This is the tool that found the hose hooking around the flange and the ferrules
+sitting beside the tube instead of on it: on the whole-machine frame neither was
+visible at all.
+
 playwright is needed — once, outside the repository:
 
 ```bash
@@ -488,6 +515,7 @@ tools/test.sh --all        всё
 | `tools/live-check.mjs` | что развернулось в Cloudflare | `node tools/live-check.mjs` |
 | `tools/overlap.mjs` | наложения в движении, после каждого хода | `timeout 400 node tools/overlap.mjs` |
 | `tools/visual_ref.mjs` | картинка не поехала: пять состояний по пикселям | `node tools/visual_ref.mjs` |
+| `tools/closeup.mjs` | узел вблизи: деталь, которой не видно на кадре всей машины | `node tools/closeup.mjs f.png "540 180 400 460"` |
 | `tools/diff_ref.py` | сборка не изменила разметку ни на байт | `python3 tools/diff_ref.py /tmp/ref` |
 
 ### Слои: база вместо нуля
