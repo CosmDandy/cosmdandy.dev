@@ -147,7 +147,7 @@ def render(cv):
     """
         # Рама: тело плиты целиком, с фаской по кромке.
         frame = (f'<rect x="{x}" y="{y}" width="{SOCKET_W}" height="{SOCKET_H}" rx="4" '
-                 f'fill="{PLATE_DIM}" fill-opacity="0.62" stroke="{PLATE_DIM}" stroke-width="1.2"/>'
+                 f'fill="{PLATE_DIM}" fill-opacity="0.42" stroke="{PLATE_DIM}" stroke-width="1.2"/>'
                  f'<rect x="{x + 3}" y="{y + 3}" width="{SOCKET_W - 6}" height="{SOCKET_H - 6}" '
                  f'rx="3" fill="none" stroke="rgba(255,255,255,0.18)"/>')
 
@@ -158,7 +158,7 @@ def render(cv):
         aw, ah = SOCKET_W - 44, SOCKET_H - 40
         cut = 16
         active = (f'<path d="M{ax + cut} {ay} H{ax + aw} V{ay + ah} H{ax} V{ay + cut} Z" '
-                  f'fill="{PLATE}" fill-opacity="0.92" stroke="rgba(255,255,255,0.22)"/>'
+                  f'fill="{PLATE}" fill-opacity="0.62" stroke="rgba(255,255,255,0.16)"/>'
                   # Внутренняя ступенька: дно площадки ниже её кромки.
                   f'<path d="M{ax + cut + 6} {ay + 6} H{ax + aw - 6} V{ay + ah - 6} '
                   f'H{ax + 6} V{ay + cut + 6} Z" fill="none" '
@@ -230,10 +230,10 @@ def render(cv):
         # снимается плита только после того, как его отвели. Заклёпка на нём —
         # ось, вокруг которой он поворачивается. На фотографии он есть у обеих
         # плит и выступает за кромку — потому что цепляется не за плиту.
-        hook = (f'<path d="M{x - 6} {y + SOCKET_H - 34} h26 a5 5 0 0 1 5 5 v22 '
-                f'a5 5 0 0 1 -5 5 h-26 z" fill="#12120e" '
+        hook = (f'<path d="M{x - 8} {y + SOCKET_H / 2 - 13} h24 a5 5 0 0 1 5 5 v16 '
+                f'a5 5 0 0 1 -5 5 h-24 z" fill="#12120e" '
                 f'stroke="rgba(147,161,161,0.34)"/>'
-                f'<circle cx="{x + 8}" cy="{y + SOCKET_H - 18}" r="3.6" fill="#2a2a24" '
+                f'<circle cx="{x + 4}" cy="{y + SOCKET_H / 2}" r="3.4" fill="#2a2a24" '
                 f'stroke="rgba(223,232,234,0.42)"/>')
 
         # Технологические отверстия: ими плиту базируют на станке, и на живой
@@ -256,8 +256,8 @@ def render(cv):
         # Жёлтый язычок: за него тянут плёнку с термопасты, и на собранной
         # машине он остаётся торчать из-под плиты — единственное яркое пятно на
         # всей детали, и на фотографиях оно именно такое.
-        tab = (f'<path d="M{x + 30} {y + SOCKET_H - 34} h34 l-4 20 h-28 Z" '
-               f'fill="#d8a915" fill-opacity="0.72" stroke="rgba(60,44,16,0.4)"/>')
+        tab = (f'<path d="M{x + SOCKET_W / 2 - 20} {y + SOCKET_H - 12} h36 l-5 16 h-26 Z" '
+               f'fill="#d8a915" fill-opacity="0.62" stroke="rgba(60,44,16,0.4)"/>')
 
         # Партномер набит по кромке рамы: наклейке тут не на чем держаться —
         # поверхность уходит под шланги и под руку монтажника.
