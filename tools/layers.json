@@ -9,9 +9,11 @@
     "cover+silk pcb_zones+fans": 12,
     "cover+silk pcb_zones+memory": 24,
     "major+major frames+cpu": 2,
+    "major+major frames+dlc": 2,
     "major+major frames+memory": 3,
     "major+major frames+risers": 2,
     "major+major pcb_scatter+backplane": 3,
+    "major+major pcb_scatter+dlc": 1,
     "major+major pcb_scatter+fans": 3,
     "major+major pcb_scatter+frames": 2,
     "major+major pcb_scatter+memory": 1,
@@ -19,16 +21,20 @@
     "major+major pcb_scatter+rear_io": 2,
     "major+major pcb_scatter+risers": 2,
     "major+major pcb_scatter+service": 1,
+    "major+major pcb_zones+dlc": 1,
     "major+major pcb_zones+frames": 3,
     "major+major pcb_zones+pcb_scatter": 2,
     "major+major pcb_zones+risers": 1,
     "major+major pcb_zones+service": 2,
+    "major+major risers+dlc": 2,
+    "major+major service+dlc": 3,
     "major+minor pcb_scatter+pcb_scatter": 2,
     "major+part pcb_zones+pcb_scatter": 1,
     "major+silk fans+fans": 6,
     "major+silk pcb_scatter+pcb_scatter": 1,
     "minor+minor pcb_scatter+pcb_scatter": 1,
     "part+major pcb_scatter+backplane": 2,
+    "part+major pcb_scatter+dlc": 3,
     "part+major pcb_scatter+fans": 2,
     "part+major pcb_scatter+service": 2,
     "reserve+part pcb_zones+pcb_scatter": 1,
@@ -38,7 +44,5 @@
     "обозначение J30",
     "обозначение J31"
   ],
-  "hollow": [
-    "pcb_zones"
-  ]
+  "hollow": []
 }

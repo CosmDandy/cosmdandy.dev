@@ -97,10 +97,22 @@ FAN = {'n': FAN_N, 'model': '60×56 single-rotor', 'blades': BLADE_N,
 # вовсе, и в 1U взять блок крупнее было неоткуда: карман блока по высоте юнита.
 PSU = {'n': len(PSU_Y), 'watt': 1800, 'model': 'CRPS 80 PLUS Titanium'}
 
+# Слот в машине распаян по-прежнему второй, а кронштейн стоит один: проём
+# второго занял вывод жидкостного контура. Поэтому здесь один райзер, а не два
+# со свободным — «свободный» означало бы, что в него можно что-то поставить.
 RISERS = (
     {'slot': 1, 'link': 'PCIe Gen5 ×16', 'card': '2× 10G SFP+', 'empty': False},
-    {'slot': 2, 'link': 'PCIe Gen5 ×16', 'card': None, 'empty': True},
 )
+
+# Жидкостный контур. Два водоблока на общем последовательном контуре: подача
+# входит в первый, перемычка ведёт ко второму, обратка уходит назад. Снимается
+# он целиком — трубки с блоков не снимаются, и один блок в отрыве от другого не
+# существует. Отсюда и правило разбора: сначала контур, потом процессоры.
+DLC = {
+    'kind': 'Direct Liquid Cooling', 'plates': CPU['n'], 'loop': 'series',
+    'coolant': 'PG25', 'inlet_c': 32, 'delta_c': 9, 'flow_lpm': 1.6,
+    'leak_sense': True, 'slot': 2,
+}
 
 # Клеймо изготовителя. Одна строка на всю машину: она набита и на шелкографии
 # платы, и на шильдике радиатора, и менять её надо в одном месте — иначе на
@@ -153,6 +165,7 @@ def passport():
         'fan': FAN,
         'psu': PSU,
         'riser': [dict(r) for r in RISERS],
+        'dlc': DLC,
         'ports': PORTS,
         # Chips with their reference designators — an honest lspci is built out
         # of them: what is drawn is what is listed.

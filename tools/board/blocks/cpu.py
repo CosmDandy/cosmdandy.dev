@@ -8,7 +8,7 @@ import math
 from board.geom import SOCKET_H, SOCKET_W, X_CORE, X_SOCK, X_TAG, Y_CPU0, Y_CPU1, seat
 from board.ink import hit, mono, silk_boxed, silk_inverse
 from board.lamps import fault
-from board.metal import IHS_INSET, ihs_path, substrate_path
+from board.metal import IHS_INSET, hexgrid, ihs_path, substrate_path
 from board.palette import COLD
 from board.revision import stamp
 from board.spec import CPU, MADE
@@ -133,10 +133,12 @@ def render(cv):
                 f'fill="url(#die-shine)"/></g>')
 
     def heatsink(x, y):
-        # Рёбра вдоль потока воздуха: он идёт спереди назад, слева направо.
-        rows = int((SOCKET_H - 24) // 3.4)
-        fins = ''.join(f'<line x1="{x+12}" y1="{y+12+i*3.4:.1f}" x2="{x+SOCKET_W-12}" y2="{y+12+i*3.4:.1f}" '
-                       f'stroke="rgba(147,161,161,0.22)" stroke-width="1.2"/>' for i in range(rows))
+        # Крышка водоблока: литьё с сотовым рельефом, а не оребрение. Рёбер тут
+        # нет и быть не может — тепло уносит жидкость, а не воздух, и всё, что
+        # осталось наверху, это литая крышка над микроканалами. Соты на ней
+        # честные: так отливают, чтобы плоская крышка не выгибалась давлением.
+        cells = hexgrid(x + 18, y + 18, SOCKET_W - 36, SOCKET_H - 36, s=9, gap=3,
+                        fill='rgba(2,7,9,0.30)', stroke='rgba(147,161,161,0.13)')
         # Подпружиненные винты по углам — они на самом радиаторе и уезжают с ним.
         # Винт подпружинен: витая пружина сидит между головкой и радиатором и
         # задаёт усилие прижима — затягивать «до упора» тут нечего, момент
@@ -158,55 +160,70 @@ def render(cv):
             f'<line x1="{sx-3}" y1="{sy}" x2="{sx+3}" y2="{sy}" stroke="rgba(147,161,161,0.5)" stroke-width="1.4"/>'
             f'<line x1="{sx}" y1="{sy-3}" x2="{sx}" y2="{sy+3}" stroke="rgba(147,161,161,0.5)" stroke-width="1.4"/>'
             for sx in (x + 12, x + SOCKET_W - 12) for sy in (y + 12, y + SOCKET_H - 12))
-        # Бумажный шильдик: партномер, штрих-код и предупреждение про рычаг.
-        # На живом радиаторе он занимает треть верхней плоскости.
-        lx, ly, lw, lh = x + 34, y + 30, SOCKET_W - 68, 56
+        # Штуцеры: по одному на каждой боковой кромке. Контур проходит блоки
+        # насквозь — вошло слева, вышло справа, — и это не украшение: у
+        # последовательного контура вход одного блока есть выход соседнего, и
+        # порядок штуцеров говорит, куда течёт.
+        def fitting(fx, fy):
+            return (f'<rect x="{fx - 9}" y="{fy - 11}" width="18" height="22" rx="3" fill="#1a2429" '
+                    f'stroke="rgba(147,161,161,0.42)"/>'
+                    # Накидная гайка: шестигранник, за который штуцер и затягивают.
+                    f'<rect x="{fx - 7}" y="{fy - 7}" width="14" height="14" rx="2" fill="#22303a" '
+                    f'stroke="rgba(147,161,161,0.34)"/>'
+                    f'<circle cx="{fx}" cy="{fy}" r="4.4" fill="#0a1215" '
+                    f'stroke="rgba(147,161,161,0.30)"/>')
+
+        ports = (fitting(x, y + SOCKET_H / 2) + fitting(x + SOCKET_W, y + SOCKET_H / 2))
+        # Бумажный шильдик: партномер, штрих-код и предупреждение про давление.
+        # На живом водоблоке он мельче, чем был на радиаторе: середину крышки
+        # занимает литьё, и наклейку клеят на свободную полосу снизу.
+        lx, ly, lw, lh = x + 34, y + SOCKET_H - 52, SOCKET_W - 68, 40
         # Бумага держится на 0.5: непрозрачный шильдик на тёмном радиаторе бил в
         # глаза сильнее подписей ссылок, а он всего лишь фон.
         tag = (f'<rect x="{lx}" y="{ly}" width="{lw}" height="{lh}" rx="2" fill="#cfc9b6" fill-opacity="0.5"/>'
                + ''.join(f'<rect x="{lx+8+k*3}" y="{ly+7}" width="{1.6 if k % 3 else 2.6}" height="14" '
                          f'fill="rgba(10,20,23,0.62)"/>' for k in range(18))
-               + f'<text x="{lx+lw-8}" y="{ly+18}" text-anchor="end" fill="rgba(10,20,23,0.66)" '
+               + f'<text x="{lx+lw-8}" y="{ly+14}" text-anchor="end" fill="rgba(10,20,23,0.66)" '
                  f'font-family="ui-monospace, Menlo, monospace" font-size="7">P/N 41Y9033</text>'
-               + push_icon(lx + 7, ly + 26, 17)
+               # Клеймо изготовителя тут же, мелко: на живой наклейке ему
+               # отводят последнюю строку, а не отдельное место на детали.
+               + f'<text x="{lx+lw-8}" y="{ly+22}" text-anchor="end" fill="rgba(10,20,23,0.4)" '
+                 f'font-family="ui-monospace, Menlo, monospace" font-size="5.4">{MADE}</text>'
+               + drop_icon(lx + 7, ly + 24, 15)
                # Предупреждение набрано темнее и жирнее остального: на живой
                # наклейке так и есть, и разница не декоративная — эта строка
-               # про испорченное железо, а не про сведения.
-               + f'<text x="{lx+30}" y="{ly+38}" fill="#5a1a0c" fill-opacity="0.88" '
+               # про залитую машину, а не про сведения. Рычаг тут ни при чём:
+               # прежде чем трогать процессор, снимают весь контур.
+               + f'<text x="{lx+28}" y="{ly+30}" fill="#5a1a0c" fill-opacity="0.88" '
                  f'font-family="ui-monospace, Menlo, monospace" font-size="5.6" '
-                 f'font-weight="700">Attention: PUSH ON HEAT SINK</text>'
-               + f'<text x="{lx+30}" y="{ly+46}" fill="#5a1a0c" fill-opacity="0.88" '
+                 f'font-weight="700">Attention: DRAIN LOOP BEFORE</text>'
+               + f'<text x="{lx+28}" y="{ly+38}" fill="#5a1a0c" fill-opacity="0.88" '
                  f'font-family="ui-monospace, Menlo, monospace" font-size="5.6" '
-                 f'font-weight="700">WHILE ROTATING LEVER</text>'
-               + f'<text x="{lx+lw-8}" y="{ly+52}" text-anchor="end" fill="rgba(10,20,23,0.4)" '
-                 f'font-family="ui-monospace, Menlo, monospace" font-size="5.4">{MADE}</text>')
+                 f'font-weight="700">REMOVING COLD PLATE</text>')
+        # Литьё темнее прежнего оребрённого радиатора: у водоблока крышка
+        # анодирована в чёрный, и на живой машине он единственная деталь такого
+        # тона среди светлого металла.
         return (f'<g class="pick-body heatsink"><rect x="{x}" y="{y}" width="{SOCKET_W}" height="{SOCKET_H}" rx="6" '
-                f'fill="#26333a" stroke="rgba(147,161,161,0.38)"/>{fins}{tag}{screws}</g>')
+                f'fill="#1b2429" stroke="rgba(147,161,161,0.38)"/>{cells}{tag}{screws}{ports}</g>')
 
-    def push_icon(x, y, s):
-        """Пиктограмма «жми на радиатор, поворачивая рычаг».
+    def drop_icon(x, y, s):
+        """Пиктограмма «слей контур, прежде чем снимать блок».
 
     На живой наклейке она и есть главное: текст читают те, кто уже понял по
-    рисунку, а рисунок понимают и без английского. Три знака — брусок
-    радиатора, стрелка вниз на него и дуга поворота рычага сбоку.
+    рисунку. Два знака — капля и стрелка слива под ней.
     """
         ink = 'rgba(10,20,23,0.72)'
+        cx = x + s * 0.34
         return (
-            # радиатор в профиль с рёбрами
-            f'<rect x="{x}" y="{y+s*0.46:.1f}" width="{s:.1f}" height="{s*0.34:.1f}" rx="1" '
-            f'fill="none" stroke="{ink}" stroke-width="1"/>'
-            + ''.join(f'<line x1="{x+s*(0.2+0.2*k):.1f}" y1="{y+s*0.5:.1f}" '
-                      f'x2="{x+s*(0.2+0.2*k):.1f}" y2="{y+s*0.76:.1f}" '
-                      f'stroke="{ink}" stroke-width="0.7"/>' for k in range(4))
-            # ладонь давит сверху: стрелка в радиатор
-            + f'<path d="M{x+s*0.5:.1f} {y} v{s*0.32:.1f} m{-s*0.14:.1f} {-s*0.12:.1f} '
-              f'l{s*0.14:.1f} {s*0.12:.1f} {s*0.14:.1f} {-s*0.12:.1f}" fill="none" '
-              f'stroke="{ink}" stroke-width="1.4" stroke-linecap="round"/>'
-            # рычаг поворачивается: дуга со стрелкой у левого торца
-            + f'<path d="M{x-s*0.16:.1f} {y+s*0.86:.1f} a{s*0.42:.1f} {s*0.42:.1f} 0 0 1 '
-              f'{s*0.40:.1f} {-s*0.40:.1f}" fill="none" stroke="{ink}" stroke-width="1.1"/>'
-            + f'<path d="M{x+s*0.24:.1f} {y+s*0.46:.1f} l{-s*0.14:.1f} {-s*0.02:.1f} '
-              f'l{s*0.06:.1f} {s*0.14:.1f} Z" fill="{ink}"/>')
+            # Капля: остриё вверх, круглое донце — как её и рисуют на всём, что
+            # течёт. Дуга снизу почти замыкает круг, прямые сходятся в вершину.
+            f'<path d="M{cx:.1f} {y} l{s*0.26:.1f} {s*0.42:.1f} '
+            f'a{s*0.30:.1f} {s*0.30:.1f} 0 1 1 {-s*0.52:.1f} 0 Z" fill="none" '
+            f'stroke="{ink}" stroke-width="1.1" stroke-linejoin="round"/>'
+            # Стрелка слива: вниз, из-под капли.
+            + f'<path d="M{cx:.1f} {y+s*0.82:.1f} v{s*0.30:.1f} m{-s*0.13:.1f} {-s*0.13:.1f} '
+              f'l{s*0.13:.1f} {s*0.13:.1f} {s*0.13:.1f} {-s*0.13:.1f}" fill="none" '
+              f'stroke="{ink}" stroke-width="1.3" stroke-linecap="round"/>')
 
     def ilm(x, y):
         """Прижимная скоба сокета: она приклёпана к плате и радиатор не уносит.
