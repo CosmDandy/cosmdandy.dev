@@ -3617,9 +3617,15 @@ function frameOf(el, pad) {
     // Сначала уходят приборы, и только потом трогается машина. Одновременно
     // это читается рябью: колонка ещё едет, схема уже летит поверх неё.
     rig.classList.add('zoom-shift');
+    // Наклон снимаем сразу, вместе с уходом приборов: он держится 3D-слоем, и
+    // перестройка раскладки, пущенная поверх него, идёт по растру — та же
+    // болезнь, что была у наезда камеры. Приборы уходят 190 мс, выпрямление
+    // укладывается в то же время и ничего не задерживает.
+    rig.classList.add('flat');
     wait(190, function () {
       rig.classList.add('zooming');
       flyParts(function () {
+        rig.classList.remove('flat');
         rig.classList.toggle('zoom', on);
         document.body.classList.toggle('zoom', on);
         if (on) {
