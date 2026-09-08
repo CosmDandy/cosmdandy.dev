@@ -28,7 +28,6 @@ from board.blocks import dlc
 # сборка скругляет колена дугой, и поворот на девяносто градусов законен, если
 # отрезки по сторонам достаточно длинные. Пережимается рукав тогда, когда
 # радиус меньше полутора его диаметров — это и есть предел изгиба.
-BEND_R = 44          # радиус, которым сборка скругляет колено
 MIN_R = 26           # меньше этого рукав пережат
 SHARP = 100          # угол, ниже которого колено считается поворотом
 # Проход у стены вентиляторов: всё, что левее памяти, считается левой стороной.
@@ -45,10 +44,16 @@ def banks():
 
 
 def segments():
-    """Все отрезки трассы: (имя, начало, конец)."""
+    """Все отрезки трассы: (имя, начало, конец).
+
+    Берутся не из ломаной, а из `dlc.traced` — из того, что реально нарисовано.
+    Колена скругляются, кривая срезает угол и уходит внутрь: по сырой ломаной
+    проверять значит проверять не ту линию, которую видно на схеме.
+    """
     out = []
     for name, points in dlc.routes().items():
-        for a, b in zip(points, points[1:]):
+        path = dlc.traced(points)
+        for a, b in zip(path, path[1:]):
             out.append((name, a, b))
     return out
 
@@ -124,7 +129,8 @@ def check():
             a2 = atan2(y2 - y1, x2 - x1)
             ang = abs(degrees(a1 - a2)) % 360
             ang = min(ang, 360 - ang)
-            r = min(BEND_R, hypot(x1 - x0, y1 - y0) / 2, hypot(x2 - x1, y2 - y1) / 2)
+            r = min(dlc.BEND, hypot(x1 - x0, y1 - y0) * dlc.BEND_FRAC,
+                    hypot(x2 - x1, y2 - y1) * dlc.BEND_FRAC)
             if ang < SHARP and r < MIN_R:
                 bad.append(f'{name}: колено в ({x1:.0f},{y1:.0f}) — {ang:.0f}° '
                            f'при радиусе {r:.0f}, нужен не меньше {MIN_R}')
@@ -136,9 +142,10 @@ def check():
     #    не пройти. Эталон — тот же путь, проложенный по-манхэттенски через
     #    проход, если трасса в него заходит.
     for name, points in dlc.routes().items():
-        length = sum(hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(points, points[1:]))
-        start, end = points[0], points[-1]
-        west = min(x for x, _y in points)
+        path = dlc.traced(points)
+        length = sum(hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(path, path[1:]))
+        start, end = path[0], path[-1]
+        west = min(x for x, _y in path)
         if west < LEFT_LANE:
             ideal = abs(start[0] - west) + abs(end[0] - west) + abs(end[1] - start[1])
         else:
