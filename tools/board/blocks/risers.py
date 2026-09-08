@@ -21,7 +21,7 @@ from board.ink import mono, silk_boxed
 from board.lamps import act_led, fault_at, lamp
 from board.metal import finned_sink, hexgrid
 from board.palette import COLD, STEEL
-from board.ports import qsfp, sfp
+from board.ports import qsfp, sfp, turned
 from board.revision import stamp
 from board.spec import PORTS
 
@@ -116,14 +116,15 @@ def render(cv):
             # то есть карта работает, но не так, как заявлена. ACT — событие:
             # мигает на трафике. Раньше на две розетки приходилось три лампы
             # без подписей, и какая из них про что, сказать было нельзя.
-            def sfp_leds(p, py, degraded):
+            def sfp_leds(p, cx, degraded):
                 lnk_color = "#b58900" if degraded else "#859900"
-                return (lamp('led-link', X_IO + 9, py + 11, 2.4, lnk_color)
-                        + mono(X_IO + 9, py + 21, "LNK", 4, op=0.32)
-                        + act_led(3 + p, X_IO + 79, py + 11, 2.4, "#859900", salt=2 + p)
-                        + mono(X_IO + 79, py + 21, "ACT", 4, op=0.32))
+                ly = card_y + 56
+                return (lamp('led-link', cx - 7, ly, 2.2, lnk_color)
+                        + mono(cx - 7, ly + 9, "LNK", 3.6, op=0.32)
+                        + act_led(3 + p, cx + 7, ly, 2.2, "#859900", salt=2 + p)
+                        + mono(cx + 7, ly + 9, "ACT", 3.6, op=0.32))
 
-            ports = [(f'<rect x="{X_IO}" y="{card_y-4}" width="86" height="64" rx="4" '
+            ports = [(f'<rect x="{X_IO}" y="{card_y-4}" width="86" height="76" rx="4" '
                       f'fill="#13282c" stroke="rgba(42,161,152,0.50)"/>')]
             # Оба порта в норме. Второй был жёстко помечен упавшим до гигабита —
             # и это спорило с самой машиной: /sys/class/net показывал оба
@@ -131,10 +132,19 @@ def render(cv):
             # машину, а упавший линк — это состояние, которое приходит извне, а
             # не свойство платы. Янтарный цвет лампы при этом остался: он
             # включается, когда линк действительно падает.
+            # Клетки развёрнуты на четверть оборота: гнездо смотрит НАРУЖУ,
+            # в стенку, а не на зрителя. Модуль входит снаружи внутрь машины,
+            # и с этого вида должен быть виден его ход, а не морда разъёма —
+            # мордой к смотрящему клетка не стоит никогда.
+            #
+            # Развёрнутая клетка вдвое выше, чем была широка, и стопкой две
+            # уже не встают: они переехали в ряд, бок о бок, как на живой
+            # двухпортовой планке. Лампы вслед за ними — под каждой своя пара.
             for p in range(2):
-                py = card_y + 2 + p * 30
-                ports.append(sfp(X_IO + 20, py, w=48, h=22))
-                ports.append(sfp_leds(p, py, False))
+                cx = X_IO + 25 + p * 36
+                cy = card_y + 24
+                ports.append(turned(sfp(cx - 24, cy - 11, w=48, h=22), cx, cy))
+                ports.append(sfp_leds(p, cx, False))
             # Подписи о том, что это за карта, здесь больше нет. Она входила в
             # ту же группу, что и сама карта, и уезжала вместе с ней: вынимаешь
             # райзер — надпись едет вверх и повисает над платой, объясняя
@@ -162,18 +172,23 @@ def render(cv):
             # Гнёзда QSFP28. Их два, как и на верхней карте, но клетка шире и
             # выше: под сотню идут четыре линии вместо одной. Ламп у порта
             # тоже две и о том же — состояние линка и трафик.
-            def qsfp_leds(p, py):
-                return (lamp('led-link', X_IO + 8, py + 14, 2.4, "#859900")
-                        + mono(X_IO + 8, py + 24, "LNK", 4, op=0.32)
-                        + act_led(7 + p, X_IO + 80, py + 14, 2.4, "#859900", salt=6 + p)
-                        + mono(X_IO + 80, py + 24, "ACT", 4, op=0.32))
+            def qsfp_leds(p, cx):
+                ly = card_y + 50
+                return (lamp('led-link', cx - 8, ly, 2.2, "#859900")
+                        + mono(cx - 8, ly + 9, "LNK", 3.6, op=0.32)
+                        + act_led(7 + p, cx + 8, ly, 2.2, "#859900", salt=6 + p)
+                        + mono(cx + 8, ly + 9, "ACT", 3.6, op=0.32))
 
-            ports = [(f'<rect x="{X_IO}" y="{card_y-6}" width="86" height="72" rx="4" '
+            ports = [(f'<rect x="{X_IO}" y="{card_y-14}" width="86" height="78" rx="4" '
                       f'fill="#13282c" stroke="rgba(42,161,152,0.50)"/>')]
+            # Развёрнуты так же, как на верхней карте: вход смотрит наружу.
+            # Клетка тут шире и длиннее, и в ряд две встают впритык — на живой
+            # низкопрофильной карте ровно так и есть, планка занята ими целиком.
             for p in range(2):
-                py = card_y - 2 + p * 34
-                ports.append(qsfp(X_IO + 12, py, w=64, h=30))
-                ports.append(qsfp_leds(p, py))
+                cx = X_IO + 24 + p * 38
+                cy = card_y + 14
+                ports.append(turned(qsfp(cx - 32, cy - 15, w=64, h=30), cx, cy))
+                ports.append(qsfp_leds(p, cx))
             ports = ''.join(ports)
             card += (f'<g class="unit" data-unit="cx" data-group="cx" '
                      f'data-href="/tg/">{ports}</g>')

@@ -86,15 +86,17 @@ def _port_seats():
     """
     from board.geom import BRACKET_W, IO_Y, JACK_H, JACK_PITCH, RISER
 
-    # Карта OCP: её торец — верхнее гнездо SFP+. Тот же счёт, что в risers.
+    # Карта OCP: её торец — гнёзда SFP+. Тот же счёт, что в risers. Клетки там
+    # развёрнуты и стоят в ряд, а не стопкой, — кабель идёт от середины пары
+    # по высоте, потому что обе клетки на одной высоте и есть.
     edge_y = RISER[0][0] + BRACKET_W + 6
     card_y = edge_y - 46
     # Стогигабитная карта во втором райзере. Кронштейн там перевёрнут, и
     # краевой разъём считается от НИЗА кармана, а не от верха.
     cx_edge_y = RISER[1][0] + RISER[1][1] - BRACKET_W - 6
     cx_card_y = cx_edge_y - 40
-    return {'ocp': card_y + 2 + 11,
-            'cx': cx_card_y - 2 + 15,
+    return {'ocp': card_y + 24,
+            'cx': cx_card_y + 14,
             'eth': IO_Y + 0 * JACK_PITCH + JACK_H / 2,
             'tw': IO_Y + 1 * JACK_PITCH + JACK_H / 2}
 
