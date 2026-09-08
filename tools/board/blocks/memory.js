@@ -29,8 +29,11 @@
     dimms.forEach(function (dimm, row) {
       const b = dimm.querySelector('.pick-body').getBBox();
       // Корпуса сидят в ряд по длине планки, отступив от краёв: у самой
-      // кромки стоит не память, а ключ и контакты.
-      const padX = b.width * 0.10, padY = b.height * 0.24;
+      // кромки стоит не память, а ключ и контакты. Отступ маленький нарочно —
+      // при десятой доле с каждой стороны пятая часть планки оставалась пустой,
+      // и ряд читался как «нарисовано не на всю память». На живом модуле
+      // корпуса стоят почти от края до края.
+      const padX = b.width * 0.045, padY = b.height * 0.19;
       const w = (b.width - 2 * padX) / chips;
       for (let i = 0; i < chips; i++) {
         const r = document.createElementNS(MEM_NS, 'rect');
@@ -92,6 +95,6 @@
              + ' ГБ обойдено · открываю записи', 'ok');
       });
 
-      sceneWait(2200, done);
+      sceneWait(2400, done);
     },
   });

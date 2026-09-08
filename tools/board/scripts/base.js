@@ -926,7 +926,13 @@
   // Кадр по узлу: его габарит, раздутый до пропорций схемы. Пропорции держать
   // обязательно — высоту картинки браузер считает из viewBox при height:auto,
   // и кадр другой формы менял бы высоту страницы прямо посреди наезда.
-  function frameOf(el, pad) {
+  // Сколько идёт выпрямление на время пролога — то же число, что в CSS, плюс
+// отсрочка, за которую деталь успевает тронуться.
+const FLAT_LAG = 140;
+const FLAT_MS = FLAT_LAG + 280;
+let flatAt = 0;
+
+function frameOf(el, pad) {
     const b = el.getBBox();
     let w = b.width + 2 * pad, h = b.height + 2 * pad;
     if (w / h < VIEW_AR) w = h * VIEW_AR; else h = w / VIEW_AR;
@@ -942,11 +948,23 @@
   // кадре не будет, снимается заранее — см. narrowView ниже.
   function camera(to, ms, done) {
     if (camAnim) { cancelAnimationFrame(camAnim); camAnim = null; }
-    // Наклон снимается здесь, а не в начале сцены. Он держится 3D-слоем, и его
-    // снятие — перерисовка всей схемы; поставленное на щелчок, оно занимало
-    // главный поток ровно тогда, когда с места должна трогаться деталь. Мерка
-    // движения показала это числом: радиатор ждал лишние восемьдесят
-    // миллисекунд. Камере же выпрямление и нужно — ради вектора на наезде.
+    // Выпрямления камера ЖДЁТ, а не заказывает. Наклон — 3D-слой, и пока он
+    // уходит, схема на экране растр: наезд крупнит отпечаток, а не рисунок.
+    // Отсюда «сначала муть, потом резко чётко» — чёткость возвращалась ровно
+    // тогда, когда доигрывал наклон, и при секундном переходе это был весь
+    // наезд целиком.
+    //
+    // Само снятие заказано щелчком, но с отсрочкой: поставленное синхронно,
+    // оно занимает главный поток перерисовкой всей схемы ровно в тот кадр,
+    // где с места должна трогаться деталь. Мерка движения показала это
+    // числом — радиатор ждал лишние восемьдесят миллисекунд.
+    if (!reduced && ms) {
+      const left = flatAt ? FLAT_MS - (performance.now() - flatAt) : 0;
+      if (left > 16) {
+        wait(left, function () { camera(to, ms, done); });
+        return;
+      }
+    }
     rig.classList.add('flat');
     if (reduced || !ms) { putView(to); if (done) done(); return; }
     const from = board.getAttribute('viewBox').trim().split(/\s+/).map(Number);
@@ -1087,6 +1105,10 @@
     if (!scene || reduced) { leave(href); return; }
     opening = { href: href, timers: [] };
     rig.classList.add('opening');
+    // Наклон заказан здесь, снимется через FLAT_LAG — к первому наезду машина
+    // уже плоская, а первый кадр движения детали остаётся ей.
+    flatAt = performance.now();
+    wait(FLAT_LAG, function () { if (opening) rig.classList.add('flat'); });
     scene.play(unit, function () { closeOpening(); });
   }
 
@@ -1120,6 +1142,7 @@
   // уходить некуда и сцену надо просто отыграть назад.
   function restore() {
     opening = null;
+    flatAt = 0;
     rig.classList.remove('opening', 'leaving');
     resetScenes();
     camera(VIEW0, 0);
