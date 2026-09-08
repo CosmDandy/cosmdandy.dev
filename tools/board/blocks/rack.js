@@ -65,14 +65,17 @@
     play: function (el, done) { netScene(el, done, 'ocp'); },
   });
 
-  // Гигабитная пара на задней панели. Оба гнезда идут в ОБЫЧНЫЙ гигабитный
-  // коммутатор, а не в десятигигабитный: это разные железки, и сцена ведёт
-  // камеру к разным полкам.
+  // Стогигабитная карта во втором райзере. У неё своя железка — та, к которой
+  // сходится всё остальное, и стоит она в стойке выше прочих.
   OPENERS.push({
-    test: function (el) { return el.dataset.group === 'eth'; },
-    play: function (el, done) { netScene(el, done, 'eth'); },
+    test: function (el) { return el.dataset.group === 'cx'; },
+    play: function (el, done) { netScene(el, done, 'cx'); },
   });
 
+  // Гигабитное гнездо на задней панели. Оно идёт в ОБЫЧНЫЙ гигабитный
+  // коммутатор, а не в десятигигабитный: это разные железки, и сцена ведёт
+  // камеру к разным полкам. Сцены для первого гнезда пары здесь нет — оно
+  // просто гнездо, ссылки на нём не висит.
   OPENERS.push({
     test: function (el) { return el.dataset.group === 'tw'; },
     play: function (el, done) { netScene(el, done, 'tw'); },

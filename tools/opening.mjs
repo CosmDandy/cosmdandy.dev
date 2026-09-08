@@ -138,13 +138,15 @@ const SCENES = {
     escapeAt: 2400,
     span: 3200,
   },
-  eth: {
-    unit: '.unit[data-group="eth"]',
+  // Стогигабитная карта во втором райзере. Гигабитное гнездо, на котором
+  // Telegram висел раньше, ссылкой больше не является — сцены у него нет.
+  cx: {
+    unit: '.unit[data-group="cx"]',
     goes: '/tg/',
-    shows: { sel: '.sw[data-sw="sw1"]', held: 700 },
-    counts: { '.sw[data-sw="sw1"] .swport':
-      spec => spec.net.sw.find(w => w.id === 'sw1').ports },
-    lands: 'sw1',
+    shows: { sel: '.sw[data-sw="sw100"]', held: 700 },
+    counts: { '.sw[data-sw="sw100"] .swport':
+      spec => spec.net.sw.find(w => w.id === 'sw100').ports },
+    lands: 'sw100',
     escapeAt: 2400,
     span: 3200,
   },

@@ -21,7 +21,7 @@ from board.ink import mono, silk_boxed
 from board.lamps import act_led, fault_at, lamp
 from board.metal import finned_sink, hexgrid
 from board.palette import COLD, STEEL
-from board.ports import sfp
+from board.ports import qsfp, sfp
 from board.revision import stamp
 from board.spec import PORTS
 
@@ -48,6 +48,11 @@ def render(cv):
     cv.callouts.append((X_IO - 30, 160, X_IO - 8, 226, "LinkedIn", "end",
                         "https://linkedin.com/in/cosmdandy", "ocp",
                         "профиль", "linkedin"))
+    # Телеграм переехал сюда с гигабитного гнезда: канал теперь висит на
+    # стогигабитной карте. Бирка стоит на прежнем месте правой кромки — шаг
+    # между бирками важнее, чем то, к какому железу тянется выноска.
+    cv.callouts.append((X_IO - 30, 385, X_IO - 8, 367, "Telegram", "end",
+                        "/tg/", "cx", "канал", "telegram"))
 
     for k, ((y, hh), up) in enumerate(zip(RISER, (True, False))):
         # Кронштейн со своей платой занимает карман целиком — то же молчание,
@@ -139,19 +144,39 @@ def render(cv):
             card += (f'<g class="unit" data-unit="ocp" data-group="ocp" '
                      f'data-href="https://linkedin.com/in/cosmdandy">{ports}</g>')
         else:
-            # Слот пуст: карты нет, окно в стенке закрыто глухой планкой. Её и
-            # снимают первой, когда в машину что-то доставляют.
-            blank_y = y + 6
+            # Вторая карта — стогигабитная, и она низкопрофильная: на этот
+            # райзер приходится 80 единиц против 176 у верхнего, и такая карта
+            # в живой машине именно half-height. Радиатор у неё во всю плату:
+            # контроллер на сотню греется сильнее десятигигабитного, и на
+            # живой карте под ним стоит глухой блок с рёбрами, а не пластинка.
+            card_y = edge_y - 40
+            card_w = X_IO - x0 - 18
+            sink_x = x0 + 40
+            sink_w = X_IO - 10 - sink_x
             card = (riser_pcb
-                    + f'<rect x="{X_IO}" y="{blank_y}" width="86" height="{hh-12}" rx="3" '
-                      f'fill="{STEEL}" stroke="rgba(147,161,161,0.30)"/>'
-                    + ''.join(f'<line x1="{X_IO+14}" y1="{blank_y+10+r*11}" x2="{X_IO+72}" '
-                              f'y2="{blank_y+10+r*11}" stroke="rgba(147,161,161,0.14)" '
-                              f'stroke-width="1.4"/>' for r in range(int((hh - 34) // 11)))
-                    )
-        # Надписи на заглушке нет. Глухая планка — это штампованный кусок
-        # железа, на нём не печатают ничего: какой слот пуст, написано на
-        # наклейке корпуса, а не на самой планке.
+                    + f'<rect x="{x0+18}" y="{card_y}" width="{card_w}" height="46" rx="1" '
+                      f'fill="#0f1c24" stroke="rgba(42,161,152,0.34)"/>'
+                    + finned_sink(sink_x, card_y + 4, sink_w, 30, r=4.4, inset=8)
+                    + silk_boxed(x0 + 70, card_y + 41, "PCIE_X16_GF2 REV 1.00", 5))
+
+            # Гнёзда QSFP28. Их два, как и на верхней карте, но клетка шире и
+            # выше: под сотню идут четыре линии вместо одной. Ламп у порта
+            # тоже две и о том же — состояние линка и трафик.
+            def qsfp_leds(p, py):
+                return (lamp('led-link', X_IO + 8, py + 14, 2.4, "#859900")
+                        + mono(X_IO + 8, py + 24, "LNK", 4, op=0.32)
+                        + act_led(7 + p, X_IO + 80, py + 14, 2.4, "#859900", salt=6 + p)
+                        + mono(X_IO + 80, py + 24, "ACT", 4, op=0.32))
+
+            ports = [(f'<rect x="{X_IO}" y="{card_y-6}" width="86" height="72" rx="4" '
+                      f'fill="#13282c" stroke="rgba(42,161,152,0.50)"/>')]
+            for p in range(2):
+                py = card_y - 2 + p * 34
+                ports.append(qsfp(X_IO + 12, py, w=64, h=30))
+                ports.append(qsfp_leds(p, py))
+            ports = ''.join(ports)
+            card += (f'<g class="unit" data-unit="cx" data-group="cx" '
+                     f'data-href="/tg/">{ports}</g>')
 
         # Лепесток-ручка на внешнем торце: райзер вынимают вверх, взявшись за
         # него. Голубой, а не терракотовый: райзер меняют только на
