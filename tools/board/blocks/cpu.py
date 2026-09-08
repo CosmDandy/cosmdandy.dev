@@ -5,7 +5,8 @@
 
 import math
 
-from board.geom import SOCKET_H, SOCKET_W, X_CORE, X_SOCK, X_TAG, Y_CPU0, Y_CPU1, seat
+from board.geom import HUB_AT, SOCKET_H, SOCKET_W, TAP_LEN, TAPS
+from board.geom import X_CORE, X_SOCK, X_TAG, Y_CPU0, Y_CPU1, seat
 from board.ink import hit, mono, silk_boxed, silk_inverse
 from board.lamps import fault
 from board.metal import IHS_INSET, ihs_path, substrate_path
@@ -199,20 +200,33 @@ def render(cv):
         # Фланцы: диск с двумя винтами по краям и тёмным зевом посередине.
         # Разнесены по длинной оси на трети — там же, где они стоят на живой
         # плите, и между ними остаётся место для обжимных муфт.
-        def flange(cx, cy, latch):
-            # Диск фланца с выемкой на той стороне, куда уходит шланг: в неё
-            # ложится защёлка, не дающая рукаву сойти со штуцера. У одной она
-            # жёлтая — её ставят на подачу, чтобы не перепутать стороны, — у
-            # другой чёрная, и видно её по вырезу в кромке диска.
-            notch = (f'<path d="M{cx - 9} {cy - 21} a9 9 0 0 0 18 0" fill="#0d0b08" '
-                     f'fill-opacity="0.9"/>')
-            keep = (f'<rect x="{cx - 7}" y="{cy - 27}" width="14" height="11" rx="2" '
+        def spigot(cx, cy, deg, latch):
+            # Патрубок: короткий отвод от диска и защёлка на его конце, не
+            # дающая рукаву сойти со штуцера. У одной она жёлтая — её ставят на
+            # подачу, чтобы не перепутать стороны, — у другой чёрная.
+            #
+            # Рисуется он вверх и доворачивается до своего угла: у тройника
+            # отводов два, и второй иначе пришлось бы считать заново.
+            body = (f'<rect x="{cx - 11}" y="{cy - TAP_LEN - 4}" width="22" '
+                    f'height="{TAP_LEN + 8}" rx="5" fill="#2b2419" '
+                    f'stroke="{PLATE_DIM}"/>'
+                    f'<path d="M{cx - 9} {cy - 21} a9 9 0 0 0 18 0" fill="#0d0b08" '
+                    f'fill-opacity="0.9"/>'
+                    f'<rect x="{cx - 7}" y="{cy - TAP_LEN - 8}" width="14" height="11" rx="2" '
                     f'fill="{"#d8a915" if latch else "#1d1913"}" '
                     f'fill-opacity="{0.8 if latch else 1}" '
                     f'stroke="rgba(147,161,161,0.34)" stroke-width="0.8"/>')
-            return (f'<circle cx="{cx}" cy="{cy}" r="21" fill="#2b2419" fill-opacity="0.72" '
-                    f'stroke="{PLATE_DIM}"/>'
-                    + notch
+            return f'<g transform="rotate({deg} {cx} {cy})">{body}</g>'
+
+        def flange(cx, cy, taps, latch):
+            # Диск фланца с патрубками. Один отвод — обычный угловой штуцер, два
+            # — тройник: через него проходит и свой контур плиты, и шланги
+            # соседней. На фотографии тройники стоят только у ближней плиты, и
+            # по числу шлангов у блока это первое, что видно.
+            return (''.join(spigot(cx, cy, deg, latch and i == 0)
+                            for i, deg in enumerate(taps))
+                    + f'<circle cx="{cx}" cy="{cy}" r="21" fill="#2b2419" '
+                      f'fill-opacity="0.72" stroke="{PLATE_DIM}"/>'
                     + f'<circle cx="{cx}" cy="{cy}" r="13" fill="#1d1913" '
                       f'stroke="rgba(147,161,161,0.26)"/>'
                     + f'<circle cx="{cx}" cy="{cy}" r="6" fill="#0d0b08"/>'
@@ -220,11 +234,12 @@ def render(cv):
                     + ''.join(f'<circle cx="{cx + 16 * math.cos(a):.1f}" '
                               f'cy="{cy + 16 * math.sin(a):.1f}" r="2.4" fill="#100e0a" '
                               f'stroke="rgba(147,161,161,0.22)" stroke-width="0.7"/>'
-                              for a in (math.radians(d) for d in (35, 215)))
-                    + keep)
+                              for a in (math.radians(d) for d in (35, 215))))
 
-        flanges = (flange(x + SOCKET_W * 0.24, y + SOCKET_H / 2, latch=False)
-                   + flange(x + SOCKET_W * 0.76, y + SOCKET_H / 2, latch=True))
+        near, far = HUB_AT
+        keys = ('a0', 'b0') if y == Y_CPU0 else ('a1', 'b1')
+        flanges = (flange(x + SOCKET_W * near, y + SOCKET_H / 2, TAPS[keys[0]], latch=False)
+                   + flange(x + SOCKET_W * far, y + SOCKET_H / 2, TAPS[keys[1]], latch=True))
 
         # Крючок в левом нижнем углу: им прижим цепляется за рамку сокета, и
         # снимается плита только после того, как его отвели. Заклёпка на нём —

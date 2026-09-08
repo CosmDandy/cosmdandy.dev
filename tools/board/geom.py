@@ -117,6 +117,18 @@ Y_BANK_L, Y_CPU0, Y_BANK_C, Y_CPU1, Y_BANK_R = 34, 194, 368, 528, 696
 BANK_N = 8        # DIMMs in a bank; bank width = BANK_N * PITCH
 DIMM_SOCK_W = 292  # length of a memory socket along the board's depth
 SOCKET_W, SOCKET_H = 202, 150   # LGA 4677 is noticeably rectangular
+# Cold-plate hubs: the fraction of the plate's length each one sits at, the
+# length of a spigot, and which way every spigot points. Zero degrees faces the
+# memory bank, then clockwise: 90 is the rear wall, 270 the front.
+#
+# The near plate carries tees — two spigots each — because the loop is wired in
+# parallel: coolant from outside meets the far plate's hoses right at these
+# hubs. The far plate has one spigot per hub, both pointing the same way, so its
+# pair of hoses runs side by side into the lane. That is how it is assembled on
+# the real machine, and how it reads in a photograph of one.
+HUB_AT = (0.24, 0.76)
+TAP_LEN = 26
+TAPS = {'a0': (70, 250), 'b0': (90, 250), 'a1': (250,), 'b1': (270,)}
 
 Y_PSU_TOP, Y_PSU_BOT = 172, 690
 

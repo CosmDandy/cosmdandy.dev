@@ -110,7 +110,7 @@ RISERS = (
 # — шланги с плит не снимаются, и одна плита в отрыве от другой не существует.
 # Отсюда и правило разбора: сначала контур, потом процессоры.
 DLC = {
-    'kind': 'Direct Liquid Cooling', 'plates': CPU['n'], 'loop': 'series',
+    'kind': 'Direct Liquid Cooling', 'plates': CPU['n'], 'loop': 'parallel',
     'coolant': 'PG25', 'inlet_c': 32, 'delta_c': 9, 'flow_lpm': 1.6,
     'leak_sense': True, 'slot': 2,
 }
