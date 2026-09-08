@@ -128,7 +128,7 @@ SOCKET_W, SOCKET_H = 202, 150   # LGA 4677 is noticeably rectangular
 # the real machine, and how it reads in a photograph of one.
 HUB_AT = (0.24, 0.76)
 TAP_LEN = 26
-TAPS = {'a0': (70, 250), 'b0': (90, 250), 'a1': (250,), 'b1': (270,)}
+TAPS = {'a0': (70, 250), 'b0': (90, 250), 'a1': (250,), 'b1': (250,)}
 
 Y_PSU_TOP, Y_PSU_BOT = 172, 690
 
