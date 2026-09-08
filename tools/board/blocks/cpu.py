@@ -223,8 +223,8 @@ def render(cv):
                               for a in (math.radians(d) for d in (35, 215)))
                     + keep)
 
-        flanges = (flange(x + SOCKET_W / 3, y + SOCKET_H / 2, latch=False)
-                   + flange(x + SOCKET_W * 2 / 3, y + SOCKET_H / 2, latch=True))
+        flanges = (flange(x + SOCKET_W * 0.24, y + SOCKET_H / 2, latch=False)
+                   + flange(x + SOCKET_W * 0.76, y + SOCKET_H / 2, latch=True))
 
         # Технологические отверстия: ими плиту базируют на станке, и на живой
         # детали они разбросаны по свободному полю с латунной фаской по кромке.
@@ -240,8 +240,8 @@ def render(cv):
             f'<path d="M{wx} {wy} L{wx + dx} {wy + dy}" fill="none" '
             f'stroke="rgba(147,161,161,0.34)" stroke-width="1.2"/>'
             for wx, wy, dx, dy in (
-                (x + SOCKET_W / 3 - 14, y + SOCKET_H / 2 + 14, -26, 22),
-                (x + SOCKET_W * 2 / 3 + 14, y + SOCKET_H / 2 + 14, 26, 22)))
+                (x + SOCKET_W * 0.24 - 14, y + SOCKET_H / 2 + 14, -14, 22),
+                (x + SOCKET_W * 0.76 + 14, y + SOCKET_H / 2 + 14, 14, 22)))
 
         # Жёлтый язычок: за него тянут плёнку с термопасты, и на собранной
         # машине он остаётся торчать из-под плиты — единственное яркое пятно на

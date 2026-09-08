@@ -19,7 +19,7 @@
 """
 
 # Свой прямоугольник: сборка проверит, что узел из него не вышел.
-BOUNDS = (470, 88, 840, 640)
+BOUNDS = (540, 220, 760, 440)
 
 import math
 
@@ -132,38 +132,43 @@ def clip(cx, cy, vertical=False):
 
 
 def render(cv):
-    # Фланцы водоблоков: те же трети длинной оси, из которых их рисует `cpu`.
-    hub_in0 = (X_SOCK + SOCKET_W * 2 / 3, Y_CPU0 + SOCKET_H / 2)
-    hub_out0 = (X_SOCK + SOCKET_W / 3, Y_CPU0 + SOCKET_H / 2)
-    hub_in1 = (X_SOCK + SOCKET_W / 3, Y_CPU1 + SOCKET_H / 2)
-    hub_out1 = (X_SOCK + SOCKET_W * 2 / 3, Y_CPU1 + SOCKET_H / 2)
-    Y_OVER = Y_CPU0 - 96       # коридор поверх верхнего банка
+    """Жгут вдоль плит.
 
-    # Обе трубки верхней плиты уходят вверх, наискось через саму плиту: так они
-    # и лежат на живой машине, и причина не в красоте — фланцы смотрят вдоль
-    # плиты, а уходить шлангам некуда, кроме как поверх банка памяти. Вбок от
-    # плиты они выйти не могут: там сокет соседа и стойка корзины.
+    Плиты подключены не цепочкой, а каждая своей парой к общему манифолду —
+    так это и сделано на живой машине, и причина не в удобстве монтажа: в
+    цепочке второй процессор получал бы воду, уже нагретую первым, и два
+    одинаковых камня работали бы при разной температуре.
 
-    # Подача: от разъёма в стенке вперёд, вверх, над банком влево и наискось
-    # вниз — в правый фланец.
-    feed = bent([(X_OUT, Y_OUT_HI), (X_TRUNK_HI, Y_OUT_HI), (X_TRUNK_HI, Y_OVER),
-                 (hub_in0[0] + 74, Y_OVER), hub_in0], r=30)
+    Пара идёт вдоль своей плиты и ложится на неё: ближний штуцер принимает
+    первый шланг, а второй проходит по плите насквозь — к дальнему. Отсюда и
+    вид на фотографии, где плита наполовину закрыта шлангами. Обход плиты
+    снаружи, с которого эта схема начиналась, давал аккуратный чертёж и
+    неправду: на живой машине шлангу негде идти в обход, там память.
+    """
+    mid0, mid1 = Y_CPU0 + SOCKET_H / 2, Y_CPU1 + SOCKET_H / 2
+    near0 = (X_SOCK + SOCKET_W * 0.76, mid0)      # ближний к стенке штуцер
+    far0 = (X_SOCK + SOCKET_W * 0.24, mid0)       # дальний, за ним
+    near1 = (X_SOCK + SOCKET_W * 0.76, mid1)
+    far1 = (X_SOCK + SOCKET_W * 0.24, mid1)
 
-    # Перемычка: из левого фланца наискось вверх, над банком влево, и вниз в
-    # проход левее памяти — к нижней плите. Через средний банк ей хода нет.
-    bridge = bent([hub_out0, (hub_out0[0] - 74, Y_OVER), (X_BRIDGE, Y_OVER),
-                   (X_BRIDGE, hub_in1[1]), hub_in1], r=30)
+    # Шланги пары идут по обе стороны от оси плиты: разведи их по одной линии,
+    # и они легли бы друг на друга. Смещение — половина толщины с зазором.
+    off = TUBE / 2 + 3
 
-    # Обратка: из правого фланца нижней плиты назад к стенке.
-    ret = bent([hub_out1, (X_TRUNK_LO, hub_out1[1]),
-                (X_TRUNK_LO, Y_OUT_LO), (X_OUT, Y_OUT_LO)])
+    # Прогон от манифолда до плиты: пара идёт рядом, поворачивает на уровень
+    # своей плиты и дальше вдоль неё.
+    def pair(y_out, mid, near, far, lane_a, lane_b):
+        feed = bent([(X_OUT, y_out), (lane_a, y_out), (lane_a, mid - off),
+                     (near[0], mid - off), near], r=26)
+        ret = bent([far, (far[0], mid + off), (lane_b, mid + off),
+                    (lane_b, y_out + 6), (X_OUT, y_out + 6)], r=26)
+        return feed, ret
 
-    # Датчик протечки. Тонкая трубка идёт от нижней плиты к своей колодке на
-    # плате: по ней жидкость доходит до датчика раньше, чем до чего-нибудь
-    # дорогого. В паспорте контура он значится, и не нарисовать его значило бы
-    # обещать датчик, которого на схеме нет.
-    # Колодка датчика стоит сбоку от плиты, а не под ней: снизу к плите вплотную
-    # подходит банк памяти, и всё, что туда поставлено, встаёт на плашки.
+    lanes = [X_TRUNK_HI + k * (TUBE + 6) for k in range(4)]
+    feed0, ret0 = pair(Y_OUT_HI, mid0, near0, far0, lanes[0], lanes[1])
+    feed1, ret1 = pair(Y_OUT_LO + 12, mid1, near1, far1, lanes[2], lanes[3])
+
+    # Датчик протечки: тонкая трубка от нижней плиты к своей колодке сбоку.
     sx, sy = X_SOCK + SOCKET_W + 18, Y_CPU1 + SOCKET_H - 54
     leak = bent([(X_SOCK + SOCKET_W - 24, Y_CPU1 + SOCKET_H - 6),
                  (X_SOCK + SOCKET_W - 24, sy + 18), (sx, sy + 18)], r=12)
@@ -172,48 +177,63 @@ def render(cv):
               f'<rect x="{sx + 2}" y="{sy + 12}" width="18" height="12" rx="1.5" '
               f'fill="#1a1611" stroke="rgba(147,161,161,0.34)"/>')
 
-    # Муфты садятся на шланг там, где он сходит со штуцера, и поворачиваются
-    # вместе с ним: у верхней плиты выходы косые, у нижней вдоль оси.
-    fx_in0 = along(hub_in0, (hub_in0[0] + 74, Y_OVER), 34)
-    fx_out0 = along(hub_out0, (hub_out0[0] - 74, Y_OVER), 34)
-    ferrules = ''.join((
-        ferrule(fx_in0[0], fx_in0[1], fx_in0[2]),
-        ferrule(fx_out0[0], fx_out0[1], fx_out0[2]),
-        ferrule(hub_in1[0] - 30, hub_in1[1]),
-        ferrule(hub_out1[0] + 30, hub_out1[1]),
-        ferrule(X_OUT - 34, Y_OUT_HI),
-        ferrule(X_OUT - 34, Y_OUT_LO),
-    ))
+    # Муфты садятся там, где шланг сходит со штуцера: у всех четырёх выход
+    # вдоль плиты, и стоят они вдоль неё же.
+    ferrules = ''.join(
+        ferrule(hx + dx, hy, 0)
+        for (hx, hy), dx in ((near0, 30), (far0, -30), (near1, 30), (far1, -30)))
+    ferrules += ferrule(X_OUT - 34, Y_OUT_HI) + ferrule(X_OUT - 34, Y_OUT_LO)
 
-    clips = ''.join((
-        clip(X_BRIDGE, (hub_out0[1] + hub_in1[1]) / 2 - 70, vertical=True),
-        clip(X_BRIDGE, (hub_out0[1] + hub_in1[1]) / 2 + 70, vertical=True),
-        clip(X_TRUNK_HI, hub_in0[1] + 40, vertical=True),
-        clip(X_BRIDGE + 90, Y_CPU0 - 96),
-        clip(X_TRUNK_LO, hub_out1[1] - 90, vertical=True),
-    ))
+    # Клипсы держат жгут целиком, а не каждый шланг порознь: на живой машине
+    # это одна скоба на всю связку.
+    clips = ''.join(
+        f'<rect x="{lanes[0] - TUBE / 2 - 5:.0f}" y="{cy - 4}" '
+        f'width="{lanes[3] - lanes[0] + TUBE + 10:.0f}" height="8" rx="2" '
+        f'fill="#131c21" stroke="rgba(147,161,161,0.34)" stroke-width="0.8"/>'
+        for cy in (mid0 + 120, mid1 - 120))
 
-    # Бронь идёт по самому коридору трубы, а не по габариту её дуги.
-    cv.busy(X_BRIDGE - TUBE / 2, hub_out0[1] + 40, TUBE, hub_in1[1] - hub_out0[1] - 80, pad=0)
-    cv.busy(X_TRUNK_HI - TUBE / 2, Y_CPU0 - 96, TUBE, Y_OUT_HI - Y_CPU0 + 96, pad=0)
-    cv.busy(X_BRIDGE, Y_CPU0 - 96 - TUBE / 2, X_TRUNK_HI - X_BRIDGE, TUBE, pad=0)
-    cv.busy(X_TRUNK_LO - TUBE / 2, Y_OUT_LO + 40, TUBE, hub_out1[1] - Y_OUT_LO - 80, pad=0)
-    cv.busy(X_TRUNK_HI + 40, Y_OUT_HI - TUBE / 2, X_OUT - X_TRUNK_HI - 40, TUBE, pad=0)
-    cv.busy(X_TRUNK_LO + 40, Y_OUT_LO - TUBE / 2, X_OUT - X_TRUNK_LO - 40, TUBE, pad=0)
+    # Бронь по коридорам жгута: вертикаль справа от процессоров и две полки
+    # вдоль плит.
+    cv.busy(lanes[0] - TUBE / 2, mid0, lanes[3] - lanes[0] + TUBE, mid1 - mid0, pad=0)
+    for mid in (mid0, mid1):
+        cv.busy(far0[0], mid - off - TUBE / 2, lanes[3] - far0[0], TUBE + 2 * off, pad=0)
+    cv.busy(lanes[0], Y_OUT_HI - TUBE / 2, X_OUT - lanes[0], TUBE * 2, pad=0)
     cv.busy(sx - 4, sy + 6, 30, 24, pad=0)
 
-    # Пластина вывода кладётся раньше трубок: шланг подходит к штуцеру со
-    # стороны платы и виден поверх стенки, а не ныряет под неё.
-    cv.add(f'<g class="dlc-panel decor">{outlet()}</g>')
+    # Пластина вывода кладётся раньше шлангов: они подходят к штуцерам со
+    # стороны платы и видны поверх стенки, а не ныряют под неё.
+    cv.add(f'<g class="dlc-panel decor">{outlet()}{manifold()}</g>')
     cv.add('<g class="dlc-loop decor">'
            + sensor
            + tube(leak, w=6)
-           + tube(feed) + tube(bridge) + tube(ret)
+           + tube(feed0) + tube(ret0) + tube(feed1) + tube(ret1)
            + ferrules + clips
-           + mono(X_TRUNK_HI + 46, Y_OUT_HI - 16, "SUPPLY", 6, anchor="start", op=0.42)
-           + mono(X_TRUNK_LO + 46, Y_OUT_LO + 20, "RETURN", 6, anchor="start", op=0.42)
+           + mono(lanes[0] + 34, mid0 - 40, "CPU0 LOOP", 6, anchor="start", op=0.4)
+           + mono(lanes[0] + 34, mid1 + 46, "CPU1 LOOP", 6, anchor="start", op=0.4)
            + mono(sx + 34, sy + 24, "LEAK", 5, anchor="start", op=0.4)
            + '</g>')
+
+
+def manifold():
+    """Манифолд: коллектор, который делит подачу надвое и собирает обратку.
+
+    Без него параллельное подключение не собрать: двум плитам нужны четыре
+    шланга, а наружу из машины идут два. Стоит он вплотную к выводу, в том же
+    проёме, и на живой машине это просто кусок трубы с отводами.
+    """
+    y, hh = RISER[1]
+    mx, my = X_IO - 96, y + 10
+    mw, mh = 66, hh - 20
+    out = [f'<rect x="{mx}" y="{my}" width="{mw}" height="{mh}" rx="4" fill="#1b2429" '
+           f'stroke="rgba(147,161,161,0.34)"/>',
+           f'<rect x="{mx + 5}" y="{my + 5}" width="{mw - 10}" height="{mh - 10}" rx="3" '
+           f'fill="none" stroke="rgba(147,161,161,0.18)"/>']
+    # Отводы: два наружу, к разъёмам, и четыре внутрь, к плитам.
+    for cy in (Y_OUT_HI, Y_OUT_LO):
+        out.append(f'<rect x="{mx + mw - 4}" y="{cy - 7}" width="12" height="14" rx="2" '
+                   f'fill="#2f2820" stroke="rgba(147,161,161,0.30)"/>')
+    out.append(mono(mx + mw / 2, my + mh - 8, "MANIFOLD", 5, op=0.4))
+    return ''.join(out)
 
 
 def outlet():
