@@ -37,8 +37,13 @@ class Direction(unittest.TestCase):
         self.assertTrue(broken(MINOR, MAJOR, 'pcb_scatter', 'chassis'))
 
     def test_late_silk_on_an_earlier_unit_is_broken(self):
-        """Обозначения печатает marks — после райзеров, и на них ему нельзя."""
-        self.assertTrue(broken(SILK, MAJOR, 'marks', 'risers'))
+        """Обозначения печатает marks — после блоков питания, и на них нельзя.
+
+        Пример был про райзеры, пока они стояли раньше marks. Теперь они
+        собираются после контура охлаждения, чтобы карта лежала поверх его
+        шлангов, — и поздним из этой пары стал райзер, а не краска.
+        """
+        self.assertTrue(broken(SILK, MAJOR, 'marks', 'psu'))
 
     def test_inside_one_block_any_direction_counts(self):
         """Внутри блока порядка нет, и запрет в любую сторону — нарушение."""

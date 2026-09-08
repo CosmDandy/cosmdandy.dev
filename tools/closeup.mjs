@@ -103,7 +103,7 @@ const applied = await page.evaluate(({ vb, w, h }) => {
     Object.assign(el.style, { transform: 'none', perspective: 'none' });
   }
   Object.assign(svg.parentElement.style, {
-    position: 'absolute', left: '0', top: '0', margin: '0', zIndex: '99999',
+    position: 'fixed', left: '0', top: '0', margin: '0', zIndex: '99999',
     width: `${w}px`, height: `${h}px`, maxWidth: 'none', maxHeight: 'none',
   });
   Object.assign(svg.style, { width: '100%', height: '100%', background: '#0b1114' });
@@ -112,8 +112,9 @@ const applied = await page.evaluate(({ vb, w, h }) => {
 if (!applied) { console.error('нет схемы на странице'); process.exit(1); }
 await page.waitForTimeout(400);
 
-// Снимаем сам узел, а не окно: так в кадр не попадает ничего со страницы.
-await page.locator('.chassis svg, svg.chassis').first().screenshot({ path: OUT });
+// Снимок окна: схема разложена по нему один в один, а playwright отказывается
+// снимать сам узел — на схеме такого размера он не признаёт его видимым.
+await page.screenshot({ path: OUT });
 console.log(`  view: ${applied}\n  scale: ×${SCALE}\n  frame: ${OUT}`);
 await browser.close();
 server.close();

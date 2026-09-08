@@ -112,7 +112,7 @@ RISERS = (
 DLC = {
     'kind': 'Direct Liquid Cooling', 'plates': CPU['n'], 'loop': 'parallel',
     'coolant': 'PG25', 'inlet_c': 32, 'delta_c': 9, 'flow_lpm': 1.6,
-    'leak_sense': True, 'slot': 2,
+    'leak_sense': True, 'outlet': 'rear wall',
 }
 
 # Клеймо изготовителя. Одна строка на всю машину: она набита и на шелкографии
