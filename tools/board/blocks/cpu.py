@@ -164,18 +164,25 @@ def render(cv):
                   f'H{ax + 6} V{ay + cut + 6} Z" fill="none" '
                   f'stroke="{PLATE_DIM}" stroke-opacity="0.5"/>')
 
-        # Прижимные скобы: стальная планка поперёк кромки, на ней чёрный корпус
-        # и латунный винт под звёздочку. Планка выходит за габарит плиты — она
+        # Прижимные скобы: стальная планка поперёк кромки, на ней корпус и
+        # латунный винт под звёздочку. Планка выходит за габарит плиты — она
         # прижимает не плиту к себе, а плиту к рамке сокета.
-        def screw(sx, sy, horizontal):
-            bar = (f'<rect x="{sx - 24}" y="{sy - 9}" width="48" height="18" rx="2" '
-                   f'fill="#b9bcb4" fill-opacity="0.30" stroke="rgba(223,232,234,0.34)"/>'
-                   if horizontal else
-                   f'<rect x="{sx - 9}" y="{sy - 24}" width="18" height="48" rx="2" '
+        #
+        # Наружная сторона у корпуса скруглена, внутренняя прямая: у левой пары
+        # круглая левая, у правой правая. Так его и штампуют — снаружи скобу
+        # ничто не держит, и лишний угол там только цеплялся бы за руку.
+        def screw(sx, sy, out_left):
+            bar = (f'<rect x="{sx - 9}" y="{sy - 24}" width="18" height="48" rx="2" '
                    f'fill="#b9bcb4" fill-opacity="0.30" stroke="rgba(223,232,234,0.34)"/>')
-            return (bar
+            r, w = 12, 24
+            body = (f'<path d="M{sx + (r if out_left else -r)} {sy - r} '
+                    f'h{-w + r if out_left else w - r} '
+                    f'a{r} {r} 0 0 {0 if out_left else 1} 0 {2 * r} '
+                    f'h{w - r if out_left else -w + r} Z" '
+                    f'fill="#14140f" stroke="rgba(147,161,161,0.34)"/>')
+            return (bar + body
                     + f'<rect x="{sx - 12}" y="{sy - 12}" width="24" height="24" rx="2.5" '
-                      f'fill="#14140f" stroke="rgba(147,161,161,0.34)"/>'
+                      f'fill="none" stroke="rgba(147,161,161,0.16)"/>'
                     + f'<circle cx="{sx}" cy="{sy}" r="7.6" fill="{BRASS}" fill-opacity="0.85" '
                       f'stroke="rgba(60,44,16,0.6)"/>'
                     + f'<circle cx="{sx}" cy="{sy}" r="3.2" fill="#241c10"/>'
@@ -185,26 +192,56 @@ def render(cv):
                               f'stroke="#241c10" stroke-width="2.2" stroke-linecap="round"/>'
                               for a in (math.radians(d) for d in (0, 60, 120, 180, 240, 300))))
 
-        screws = ''.join(screw(sx, sy, horizontal=False)
+        screws = ''.join(screw(sx, sy, out_left=(sx < x + SOCKET_W / 2))
                          for sx in (x + 18, x + SOCKET_W - 18)
                          for sy in (y + 18, y + SOCKET_H - 18))
 
         # Фланцы: диск с двумя винтами по краям и тёмным зевом посередине.
         # Разнесены по длинной оси на трети — там же, где они стоят на живой
         # плите, и между ними остаётся место для обжимных муфт.
-        def flange(cx, cy):
+        def flange(cx, cy, latch):
+            # Диск фланца с выемкой на той стороне, куда уходит шланг: в неё
+            # ложится защёлка, не дающая рукаву сойти со штуцера. У одной она
+            # жёлтая — её ставят на подачу, чтобы не перепутать стороны, — у
+            # другой чёрная, и видно её по вырезу в кромке диска.
+            notch = (f'<path d="M{cx - 9} {cy - 21} a9 9 0 0 0 18 0" fill="#0d0b08" '
+                     f'fill-opacity="0.9"/>')
+            keep = (f'<rect x="{cx - 7}" y="{cy - 27}" width="14" height="11" rx="2" '
+                    f'fill="{"#d8a915" if latch else "#1d1913"}" '
+                    f'fill-opacity="{0.8 if latch else 1}" '
+                    f'stroke="rgba(147,161,161,0.34)" stroke-width="0.8"/>')
             return (f'<circle cx="{cx}" cy="{cy}" r="21" fill="#2b2419" fill-opacity="0.72" '
                     f'stroke="{PLATE_DIM}"/>'
-                    f'<circle cx="{cx}" cy="{cy}" r="13" fill="#1d1913" '
-                    f'stroke="rgba(147,161,161,0.26)"/>'
-                    f'<circle cx="{cx}" cy="{cy}" r="6" fill="#0d0b08"/>'
+                    + notch
+                    + f'<circle cx="{cx}" cy="{cy}" r="13" fill="#1d1913" '
+                      f'stroke="rgba(147,161,161,0.26)"/>'
+                    + f'<circle cx="{cx}" cy="{cy}" r="6" fill="#0d0b08"/>'
+                    # Два винта по краям диска: ими фланец притянут к плите.
                     + ''.join(f'<circle cx="{cx + 16 * math.cos(a):.1f}" '
                               f'cy="{cy + 16 * math.sin(a):.1f}" r="2.4" fill="#100e0a" '
                               f'stroke="rgba(147,161,161,0.22)" stroke-width="0.7"/>'
-                              for a in (math.radians(d) for d in (35, 215))))
+                              for a in (math.radians(d) for d in (35, 215)))
+                    + keep)
 
-        flanges = (flange(x + SOCKET_W / 3, y + SOCKET_H / 2)
-                   + flange(x + SOCKET_W * 2 / 3, y + SOCKET_H / 2))
+        flanges = (flange(x + SOCKET_W / 3, y + SOCKET_H / 2, latch=False)
+                   + flange(x + SOCKET_W * 2 / 3, y + SOCKET_H / 2, latch=True))
+
+        # Технологические отверстия: ими плиту базируют на станке, и на живой
+        # детали они разбросаны по свободному полю с латунной фаской по кромке.
+        holes = ''.join(
+            f'<circle cx="{hx}" cy="{hy}" r="2.6" fill="#2b2419" '
+            f'stroke="{BRASS}" stroke-opacity="0.5" stroke-width="0.8"/>'
+            for hx, hy in ((x + 40, y + SOCKET_H - 34), (x + SOCKET_W - 40, y + SOCKET_H - 34),
+                           (x + 40, y + 34), (x + SOCKET_W - 40, y + 34)))
+
+        # Проводки термодатчиков идут от фланцев к ближним скобам: датчик сидит
+        # у самого штуцера, а его колодка — на прижиме, где её не задевает рука.
+        wires = ''.join(
+            f'<path d="M{wx} {wy} L{wx + dx} {wy + dy}" fill="none" '
+            f'stroke="rgba(147,161,161,0.34)" stroke-width="1.2"/>'
+            for wx, wy, dx, dy in (
+                (x + SOCKET_W / 3 - 14, y + SOCKET_H / 2 + 14, -26, 22),
+                (x + SOCKET_W * 2 / 3 + 14, y + SOCKET_H / 2 + 14, 26, 22)))
 
         # Жёлтый язычок: за него тянут плёнку с термопасты, и на собранной
         # машине он остаётся торчать из-под плиты — единственное яркое пятно на
@@ -217,7 +254,8 @@ def render(cv):
         marks = mono(x + SOCKET_W / 2, y + SOCKET_H - 8, "DLC COLD PLATE · P/N 41Y9033",
                      5.4, op=0.4)
 
-        return (f'<g class="pick-body heatsink">{frame}{active}{flanges}{tab}{screws}{marks}</g>')
+        return (f'<g class="pick-body heatsink">{frame}{active}{holes}{wires}'
+                f'{flanges}{tab}{screws}{marks}</g>')
 
     def ilm(x, y):
         """Прижимная скоба сокета: она приклёпана к плате и радиатор не уносит.
