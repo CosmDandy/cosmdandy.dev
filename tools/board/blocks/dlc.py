@@ -61,8 +61,12 @@ X_TRUNK_LO = 824           # вертикаль обратки, рядом со 
 # Разведены гнёзда на диаметр разъёма: сойдись ближе, и две накидные гайки не
 # затянуть порознь.
 Y_OUT_MID = (RISER[0][0] + RISER[0][1] + RISER[1][0]) / 2
-Y_OUT_HI = Y_OUT_MID - 18
-Y_OUT_LO = Y_OUT_MID + 18
+Y_OUT_HI = Y_OUT_MID - 13
+Y_OUT_LO = Y_OUT_MID + 13
+# Гнёзда мельче, чем стояли в проёме слота: полоса между окнами узкая, и пара
+# прежнего размера в неё не вставала. Меньше этого их не сделать — под накидную
+# гайку нужен хват.
+JACK_R = 11
 # Шланг заходит под пластину и обрывается под ней: пластина рисуется поверх и
 # прикрывает стык, как козырёк на живой стенке.
 X_OUT = sum(X_WALL_FIELD) / 2
@@ -393,25 +397,26 @@ def outlet():
     обесточенной машине, а не на ходу.
     """
     x0, x1 = X_WALL_FIELD
-    out = [f'<rect x="{x0}" y="{Y_OUT_HI - 26}" width="{x1 - x0}" '
-           f'height="{Y_OUT_LO - Y_OUT_HI + 52}" rx="3" fill="{STEEL}" '
+    pad = JACK_R + 7
+    out = [f'<rect x="{x0}" y="{Y_OUT_HI - pad}" width="{x1 - x0}" '
+           f'height="{Y_OUT_LO - Y_OUT_HI + pad * 2}" rx="3" fill="{STEEL}" '
            f'stroke="rgba(147,161,161,0.30)"/>']
     for cy, label, into in ((Y_OUT_HI, "IN", True), (Y_OUT_LO, "OUT", False)):
         cx = (x0 + x1) / 2
         out.append(
             # Гнездо: корпус, накидная гайка, поясок и зев.
-            f'<circle cx="{cx}" cy="{cy}" r="14" fill="#131c21" '
+            f'<circle cx="{cx}" cy="{cy}" r="{JACK_R}" fill="#131c21" '
             f'stroke="rgba(147,161,161,0.38)" stroke-width="1.2"/>'
-            f'<circle cx="{cx}" cy="{cy}" r="10.5" fill="none" stroke="{COLD}" '
-            f'stroke-opacity="0.55" stroke-width="2"/>'
-            f'<circle cx="{cx}" cy="{cy}" r="6" fill="#070d10" '
+            f'<circle cx="{cx}" cy="{cy}" r="{JACK_R - 3.4}" fill="none" stroke="{COLD}" '
+            f'stroke-opacity="0.55" stroke-width="1.8"/>'
+            f'<circle cx="{cx}" cy="{cy}" r="{JACK_R - 6}" fill="#070d10" '
             f'stroke="rgba(147,161,161,0.30)"/>'
             # Стрелка: внутрь машины у подачи, наружу у обратки.
-            + (f'<path d="M{cx - 26} {cy} h12 m-4 -4 l4 4 -4 4" fill="none" '
+            + (f'<path d="M{cx - JACK_R - 15} {cy} h11 m-4 -4 l4 4 -4 4" fill="none" '
                f'stroke="rgba(147,161,161,0.55)" stroke-width="1.4" stroke-linecap="round"/>'
                if into else
-               f'<path d="M{cx + 14} {cy} h12 m-4 -4 l4 4 -4 4" fill="none" '
+               f'<path d="M{cx + JACK_R + 4} {cy} h11 m-4 -4 l4 4 -4 4" fill="none" '
                f'stroke="rgba(147,161,161,0.55)" stroke-width="1.4" stroke-linecap="round"/>')
-            + mono(cx + (14 if into else -14), cy + 24, label, 5.4,
+            + mono(cx + (JACK_R + 5 if into else -JACK_R - 5), cy + 3, label, 5.4,
                    anchor="middle", op=0.44))
     return ''.join(out)

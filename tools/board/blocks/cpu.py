@@ -10,7 +10,7 @@ from board.geom import X_CORE, X_SOCK, X_TAG, Y_CPU0, Y_CPU1, seat
 from board.ink import hit, mono, silk_boxed, silk_inverse
 from board.lamps import fault
 from board.metal import IHS_INSET, ihs_path, substrate_path
-from board.palette import BRASS, COLD, PLATE, PLATE_DIM
+from board.palette import BRASS, PLATE, PLATE_DIM
 from board.revision import stamp
 from board.spec import CPU
 
@@ -158,14 +158,23 @@ def render(cv):
         # широкий по серединам сторон и с вырезанным углом у каждого болта,
         # ровно как на фотографии живой плиты. Прямоугольником он был потому,
         # что рисовался по крышке процессора, а не по тому, что под ним.
-        def bay(ax, ay, aw, ah, notch, r=5):
-            """Замкнутый контур площадки: прямоугольник с вырезом в каждом углу."""
-            pts = [(ax + notch, ay), (ax + aw - notch, ay),
-                   (ax + aw - notch, ay + notch), (ax + aw, ay + notch),
-                   (ax + aw, ay + ah - notch), (ax + aw - notch, ay + ah - notch),
-                   (ax + aw - notch, ay + ah), (ax + notch, ay + ah),
-                   (ax + notch, ay + ah - notch), (ax, ay + ah - notch),
-                   (ax, ay + notch), (ax + notch, ay + notch)]
+        def bay(ax, ay, aw, ah, notch, r=5, shelf=24, slope=18):
+            """Замкнутый контур площадки: полка, скос, полка — и только потом угол.
+
+            У каждого винта контур отступает к центру, но не ступенькой под
+            прямым углом: сначала идёт полка вдоль кромки, потом развёрнутый
+            переход наискось, потом полка на новом уровне, и лишь после неё
+            поворот на девяносто градусов. Ступенькой это выглядело трапецией,
+            наложенной на прямоугольник, а на фотографии живой плиты видно, что
+            обе полки — и верхняя, и нижняя — идут своей прямой.
+            """
+            d, f, s = notch, shelf, slope     # глубина выреза, полка, скос
+            pts = [(ax + f + s, ay), (ax + aw - f - s, ay),          # верхняя полка
+                   (ax + aw - f, ay + d), (ax + aw, ay + d),         # скос, полка
+                   (ax + aw, ay + ah - d), (ax + aw - f, ay + ah - d),
+                   (ax + aw - f - s, ay + ah), (ax + f + s, ay + ah),  # нижняя полка
+                   (ax + f, ay + ah - d), (ax, ay + ah - d),
+                   (ax, ay + d), (ax + f, ay + d)]
             # Скругление вершин: рубленый угол на фрезерованной детали не
             # встречается вовсе — фреза оставляет радиус своего инструмента.
             out = []
@@ -199,8 +208,10 @@ def render(cv):
         # круглая левая, у правой правая. Так его и штампуют — снаружи скобу
         # ничто не держит, и лишний угол там только цеплялся бы за руку.
         def screw(sx, sy, out_left):
-            bar = (f'<rect x="{sx - 9}" y="{sy - 24}" width="18" height="48" rx="2" '
-                   f'fill="#b9bcb4" fill-opacity="0.30" stroke="rgba(223,232,234,0.34)"/>')
+            # Планка короче самого корпуса скобы и не выходит за габарит плиты:
+            # прижимает она кромку, а не торчит из-под детали наружу.
+            bar = (f'<rect x="{sx - 8}" y="{sy - 15}" width="16" height="30" rx="2" '
+                   f'fill="#b9bcb4" fill-opacity="0.26" stroke="rgba(223,232,234,0.30)"/>')
             r, w = 12, 24
             body = (f'<path d="M{sx + (r if out_left else -r)} {sy - r} '
                     f'h{-w + r if out_left else w - r} '
@@ -294,19 +305,13 @@ def render(cv):
                 (x + SOCKET_W * 0.24 - 14, y + SOCKET_H / 2 + 14, -14, 22),
                 (x + SOCKET_W * 0.76 + 14, y + SOCKET_H / 2 + 14, 14, 22)))
 
-        # Жёлтый язычок: за него тянут плёнку с термопасты, и на собранной
-        # машине он остаётся торчать из-под плиты — единственное яркое пятно на
-        # всей детали, и на фотографиях оно именно такое.
-        tab = (f'<path d="M{x + SOCKET_W / 2 - 20} {y + SOCKET_H - 12} h36 l-5 16 h-26 Z" '
-               f'fill="#d8a915" fill-opacity="0.62" stroke="rgba(60,44,16,0.4)"/>')
-
         # Партномер набит по кромке рамы: наклейке тут не на чем держаться —
         # поверхность уходит под шланги и под руку монтажника.
         marks = mono(x + SOCKET_W / 2, y + SOCKET_H - 8, "DLC COLD PLATE · P/N 41Y9033",
                      5.4, op=0.4)
 
         return (f'<g class="pick-body heatsink">{frame}{active}{holes}{wires}'
-                f'{flanges}{tab}{screws}{hook}{marks}</g>')
+                f'{flanges}{screws}{hook}{marks}</g>')
 
     cv.callouts.append((X_TAG - 44, Y_CPU0 - 44, X_CORE + 40, Y_CPU0 + 40, "CV", "end", "https://cv.cosmdandy.dev", "cpu",
                         "резюме", "cv"))
