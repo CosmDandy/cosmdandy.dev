@@ -1066,6 +1066,7 @@ body:has(.rig.assembly) .assemble-btn { filter: opacity(0.45); pointer-events: n
   /* @block: rear_io */
 
   /* @block: cpu */
+  /* @block: dlc */
 
   /* @block: front_panel */
 

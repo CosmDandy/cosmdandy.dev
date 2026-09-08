@@ -8,10 +8,10 @@ import math
 from board.geom import SOCKET_H, SOCKET_W, X_CORE, X_SOCK, X_TAG, Y_CPU0, Y_CPU1, seat
 from board.ink import hit, mono, silk_boxed, silk_inverse
 from board.lamps import fault
-from board.metal import IHS_INSET, hexgrid, ihs_path, substrate_path
-from board.palette import COLD
+from board.metal import IHS_INSET, ihs_path, substrate_path
+from board.palette import BRASS, COLD, PLATE, PLATE_DIM
 from board.revision import stamp
-from board.spec import CPU, MADE
+from board.spec import CPU
 
 
 def render(cv):
@@ -133,97 +133,91 @@ def render(cv):
                 f'fill="url(#die-shine)"/></g>')
 
     def heatsink(x, y):
-        # Крышка водоблока: литьё с сотовым рельефом, а не оребрение. Рёбер тут
-        # нет и быть не может — тепло уносит жидкость, а не воздух, и всё, что
-        # осталось наверху, это литая крышка над микроканалами. Соты на ней
-        # честные: так отливают, чтобы плоская крышка не выгибалась давлением.
-        cells = hexgrid(x + 18, y + 18, SOCKET_W - 36, SOCKET_H - 36, s=9, gap=3,
-                        fill='rgba(2,7,9,0.30)', stroke='rgba(147,161,161,0.13)')
-        # Подпружиненные винты по углам — они на самом радиаторе и уезжают с ним.
-        # Винт подпружинен: витая пружина сидит между головкой и радиатором и
-        # задаёт усилие прижима — затягивать «до упора» тут нечего, момент
-        # держит она. Сверху видны её витки вокруг стержня.
-        def spring(sx, sy, r=10.5, turns=9):
-            pts = []
-            for t in range(turns * 6 + 1):
-                f = t / (turns * 6)
-                ang = f * turns * 2 * math.pi
-                rr = r - f * 3.4
-                pts.append(f'{sx + rr * math.cos(ang):.1f} {sy + rr * math.sin(ang) * 0.94:.1f}')
-            return (f'<path d="M{" L".join(pts)}" fill="none" stroke="rgba(147,161,161,0.30)" '
-                    f'stroke-width="1.1"/>')
+        """Водоблок: рама, активная зона, два фланца и прижимные скобы.
 
-        screws = ''.join(
-            spring(sx, sy) +
-            f'<circle cx="{sx}" cy="{sy}" r="7" fill="#162025" stroke="rgba(147,161,161,0.46)" stroke-width="1.4"/>'
-            f'<circle cx="{sx}" cy="{sy}" r="3.4" fill="#0c1418" stroke="rgba(147,161,161,0.34)"/>'
-            f'<line x1="{sx-3}" y1="{sy}" x2="{sx+3}" y2="{sy}" stroke="rgba(147,161,161,0.5)" stroke-width="1.4"/>'
-            f'<line x1="{sx}" y1="{sy-3}" x2="{sx}" y2="{sy+3}" stroke="rgba(147,161,161,0.5)" stroke-width="1.4"/>'
-            for sx in (x + 12, x + SOCKET_W - 12) for sy in (y + 12, y + SOCKET_H - 12))
-        # Штуцеры: по одному на каждой боковой кромке. Контур проходит блоки
-        # насквозь — вошло слева, вышло справа, — и это не украшение: у
-        # последовательного контура вход одного блока есть выход соседнего, и
-        # порядок штуцеров говорит, куда течёт.
-        def fitting(fx, fy):
-            return (f'<rect x="{fx - 9}" y="{fy - 11}" width="18" height="22" rx="3" fill="#1a2429" '
-                    f'stroke="rgba(147,161,161,0.42)"/>'
-                    # Накидная гайка: шестигранник, за который штуцер и затягивают.
-                    f'<rect x="{fx - 7}" y="{fy - 7}" width="14" height="14" rx="2" fill="#22303a" '
-                    f'stroke="rgba(147,161,161,0.34)"/>'
-                    f'<circle cx="{fx}" cy="{fy}" r="4.4" fill="#0a1215" '
-                    f'stroke="rgba(147,161,161,0.30)"/>')
+    Плита не однородная пластина. По периметру идёт рама — ею деталь прижата
+    к рамке сокета, и на ней же стоят скобы винтов. Внутри рамы утоплена
+    активная зона: та часть, под которой микроканалы, и лежит она ровно над
+    кристаллом, поэтому её контур повторяет крышку процессора со срезанным
+    углом, а не габарит плиты.
 
-        ports = (fitting(x, y + SOCKET_H / 2) + fitting(x + SOCKET_W, y + SOCKET_H / 2))
-        # Бумажный шильдик: партномер, штрих-код и предупреждение про давление.
-        # На живом водоблоке он мельче, чем был на радиаторе: середину крышки
-        # занимает литьё, и наклейку клеят на свободную полосу снизу.
-        lx, ly, lw, lh = x + 34, y + SOCKET_H - 52, SOCKET_W - 68, 40
-        # Бумага держится на 0.5: непрозрачный шильдик на тёмном радиаторе бил в
-        # глаза сильнее подписей ссылок, а он всего лишь фон.
-        tag = (f'<rect x="{lx}" y="{ly}" width="{lw}" height="{lh}" rx="2" fill="#cfc9b6" fill-opacity="0.5"/>'
-               + ''.join(f'<rect x="{lx+8+k*3}" y="{ly+7}" width="{1.6 if k % 3 else 2.6}" height="14" '
-                         f'fill="rgba(10,20,23,0.62)"/>' for k in range(18))
-               + f'<text x="{lx+lw-8}" y="{ly+14}" text-anchor="end" fill="rgba(10,20,23,0.66)" '
-                 f'font-family="ui-monospace, Menlo, monospace" font-size="7">P/N 41Y9033</text>'
-               # Клеймо изготовителя тут же, мелко: на живой наклейке ему
-               # отводят последнюю строку, а не отдельное место на детали.
-               + f'<text x="{lx+lw-8}" y="{ly+22}" text-anchor="end" fill="rgba(10,20,23,0.4)" '
-                 f'font-family="ui-monospace, Menlo, monospace" font-size="5.4">{MADE}</text>'
-               + drop_icon(lx + 7, ly + 24, 15)
-               # Предупреждение набрано темнее и жирнее остального: на живой
-               # наклейке так и есть, и разница не декоративная — эта строка
-               # про залитую машину, а не про сведения. Рычаг тут ни при чём:
-               # прежде чем трогать процессор, снимают весь контур.
-               + f'<text x="{lx+28}" y="{ly+30}" fill="#5a1a0c" fill-opacity="0.88" '
-                 f'font-family="ui-monospace, Menlo, monospace" font-size="5.6" '
-                 f'font-weight="700">Attention: DRAIN LOOP BEFORE</text>'
-               + f'<text x="{lx+28}" y="{ly+38}" fill="#5a1a0c" fill-opacity="0.88" '
-                 f'font-family="ui-monospace, Menlo, monospace" font-size="5.6" '
-                 f'font-weight="700">REMOVING COLD PLATE</text>')
-        # Литьё темнее прежнего оребрённого радиатора: у водоблока крышка
-        # анодирована в чёрный, и на живой машине он единственная деталь такого
-        # тона среди светлого металла.
-        return (f'<g class="pick-body heatsink"><rect x="{x}" y="{y}" width="{SOCKET_W}" height="{SOCKET_H}" rx="6" '
-                f'fill="#1b2429" stroke="rgba(147,161,161,0.38)"/>{cells}{tag}{screws}{ports}</g>')
-
-    def drop_icon(x, y, s):
-        """Пиктограмма «слей контур, прежде чем снимать блок».
-
-    На живой наклейке она и есть главное: текст читают те, кто уже понял по
-    рисунку. Два знака — капля и стрелка слива под ней.
+    Фланцев два, и разнесены они по длинной оси: в один жидкость входит, из
+    другого выходит. Один общий штуцер был бы удобнее для рисунка и неправдой
+    для машины — в него не воткнуть две трубки.
     """
-        ink = 'rgba(10,20,23,0.72)'
-        cx = x + s * 0.34
-        return (
-            # Капля: остриё вверх, круглое донце — как её и рисуют на всём, что
-            # течёт. Дуга снизу почти замыкает круг, прямые сходятся в вершину.
-            f'<path d="M{cx:.1f} {y} l{s*0.26:.1f} {s*0.42:.1f} '
-            f'a{s*0.30:.1f} {s*0.30:.1f} 0 1 1 {-s*0.52:.1f} 0 Z" fill="none" '
-            f'stroke="{ink}" stroke-width="1.1" stroke-linejoin="round"/>'
-            # Стрелка слива: вниз, из-под капли.
-            + f'<path d="M{cx:.1f} {y+s*0.82:.1f} v{s*0.30:.1f} m{-s*0.13:.1f} {-s*0.13:.1f} '
-              f'l{s*0.13:.1f} {s*0.13:.1f} {s*0.13:.1f} {-s*0.13:.1f}" fill="none" '
-              f'stroke="{ink}" stroke-width="1.3" stroke-linecap="round"/>')
+        # Рама: тело плиты целиком, с фаской по кромке.
+        frame = (f'<rect x="{x}" y="{y}" width="{SOCKET_W}" height="{SOCKET_H}" rx="4" '
+                 f'fill="{PLATE_DIM}" fill-opacity="0.62" stroke="{PLATE_DIM}" stroke-width="1.2"/>'
+                 f'<rect x="{x + 3}" y="{y + 3}" width="{SOCKET_W - 6}" height="{SOCKET_H - 6}" '
+                 f'rx="3" fill="none" stroke="rgba(255,255,255,0.18)"/>')
+
+        # Активная зона: утопленная площадка над кристаллом. Угол у неё срезан
+        # тем же ключом, что у подложки процессора под ней, — по нему деталь и
+        # сажают, и на живой плите этот срез виден так же ясно.
+        ax, ay = x + 22, y + 20
+        aw, ah = SOCKET_W - 44, SOCKET_H - 40
+        cut = 16
+        active = (f'<path d="M{ax + cut} {ay} H{ax + aw} V{ay + ah} H{ax} V{ay + cut} Z" '
+                  f'fill="{PLATE}" fill-opacity="0.92" stroke="rgba(255,255,255,0.22)"/>'
+                  # Внутренняя ступенька: дно площадки ниже её кромки.
+                  f'<path d="M{ax + cut + 6} {ay + 6} H{ax + aw - 6} V{ay + ah - 6} '
+                  f'H{ax + 6} V{ay + cut + 6} Z" fill="none" '
+                  f'stroke="{PLATE_DIM}" stroke-opacity="0.5"/>')
+
+        # Прижимные скобы: стальная планка поперёк кромки, на ней чёрный корпус
+        # и латунный винт под звёздочку. Планка выходит за габарит плиты — она
+        # прижимает не плиту к себе, а плиту к рамке сокета.
+        def screw(sx, sy, horizontal):
+            bar = (f'<rect x="{sx - 24}" y="{sy - 9}" width="48" height="18" rx="2" '
+                   f'fill="#b9bcb4" fill-opacity="0.30" stroke="rgba(223,232,234,0.34)"/>'
+                   if horizontal else
+                   f'<rect x="{sx - 9}" y="{sy - 24}" width="18" height="48" rx="2" '
+                   f'fill="#b9bcb4" fill-opacity="0.30" stroke="rgba(223,232,234,0.34)"/>')
+            return (bar
+                    + f'<rect x="{sx - 12}" y="{sy - 12}" width="24" height="24" rx="2.5" '
+                      f'fill="#14140f" stroke="rgba(147,161,161,0.34)"/>'
+                    + f'<circle cx="{sx}" cy="{sy}" r="7.6" fill="{BRASS}" fill-opacity="0.85" '
+                      f'stroke="rgba(60,44,16,0.6)"/>'
+                    + f'<circle cx="{sx}" cy="{sy}" r="3.2" fill="#241c10"/>'
+                    # Звёздочка: шесть лучей, как у torx.
+                    + ''.join(f'<line x1="{sx + 3.2 * math.cos(a):.1f}" y1="{sy + 3.2 * math.sin(a):.1f}" '
+                              f'x2="{sx + 6.2 * math.cos(a):.1f}" y2="{sy + 6.2 * math.sin(a):.1f}" '
+                              f'stroke="#241c10" stroke-width="2.2" stroke-linecap="round"/>'
+                              for a in (math.radians(d) for d in (0, 60, 120, 180, 240, 300))))
+
+        screws = ''.join(screw(sx, sy, horizontal=False)
+                         for sx in (x + 18, x + SOCKET_W - 18)
+                         for sy in (y + 18, y + SOCKET_H - 18))
+
+        # Фланцы: диск с двумя винтами по краям и тёмным зевом посередине.
+        # Разнесены по длинной оси на трети — там же, где они стоят на живой
+        # плите, и между ними остаётся место для обжимных муфт.
+        def flange(cx, cy):
+            return (f'<circle cx="{cx}" cy="{cy}" r="21" fill="#2b2419" fill-opacity="0.72" '
+                    f'stroke="{PLATE_DIM}"/>'
+                    f'<circle cx="{cx}" cy="{cy}" r="13" fill="#1d1913" '
+                    f'stroke="rgba(147,161,161,0.26)"/>'
+                    f'<circle cx="{cx}" cy="{cy}" r="6" fill="#0d0b08"/>'
+                    + ''.join(f'<circle cx="{cx + 16 * math.cos(a):.1f}" '
+                              f'cy="{cy + 16 * math.sin(a):.1f}" r="2.4" fill="#100e0a" '
+                              f'stroke="rgba(147,161,161,0.22)" stroke-width="0.7"/>'
+                              for a in (math.radians(d) for d in (35, 215))))
+
+        flanges = (flange(x + SOCKET_W / 3, y + SOCKET_H / 2)
+                   + flange(x + SOCKET_W * 2 / 3, y + SOCKET_H / 2))
+
+        # Жёлтый язычок: за него тянут плёнку с термопасты, и на собранной
+        # машине он остаётся торчать из-под плиты — единственное яркое пятно на
+        # всей детали, и на фотографиях оно именно такое.
+        tab = (f'<path d="M{x + 30} {y + SOCKET_H - 34} h34 l-4 20 h-28 Z" '
+               f'fill="#d8a915" fill-opacity="0.72" stroke="rgba(60,44,16,0.4)"/>')
+
+        # Партномер набит по кромке рамы: наклейке тут не на чем держаться —
+        # поверхность уходит под шланги и под руку монтажника.
+        marks = mono(x + SOCKET_W / 2, y + SOCKET_H - 8, "DLC COLD PLATE · P/N 41Y9033",
+                     5.4, op=0.4)
+
+        return (f'<g class="pick-body heatsink">{frame}{active}{flanges}{tab}{screws}{marks}</g>')
 
     def ilm(x, y):
         """Прижимная скоба сокета: она приклёпана к плате и радиатор не уносит.

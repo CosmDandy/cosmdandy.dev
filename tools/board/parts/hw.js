@@ -168,7 +168,7 @@
       };
       const темп = function (n, dv) {
         return снят(n)
-          ? { t: 'CPU' + n + ' Temp      — · радиатор снят', c: 'muted' }
+          ? { t: 'CPU' + n + ' Temp      — · водоблок снят', c: 'muted' }
           : { t: 'CPU' + n + ' Temp      ' + Math.round(metric('temp').v - dv) + ' °C',
               c: out ? 'warn' : 'ok' };
       };
@@ -176,6 +176,14 @@
         темп(0, 0),
         темп(1, 2),
         { t: 'Inlet Temp     ' + (21 + Math.round(Math.random() * 2)) + ' °C', c: 'ok' },
+        // Контур спрашивают тем же вопросом, что и вентиляторы: чем машина
+        // остужается. Температура на входе и перепад — из паспорта, а не с
+        // потолка: греет их одна и та же плата.
+        { t: 'Coolant In     ' + HW.dlc.inlet_c + ' °C · ' + HW.dlc.coolant, c: 'ok' },
+        { t: 'Coolant Out    ' + (HW.dlc.inlet_c + HW.dlc.delta_c) + ' °C · '
+             + HW.dlc.flow_lpm + ' L/min', c: 'ok' },
+        { t: 'Leak Sensor    ' + (HW.dlc.leak_sense ? 'dry' : 'not fitted'),
+          c: HW.dlc.leak_sense ? 'ok' : 'muted' },
         { t: 'Fan Speed      ' + (fanRpmNow(ctx.nv) + out * 1800) + ' RPM', c: out ? 'warn' : 'ok' },
         { t: 'Fan Policy     ' + fanPolicyNow(ctx.nv), c: 'muted' },
         { t: 'PSU Input      ' + Math.round(metric('power').v) + ' W',

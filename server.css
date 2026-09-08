@@ -2116,6 +2116,17 @@ body.view-rig .sfx-btn { display: grid; }
     from { visibility: visible; opacity: 1; }
     to   { visibility: hidden; opacity: 0; }
   }
+  /* ── dlc ──────────────────────────────── */
+  /* Контур снимается одной деталью. Трубки с водоблоков не снимаются, и
+     блоки уезжают на один и тот же вектор — тот же, которым уходит водоблок
+     в cpu.css, — поэтому трасса между ними не рвётся и не тянется: она едет
+     целиком, сохраняя свою геометрию.
+
+     Рвётся она только у задней стенки, и это правда: там сухоразъёмное
+     соединение, ради которого контур и разбирают, не сливая стойку. Пластина
+     с гнёздами остаётся во врезке — она часть машины, а не модуля. */
+  .dlc-loop { transition: transform var(--glide); }
+  .rig.service .dlc-loop.pulled { transform: translate(232px, -75px); }
 
   /* ── front_panel ──────────────────────────────── */
   /* The power button is a ring, so it has a stroke and not a fill. It blinks
