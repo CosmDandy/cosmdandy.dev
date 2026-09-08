@@ -21,7 +21,7 @@ from board.ink import mono, silk_boxed
 from board.lamps import act_led, fault_at, lamp
 from board.metal import finned_sink, hexgrid
 from board.palette import COLD, STEEL
-from board.ports import sfp
+from board.ports import qsfp, sfp, turned
 from board.revision import stamp
 from board.spec import PORTS
 
@@ -48,6 +48,11 @@ def render(cv):
     cv.callouts.append((X_IO - 30, 160, X_IO - 8, 226, "LinkedIn", "end",
                         "https://linkedin.com/in/cosmdandy", "ocp",
                         "профиль", "linkedin"))
+    # Телеграм переехал сюда с гигабитного гнезда: канал теперь висит на
+    # стогигабитной карте. Бирка стоит на прежнем месте правой кромки — шаг
+    # между бирками важнее, чем то, к какому железу тянется выноска.
+    cv.callouts.append((X_IO - 30, 385, X_IO - 8, 367, "Telegram", "end",
+                        "/tg/", "cx", "канал", "telegram"))
 
     for k, ((y, hh), up) in enumerate(zip(RISER, (True, False))):
         # Кронштейн со своей платой занимает карман целиком — то же молчание,
@@ -111,14 +116,15 @@ def render(cv):
             # то есть карта работает, но не так, как заявлена. ACT — событие:
             # мигает на трафике. Раньше на две розетки приходилось три лампы
             # без подписей, и какая из них про что, сказать было нельзя.
-            def sfp_leds(p, py, degraded):
+            def sfp_leds(p, cx, degraded):
                 lnk_color = "#b58900" if degraded else "#859900"
-                return (lamp('led-link', X_IO + 9, py + 11, 2.4, lnk_color)
-                        + mono(X_IO + 9, py + 21, "LNK", 4, op=0.32)
-                        + act_led(3 + p, X_IO + 79, py + 11, 2.4, "#859900", salt=2 + p)
-                        + mono(X_IO + 79, py + 21, "ACT", 4, op=0.32))
+                ly = card_y + 56
+                return (lamp('led-link', cx - 7, ly, 2.2, lnk_color)
+                        + mono(cx - 7, ly + 9, "LNK", 3.6, op=0.32)
+                        + act_led(3 + p, cx + 7, ly, 2.2, "#859900", salt=2 + p)
+                        + mono(cx + 7, ly + 9, "ACT", 3.6, op=0.32))
 
-            ports = [(f'<rect x="{X_IO}" y="{card_y-4}" width="86" height="64" rx="4" '
+            ports = [(f'<rect x="{X_IO}" y="{card_y-4}" width="86" height="76" rx="4" '
                       f'fill="#13282c" stroke="rgba(42,161,152,0.50)"/>')]
             # Оба порта в норме. Второй был жёстко помечен упавшим до гигабита —
             # и это спорило с самой машиной: /sys/class/net показывал оба
@@ -126,10 +132,19 @@ def render(cv):
             # машину, а упавший линк — это состояние, которое приходит извне, а
             # не свойство платы. Янтарный цвет лампы при этом остался: он
             # включается, когда линк действительно падает.
+            # Клетки развёрнуты на четверть оборота: гнездо смотрит НАРУЖУ,
+            # в стенку, а не на зрителя. Модуль входит снаружи внутрь машины,
+            # и с этого вида должен быть виден его ход, а не морда разъёма —
+            # мордой к смотрящему клетка не стоит никогда.
+            #
+            # Развёрнутая клетка вдвое выше, чем была широка, и стопкой две
+            # уже не встают: они переехали в ряд, бок о бок, как на живой
+            # двухпортовой планке. Лампы вслед за ними — под каждой своя пара.
             for p in range(2):
-                py = card_y + 2 + p * 30
-                ports.append(sfp(X_IO + 20, py, w=48, h=22))
-                ports.append(sfp_leds(p, py, False))
+                cx = X_IO + 25 + p * 36
+                cy = card_y + 24
+                ports.append(turned(sfp(cx - 24, cy - 11, w=48, h=22), cx, cy))
+                ports.append(sfp_leds(p, cx, False))
             # Подписи о том, что это за карта, здесь больше нет. Она входила в
             # ту же группу, что и сама карта, и уезжала вместе с ней: вынимаешь
             # райзер — надпись едет вверх и повисает над платой, объясняя
@@ -139,19 +154,44 @@ def render(cv):
             card += (f'<g class="unit" data-unit="ocp" data-group="ocp" '
                      f'data-href="https://linkedin.com/in/cosmdandy">{ports}</g>')
         else:
-            # Слот пуст: карты нет, окно в стенке закрыто глухой планкой. Её и
-            # снимают первой, когда в машину что-то доставляют.
-            blank_y = y + 6
+            # Вторая карта — стогигабитная, и она низкопрофильная: на этот
+            # райзер приходится 80 единиц против 176 у верхнего, и такая карта
+            # в живой машине именно half-height. Радиатор у неё во всю плату:
+            # контроллер на сотню греется сильнее десятигигабитного, и на
+            # живой карте под ним стоит глухой блок с рёбрами, а не пластинка.
+            card_y = edge_y - 40
+            card_w = X_IO - x0 - 18
+            sink_x = x0 + 40
+            sink_w = X_IO - 10 - sink_x
             card = (riser_pcb
-                    + f'<rect x="{X_IO}" y="{blank_y}" width="86" height="{hh-12}" rx="3" '
-                      f'fill="{STEEL}" stroke="rgba(147,161,161,0.30)"/>'
-                    + ''.join(f'<line x1="{X_IO+14}" y1="{blank_y+10+r*11}" x2="{X_IO+72}" '
-                              f'y2="{blank_y+10+r*11}" stroke="rgba(147,161,161,0.14)" '
-                              f'stroke-width="1.4"/>' for r in range(int((hh - 34) // 11)))
-                    )
-        # Надписи на заглушке нет. Глухая планка — это штампованный кусок
-        # железа, на нём не печатают ничего: какой слот пуст, написано на
-        # наклейке корпуса, а не на самой планке.
+                    + f'<rect x="{x0+18}" y="{card_y}" width="{card_w}" height="46" rx="1" '
+                      f'fill="#0f1c24" stroke="rgba(42,161,152,0.34)"/>'
+                    + finned_sink(sink_x, card_y + 4, sink_w, 30, r=4.4, inset=8)
+                    + silk_boxed(x0 + 70, card_y + 41, "PCIE_X16_GF2 REV 1.00", 5))
+
+            # Гнёзда QSFP28. Их два, как и на верхней карте, но клетка шире и
+            # выше: под сотню идут четыре линии вместо одной. Ламп у порта
+            # тоже две и о том же — состояние линка и трафик.
+            def qsfp_leds(p, cx):
+                ly = card_y + 50
+                return (lamp('led-link', cx - 8, ly, 2.2, "#859900")
+                        + mono(cx - 8, ly + 9, "LNK", 3.6, op=0.32)
+                        + act_led(7 + p, cx + 8, ly, 2.2, "#859900", salt=6 + p)
+                        + mono(cx + 8, ly + 9, "ACT", 3.6, op=0.32))
+
+            ports = [(f'<rect x="{X_IO}" y="{card_y-14}" width="86" height="78" rx="4" '
+                      f'fill="#13282c" stroke="rgba(42,161,152,0.50)"/>')]
+            # Развёрнуты так же, как на верхней карте: вход смотрит наружу.
+            # Клетка тут шире и длиннее, и в ряд две встают впритык — на живой
+            # низкопрофильной карте ровно так и есть, планка занята ими целиком.
+            for p in range(2):
+                cx = X_IO + 24 + p * 38
+                cy = card_y + 14
+                ports.append(turned(qsfp(cx - 32, cy - 15, w=64, h=30), cx, cy))
+                ports.append(qsfp_leds(p, cx))
+            ports = ''.join(ports)
+            card += (f'<g class="unit" data-unit="cx" data-group="cx" '
+                     f'data-href="/tg/">{ports}</g>')
 
         # Лепесток-ручка на внешнем торце: райзер вынимают вверх, взявшись за
         # него. Голубой, а не терракотовый: райзер меняют только на
