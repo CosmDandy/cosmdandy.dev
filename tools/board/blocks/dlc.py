@@ -153,15 +153,21 @@ def render(cv):
 
     # Шланги пары идут по обе стороны от оси плиты: разведи их по одной линии,
     # и они легли бы друг на друга. Смещение — половина толщины с зазором.
-    off = TUBE / 2 + 3
+    # Разнос пары: шланги идут по обе стороны от оси плиты. Меньше — и они
+    # сливаются в одну толстую линию, больше — расходятся за габарит плиты.
+    off = TUBE / 2 + 7
 
     # Прогон от манифолда до плиты: пара идёт рядом, поворачивает на уровень
     # своей плиты и дальше вдоль неё.
+    #
+    # К штуцеру шланг подходит наискось, одним коленом, а не заворачивает к нему
+    # сверху коротким крючком: на такой длине рукав не гнётся дважды, и на
+    # фотографии видно, что к фланцу он именно сходится по косой.
     def pair(y_out, mid, near, far, lane_a, lane_b):
         feed = bent([(X_OUT, y_out), (lane_a, y_out), (lane_a, mid - off),
-                     (near[0], mid - off), near], r=26)
-        ret = bent([far, (far[0], mid + off), (lane_b, mid + off),
-                    (lane_b, y_out + 6), (X_OUT, y_out + 6)], r=26)
+                     (near[0] + 116, mid - off), near], r=34)
+        ret = bent([far, (far[0] + 116, mid + off), (lane_b, mid + off),
+                    (lane_b, y_out + 6), (X_OUT, y_out + 6)], r=34)
         return feed, ret
 
     lanes = [X_TRUNK_HI + k * (TUBE + 6) for k in range(4)]
@@ -177,12 +183,21 @@ def render(cv):
               f'<rect x="{sx + 2}" y="{sy + 12}" width="18" height="12" rx="1.5" '
               f'fill="#1a1611" stroke="rgba(147,161,161,0.34)"/>')
 
-    # Муфты садятся там, где шланг сходит со штуцера: у всех четырёх выход
-    # вдоль плиты, и стоят они вдоль неё же.
-    ferrules = ''.join(
-        ferrule(hx + dx, hy, 0)
-        for (hx, hy), dx in ((near0, 30), (far0, -30), (near1, 30), (far1, -30)))
-    ferrules += ferrule(X_OUT - 34, Y_OUT_HI) + ferrule(X_OUT - 34, Y_OUT_LO)
+    # Муфты садятся на сам шланг там, где он сходит со штуцера, и берут угол от
+    # его первого колена: поставленная по оси муфта читалась квадратом рядом с
+    # трубой, а не надетым на неё.
+    def cuff(hub, toward):
+        px, py, deg = along(hub, toward, 32)
+        return ferrule(px, py, deg)
+
+    ferrules = ''.join((
+        cuff(near0, (near0[0] + 116, mid0 - off)),
+        cuff(far0, (far0[0] + 116, mid0 + off)),
+        cuff(near1, (near1[0] + 116, mid1 - off)),
+        cuff(far1, (far1[0] + 116, mid1 + off)),
+        ferrule(X_OUT - 34, Y_OUT_HI),
+        ferrule(X_OUT - 34, Y_OUT_LO),
+    ))
 
     # Клипсы держат жгут целиком, а не каждый шланг порознь: на живой машине
     # это одна скоба на всю связку.
