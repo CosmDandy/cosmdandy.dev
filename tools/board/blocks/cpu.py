@@ -278,16 +278,6 @@ def render(cv):
         flanges = (flange(x + SOCKET_W * near, y + SOCKET_H / 2, TAPS[keys[0]], latch=False)
                    + flange(x + SOCKET_W * far, y + SOCKET_H / 2, TAPS[keys[1]], latch=True))
 
-        # Крючок в левом нижнем углу: им прижим цепляется за рамку сокета, и
-        # снимается плита только после того, как его отвели. Заклёпка на нём —
-        # ось, вокруг которой он поворачивается. На фотографии он есть у обеих
-        # плит и выступает за кромку — потому что цепляется не за плиту.
-        hook = (f'<path d="M{x - 8} {y + SOCKET_H / 2 - 13} h24 a5 5 0 0 1 5 5 v16 '
-                f'a5 5 0 0 1 -5 5 h-24 z" fill="#12120e" '
-                f'stroke="rgba(147,161,161,0.34)"/>'
-                f'<circle cx="{x + 4}" cy="{y + SOCKET_H / 2}" r="3.4" fill="#2a2a24" '
-                f'stroke="rgba(223,232,234,0.42)"/>')
-
         # Технологические отверстия: ими плиту базируют на станке, и на живой
         # детали они разбросаны по свободному полю с латунной фаской по кромке.
         holes = ''.join(
@@ -311,7 +301,7 @@ def render(cv):
                      5.4, op=0.4)
 
         return (f'<g class="pick-body heatsink">{frame}{active}{holes}{wires}'
-                f'{flanges}{screws}{hook}{marks}</g>')
+                f'{flanges}{screws}{marks}</g>')
 
     cv.callouts.append((X_TAG - 44, Y_CPU0 - 44, X_CORE + 40, Y_CPU0 + 40, "CV", "end", "https://cv.cosmdandy.dev", "cpu",
                         "резюме", "cv"))
