@@ -90,22 +90,30 @@ if (PULL) {
   await page.waitForTimeout(1400);
 }
 
-const applied = await page.evaluate((vb) => {
+const applied = await page.evaluate(({ vb, w, h }) => {
   // `.chassis` — это div-обёртка, а viewBox живёт на самом svg внутри неё.
   // Час отладки ушёл на то, что атрибут ставился диву и молча ничего не делал.
   const svg = document.querySelector('.chassis svg') || document.querySelector('svg.chassis');
   if (!svg) { return null; }
   svg.setAttribute('viewBox', vb);
-  Object.assign(svg.style, {
-    transform: 'none', position: 'fixed', left: '0', top: '0',
-    width: '100vw', height: '100vh', zIndex: '99999', background: '#0b1114',
+  // Наклон гасим у всех предков, а не только у самой схемы. Он же был причиной
+  // съехавшего кадра: `position: fixed` внутри предка с transform отсчитывается
+  // от этого предка, а не от окна, и вырез уезжал вниз вместе с машиной.
+  for (let el = svg; el && el !== document.documentElement; el = el.parentElement) {
+    Object.assign(el.style, { transform: 'none', perspective: 'none' });
+  }
+  Object.assign(svg.parentElement.style, {
+    position: 'absolute', left: '0', top: '0', margin: '0', zIndex: '99999',
+    width: `${w}px`, height: `${h}px`, maxWidth: 'none', maxHeight: 'none',
   });
+  Object.assign(svg.style, { width: '100%', height: '100%', background: '#0b1114' });
   return svg.getAttribute('viewBox');
-}, VIEW.trim());
+}, { vb: VIEW.trim(), w: Math.round(vw * SCALE), h: Math.round(vh * SCALE) });
 if (!applied) { console.error('нет схемы на странице'); process.exit(1); }
 await page.waitForTimeout(400);
 
-await page.screenshot({ path: OUT });
+// Снимаем сам узел, а не окно: так в кадр не попадает ничего со страницы.
+await page.locator('.chassis svg, svg.chassis').first().screenshot({ path: OUT });
 console.log(`  view: ${applied}\n  scale: ×${SCALE}\n  frame: ${OUT}`);
 await browser.close();
 server.close();

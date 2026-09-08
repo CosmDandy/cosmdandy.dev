@@ -41,6 +41,7 @@ run() {
 run "юнит-тесты" python3 -m unittest discover -s tests -t tests
 run "слои платы" python3 tools/layers.py
 run "подписи не наехали" python3 tools/audit_text.py
+run "трасса контура" python3 tools/dlc_check.py
 run "заголовки безопасности" node tools/security-headers.mjs
 
 # ── Браузерные ────────────────────────────────────────────────────────────

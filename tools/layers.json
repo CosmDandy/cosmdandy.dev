@@ -14,7 +14,7 @@
     "major+major frames+memory": 3,
     "major+major frames+risers": 2,
     "major+major pcb_scatter+backplane": 3,
-    "major+major pcb_scatter+dlc": 3,
+    "major+major pcb_scatter+dlc": 1,
     "major+major pcb_scatter+fans": 3,
     "major+major pcb_scatter+frames": 2,
     "major+major pcb_scatter+memory": 1,

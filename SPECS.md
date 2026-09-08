@@ -505,6 +505,7 @@ tools/test.sh --all        всё
 | `tests/` | правила регистра, паспорт, собранная страница, кэш | `python3 -m unittest discover -s tests -t tests` |
 | `tools/layers.py` | наслоения слоёв стали хуже, чем были | `python3 tools/layers.py` |
 | `tools/audit_text.py` | подпись легла на чужую непрозрачную фигуру | `python3 tools/audit_text.py` |
+| `tools/dlc_check.py` | шланг пошёл не той стороной памяти, лёг на плашки, заломился в колене, намотался в обход или пересёк соседний | `python3 tools/dlc_check.py` |
 | `tools/mobile.mjs` | карточка на телефоне: граница вида, ссылки, перекрытия | `node tools/mobile.mjs` |
 | `tools/anim.mjs` | анимации карточки: наведение, появление, вечные, reduced-motion | `node tools/anim.mjs` |
 | `tools/a11y.mjs` | доступность: axe по правилам A и AA, обход табом, видимость фокуса | `node tools/a11y.mjs` |
