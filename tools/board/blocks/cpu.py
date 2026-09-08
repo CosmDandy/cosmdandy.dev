@@ -152,17 +152,43 @@ def render(cv):
                  f'<rect x="{x + 3}" y="{y + 3}" width="{SOCKET_W - 6}" height="{SOCKET_H - 6}" '
                  f'rx="3" fill="none" stroke="rgba(255,255,255,0.18)"/>')
 
-        # Активная зона: утопленная площадка над кристаллом. Угол у неё срезан
-        # тем же ключом, что у подложки процессора под ней, — по нему деталь и
-        # сажают, и на живой плите этот срез виден так же ясно.
-        ax, ay = x + 22, y + 20
-        aw, ah = SOCKET_W - 44, SOCKET_H - 40
-        cut = 16
-        active = (f'<path d="M{ax + cut} {ay} H{ax + aw} V{ay + ah} H{ax} V{ay + cut} Z" '
+        # Активная зона: утопленная площадка над кристаллом. Идёт она почти до
+        # кромки плиты, а у каждого винта уходит к центру и обходит его — там
+        # металл занят скобой, и микроканалам места нет. Отсюда её контур:
+        # широкий по серединам сторон и с вырезанным углом у каждого болта,
+        # ровно как на фотографии живой плиты. Прямоугольником он был потому,
+        # что рисовался по крышке процессора, а не по тому, что под ним.
+        def bay(ax, ay, aw, ah, notch, r=5):
+            """Замкнутый контур площадки: прямоугольник с вырезом в каждом углу."""
+            pts = [(ax + notch, ay), (ax + aw - notch, ay),
+                   (ax + aw - notch, ay + notch), (ax + aw, ay + notch),
+                   (ax + aw, ay + ah - notch), (ax + aw - notch, ay + ah - notch),
+                   (ax + aw - notch, ay + ah), (ax + notch, ay + ah),
+                   (ax + notch, ay + ah - notch), (ax, ay + ah - notch),
+                   (ax, ay + notch), (ax + notch, ay + notch)]
+            # Скругление вершин: рубленый угол на фрезерованной детали не
+            # встречается вовсе — фреза оставляет радиус своего инструмента.
+            out = []
+            for i, (px, py) in enumerate(pts):
+                qx, qy = pts[(i + 1) % len(pts)]
+                nx, ny = pts[(i + 2) % len(pts)]
+                ux, uy = (qx - px), (qy - py)
+                vx, vy = (nx - qx), (ny - qy)
+                lu = (ux * ux + uy * uy) ** 0.5 or 1
+                lv = (vx * vx + vy * vy) ** 0.5 or 1
+                rr = min(r, lu / 2, lv / 2)
+                out.append(f'L{qx - ux / lu * rr:.1f} {qy - uy / lu * rr:.1f} '
+                           f'Q{qx:.1f} {qy:.1f} {qx + vx / lv * rr:.1f} {qy + vy / lv * rr:.1f}')
+            first = pts[0]
+            return f'M{first[0]:.1f} {first[1]:.1f} ' + ' '.join(out) + ' Z'
+
+        ax, ay = x + 13, y + 12
+        aw, ah = SOCKET_W - 26, SOCKET_H - 24
+        active = (f'<path d="{bay(ax, ay, aw, ah, 30)}" '
                   f'fill="{PLATE}" fill-opacity="0.62" stroke="rgba(255,255,255,0.16)"/>'
-                  # Внутренняя ступенька: дно площадки ниже её кромки.
-                  f'<path d="M{ax + cut + 6} {ay + 6} H{ax + aw - 6} V{ay + ah - 6} '
-                  f'H{ax + 6} V{ay + cut + 6} Z" fill="none" '
+                  # Внутренняя ступенька: дно площадки ниже её кромки, и повторяет
+                  # её же форму — стенка у выемки такая же, как по периметру.
+                  f'<path d="{bay(ax + 7, ay + 7, aw - 14, ah - 14, 26)}" fill="none" '
                   f'stroke="{PLATE_DIM}" stroke-opacity="0.5"/>')
 
         # Прижимные скобы: стальная планка поперёк кромки, на ней корпус и
@@ -282,27 +308,6 @@ def render(cv):
         return (f'<g class="pick-body heatsink">{frame}{active}{holes}{wires}'
                 f'{flanges}{tab}{screws}{hook}{marks}</g>')
 
-    def ilm(x, y):
-        """Прижимная скоба сокета: она приклёпана к плате и радиатор не уносит.
-
-    Одна штанга вдоль края, загнутый конец и полукруглая ручка — за неё
-    рычаг откидывают. Ручка голубая, а не терракотовая: по коду замены это
-    значит «сначала обесточь». Процессор на горячую не меняют нигде.
-    """
-        bx, by = x - 14, y + SOCKET_H - 22
-        # Штанга вдоль края, поворот влево и загиб внутрь — рычаг заканчивается
-        # крючком, который заводят под зацеп. Цветом помечен только сам крючок:
-        # это и есть место, за которое берутся.
-        stem = f'M{bx} {y+8} V{by}'
-        hook = f'M{bx} {by} v5 q0 8 -8 8 q-9 0 -9 -8 v-6'
-        return (f'<g class="ilm">'
-                f'<path d="{stem}" fill="none" stroke="rgba(147,161,161,0.5)" '
-                f'stroke-width="4" stroke-linecap="round"/>'
-                f'<path d="{hook}" fill="none" stroke="{COLD}" stroke-width="4.2" stroke-linecap="butt"/>'
-                f'<path d="{hook}" fill="none" stroke="rgba(238,232,213,0.32)" stroke-width="1.3"/>'
-                f'<circle cx="{bx}" cy="{y+8}" r="5" fill="#101a1e" stroke="rgba(147,161,161,0.45)" stroke-width="1.6"/>'
-                f'</g>')
-
     cv.callouts.append((X_TAG - 44, Y_CPU0 - 44, X_CORE + 40, Y_CPU0 + 40, "CV", "end", "https://cv.cosmdandy.dev", "cpu",
                         "резюме", "cv"))
 
@@ -342,7 +347,6 @@ def render(cv):
         # собой обозначение — деталь в руке оказывалась под краской.
         cv.add(f'''<g class="unit" data-unit="cpu{n}" data-group="cpu" data-href="https://cv.cosmdandy.dev">
       {hit(X_SOCK-6, y-6, SOCKET_W+58, SOCKET_H+12)}
-      {ilm(X_SOCK, y)}
       {silk_boxed(X_SOCK+SOCKET_W+24, y+10, f"CPU{n}", 8)}
       <g class="pick cpu-slot" data-cpu="{n}" style="--seat:{seat('cpu', n)}">
         {socket(X_SOCK, y, n)}{die(X_SOCK, y, n)}{heatsink(X_SOCK, y)}
