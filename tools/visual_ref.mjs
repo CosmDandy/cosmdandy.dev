@@ -51,10 +51,14 @@ const STATES = {
     await p.evaluate(() => document.getElementById('svc-switch')
       ?.dispatchEvent(new MouseEvent('click', { bubbles: true })));
   },
-  'rig-dark':  async p => {
+  // Светлая тема. Прежде это состояние снималось щелчком по переключателю и
+  // называлось rig-dark — а переключатель был спрятан правилом выше, и щелчок
+  // не доходил ни до чего: кадр выходил тем же самым, что и rig. Тему теперь
+  // ставим атрибутом, тем же, который выставляет скрипт страницы, — иначе
+  // проверка снова зависела бы от кнопки, которую сама же и прячет.
+  'rig-light': async p => {
     await p.evaluate(() => document.body.classList.add('view-rig'));
-    await p.evaluate(() => document.getElementById('theme-switch')
-      ?.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+    await p.evaluate(() => document.documentElement.setAttribute('data-theme', 'light'));
   },
   'rig-pulled': async p => {
     await p.evaluate(() => document.body.classList.add('view-rig'));
@@ -104,6 +108,11 @@ for (const [name, setup] of Object.entries(STATES)) {
     });
   });
   await page.goto(url, { waitUntil: 'load' });
+  // Тема задаётся до съёмки и явно. У безголового браузера своя системная
+  // схема, и пока светлая тема была погашена, это было неважно — страница
+  // всегда выходила тёмной. Теперь она идёт за системой, и эталон, снятый на
+  // одной машине, на другой разошёлся бы целиком, а не по правкам.
+  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
   await page.waitForTimeout(300);
   await setup(page);
   await page.waitForTimeout(700);

@@ -64,7 +64,7 @@ from board.spec import PORTS
 # Three lamps have to stand where two stood, hence the smaller bulb.
 JACK_W, LED_R = 52, 2.4
 
-from board.palette import METAL, STEEL
+from board.palette import METAL, STEEL, steel_edge
 
 
 def rj_leds(seed, jx, y, salt, aux=False):
@@ -112,7 +112,7 @@ def magnetics(cy, label):
                    + pad(x + 4 + k * 4.8, y + h - 0.4, 3, 3, 0.4) for k in range(8))
     return (pins
             + f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="1.5" fill="#10171b" '
-              f'stroke="rgba(147,161,161,0.30)"/>'
+              f'stroke="{steel_edge(0.30)}"/>'
             + relief(x, y, w, h, 1.5)
             + mono(x + w / 2, y + h / 2 + 2, label, 5, op=0.42))
 
@@ -131,7 +131,7 @@ def usb_stack(x, y):
                     f'<rect x="{x+6}" y="{y+6+k*13}" width="{w-16}" height="3" rx="0.6" '
                     f'fill="rgba(147,161,161,0.26)"/>' for k in range(2))
     return (f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="1.5" fill="#151d22" '
-            f'stroke="rgba(147,161,161,0.34)"/>' + slots + relief(x, y, w, h, 1.5))
+            f'stroke="{steel_edge(0.34)}"/>' + slots + relief(x, y, w, h, 1.5))
 
 
 def dsub(x, y):
@@ -148,7 +148,7 @@ def dsub(x, y):
     # среза. По ней разъём и опознают, не читая подписи.
     body = (f'<path d="M{x} {y} H{x+w-cut} L{x+w} {y+cut} V{y+h-cut} L{x+w-cut} {y+h} '
             f'H{x} Z" fill="#151d22" '
-            f'stroke="rgba(147,161,161,0.38)" stroke-width="1.1"/>')
+            f'stroke="{steel_edge(0.38)}" stroke-width="1.1"/>')
     slot = (f'<path d="M{x+3} {y+4} H{x+w-cut-1} L{x+w-3} {y+cut+2} V{y+h-cut-2} '
             f'L{x+w-cut-1} {y+h-4} H{x+3} Z" '
             f'fill="#060d10" stroke="rgba(147,161,161,0.18)" stroke-width="0.6"/>')
@@ -159,7 +159,7 @@ def dsub(x, y):
     pins += ''.join(f'<circle cx="{x+w/2+2.2:.1f}" cy="{y+9.5+k*3:.1f}" r="0.9" '
                     f'fill="rgba(206,168,58,0.55)"/>' for k in range(4))
     screws = ''.join(f'<circle cx="{x+w/2}" cy="{sy}" r="3" fill="#222c31" '
-                     f'stroke="rgba(147,161,161,0.40)"/>'
+                     f'stroke="{steel_edge(0.40)}"/>'
                      f'<path d="M{x+w/2} {sy-1.8} v3.6" stroke="rgba(147,161,161,0.55)" '
                      f'stroke-width="0.9"/>' for sy in (y - 4, y + h + 4))
     return body + slot + pins + screws
@@ -258,7 +258,7 @@ def rear_wall(holes, cutouts, keepouts=()):
         mask.append(hexgrid(fx, fy, fw, fh, fill='#000', stroke='none',
                             skip=keepouts, **grid))
         ribs.append(hexgrid(fx, fy, fw, fh, fill='none',
-                            stroke='rgba(147,161,161,0.26)', skip=keepouts, **grid))
+                            stroke=steel_edge(0.26), skip=keepouts, **grid))
 
     # Обводки дырок обрезаются второй маской — по самому листу, без сот.
     # Первой их резать нельзя: она чёрная ровно по шестиугольникам, то есть
@@ -270,7 +270,7 @@ def rear_wall(holes, cutouts, keepouts=()):
             + '<mask id="rear-plate" maskUnits="userSpaceOnUse">'
             + ''.join(plate) + '</mask></defs>'
             + f'<rect x="{x0}" y="{top}" width="{w}" height="{bot - top}" rx="2" '
-              f'fill="{STEEL}" stroke="rgba(147,161,161,0.34)" stroke-width="1.1" '
+              f'fill="{STEEL}" stroke="{steel_edge(0.34)}" stroke-width="1.1" '
               f'mask="url(#rear-perf)"/>'
             + f'<g mask="url(#rear-plate)">{"".join(ribs)}</g>')
 
@@ -429,7 +429,7 @@ def render(cv):
     leds_x = X_IO + (86 - LEDS_W) / 2
     cv.add(f'''<g class="decor">
   <rect x="{X_IO}" y="{AY}" width="86" height="{IO_AUX_H}" rx="4" fill="{METAL}"
-        stroke="rgba(147,161,161,0.22)"/>
+        stroke="{steel_edge(0.22)}"/>
   {usb_stack(X_IO + 12, AY + 7)}
   {dsub(X_IO + 56, AY + 10)}
   {mono(X_IO + 27, AY + 48, "USB 3.0", 5, op=0.42)}

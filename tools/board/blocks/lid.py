@@ -51,7 +51,7 @@ from board.geom import (
     W,
 )
 from board.metal import hexgrid, rating_label, service_label, service_legend
-from board.palette import COLD
+from board.palette import COLD, LID_SHEET, STEEL, steel_edge
 
 # Кромка крышки: всё, что левее, остаётся открытым.
 LID_X = X_BP - 2
@@ -78,11 +78,11 @@ PERF += [(X_REAR + 12, y + 8, PLATE_CX - PLATE_H / 2 - 16 - (X_REAR + 12), PSU_H
 def render(cv):
     def frame(x, y, w, h, rx=0, op=0.28):
         return (f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{rx}" fill="none" '
-                f'stroke="rgba(147,161,161,{op})" stroke-width="1.4"/>')
+                f'stroke="{steel_edge(op)}" stroke-width="1.4"/>')
 
     def label(x, y, t, size=11, anchor_="middle", op=0.42, turn=False):
         spin = f' transform="rotate(-90 {x} {y})"' if turn else ''
-        return (f'<text x="{x}" y="{y}"{spin} text-anchor="{anchor_}" fill="rgba(147,161,161,{op})" '
+        return (f'<text x="{x}" y="{y}"{spin} text-anchor="{anchor_}" fill="{steel_edge(op)}" '
                 f'font-family="ui-monospace, Menlo, monospace" font-size="{size}" letter-spacing="0.1em">{t}</text>')
 
     # Тело крышки: лист от стенки вентиляторов до задней кромки. Фронт открыт
@@ -140,9 +140,9 @@ def render(cv):
            f'<rect x="{LID_X}" y="0" width="{W-LID_X}" height="{H}" fill="#fff"/>'
            + use(fill="#000", stroke="none")
            + '</mask></defs>')
-    cv.add(f'<path d="{body}" fill="#161f24" stroke="rgba(147,161,161,0.30)" '
+    cv.add(f'<path d="{body}" fill="{LID_SHEET}" stroke="{steel_edge(0.30)}" '
            f'stroke-width="1.4" mask="url(#lid-perf)"/>')
-    cv.add('<g class="decor">' + use(fill="none", stroke="rgba(147,161,161,0.26)") + '</g>')
+    cv.add('<g class="decor">' + use(fill="none", stroke=steel_edge(0.26)) + '</g>')
 
     # память и процессоры — с назначением, а не с маркировкой. Рамка банка
     # обводит ровно сокеты: X_CORE-2 и BANK_N·PITCH — те же числа, которыми
@@ -153,7 +153,7 @@ def render(cv):
         for i in range(BANK_N):
             yy = y0 + i * PITCH + SLOT_H / 2
             cv.add(f'<line x1="{X_CORE+6}" y1="{yy}" x2="{X_CORE + DIMM_SOCK_W - 12}" y2="{yy}" '
-                   f'stroke="rgba(147,161,161,0.14)" stroke-width="1.2"/>')
+                   f'stroke="{steel_edge(0.14)}" stroke-width="1.2"/>')
     cv.add(label(X_CORE + DIMM_SOCK_W / 2, Y_BANK_C + bank_h / 2 + 5, "Blog", 15))
 
     for y in (Y_CPU0, Y_CPU1):
@@ -292,11 +292,11 @@ def render(cv):
                   f'stroke="rgba(238,232,213,0.34)" stroke-width="1.6"/>' for g in range(4))
         + '</g>' for ly in (H * 0.22 - 26, H * 0.78 - 26))
     cv.add(f'<g id="lid-remove" class="lid-btn-svg" role="button" tabindex="0" aria-label="Снять крышку">'
-           f'<rect x="{bx}" y="{by}" width="{bs}" height="{bs}" rx="4" fill="#1b2429" '
-           f'stroke="rgba(147,161,161,0.5)" stroke-width="1.6"/>'
+           f'<rect x="{bx}" y="{by}" width="{bs}" height="{bs}" rx="4" fill="{STEEL}" '
+           f'stroke="{steel_edge(0.5)}" stroke-width="1.6"/>'
            f'<path d="M{bx+26*k:.0f} {by+34*k:.0f} h{34*k:.0f} M{bx+43*k:.0f} {by+46*k:.0f} '
            f'v{-24*k:.0f} m{-8*k:.0f} {8*k:.0f} l{8*k:.0f} {-8*k:.0f} {8*k:.0f} {8*k:.0f}" fill="none" '
-           f'stroke="rgba(147,161,161,0.6)" stroke-width="{2*k:.1f}"/>'
+           f'stroke="{steel_edge(0.6)}" stroke-width="{2*k:.1f}"/>'
            + label(bx + 43 * k, by + 66 * k, "СНЯТЬ", 9 * k, op=0.7)
            + label(bx + 43 * k, by + 78 * k, "КРЫШКУ", 9 * k, op=0.7)
            + latches + '</g>')

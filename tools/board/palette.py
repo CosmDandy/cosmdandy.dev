@@ -5,23 +5,67 @@ indication as a single language, and the moment one block takes a yellow of
 its own, the schematic falls apart into patches.
 """
 
-# ── Поверхности, которые меняются вместе с темой ──────────────────────────
-# Металл машины и текстолит платы — единственное, что перекрашивается при
-# смене темы. Всё остальное остаётся тёмным, потому что и в жизни остаётся:
-# передний лист крашен чёрным, вентиляторы чёрные, разъёмы чёрные.
+# ── What the theme moves ─────────────────────────────────────────────────
+# The light theme is not this drawing lightened. It is the same machine under
+# daylight instead of a rack lamp, and daylight does not change what the parts
+# are made of: the sheet metal is galvanized steel and finally shows itself as
+# steel, the plastic is black and stays black, the laminate is dark and stays
+# dark. So exactly two kinds of thing move — the steel surfaces below, and the
+# seams drawn on them (see `steel_edge`). Everything else is written once.
 #
-# Записаны они переменными с запасным значением. Запасное нужно всерьёз:
-# кадры ревизий сохраняются отдельными SVG, без страницы и её стилей, и без
-# него лента ревизий вышла бы бесцветной.
+# This is also the answer to the objection that kept the light theme switched
+# off for a long time: that a third of all the paint here is light grey —
+# solder, silkscreen, lit edges — and in a light theme would have nothing to
+# shine on. Counted, it is 1553 light fills out of 5139, and the objection
+# holds only if the laminate lightens with the frame. It does not: a live board
+# is dark, and every one of those fills lies on it. What lies on the steel is
+# 164 edge strokes, and those do invert.
+#
+# The values are written as variables with a fallback, and the fallback is
+# needed in earnest: revision frames are saved as separate SVG files, without
+# the page and its styles, and without it the strip would come out colourless.
 def themed(name, dark):
     return f'var(--{name}, {dark})'
 
 
 PCB_DARK = themed('pcb', '#0a3037')       # laminate; the routing lies over it
-CHASSIS = themed('chassis', '#141c20')    # лист шасси
-METAL = themed('metal', '#121a1e')        # корпус съёмного модуля
-METAL_DEEP = themed('metal-deep', '#0c1316')   # карман, в который он входит
-STEEL = themed('steel', '#1b2429')        # борт, кронштейн, глухая планка
+CHASSIS = themed('chassis', '#141c20')    # the chassis sheet
+METAL = themed('metal', '#121a1e')        # body of a removable module
+METAL_DEEP = themed('metal-deep', '#0c1316')   # the pocket it goes into
+STEEL = themed('steel', '#1b2429')        # rail, bracket, blank plate
+# The service cover has a token of its own rather than sharing the tray's: it
+# is the one panel seen from outside, and outside is where the light falls.
+LID_SHEET = themed('lid', '#161f24')      # the cover, from above
+
+
+# The bail of the power supply. On a live unit it is black, and here it was
+# drawn light for one reason only: on a dark chassis a black bail disappears.
+# In daylight it does not, so the light theme puts the real colour back — the
+# one place where the second theme makes the drawing more truthful, not less.
+BAIL = themed('bail', 'rgba(198,209,213,0.82)')
+
+
+def steel_edge(op):
+    """A seam between two steel parts: where one pressing meets the next.
+
+    In the dark theme this is the lit edge of the metal, so it is drawn light.
+    In daylight the same seam is a shadow line, so it is drawn dark. Only the
+    colour moves; the opacity the caller asked for is kept. That split matters
+    — the weight of a seam says how far apart the two parts sit, and that does
+    not change with the light.
+
+    Written through `color-mix` and not `rgba(var(--seam), op)` for one reason:
+    a bare number triple cannot be registered with `@property`, and an
+    unregistered custom property does not interpolate. The seam would then snap
+    to its new colour in the middle of the page's own fade — which is one of
+    the two things that got the light theme switched off the first time. As a
+    `<color>` it is registered, and it crossfades with the surface under it.
+
+    Only for strokes that lie on steel. The same grey outlines parts against
+    the laminate and against black plastic too, and those do not invert,
+    because what they lie on does not.
+    """
+    return f'color-mix(in srgb, var(--steel-edge, #93a1a1) {op * 100:g}%, transparent)'
 
 # The replacement code is the language of the service label, and the language
 # of the machine itself. On live hardware this colour is painted on whatever

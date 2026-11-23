@@ -59,6 +59,13 @@ const VIEWS = {
   rig: { width: 1600, height: 1000, title: 'схема' },
 };
 
+// Обе темы, и это не перестраховка. Оба здешних правила меряются кадром, а не
+// разметкой: axe считает контраст по посчитанным цветам, а видимость фокуса —
+// по изменению пикселей вокруг элемента. И то и другое у светлой темы своё, и
+// пока она была погашена, проверка честно смотрела на единственную живую.
+// Теперь их две, и проверять одну значит не проверять половину сайта.
+const THEMES = ['dark', 'light'];
+
 const args = process.argv.slice(2);
 const asJson = args.includes('--json');
 const only = args.includes('--card') ? 'card' : args.includes('--rig') ? 'rig' : null;
@@ -67,12 +74,20 @@ const browser = await launch();
 const report = {};
 const failures = [];
 
-for (const [name, view] of Object.entries(VIEWS)) {
+// Вид × тема — плоским списком, а не вложенным циклом: тело прогона длиной
+// в сотню строк, и вложение сдвинуло бы их все ради одной переменной.
+const RUNS = Object.entries(VIEWS).flatMap(([name, view]) =>
+  THEMES.map(theme => ({ name, view, theme })));
+
+for (const { name, view, theme } of RUNS) {
   if (only && only !== name) continue;
   const context = await browser.newContext({
     viewport: { width: view.width, height: view.height },
     isMobile: name === 'card',
     hasTouch: name === 'card',
+    // Тему выбирает системная схема: страница за ней и идёт, если человек не
+    // трогал переключатель руками.
+    colorScheme: theme,
     // Движение мешает и axe (он меряет контраст на кадре), и проверке фокуса.
     reducedMotion: 'reduce',
   });
@@ -171,14 +186,14 @@ for (const [name, view] of Object.entries(VIEWS)) {
   const bad = axeRun.filter(v => v.impact === 'critical' || v.impact === 'serious');
   const soft = axeRun.filter(v => v.impact !== 'critical' && v.impact !== 'serious');
 
-  report[name] = { violations: axeRun, focusable: tabbing.length, focusVisible };
+  report[`${name}/${theme}`] = { violations: axeRun, focusable: tabbing.length, focusVisible };
 
   if (!asJson) {
-    console.log(`\n${view.title} · ${view.width}×${view.height}`);
+    console.log(`\n${view.title} · ${view.width}×${view.height} · ${theme === 'light' ? 'светлая' : 'тёмная'}`);
     console.log(`  фокусируемых элементов: ${tabbing.length}`);
     for (const v of bad) {
       console.log(`  ПЛОХО ${v.id} (${v.impact}): ${v.help} — ${v.count} шт, ${v.nodes[0]}`);
-      failures.push(`${name}: ${v.id} — ${v.help}`);
+      failures.push(`${name}/${theme}: ${v.id} — ${v.help}`);
     }
     for (const v of soft) {
       console.log(`  СТОИТ ПОЧИНИТЬ ${v.id} (${v.impact}): ${v.help} — ${v.count} шт`);
@@ -187,7 +202,7 @@ for (const [name, view] of Object.entries(VIEWS)) {
 
     if (focusVisible === false) {
       console.log('  ПЛОХО фокус не виден: с клавиатуры не понять, где находишься');
-      failures.push(`${name}: фокус не виден`);
+      failures.push(`${name}/${theme}: фокус не виден`);
     } else if (focusVisible === true) {
       console.log('  · фокус виден');
     }

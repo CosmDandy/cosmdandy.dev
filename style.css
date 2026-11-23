@@ -798,7 +798,9 @@ h1     { animation-delay: 0ms; }
    Transitions are hung on only for the duration of the switch and taken off
    right afterwards. They cannot be kept on permanently: they would override the
    cards' own animations and the hover highlight, which have curves and
-   durations of their own. */
+   durations of their own.
+
+   */
 :root.theme-animating,
 :root.theme-animating *,
 :root.theme-animating *::before,
@@ -811,6 +813,40 @@ h1     { animation-delay: 0ms; }
         box-shadow       var(--theme-fade),
         fill             var(--theme-fade),
         stroke           var(--theme-fade) !important;
+}
+
+/* Поверхности машины — тем же переходом, но только на самой .rig, и это не
+   аккуратность, а замер. Значения меняются ровно в одном узле: фигуры внутри
+   берут их по наследству и каждый кадр получают уже посчитанный цвет, своего
+   перехода им не нужно. Перечисленные в правиле выше, то есть на `*`, они
+   ложились бы бухгалтерией перехода на все одиннадцать тысяч узлов схемы —
+   пересчёт при смене темы вырастал с ~310 до ~1700 мс. Здесь он остаётся
+   таким, каким был.
+
+   Правило обязано быть сильнее общего: у того !important и вес (0,2,0), здесь
+   (0,3,0). Поэтому семь обычных свойств переписаны и сюда — иначе .rig
+   потеряла бы их вместе с проигравшим правилом и щёлкала бы своим цветом
+   текста, пока всё внутри неё плывёт.
+
+   Названия принадлежат схеме и объявлены в её стилях, вместе с @property: без
+   регистрации переменная не интерполируется, и перечисление здесь ничего бы не
+   дало. Связь двух файлов сторожит проверка N8 в tools/todo_check.py. */
+:root.theme-animating .rig {
+    transition:
+        background-color var(--theme-fade),
+        background-image var(--theme-fade),
+        color            var(--theme-fade),
+        border-color     var(--theme-fade),
+        box-shadow       var(--theme-fade),
+        fill             var(--theme-fade),
+        stroke           var(--theme-fade),
+        --chassis        var(--theme-fade),
+        --metal          var(--theme-fade),
+        --metal-deep     var(--theme-fade),
+        --steel          var(--theme-fade),
+        --lid            var(--theme-fade),
+        --steel-edge     var(--theme-fade),
+        --bail           var(--theme-fade) !important;
 }
 
 /* ── Отметка о сборке ───────────────────────────────────────────────────────

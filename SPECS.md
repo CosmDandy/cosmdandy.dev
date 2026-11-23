@@ -73,7 +73,7 @@ node tools/visual_ref.mjs --save    # baseline before the edit
 node tools/visual_ref.mjs           # after: pixel by pixel, five states
 ```
 
-The states: card, schematic, service mode, dark theme, pulled nodes.
+The states: card, schematic, service mode, light theme, pulled nodes.
 Animations, running graphs, the clock and the input caret are killed —
 otherwise the check would be catching those instead of the edits.
 

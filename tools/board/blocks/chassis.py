@@ -4,7 +4,7 @@ chassis
 """
 
 from board.geom import X_FRONT, H, W
-from board.palette import CHASSIS, STEEL
+from board.palette import CHASSIS, STEEL, steel_edge
 from board.lamps import glow_defs
 from board.rotor import blur_defs
 
@@ -38,9 +38,9 @@ def rack_ears():
         # as a milled recess instead of an empty frame.
         return f'''<g class="decor rack-ear">
   <rect x="{X_FRONT - 2}" y="{y_lo}" width="{EAR_D}" height="{y_hi - y_lo}" rx="3"
-        fill="{STEEL}" stroke="rgba(147,161,161,0.30)"/>
+        fill="{STEEL}" stroke="{steel_edge(0.30)}"/>
   <rect x="{X_FRONT + 4}" y="{y_lo + 6}" width="{EAR_D - 12}" height="{y_hi - y_lo - 12}" rx="2"
-        fill="#0f1619" stroke="rgba(147,161,161,0.20)"/>
+        fill="#0f1619" stroke="{steel_edge(0.20)}"/>
 </g>'''
 
     return one(True) + one(False)
@@ -61,9 +61,9 @@ def rails():
             y_edge = 4 if top else H - 4
             studs.append(
                 f'<rect x="{x - 9}" y="{y_edge + (-14 if top else -6)}" width="18" height="20" '
-                f'rx="3" fill="{STEEL}" stroke="rgba(147,161,161,0.34)"/>'
+                f'rx="3" fill="{STEEL}" stroke="{steel_edge(0.34)}"/>'
                 f'<circle cx="{x}" cy="{y_edge + s * 5}" r="2.6" fill="#0a1417" '
-                f'stroke="rgba(147,161,161,0.30)"/>')
+                f'stroke="{steel_edge(0.30)}"/>')
     return '<g class="decor rack-rail">' + ''.join(studs) + '</g>'
 
 
@@ -102,7 +102,7 @@ def render(cv):
     cv.add(rails())
     cv.add(rack_ears())
     cv.add(f'<rect x="4" y="4" width="{W-8}" height="{H-8}" rx="14" fill="{CHASSIS}" '
-           f'stroke="rgba(147,161,161,0.30)"/>')
+           f'stroke="{steel_edge(0.30)}"/>')
     # Партномер поддона — на самом поддоне, а не на плате. Полоса стали вдоль
     # нижней кромки шириной в четырнадцать единиц это всё, что от него видно
     # сверху: остальное закрыто текстолитом и узлами. На живой машине надпись

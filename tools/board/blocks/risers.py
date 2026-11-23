@@ -20,7 +20,7 @@ from board.geom import BRACKET_W, RISER, X_IO, X_REAR, riser_seat
 from board.ink import mono, silk_boxed
 from board.lamps import act_led, fault_at, lamp
 from board.metal import finned_sink, hexgrid
-from board.palette import COLD, STEEL
+from board.palette import COLD, STEEL, steel_edge
 from board.ports import sfp
 from board.revision import stamp
 from board.spec import PORTS
@@ -144,9 +144,9 @@ def render(cv):
             blank_y = y + 6
             card = (riser_pcb
                     + f'<rect x="{X_IO}" y="{blank_y}" width="86" height="{hh-12}" rx="3" '
-                      f'fill="{STEEL}" stroke="rgba(147,161,161,0.30)"/>'
+                      f'fill="{STEEL}" stroke="{steel_edge(0.30)}"/>'
                     + ''.join(f'<line x1="{X_IO+14}" y1="{blank_y+10+r*11}" x2="{X_IO+72}" '
-                              f'y2="{blank_y+10+r*11}" stroke="rgba(147,161,161,0.14)" '
+                              f'y2="{blank_y+10+r*11}" stroke="{steel_edge(0.14)}" '
                               f'stroke-width="1.4"/>' for r in range(int((hh - 34) // 11)))
                     )
         # Надписи на заглушке нет. Глухая планка — это штампованный кусок
@@ -203,10 +203,10 @@ def render(cv):
             <rect x="{x0 - 24}" y="{y - 24}" width="{x1 - x0 + 48}" height="{hh + 48}" fill="#fff"/>
             {hexgrid(x1 - T + 8, hex_y, T - 16, hex_h, s=6, gap=5, fill='#000', stroke='none')}
           </mask></defs>
-          <path d="{d}" fill="{STEEL}" stroke="rgba(147,161,161,0.30)" stroke-width="1.4"
+          <path d="{d}" fill="{STEEL}" stroke="{steel_edge(0.30)}" stroke-width="1.4"
                 mask="url(#riser-perf-{k})"/>
           <g mask="url(#riser-perf-{k})">{hexgrid(x1 - T + 8, hex_y, T - 16, hex_h,
-             s=6, gap=5, fill='none', stroke='rgba(147,161,161,0.26)')}</g>
+             s=6, gap=5, fill='none', stroke=steel_edge(0.26))}</g>
           {card}
           {tab}
         </g>
