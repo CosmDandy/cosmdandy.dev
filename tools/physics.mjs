@@ -29,9 +29,9 @@
 import { createRequire } from 'node:module';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { extname, join } from 'node:path';
+import { extname, join, resolve } from 'node:path';
 import { globSync } from 'node:fs';
-const ROOT = '/workspaces/cosmdandy.dev';
+const ROOT = resolve(import.meta.dirname, '..');
 const { chromium } = createRequire('/workspaces/.pw/')('playwright');
 const CHROME = globSync('/nix/store/*chromium-1[0-9][0-9]*/bin/chromium')
   .filter(p => !p.includes('unwrapped') && !p.includes('sandbox'))[0];
